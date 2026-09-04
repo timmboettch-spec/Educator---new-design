@@ -1,0 +1,929 @@
+{
+  "id": "Intro-00001",
+  "unitId": "unit-014",
+  "title": "An Introductory Simulation",
+  "difficulty": "Easy",
+  "avatarId": "",
+  "contextId": "",
+  "learnerLevel": "BSN",
+  "department": "Home Health",
+  "description": "This simulation provides students with a low‑stress, highly structured opportunity to become familiar with the simulation platform and virtual patient environment. This experience is intentionally non‑complex and linear, focusing on basic navigation, communication with an AI‑enabled patient, and interaction with common on‑screen tools and prompts. The scenario is not designed to assess clinical competence or decision‑making; rather, it serves as an onboarding experience that builds learner confidence, reduces cognitive load, and establishes psychological safety so students can more fully engage in future simulation‑based learning activities.",
+  "learningObjective": "Students will be able to independently navigate the simulation environment, including moving through the virtual space, locating key on‑screen elements, and interacting with the AI‑enabled patient using basic communication features.\nStudents will be able to demonstrate appropriate participation in a simulation experience by following prompts, responding to cues, and engaging with the virtual patient in a respectful and professional manner, consistent with expectations for future simulation‑based learning activities.",
+  "class": "",
+  "language": "en-US",
+  "voice": "Tony",
+  "ethnicity": "",
+  "age": "",
+  "disabled": false,
+  "Status": "Paid",
+  "actionGroupName": "",
+  "actionGroupDescription": "",
+  "actions": [
+    {
+      "id": "action_1776711208418_71nic96s0",
+      "order": 1,
+      "title": "Answer Multiple-Choice Style Questions",
+      "prompt": "Some Actions will be set up as multiple-choice style questions with only 1 correct answer. Select which of the following responses reflects how many correct answers any multiple-choice style question will have.",
+      "type": "single",
+      "items": [
+        "1",
+        "2",
+        "3"
+      ],
+      "correct": "1",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Remember, actions set up as multiple-choice style questions have been configured with only 1 correct answer option. ",
+      "limitType": "limited",
+      "maxAttempts": 2
+    },
+    {
+      "id": "action_1776714501495_8lv9bmeh1",
+      "order": 2,
+      "title": "Open-Ended Responses",
+      "prompt": "Some actions will be set up to require a response to be entered, these are set up as open-ended and will be evaluated based on whether the response submitted includes the required concepts. Responses can be submitted by typing or using the voice documentation feature. For this example, in the Response box provided, please input \"Concept\", then enter any observations in the Observation box, and submit.",
+      "type": "question",
+      "items": [],
+      "concepts": [
+        {
+          "id": "concept_1778621658733_ue3df",
+          "description": "Concept",
+          "type": "Mandatory"
+        }
+      ],
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Remember, open-ended response style Actions are evaluated based on whether the response submitted addresses the required concepts, it is not looking word-for-word at the response. \nAlso, it is good practice to document observations in the Observation box for any actions completed to replicate thorough documentation. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1776714776822_p8iy05h3s",
+      "order": 3,
+      "title": "Obtain Vital Signs",
+      "prompt": "Click to reveal the vital sign measurements, then wait about 10 seconds to see the measurements. ",
+      "type": "vital",
+      "items": [],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Vital signs are revealed approximately 10 seconds after the button for any vital sign is selected. Some vital signs can be repeated. ",
+      "limitType": "limited",
+      "maxAttempts": 1,
+      "vitals": {
+        "heartRate": [
+          "88 bpm",
+          "86 bpm"
+        ],
+        "bloodPressure": [
+          "116/76 mmHg",
+          "114/76 mmHg"
+        ],
+        "temperature": [
+          "36.9°C",
+          "36.6°C"
+        ],
+        "respiratoryRate": [
+          "15 breaths/min",
+          "18 breaths/min"
+        ],
+        "spO2": [
+          "99%",
+          "98%"
+        ]
+      },
+      "vitalRequirements": {
+        "heartRate": "Mandatory",
+        "respiratoryRate": "Mandatory",
+        "temperature": "Mandatory",
+        "spO2": "Mandatory",
+        "bloodPressure": "Mandatory"
+      },
+      "vitalRequirementEntries": {
+        "heartRate": [
+          "Mandatory",
+          "Optional"
+        ],
+        "respiratoryRate": [
+          "Mandatory",
+          "Optional"
+        ],
+        "temperature": [
+          "Mandatory",
+          "Optional"
+        ],
+        "spO2": [
+          "Mandatory",
+          "Optional"
+        ],
+        "bloodPressure": [
+          "Mandatory",
+          "Optional"
+        ]
+      }
+    },
+    {
+      "id": "action_1776714998861_hlqxsafzp",
+      "order": 4,
+      "title": "Place items in correct order of events",
+      "prompt": "Click and drag the letters to rearrange them to be in the correct order alphabetically from top to bottom.  Use the \"Observations\" box to document any observations you have (e.g., \"Patient reported pain 4 of 10 in abdomen\"). ",
+      "type": "ordering",
+      "items": [
+        "E",
+        "F",
+        "G",
+        "H"
+      ],
+      "correct": "",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "This style of question will often be used to put in order the steps of a procedure. When simulations are being completed in \"Practice Mode\" you can check out the correct answers using the \"Show Answer\" button after you have submitted your response. ",
+      "limitType": "limited",
+      "maxAttempts": 2
+    },
+    {
+      "id": "action_1776715542015_gatb1739p",
+      "order": 5,
+      "title": "View Action Log",
+      "prompt": "Indicate if you have viewed any previously completed actions via the Action Log (located at the top of the Actions page).  ",
+      "type": "single",
+      "items": [
+        "Yes, I have viewed the Action Log",
+        "No, I haven't viewed the Action Log"
+      ],
+      "correct": "Yes, I have viewed the Action Log",
+      "categoryId": "cat_labs",
+      "typeRequirement": "Optional",
+      "resultMediaType": "mixed",
+      "resultMediaUrl": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/Screenshot-2026-04-20-151432-1776716102961-27415483.png",
+      "resultMediaName": "Screenshot-2026-04-20-151432-1776716102961-27415483.png",
+      "resultName": "If you haven't already done so, go to one of your previously completed actions in the Action Log at the top of the Actions page and click the \"View Latest Feedback\" button. You can also see actions that have been logged more than once using the \"Show History\" drop down. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    }
+  ],
+  "patientData": {
+    "name": "Michael Thompson",
+    "gender": "Male",
+    "age": 44,
+    "race": "White",
+    "dateOfBirth": "08-14-1982",
+    "vitals": {
+      "heartRate": "",
+      "bloodPressure": "",
+      "respiratoryRate": "",
+      "spO2": "",
+      "temperature": "",
+      "weight": "86 kg",
+      "height": "178 cm"
+    },
+    "chiefComplaint": "Click in this box to edit and remove this extra text or add in any details necessary.\nRoutine home visit for general health check‑in.  \n",
+    "medicalHistory": "Seasonal allergic rhinitis",
+    "allergies": "No known drug allergies (NKDA)",
+    "socialHistory": {
+      "tobacco": "Denies",
+      "alcohol": "Denies",
+      "drugs": "Denies"
+    },
+    "lifestyle": {
+      "housing": "Lives alone in a single‑family home in a suburban neighborhood",
+      "transportation": "Owns and drives a personal vehicle",
+      "occupation": "Warehouse shipping coordinator ",
+      "diet": "Mixed Diet",
+      "exercise": "Plays basketball weekly, lifts weights 3-5 times per week",
+      "stress": "Reports mild work‑related stress, manageable",
+      "sleep": "Averages 6 hours of sleep per night"
+    },
+    "historyVisibility": {
+      "weight": true,
+      "height": true,
+      "chiefComplaint": true,
+      "historyOfPresentIllness": true,
+      "medicalHistory": true,
+      "pastSurgicalHistory": true,
+      "allergies": true,
+      "medications": true,
+      "immunizations": true,
+      "familyMedicalHistoryClinical": true,
+      "primaryCareProvider": true,
+      "occupation": true,
+      "housing": true,
+      "transportation": true,
+      "tobacco": true,
+      "alcohol": true,
+      "drugs": true,
+      "diet": true,
+      "exercise": true,
+      "stress": true,
+      "sleep": true
+    },
+    "preferredName": "Mike",
+    "historyOfPresentIllness": "Michael Thompson is a 44‑year‑old male seen at home for a scheduled, routine health check‑in. He reports feeling generally well and denies pain, shortness of breath, dizziness, fever, or recent illness. No recent changes in health status. Visit is preventive in nature.",
+    "pastSurgicalHistory": "Click in this box to edit, add, or remove details. ",
+    "currentMedications": [
+      "None reported"
+    ],
+    "immunizationHistory": [
+      "Childhood Immunizations complete"
+    ],
+    "familyMedicalHistoryClinical": "Father: Hypertension, type 2 diabetes",
+    "primaryCareProvider": "Dr. Emily Larson, MD",
+    "dobMonthDay": "08-14"
+  },
+  "expectedActions": {
+    "labs": [],
+    "imaging": [],
+    "physicalExam": [],
+    "medications": []
+  },
+  "historyPrompts": [],
+  "assessmentGuidance": {
+    "actions": [],
+    "educationPoints": []
+  },
+  "assessmentNarrativeExpected": "",
+  "learningObjectiveCard": "",
+  "phases": [],
+  "availableMedications": [],
+  "grading": {
+    "maxScore": 100,
+    "rubric": [
+      {
+        "id": "assessment_ea_1776707265869",
+        "name": "Actions & Interventions",
+        "categoryType": "Technical Skill",
+        "subCategory": "Action",
+        "weight": 50,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "aiMapping": {
+          "aiCheckId": "assessment_action",
+          "aiDescription": "Evaluates that the learner successfully completed all required clinical actions correctly and followed established standard procedural guidance; additionally, evaluates whether the learner performed any actions considered a ‘distractor’ that were not appropriate to given the objectives of the scenario.",
+          "aiPromptParameter": ""
+        },
+        "description": "Evaluates that the learner successfully completed all required clinical actions correctly and followed established standard procedural guidance; additionally, evaluates whether the learner performed any actions considered a ‘distractor’ that were not appropriate to given the objectives of the scenario.",
+        "checklistItems": [
+          {
+            "id": "action_1776711208418_71nic96s0",
+            "text": "Answer Multiple-Choice Style Questions",
+            "mandatory": true,
+            "isDistractor": false,
+            "order": 1,
+            "score": 0,
+            "isExcluded": false
+          },
+          {
+            "id": "action_1776714501495_8lv9bmeh1",
+            "text": "Open-Ended Responses",
+            "mandatory": true,
+            "isDistractor": false,
+            "order": 4,
+            "score": 0,
+            "isExcluded": false
+          },
+          {
+            "id": "action_1776714776822_p8iy05h3s",
+            "text": "Obtain Vital Signs",
+            "mandatory": true,
+            "isDistractor": false,
+            "order": 5,
+            "score": 0,
+            "isExcluded": false
+          },
+          {
+            "id": "action_1776714998861_hlqxsafzp",
+            "text": "Place items in correct order of events",
+            "mandatory": true,
+            "isDistractor": false,
+            "order": 6,
+            "score": 0,
+            "isExcluded": false
+          },
+          {
+            "id": "action_1776715542015_gatb1739p",
+            "text": "View Action Log",
+            "mandatory": false,
+            "isDistractor": false,
+            "order": 7,
+            "score": 0,
+            "isExcluded": false
+          }
+        ]
+      },
+      {
+        "id": "rubric_ppe",
+        "name": "PPE, Privacy & Safety",
+        "categoryType": "Technical Skill",
+        "subCategory": "Expected Actions",
+        "weight": 10,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Safety and privacy measures evaluated from the Common Actions Panel.",
+        "checklistItems": [
+          {
+            "id": "ppe-inf-1a",
+            "text": "Eye Protection Donned",
+            "order": 1,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-1b",
+            "text": "Eye Protection Doffed",
+            "order": 2,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2a",
+            "text": "Isolation Gown Donned",
+            "order": 3,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2b",
+            "text": "Isolation Gown Doffed",
+            "order": 4,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-3a",
+            "text": "Standard Gloves Donned",
+            "order": 5,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-3b",
+            "text": "Standard Gloves Doffed",
+            "order": 6,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-4a",
+            "text": "Sterile Gloves Donned",
+            "order": 7,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-4b",
+            "text": "Sterile Gloves Doffed",
+            "order": 8,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-5a",
+            "text": "Respirator Mask (N95) Donned",
+            "order": 9,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-5b",
+            "text": "Respirator Mask (N95) Doffed",
+            "order": 10,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-6a",
+            "text": "Surgical Mask Donned",
+            "order": 11,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-6b",
+            "text": "Surgical Mask Doffed",
+            "order": 12,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-7",
+            "text": "Hand Hygiene Performed",
+            "order": 13,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-8",
+            "text": "Sharps Discarded",
+            "order": 14,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-9",
+            "text": "Non-Infectious Waste Discarded",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-10",
+            "text": "Infectious Waste Discarded",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-1",
+            "text": "Knock / Announce Entry",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2b",
+            "text": "Door Opened",
+            "order": 17,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2a",
+            "text": "Door Closed",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3b",
+            "text": "Curtain Opened",
+            "order": 19,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3a",
+            "text": "Curtain Drawn",
+            "order": 18,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-1a",
+            "text": "Bed/Chair Locked",
+            "order": 20,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-2a",
+            "text": "Bed/Chair Alarm Activated",
+            "order": 22,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-3a",
+            "text": "Bed Lowered to Lowest Position",
+            "order": 24,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-4",
+            "text": "Call Light In Reach",
+            "order": 26,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-5",
+            "text": "Equipment Checked",
+            "order": 27,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-6",
+            "text": "Lines / Tubes / Drains Checked",
+            "order": 28,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-7",
+            "text": "Personal Items Within Reach",
+            "order": 29,
+            "status": "Optional"
+          }
+        ]
+      },
+      {
+        "id": "rubric_documentation",
+        "name": "Clinical Documentation Quality",
+        "categoryType": "Technical Skill",
+        "subCategory": "Documentation",
+        "weight": 10,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Quality and completeness of clinical documentation.",
+        "checklistItems": [
+          {
+            "id": "doc-1",
+            "text": "Actions, Assessment & Intervention Documentation",
+            "status": "Optional",
+            "order": 1
+          },
+          {
+            "id": "doc-2",
+            "text": "Medical and health history updated",
+            "status": "Optional",
+            "order": 2
+          },
+          {
+            "id": "doc-3",
+            "text": "Patient emotional response documented",
+            "status": "Optional",
+            "order": 3
+          }
+        ]
+      },
+      {
+        "id": "assessment_comm_1776707265869",
+        "name": "Professional, Empathetic, & Clear Communication",
+        "categoryType": "Technical Skill",
+        "subCategory": "Communication",
+        "weight": 30,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "aiMapping": {
+          "aiCheckId": "assessment_communication",
+          "aiDescription": "Evaluates the learner’s ability to use professional communication.",
+          "aiPromptParameter": ""
+        },
+        "description": "Evaluates the learner’s ability to use professional communication.",
+        "communicationCriteria": [
+          {
+            "id": "comm-crit-1",
+            "title": "Verify patient identity",
+            "prompt": "Evaluate the communication with the patient for the presence of a professional approach that builds trust with the patient by asking for the patient's name and/or date of birth. Return PASS if the student has asked for the patient's name and or date of birth. Return FAIL if the student does not ask the patient to confirm their name or date of birth.",
+            "enabled": true,
+            "order": 1
+          }
+        ]
+      },
+      {
+        "id": "rubric_medications",
+        "name": "Medications",
+        "categoryType": "Technical Skill",
+        "subCategory": "Medications",
+        "weight": 0,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Medication administration accuracy graded automatically from the orders configured for this scenario."
+      },
+      {
+        "id": "rubric_timeline",
+        "name": "Sequencing & Prioritization",
+        "categoryType": "Technical Skill",
+        "subCategory": "Sequencing & Prioritization",
+        "weight": 0,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Correct sequencing and prioritization of actions throughout the scenario."
+      }
+    ],
+    "showDebriefToStudents": true,
+    "debriefReflectionPrompt": "Indicate the most enjoyable and the most difficult aspects of this training simulation.",
+    "components": {
+      "softSkills": {
+        "weight": 0
+      },
+      "technicalSkills": {
+        "weight": 100
+      }
+    }
+  },
+  "requiresProductSetup": true,
+  "aiPatientData": {
+    "openingReasonForVisit": "“Hi, you must be here for the check‑in visit. I was told someone would stop by just to see how things are going health‑wise. I’m not sick or anything, but my doctor likes me to do these routine visits once in a while, so I figured it couldn’t hurt.”",
+    "mainConcernAttributes": "“I don’t really have a main problem today. I’ve been feeling about the same as usual. No pain, no new issues. This is more of a general check‑in to make sure everything’s still on track.”",
+    "associatedSymptoms": "“I’m not dealing with anything out of the ordinary. I don’t have chest pain, trouble breathing, dizziness, or anything like that. Sometimes I get a little stuffy when the seasons change, but that’s normal for me and it’s not bothering me right now.”",
+    "allergies": "“I don’t have any medication allergies that I know of. I do get seasonal allergies, mostly in the spring, like sneezing and itchy eyes, but nothing serious.”",
+    "currentMedications": "I don't take any medications really regularly. Well, I guess I do occasionally take some allergy medicine when my allergies are really bothering me. And maybe something for a headache if I get one.",
+    "diagnosedChronicIllnesses": "I don't have any long-term or diagnosed health problems.",
+    "medicalHistory": "The only surgery I’ve ever had was my appendix taken out when I was a teenager. I haven’t had any major illnesses or hospital stays since then.",
+    "familyMedicalHistory": "My dad has high blood pressure and diabetes, so I try to keep an eye on that. My mom’s pretty healthy overall. I don’t know of any major heart problems or cancers in my immediate family",
+    "relationshipStatusSexualHealth": "I’m single right now. I’m not currently in a relationship. I don’t have any sexual health concerns and haven’t noticed anything unusual.",
+    "personalSocialHistory": "I live on my own and handle things pretty independently. I stay in touch with my family and a few close friends. I wouldn’t say I have a huge social circle, but I’ve got people I can call if I need help.",
+    "housing": "I live alone in a single‑family house in a quiet neighborhood. I feel safe there, and everything’s set up so I can get around without any trouble.",
+    "transportation": "I have my own car and drive myself wherever I need to go, including work and doctor’s appointments.",
+    "occupation": "I work as a shipping coordinator at a warehouse. It’s mostly full‑time, steady work. Some days I’m on my feet a lot, and other days I’m handling paperwork or schedules.",
+    "diet": "I try to eat fairly balanced meals, but I’ll be honest, I grab fast food a couple times a week when work gets busy. I do eat fruits and vegetables, just probably not as much as I should.",
+    "exercise": "I like to play basketball with the guys at least once a week, I also lift weights 3 to 5 times a week. ",
+    "stress": "Work can be stressful at times, especially when things get busy or short‑staffed, but I wouldn’t say it’s overwhelming. I feel like I manage it okay.",
+    "sleep": "I usually get about six hours of sleep a night. Some nights are better than others, but I don’t have major sleep problems",
+    "adls": "I take care of myself without any issues. I can bathe, dress, cook, clean, and get around on my own. I don’t need help with daily activities.",
+    "drugs": "I don’t smoke, drink alcohol, or use drugs.",
+    "emotionalStatePersonality": "I’m feeling pretty calm today. I’m not anxious or upset, just going about a normal day. I’d say my mood is generally steady, and I don’t feel down or overly stressed right now. I’m clear‑headed and able to focus on questions without trouble. I don’t have problems remembering things or following conversations. Personality‑wise, I’m pretty easygoing. I’m not someone who gets worked up easily, and I tend to take things as they come. I like routines and knowing what to expect, which is probably why I don’t mind these check‑in visits.",
+    "conversationalAttitudeSpeechStyle": "I’m friendly and polite when I talk with healthcare people, but I’m not overly talkative unless I’m asked questions. I usually answer things directly and in a straightforward way. If I don’t understand something, I’ll ask for it to be explained in plain terms. I don’t use a lot of medical words myself, and I appreciate when things are explained without being rushed.",
+    "specialPatientInfo": "I wouldn’t say I’m very religious. I was raised going to church sometimes, but now it’s more of a personal thing than something I practice regularly. I finished high school and went straight into the workforce. I’ve been working steady jobs most of my adult life, and right now I make enough to cover my bills, though there’s not a lot left over at the end of the month. I have health insurance through my job, and it covers most basic visits and prescriptions. I live in my own house, and I don’t have issues getting food or paying for utilities. I understand basic health information, especially things like blood pressure and medications, but I can get confused if explanations get too technical. I have a primary care doctor and can usually get appointments when I need them. The biggest barrier for me is time off work, not transportation or access.",
+    "locationSpecificInfo": "I know I live in Columbus and have a general sense of what’s going on around town, like traffic changes, construction, or community events, but I don’t follow local government closely. I’m aware that there’s a president, a state governor, and local city leaders, but I don’t keep up with names or policies in detail. I usually get my news from short updates on my phone or TV, and I focus more on things that directly affect my work or neighborhood. I feel oriented to where I am and what’s going on day‑to‑day, but politics isn’t something I spend much time thinking about."
+  },
+  "preBriefPdf": "",
+  "enableStudentBriefing": true,
+  "studentBriefing": {
+    "safeEnvironment": "• This simulation is designed to promote integrity, trust, and respect. \n• This is a safe learning space intended for practice and skill development. Engage fully, make decisions to the best of your ability, and reflect on the experience during debriefing.\n• During the simulation, please suspend disbelief and respond as though the situation is entirely real. Maintain professionalism and respectful behavior toward the patient, the environment, and your peers at all times.",
+    "facilitatorSupport": "• This simulation is a guided simulation and may be completed in a self-directed or asynchronous manner.",
+    "orientationSpace": "• All supplies needed to complete this scenario are located within the virtual simulation environment.\n• Note that the simulated date and time this encounter is taking place is June 30th at 19:45.",
+    "orientationEquipment": "• This experience is meant to orient you to the virtual simulation environment.",
+    "evaluation": "• During this simulation, information may be gathered and used to identify areas for additional training needs.\n• Any assessment data collected is used only for educational purposes.",
+    "rolesExpectations": "• You may be working independently or with peers.",
+    "simulationLimitations": "• Please note that in some simulations time may be compressed during the simulation, and patient conditions may improve or worsen more quickly than in real clinical practice. This is intentional and supports learning within a limited time frame.",
+    "timeAllotment": "15 minutes",
+    "purpose": "The purpose of this simulation is to help you get comfortable using the simulation system before you begin more advanced learning activities. During this experience, you will practice moving through the environment, interacting with a virtual patient, and responding to simple prompts so you can learn how the system works. This is a guided, low‑pressure activity—there are no “right or wrong” clinical decisions—and the goal is simply to help you feel confident and prepared to use the simulation tools in future health science simulations.",
+    "learningObjectives": "Students will be able to independently navigate the simulation environment, including moving through the virtual space, locating key on‑screen elements, and interacting with the AI‑enabled patient using basic communication features.\nStudents will be able to demonstrate appropriate participation in a simulation experience by following prompts, responding to cues, and engaging with the virtual patient in a respectful and professional manner, consistent with expectations for future simulation‑based learning activities."
+  },
+  "sbar": {
+    "situation": "You will be completing an encounter that is being simulated as taking place on June 30th, starting at 19:45.\nYou are assisting with a scheduled, routine home visit for a community member in Columbus, Ohio. The patient is at home and is expecting a brief visit. There are no urgent concerns at this time. This visit is primarily focused on checking in, communicating with the patient, and completing basic tasks as directed within the simulation.",
+    "background": "The patient lives independently in a single‑family home and generally manages their daily activities without difficulty. There have been no recent hospitalizations or emergency visits. This simulation is designed as a practice experience, and you will receive prompts throughout the activity to guide your actions.",
+    "assessment": "At the start of the simulation, the patient is awake, alert, and able to communicate. No abnormal findings are expected. Your role is to observe, interact with the patient, and respond to on‑screen instructions as they appear.",
+    "recommendation": "Use this experience to practice navigating the simulation environment, communicating respectfully with the virtual patient, and following system cues. Focus on learning how to move through the scenario and interact with the tools provided. There are no clinical decisions or treatments required during this simulation."
+  },
+  "orders": [
+    {
+      "id": "order_1776716772402",
+      "scenarioId": "",
+      "title": "Routine Vital Signs",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Hidden until trigger",
+      "status": "Active",
+      "description": "",
+      "instructions": "Vital signs should be obtained and documented when deemed necessary and appropriately prioritized based on the context and objectives of each simulation.",
+      "linkedActionIds": [
+        "action_1776714776822_p8iy05h3s"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1776714776822_p8iy05h3s",
+          "title": "Obtain Vital Signs"
+        }
+      ],
+      "unlockConditions": [],
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Monitoring & Assessments",
+        "name": "Routine Vital Signs"
+      },
+      "due": "N (Now)",
+      "unlockCondition": "",
+      "startDay": "Jun-30-2026",
+      "medicationConfig": {
+        "time": "06:00"
+      }
+    },
+    {
+      "id": "order_1776716847913",
+      "scenarioId": "",
+      "title": "Update History",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Update patient history information as necessary.",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "unlockConditions": [],
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Other",
+        "name": "Update History"
+      },
+      "due": "N (Now)",
+      "unlockCondition": "",
+      "startDay": "Jun-30-2026",
+      "medicationConfig": {
+        "time": "06:00"
+      }
+    },
+    {
+      "id": "order_1777560537519",
+      "scenarioId": "",
+      "title": "Scheduled Medication Administration (Cetirizine 10 mg tablet by mouth daily)",
+      "category": "Medication",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Give 10 mg cetirizine by mouth daily during times of high pollen count for seasonal allergy symptom relief",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "Cetirizine",
+        "dosage": "10 mg",
+        "drugOnHand": "10 mg / 1 tablet",
+        "route": "Oral",
+        "category": "Scheduled",
+        "time": "06:00",
+        "dosageCalculationAnswer": "1 tablet",
+        "frequency": "Daily",
+        "revealInfusionRate": false,
+        "hasLastGiven": true,
+        "lastGiven": "07:30",
+        "lastGivenDay": "T - 1 (Yesterday)",
+        "indication": "Seasonal Allergies",
+        "priorAdmins": [
+          {
+            "id": "w856dr8ph",
+            "date": "Jun-28-2026",
+            "time": "07:54",
+            "status": "Given"
+          },
+          {
+            "id": "tsn68lhwr",
+            "date": "Jun-29-2026",
+            "time": "08:04",
+            "status": "Not Given"
+          }
+        ],
+        "hasNextGiven": true,
+        "futureAdmins": [
+          {
+            "id": "tc4ho28oq",
+            "date": "Jul-01-2026",
+            "time": "08:00"
+          },
+          {
+            "id": "sjojc863c",
+            "date": "Jul-02-2026",
+            "time": "08:00"
+          }
+        ],
+        "site": "mouth",
+        "gradingConfig": {
+          "enabled": false,
+          "expectedQuantityAnswers": [],
+          "expectedRateAnswers": [],
+          "expectedDurationAnswers": [],
+          "expectedEducationItems": [],
+          "expectedVerificationItems": [
+            "name_checked",
+            "dob_checked",
+            "medication_name",
+            "no_allergies_contraindications",
+            "expiration_date",
+            "strength_concentration"
+          ],
+          "timingValidationEnabled": true
+        }
+      },
+      "startDay": "Jun-28-2026",
+      "expirationDate": "T + 15",
+      "due": "Jun-30-2026",
+      "dueTime": "08:00"
+    },
+    {
+      "id": "order_1777560911110",
+      "scenarioId": "",
+      "title": "PRN Medication Administration (Acetaminophen 325 mg oral every 4-6 hours as needed)",
+      "category": "Medication",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Give 325 mg oral every 4-6 hours as needed for mild to moderate pain",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "Acetaminophen",
+        "dosage": "325 mg",
+        "drugOnHand": "325 mg / 1 tablet",
+        "route": "Oral",
+        "category": "PRN",
+        "dosageCalculationAnswer": "1 tablet",
+        "frequency": "Every 4-6 hours as needed",
+        "revealInfusionRate": false,
+        "indication": "Mild to moderate pain management",
+        "time": "19:53",
+        "site": "mouth",
+        "gradingConfig": {
+          "enabled": false,
+          "expectedQuantityAnswers": [],
+          "expectedRateAnswers": [],
+          "expectedDurationAnswers": [],
+          "expectedEducationItems": [],
+          "expectedVerificationItems": [
+            "name_checked",
+            "dob_checked",
+            "medication_name",
+            "expiration_date",
+            "no_allergies_contraindications",
+            "strength_concentration"
+          ],
+          "timingValidationEnabled": false
+        }
+      },
+      "startDay": "Jun-30-2026",
+      "expirationDate": "T + 15"
+    },
+    {
+      "id": "order_1780408744385",
+      "scenarioId": "",
+      "title": "PRN Medication Administration (Calcium Carbonate 1500 mg PO PRN)",
+      "category": "Medication",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Patient should chew and swallow 2 tablets as gastrointestinal symptoms occur. Do not exceed 9 tablets in 24 hours.",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "startDay": "Jun-30-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "Calcium Carbonate 750 mg chewable tablet",
+        "dosage": "1500 mg",
+        "drugOnHand": "750 mg / 1 tablet",
+        "route": "Oral",
+        "category": "PRN",
+        "time": "19:00",
+        "expirationDisplayMode": "not_expired",
+        "dosageCalculationAnswer": "2 tablet",
+        "dosageCalculationAnswers": [
+          "1500 mg"
+        ],
+        "frequency": "PRN, not to exceed 9 tablets in 24 hours",
+        "indication": "Gastrointestinal distress",
+        "showInSchedule": true,
+        "hasLastGiven": true,
+        "priorAdmins": [
+          {
+            "id": "xfrki9yu8",
+            "date": "Jun-30-2026",
+            "time": "12:57",
+            "status": "Given"
+          },
+          {
+            "id": "bnf9b80tf",
+            "date": "Jun-30-2026",
+            "time": "07:13",
+            "status": "Given"
+          }
+        ],
+        "gradingConfig": {
+          "enabled": false,
+          "expectedQuantityAnswers": [],
+          "expectedRateAnswers": [],
+          "expectedDurationAnswers": [],
+          "expectedEducationItems": [],
+          "expectedVerificationItems": [
+            "name_checked",
+            "dob_checked",
+            "medication_name",
+            "expiration_date",
+            "no_allergies_contraindications",
+            "strength_concentration"
+          ],
+          "timingValidationEnabled": false
+        }
+      }
+    }
+  ],
+  "actionCategories": [
+    {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "description": "Default category for actions",
+      "isSystem": false,
+      "scenarioId": ""
+    }
+  ],
+  "teamCommunication": {
+    "prompt": "Assume you are the nurse caring for a patient, provide an example of a brief, concise, and high-quality SBAR (Situation, Background, Assessment, Recommendation/Request) Report that would be relayed to the provider when contacted.\nSuch as: \"This is ___, taking care of ___, who is ___, I noticed ___, I need ___.\"",
+    "referenceTranscript": "This",
+    "passThreshold": 10,
+    "onPassUnlockOrderIds": [
+      "order_1776716772402"
+    ],
+    "limitType": "unlimited",
+    "maxAttempts": 1,
+    "typeRequirement": "Optional",
+    "passMessage": "Thanks for contacting me. Orders will be entered.",
+    "failMessage": "Try again using SBAR format so we don’t miss anything important."
+  },
+  "simulationStartTime": "2026-06-30T19:45",
+  "sequences": [],
+  "avatarEnabled": false,
+  "scenarioImage": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/ChatGPT-Image-Jul-15--2026--06-47-37-AM-1784301050824-781567212.png",
+  "productSetup": {
+    "title": "none"
+  },
+  "prebriefScriptPdf": "",
+  "debriefPointsPdf": "",
+  "setupNotesPdf": "",
+  "facilitationNotesPdf": "",
+  "printableSbarPdf": "",
+  "printablePatientChartPdf": "",
+  "additionalEquipment": "",
+  "optionalEquipment": "",
+  "setupNotes": "",
+  "topicsAddressed": "",
+  "estimatedDuration": "15 min",
+  "status": "published",
+  "sequenceGroupsOrderMode": "flexible"
+}

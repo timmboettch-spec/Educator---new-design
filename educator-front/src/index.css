@@ -1,0 +1,442 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+:root {
+  /* Realityworks AI brand orange ramp — anchored on #db8833 (primary-500).
+     Golden tints above, burnt shades below; 600 (#c4692a) matches the burnt end
+     of the brand gradient for accent consistency. */
+  --color-primary-50: #fef8f0;
+  --color-primary-50-rgb: 254, 248, 240;
+  --color-primary-100: #fbf2e8;
+  --color-primary-100-rgb: 251, 242, 232;
+  --color-primary-200: #f6ddc2;
+  --color-primary-200-rgb: 246, 221, 194;
+  --color-primary-300: #eec596;
+  --color-primary-300-rgb: 238, 197, 150;
+  --color-primary-400: #e5a862;
+  --color-primary-400-rgb: 229, 168, 98;
+  --color-primary-500: #db8833;
+  --color-primary-500-rgb: 219, 136, 51;
+  --color-primary-600: #c4692a;
+  --color-primary-600-rgb: 196, 105, 42;
+  --color-primary-700: #a15522;
+  --color-primary-700-rgb: 161, 85, 34;
+  --color-primary-800: #7c411b;
+  --color-primary-800-rgb: 124, 65, 27;
+  --color-primary-900: #562c12;
+  --color-primary-900-rgb: 86, 44, 18;
+  --color-filter: invert(46%) sepia(89%) saturate(640%) hue-rotate(356deg) brightness(101%)
+    contrast(97%);
+}
+
+@layer base {
+  body {
+    @apply m-0 p-0 overflow-x-hidden;
+    /* Realityworks AI brand typography. Neulis Sans is the brand face, Apotos the
+       approved alternate; both are commercial and must be added as @font-face
+       (drop .woff2 files in src/assets/fonts and wire them here) before they
+       render. Until then this gracefully falls back to Montserrat, then system. */
+    font-family: 'Neulis Sans', 'Apotos', 'Montserrat', sans-serif;
+  }
+}
+
+* {
+  outline-color: #db8833;
+}
+
+*:focus {
+  outline: none;
+}
+
+*:focus-visible {
+  outline: 2px solid #db8833;
+  outline-offset: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+.focus-border:focus-visible {
+  outline: none;
+}
+
+/*
+ * Override transition-property on form controls to explicitly exclude
+ * outline from the animated set. Tailwind's transition-all sets
+ * transition-property:all which includes outline-width/color/style.
+ * When focus fires, transition-all interpolates the outline from its
+ * unfocused state → focused state, producing a visible flicker even when
+ * the outline is nominally "none". Restricting to specific properties
+ * removes the intermediate outline animation entirely.
+ */
+input,
+textarea,
+.focus-border {
+  transition-property: border-color, background-color, box-shadow, color, opacity, transform;
+}
+
+/* Hide browser-native password reveal controls so custom toggle icons do not duplicate. */
+input[type='password']::-ms-reveal,
+input[type='password']::-ms-clear,
+input.hide-native-password-toggle::-ms-reveal,
+input.hide-native-password-toggle::-ms-clear,
+input[type='password']::-webkit-credentials-auto-fill-button,
+input[type='password']::-webkit-password-toggle-button,
+input[type='password']::-webkit-clear-button,
+input[type='password']::-webkit-reveal,
+input.hide-native-password-toggle::-webkit-credentials-auto-fill-button,
+input.hide-native-password-toggle::-webkit-password-toggle-button,
+input.hide-native-password-toggle::-webkit-clear-button,
+input.hide-native-password-toggle::-webkit-reveal {
+  display: none !important;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Some Chromium builds render reveal controls inside decoration containers. */
+input.hide-native-password-toggle::-webkit-textfield-decoration-container {
+  visibility: hidden;
+}
+
+/* Render text input like password bullets in Chromium/Edge when we avoid native password controls. */
+input.masked-password-value {
+  -webkit-text-security: disc;
+}
+
+.icon-default {
+  filter: grayscale(10%) brightness(1);
+}
+
+.icon-active {
+  filter: var(--color-filter);
+}
+
+.arrow-default {
+  filter: grayscale(100%) brightness(0.7);
+}
+
+.arrow-active {
+  filter: var(--color-filter);
+}
+
+.icon-theme {
+  filter: var(--color-filter);
+}
+
+.toaster {
+  right: 80px !important;
+  /* Moving significantly left to ensure full visibility */
+  top: 32px !important;
+  padding: 20px !important;
+}
+
+[data-sonner-toast] {
+  overflow: hidden !important;
+  position: relative !important;
+  width: 400px !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  border-left: 4px solid transparent !important;
+}
+
+[data-sonner-toast][data-type='success'] {
+  border-left-color: var(--color-feedback-success, #16a34a) !important;
+}
+[data-sonner-toast][data-type='error'] {
+  border-left-color: var(--color-feedback-error, #f44435) !important;
+}
+[data-sonner-toast][data-type='info'] {
+  border-left-color: var(--color-feedback-info, #3182ce) !important;
+}
+[data-sonner-toast][data-type='warning'] {
+  border-left-color: var(--color-feedback-warning, #dd6b20) !important;
+}
+
+/* SUPER BRUTE FORCE: Force everything inside toast to be visible */
+[data-sonner-toast] * {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Specific styling for text elements to override the wildcard if needed */
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-description] {
+  display: block !important;
+}
+
+/* Force visibility of all content inside the toast */
+[data-sonner-toast] [data-title],
+[data-sonner-toast] [data-description],
+[data-sonner-toast] [data-icon] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+[data-sonner-toast] [data-title] {
+  color: #171717 !important;
+  /* Force Black Title */
+}
+
+[data-sonner-toast] [data-description] {
+  color: #737373 !important;
+  /* Force Grey Description */
+}
+
+[data-close-button] {
+  left: auto !important;
+  right: 12px !important;
+  top: 12px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #94a3b8 !important;
+  /* Medium Grey */
+  opacity: 1 !important;
+  z-index: 100 !important;
+  width: 20px !important;
+  height: 20px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+[data-close-button]:hover {
+  color: #475569 !important;
+  /* Darker on hover */
+  background: transparent !important;
+}
+
+[data-close-button] svg {
+  width: 16px !important;
+  height: 16px !important;
+  stroke-width: 2.5px !important;
+}
+
+/* Progress bar track */
+[data-sonner-toast]::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.08);
+  z-index: 5;
+}
+
+/* Progress bar fill */
+[data-sonner-toast]::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  z-index: 10;
+  transform-origin: left;
+  animation: sonner-progress 1000ms linear forwards;
+}
+
+[data-sonner-toast][data-type='success']::after {
+  background-color: rgba(22, 163, 74, 1);
+}
+
+[data-sonner-toast][data-type='error']::after {
+  background-color: rgba(244, 68, 53, 1);
+}
+
+[data-sonner-toast][data-type='info']::after {
+  background-color: #3182ce;
+}
+
+[data-sonner-toast][data-type='warning']::after {
+  background-color: #dd6b20;
+}
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ── Brand scrollbars, site-wide ─────────────────────────────────────
+   Orange thumb everywhere. The transparent border + padding-box clip
+   insets the thumb so it sits inside the track and never overhangs a
+   container's (often rounded) edge. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #db8833 transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: #db8833;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  /* Keep a grabbable, always-visible thumb even for short overflows. */
+  min-height: 40px;
+  min-width: 40px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #b45e20;
+}
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@keyframes sonner-progress {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* Loader Animations */
+@keyframes glow-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 5px rgba(219, 136, 51, 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 15px rgba(219, 136, 51, 0.9));
+  }
+}
+.animate-glow {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes rotate-ring {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.rotating-ring {
+  animation: rotate-ring 2s linear infinite;
+}
+
+@keyframes fadeIn {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #f6ddc2;
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #db8833;
+}
+.letter {
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+}
+.letter:nth-child(1) {
+  animation-delay: 0s;
+}
+.letter:nth-child(2) {
+  animation-delay: 0.1s;
+}
+.letter:nth-child(3) {
+  animation-delay: 0.2s;
+}
+.letter:nth-child(4) {
+  animation-delay: 0.3s;
+}
+.letter:nth-child(5) {
+  animation-delay: 0.4s;
+}
+.letter:nth-child(6) {
+  animation-delay: 0.5s;
+}
+.letter:nth-child(7) {
+  animation-delay: 0.6s;
+}
+.letter:nth-child(8) {
+  animation-delay: 0.7s;
+}
+.letter:nth-child(9) {
+  animation-delay: 0.8s;
+}
+.letter:nth-child(10) {
+  animation-delay: 0.9s;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    background-color: #374151;
+    box-shadow: none;
+  }
+  50% {
+    background-color: #db8833;
+    box-shadow: 0 0 8px rgba(219, 136, 51, 0.8);
+  }
+}
+.dot {
+  animation: blink 1s infinite;
+}
+.dot:nth-child(1) {
+  animation-delay: 0s;
+}
+.dot:nth-child(2) {
+  animation-delay: 0.3s;
+}
+.dot:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+/* Dashboard "Activity This Week" tiles: when the tile grid gets narrow enough
+   that the label would wrap beside the icon, drop the icon and center the
+   number + label instead. Tied to the grid's own width via a container query,
+   so it responds to the tile size — not the viewport (the 2-column dashboard
+   layout can make these tiles narrow even on a wide screen). */
+@container (max-width: 360px) {
+  .week-tile {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    gap: 0.25rem;
+  }
+  .week-tile .week-tile-icon {
+    display: none;
+  }
+}

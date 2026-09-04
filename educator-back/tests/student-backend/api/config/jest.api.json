@@ -1,0 +1,32 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../../../..",
+  "testEnvironment": "node",
+  "testMatch": ["<rootDir>/tests/student-backend/api/modules/**/*.spec.ts"],
+  "transform": {
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/student-backend/$1",
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "setupFilesAfterEnv": ["<rootDir>/tests/student-backend/setup/jest.setup.ts"],
+  "collectCoverageFrom": [
+    "<rootDir>/src/student-backend/modules/**/*.controller.ts",
+    "!<rootDir>/src/**/*.d.ts"
+  ],
+  "coverageDirectory": "<rootDir>/tests/student-backend/api/reports/coverage",
+  "coverageReporters": ["text", "lcov", "html"],
+  "testTimeout": 60000,
+  "maxWorkers": 1,
+  "reporters": [
+    "default",
+    [
+      "<rootDir>/tests/student-backend/api/config/friendly-html-reporter.js",
+      {
+        "outputPath": "<rootDir>/tests/student-backend/api/reports/html/api-predeployment-report.html",
+        "pageTitle": "Pre-Deployment API Test Report"
+      }
+    ]
+  ]
+}

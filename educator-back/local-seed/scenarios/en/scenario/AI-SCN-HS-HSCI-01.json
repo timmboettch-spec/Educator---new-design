@@ -1,0 +1,827 @@
+{
+  "id": "AI-SCN-HS-HSCI-01",
+  "unitId": "unit-016",
+  "title": "Clinic Check-In and Chief Concern ",
+  "difficulty": "Easy",
+  "avatarEnabled": false,
+  "avatarId": "",
+  "contextId": "",
+  "learnerLevel": "High School Health Science",
+  "department": "Outpatient Clinic ",
+  "description": "Practice greeting a patient, verifying identity with two approved identifiers, using open-ended communication to identify the reason for today's visit, and documenting the patient's chief concern while maintaining professionalism, privacy, and patient-centered care.",
+  "learningObjective": "Use a professional greeting when beginning a patient encounter.  \n\nVerify patient identity using two approved identifiers before discussing health information.  \n\nAsk an open-ended question to determine the patient's chief concern.  \n\nAccurately document the patient's stated reason for today's visit using the patient's own words whenever appropriate. ",
+  "class": "n/a",
+  "language": "en-US",
+  "voice": "Nancy",
+  "ethnicity": "",
+  "age": "",
+  "disabled": false,
+  "Status": "Paid",
+  "actions": [
+    {
+      "id": "action_1783458339276_rs88x40t9",
+      "order": 1,
+      "title": "Professional Introduction ",
+      "prompt": "Select the best option of how you would professionally begin this patient encounter with Olivia Bennett? Then, if you haven’t already done so, talk to the patient using the best option selected.  ",
+      "type": "single",
+      "items": [
+        "\"Good morning, Olivia. My name is Jordan, and I'm a Health Science student assisting with your clinic intake today. I'll ask you a few questions to get started. Is that okay?\"",
+        "\"Hi, what's your name and why are you here today?\" ",
+        "\"Please tell me your date of birth so we can get this appointment started.\" ",
+        "\"Hey Olivia! Let's get this over with so we can move on to the next patient.\" "
+      ],
+      "correct": "\"Good morning, Olivia. My name is Jordan, and I'm a Health Science student assisting with your clinic intake today. I'll ask you a few questions to get started. Is that okay?\"",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "If you haven’t already done so, talk to the patient using the best option. The patient will respond verbally when spoken to. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1783458399037_k25wgmmrf",
+      "order": 2,
+      "title": "Verify Two Patient Identifiers ",
+      "prompt": "Arrange the steps in the correct order to verify Olivia Bennett’s identity before discussing health information. Then, if you haven’t already done so, talk to the patient following the determined sequential order of the items. ",
+      "type": "ordering",
+      "items": [
+        "Explain that you need to confirm identity before discussing health information. ",
+        "Ask the patient to state her full name. ",
+        "Ask the patient to state her date of birth. ",
+        "Compare the stated name and DOB with the patient chart. ",
+        "Confirm that the identifiers match before continuing the intake conversation. "
+      ],
+      "correct": "",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "If you haven’t already done so, talk to the patient using the following the determined sequential order of the items. The patient will confirm identity when asked. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1783458678258_z5e0leh1f",
+      "order": 3,
+      "title": "Explain Identity Verification ",
+      "prompt": "Identify which explanation best describes why you are verifying Olivia’s identity before continuing. Then, if you haven’t already done so, explain to the patient why verifying identity is important using the best option. ",
+      "type": "single",
+      "items": [
+        "“We verify two identifiers to make sure we are speaking with the right person and protecting your private health information.”",
+        "“It is just something the computer makes us do before we can move on.”",
+        "“I need to check because patients sometimes give the wrong information.” ",
+        "“We only need to do this if you are here for a serious medical problem.” "
+      ],
+      "correct": "“We verify two identifiers to make sure we are speaking with the right person and protecting your private health information.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "If you haven’t already done so, explain to the patient why you verify the patient’s identity using the best option. Patient will respond verbally when spoken to. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1783458770020_2gtsxakkt",
+      "order": 4,
+      "title": "Obtain Chief Complaint ",
+      "prompt": "Select the best option of the following options to ask Olivia as an open-ended question to learn the reason for today’s visit. Then, if you haven’t already done so, talk to the patient using the best option selected and document the Chief Complaint in the patient chart. ",
+      "type": "single",
+      "items": [
+        "\"What brings you in for your visit today?\"",
+        "\"You're here for your annual physical today, right?\"",
+        "\"Are you here because you're sick?\" ",
+        "“What chief complaint would you like documented for today's encounter?\" "
+      ],
+      "correct": "\"What brings you in for your visit today?\"",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "If you haven’t already done so, talk to the patient using the best option as your example. The patient will respond verbally when spoken to. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    }
+  ],
+  "patientData": {
+    "name": "Olivia Bennett",
+    "gender": "Female",
+    "age": 46,
+    "race": "White",
+    "dateOfBirth": "04-18-1980",
+    "dobMonthDay": "04-18",
+    "vitals": {
+      "heartRate": "",
+      "bloodPressure": "",
+      "respiratoryRate": "",
+      "spO2": "",
+      "temperature": "",
+      "weight": "71",
+      "height": "165"
+    },
+    "chiefComplaint": "",
+    "medicalHistory": "No chronic medical conditions reported. Receives routine preventive healthcare. ",
+    "allergies": "No known drug allergies (NKDA).",
+    "socialHistory": {
+      "tobacco": "Never smoker. ",
+      "alcohol": "Drinks alcohol socially (approximately 1–2 drinks per week) ",
+      "drugs": "Denies recreational drug use. "
+    },
+    "lifestyle": {
+      "housing": "Lives with spouse in a private residence. ",
+      "transportation": "Drives independently to appointments.",
+      "occupation": "Office Administrator. ",
+      "diet": "Generally balanced diet; no dietary restrictions reported.",
+      "exercise": "Walks several times each week for exercise",
+      "stress": "Reports occasional work-related stress but feels it is well managed. ",
+      "sleep": "Typically sleeps 7–8 hours nightly without concerns."
+    },
+    "historyVisibility": {
+      "weight": true,
+      "height": true,
+      "medicalHistory": true,
+      "pastSurgicalHistory": true,
+      "allergies": true,
+      "medications": true,
+      "immunizations": true,
+      "familyMedicalHistoryClinical": true,
+      "primaryCareProvider": true,
+      "tobacco": true,
+      "alcohol": true,
+      "drugs": true,
+      "occupation": true,
+      "housing": true,
+      "transportation": true
+    },
+    "preferredName": "Olivia",
+    "pastSurgicalHistory": "Wisdom teeth extraction at age 21. No other surgical history reported. ",
+    "currentMedications": [
+      "Daily multivitamin – general wellness. Vitamin D3 1,000 IU daily – provider recommended supplement. "
+    ],
+    "immunizationHistory": [
+      "Reports vaccinations are current, including annual influenza vaccine and COVID-19 vaccination according to current recommendations. "
+    ],
+    "familyMedicalHistoryClinical": "Mother: Hypertension. Father: Hyperlipidemia. No significant hereditary diseases reported. ",
+    "primaryCareProvider": "Dr. Emily Carter, Family Medicine "
+  },
+  "expectedActions": {
+    "labs": [],
+    "imaging": [],
+    "physicalExam": [],
+    "medications": []
+  },
+  "historyPrompts": [],
+  "assessmentGuidance": {
+    "actions": [],
+    "educationPoints": []
+  },
+  "assessmentNarrativeExpected": "",
+  "learningObjectiveCard": "",
+  "phases": [],
+  "availableMedications": [],
+  "grading": {
+    "maxScore": 100,
+    "rubric": [
+      {
+        "id": "rubric_actions",
+        "name": "Actions & Interventions",
+        "categoryType": "Technical Skill",
+        "subCategory": "Action",
+        "weight": 20,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Section Raw Score = (Sum of completed Mandatory actions) ÷ (Total number of Mandatory actions) × 100 × Weight %"
+      },
+      {
+        "id": "rubric_medications",
+        "name": "Medications",
+        "categoryType": "Technical Skill",
+        "subCategory": "Medications",
+        "weight": 0,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Medication administration accuracy graded automatically from the orders configured for this scenario."
+      },
+      {
+        "id": "rubric_ppe",
+        "name": "PPE, Privacy & Safety",
+        "categoryType": "Technical Skill",
+        "subCategory": "Expected Actions",
+        "weight": 25,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Safety and privacy measures evaluated from the Common Actions Panel.",
+        "checklistItems": [
+          {
+            "id": "ppe-inf-1a",
+            "text": "Eye Protection Donned",
+            "order": 1,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-1b",
+            "text": "Eye Protection Doffed",
+            "order": 2,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-2a",
+            "text": "Isolation Gown Donned",
+            "order": 3,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-2b",
+            "text": "Isolation Gown Doffed",
+            "order": 4,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-3a",
+            "text": "Standard Gloves Donned",
+            "order": 5,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-3b",
+            "text": "Standard Gloves Doffed",
+            "order": 6,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-4a",
+            "text": "Sterile Gloves Donned",
+            "order": 7,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-4b",
+            "text": "Sterile Gloves Doffed",
+            "order": 8,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-5a",
+            "text": "Respirator Mask (N95) Donned",
+            "order": 9,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-5b",
+            "text": "Respirator Mask (N95) Doffed",
+            "order": 10,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-6a",
+            "text": "Surgical Mask Donned",
+            "order": 11,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-6b",
+            "text": "Surgical Mask Doffed",
+            "order": 12,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-7",
+            "text": "Hand Hygiene Performed",
+            "order": 13,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-8",
+            "text": "Sharps Discarded",
+            "order": 14,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-9",
+            "text": "Non-Infectious Waste Discarded",
+            "order": 15,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-10",
+            "text": "Infectious Waste Discarded",
+            "order": 16,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-prv-1",
+            "text": "Knock / Announce Entry",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2b",
+            "text": "Door Opened",
+            "order": 17,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2a",
+            "text": "Door Closed",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3b",
+            "text": "Curtain Opened",
+            "order": 19,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3a",
+            "text": "Curtain Drawn",
+            "order": 18,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-1a",
+            "text": "Bed/Chair Locked",
+            "order": 20,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-2a",
+            "text": "Bed/Chair Alarm Activated",
+            "order": 22,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-3a",
+            "text": "Bed Lowered to Lowest Position",
+            "order": 24,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-4",
+            "text": "Call Light In Reach",
+            "order": 26,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-5",
+            "text": "Equipment Checked",
+            "order": 27,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-6",
+            "text": "Lines / Tubes / Drains Checked",
+            "order": 28,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-7",
+            "text": "Personal Items Within Reach",
+            "order": 29,
+            "status": "Optional"
+          }
+        ]
+      },
+      {
+        "id": "rubric_documentation",
+        "name": "Clinical Documentation Quality",
+        "categoryType": "Technical Skill",
+        "subCategory": "Documentation",
+        "weight": 25,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Quality and completeness of clinical documentation.",
+        "checklistItems": [
+          {
+            "id": "doc-1",
+            "text": "Actions, Assessment & Intervention Documentation",
+            "status": "Mandatory",
+            "order": 1
+          },
+          {
+            "id": "doc-2",
+            "text": "Medical and health history updated",
+            "status": "Mandatory",
+            "order": 2
+          },
+          {
+            "id": "doc-3",
+            "text": "Patient emotional response documented",
+            "status": "Optional",
+            "order": 3
+          }
+        ]
+      },
+      {
+        "id": "rubric_communication",
+        "name": "Communication",
+        "categoryType": "Technical Skill",
+        "subCategory": "Communication",
+        "weight": 25,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Evaluation of patient-centered communication skills and empathy.",
+        "communicationCriteria": [
+          {
+            "id": "comm-crit-1",
+            "title": "Respectfully establish rapport",
+            "prompt": "Evaluate whether the student established rapport with the patient at the start of the encounter using a calm, respectful, and non-judgmental tone. Return PASS only if most of these are present. ",
+            "enabled": true,
+            "order": 1
+          },
+          {
+            "id": "comm-crit-2",
+            "title": "Introduce self and confirm patient identity",
+            "prompt": "Evaluate whether the student introduces themself and confirms patient identity (name + DOB). Return PASS only if student introduces themselves and confirms patient identity using name and date of birth. ",
+            "enabled": true,
+            "order": 2
+          },
+          {
+            "id": "comm-crit-1783459472344",
+            "title": "Use open-ended questions",
+            "prompt": "Evaluate for communication with patient using open-ended questions. Return PASS only if student uses open-ended questions as part of communication with patient. ",
+            "enabled": true,
+            "order": 3
+          }
+        ],
+        "communicationSummaryPrompt": "Give me a summary of what the student did well and what, if anything, the student did wrong in their communication practice for these 5 entries. Limit the analysis to 50 words or less. "
+      },
+      {
+        "id": "rubric_timeline",
+        "name": "Sequencing & Prioritization",
+        "categoryType": "Technical Skill",
+        "subCategory": "Sequencing & Prioritization",
+        "weight": 5,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Correct sequencing and prioritization of actions throughout the scenario."
+      }
+    ],
+    "components": {
+      "softSkills": {
+        "weight": 0
+      },
+      "technicalSkills": {
+        "weight": 100
+      }
+    },
+    "showDebriefToStudents": true,
+    "debriefReflectionPrompt": "Please respond to at least one of the following: \n\nHow are you feeling now that the simulation is over?  \nWhat felt most challenging?  \nWhere did you feel most confident? \nHow did you help Olivia feel respected and comfortable? \nWhy is it important to verify two identifiers before discussing health information? \nWhat wording did you use to ask about the patient’s reason for today’s visit? \nWhat would you do differently next time when beginning a patient encounter? "
+  },
+  "requiresProductSetup": true,
+  "productSetup": {
+    "title": "none"
+  },
+  "aiPatientData": {
+    "openingReasonForVisit": "“I’m Olivia Bennett. I’m here for my annual physical, but I wasn’t totally sure if I checked in at the right clinic. There are a few offices in this building, and I just want to make sure I’m in the right place.” ",
+    "mainConcernAttributes": "“I just want to make sure I’m in the right place for my appointment before I go any further.” ",
+    "associatedSymptoms": "“I’m not having any symptoms today. I don’t have pain or anything urgent going on.” ",
+    "allergies": "“I don’t have any medication allergies that I know of.” ",
+    "currentMedications": "“I take a daily multivitamin and vitamin D. That’s it.” ",
+    "diagnosedChronicIllnesses": "“I don’t have any long-term health problems that I know of.” ",
+    "medicalHistory": "“I try to keep up with my regular checkups. I had my wisdom teeth taken out years ago. My vaccines are up to date as far as I know.” ",
+    "familyMedicalHistory": "“My mom has high blood pressure, and my dad has high cholesterol.” ",
+    "relationshipStatusSexualHealth": "“I’m married. I don’t have any sexual health concerns I need to talk about today.” ",
+    "personalSocialHistory": "“I work as an office administrator. I live with my spouse, and I drove myself here today.” ",
+    "housing": "“I live in a house with my spouse.” ",
+    "transportation": "“I drive myself to appointments.” ",
+    "occupation": "“I work full-time in an office.” ",
+    "diet": "“I try to eat a pretty balanced diet. Nothing special.” ",
+    "exercise": "“I walk a few times a week.” ",
+    "stress": "“Work can be stressful sometimes, but I manage it pretty well.” ",
+    "sleep": "“I usually sleep around seven or eight hours a night.” ",
+    "adls": "“I take care of myself independently.” ",
+    "drugs": "“I don’t smoke. I might have a glass of wine once in a while, maybe one or two drinks a week. I don’t use recreational drugs.” ",
+    "emotionalStatePersonality": "Olivia is polite, cooperative, and mildly uncertain. She is not distressed, but she appreciates reassurance and clear explanations. She becomes more comfortable when the learner uses a respectful tone, explains why questions are being asked, and avoids jargon. ",
+    "conversationalAttitudeSpeechStyle": "Olivia gives brief answers at first. She becomes more conversational when the learner asks open-ended questions and speaks respectfully. She should not volunteer all details immediately unless the learner asks clearly. ",
+    "specialPatientInfo": "Olivia is unfamiliar with this clinic layout and may confuse the appointment reason with a diagnosis. She should be portrayed as capable, respectful, and independent. Her uncertainty should reflect normal navigation of an unfamiliar healthcare setting, not confusion, low intelligence, or poor health literacy. ",
+    "locationSpecificInfo": "Olivia is in an outpatient clinic intake/registration encounter. She has arrived for a scheduled annual wellness visit and is waiting for confirmation that she is in the correct clinic. "
+  },
+  "preBriefPdf": "",
+  "enableStudentBriefing": true,
+  "studentBriefing": {
+    "safeEnvironment": "This simulation is designed to promote integrity, trust, and respect.\nWe believe that everyone participating in this activity is intelligent, capable, cares about doing their best, and wants to improve.\nThis is a safe learning space intended for practice and skill development. Engage fully, make decisions to the best of your ability, and reflect on the experience during debriefing. \nDuring the simulation, please suspend disbelief and respond as though the situation is entirely real. Maintain professionalism and respectful behavior toward the patient, the environment, and your peers at all times.",
+    "facilitatorSupport": "This simulation may be completed in a self-directed or asynchronous manner. \nComplete any orientation and preparation requirements prior to this experience as indicated by your educator.",
+    "orientationSpace": "You will only be working within the virtual simulation environment; no manikin or any other equipment/supplies are necessary.",
+    "orientationEquipment": "You should have completed the assigned guided walkthrough simulation titled “An Introductory Simulation” prior to completing this simulation.",
+    "evaluation": "During this simulation, information gathered may be used to identify areas for additional learning or practice. Assessment data collected is used for educational purposes.",
+    "rolesExpectations": "You will be working independently for this simulation.\nYou are responsible for completing tasks associated with your assigned role to the best of your ability.\nPlease refrain from sharing details of this simulated experience with users who have not yet completed their experiences as this diminishes their learning opportunity.",
+    "simulationLimitations": "Please note that time may be compressed during the simulation, and patient conditions may improve or worsen more quickly than in real clinical practice. This is intentional and supports learning within a limited time frame.\nThe simulated date and time of this experience is: October 14, 09:00.",
+    "timeAllotment": "The date and time of this simulated clinical encounter is: October 14, 09:00. This scenario is designed to take approximately 12 minutes to complete. You may manage your time independently within this window.",
+    "purpose": "This introductory simulation develops foundational communication skills that are essential across all healthcare professions.\nLearners completing this simulation will practice making a professional introduction, establishing rapport, protecting patient privacy, verifying patient identity, obtaining a chief concern using patient-centered communication, and documenting accurately.",
+    "learningObjectives": "Greet the patient professionally.\nExplain why identity verification is necessary. \nVerify identity using two approved identifiers.\nUse an open-ended question to determine the patient's reason for today's visit.\nDocument the chief concern accurately using appropriate professional language."
+  },
+  "sbar": {
+    "situation": "The date and time of this simulated clinical encounter is: October 14, 09:00.  \n\nYou are beginning an outpatient clinic intake encounter with Olivia Bennett, an adult patient who has arrived for a scheduled appointment. She appears unsure whether she has checked in at the correct clinic location. ",
+    "background": "The patient has presented independently for a routine preventive healthcare appointment. No urgent concerns have been identified prior to your interaction. \n\nYour first responsibilities are to establish rapport, verify the patient's identity before discussing health information, and determine the patient's reason for today's visit. ",
+    "assessment": "The patient is calm and cooperative. There are no signs of an emergency.",
+    "recommendation": "Complete the intake by: \n\n1. Introducing yourself professionally; \n2. Explaining the purpose of identity verification; \n3. Verifying the patient's identity using two approved identifiers; \n4. Asking an open-ended question to determine the patient's chief concern; \n5. Documenting the patient's stated reason for today's visit accurately; and \n6. Concluding the encounter professionally while explaining the next step in the clinic process.    "
+  },
+  "orders": [
+    {
+      "id": "order_1783458840671",
+      "scenarioId": "",
+      "title": "Complete Patient Identify Verification",
+      "category": "Other",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Verify the patient’s identity using two approved identifiers before discussing health information or documenting the encounter.",
+      "linkedActionIds": [
+        "action_1783458399037_k25wgmmrf"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1783458399037_k25wgmmrf",
+          "title": "Verify Two Patient Identifiers "
+        }
+      ],
+      "startDay": "Oct-14-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "09:00"
+      },
+      "otherConfig": {
+        "name": "Complete Patient Identity Verification",
+        "subCategory": "Communication"
+      }
+    },
+    {
+      "id": "order_1783458931388",
+      "scenarioId": "",
+      "title": "Explain Identity Verification",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Provide a brief, plain-language explanation of why two patient identifiers are used before discussing health information.",
+      "linkedActionIds": [
+        "action_1783458678258_z5e0leh1f"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1783458678258_z5e0leh1f",
+          "title": "Explain Identity Verification "
+        }
+      ],
+      "startDay": "Oct-14-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "09:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Patient Education & Teaching",
+        "name": "Explain Identity Verification "
+      }
+    },
+    {
+      "id": "order_1783458979560",
+      "scenarioId": "",
+      "title": "Obtain and Document Chief Complaint",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Ask an open-ended question to determine the patient’s stated reason for today’s visit and document the response accurately in the virtual chart.",
+      "linkedActionIds": [
+        "action_1783458770020_2gtsxakkt"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1783458770020_2gtsxakkt",
+          "title": "Obtain Chief Complaint "
+        }
+      ],
+      "startDay": "Oct-14-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "09:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Monitoring & Assessments",
+        "name": "Obtain and Document Chief Complaint"
+      }
+    }
+  ],
+  "actionCategories": [
+    {
+      "id": "cat_assessments",
+      "name": "Assessments & Exams",
+      "description": "Assessment findings and exam results",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_bedside",
+      "name": "Bedside Procedures",
+      "description": "Procedures performed at bedside",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_labs",
+      "name": "Labs & Diagnostics",
+      "description": "Laboratory and diagnostic testing",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_medication",
+      "name": "Medication Administration",
+      "description": "Medication-related actions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_nursing",
+      "name": "Nursing Care & Interventions",
+      "description": "General nursing care and interventions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_other",
+      "name": "Other",
+      "description": "Miscellaneous actions and documentation",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_patient_ed",
+      "name": "Patient Education",
+      "description": "Patient education activities",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_team_comm",
+      "name": "Team Communication",
+      "description": "Communication with care team",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "description": "Default category for actions",
+      "isSystem": false,
+      "scenarioId": ""
+    }
+  ],
+  "simulationStartTime": "2026-10-14T09:00",
+  "sequences": [
+    {
+      "parentRef": "ppe.handHygiene",
+      "parentLabel": "Hand Hygiene",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "anytime"
+      },
+      "afterTiming": {
+        "mode": "anytime"
+      },
+      "beforeOrderControl": "flexible",
+      "afterOrderControl": "flexible",
+      "before": [],
+      "after": [
+        {
+          "ref": "patient.name",
+          "label": "Patient Name",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "ref": "patient.dob",
+          "label": "Date of Birth",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "ref": "patient.chiefComplaint",
+          "label": "Chief Complaint",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1783458339276_rs88x40t9",
+          "label": "Professional Introduction",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1783458399037_k25wgmmrf",
+          "label": "Verify Two Patient Identifiers",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1783458770020_2gtsxakkt",
+          "label": "Obtain Chief Complaint",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ],
+      "afterGroups": [
+        {
+          "id": "group-1783518932285-1",
+          "label": "Group A",
+          "mode": "flexible",
+          "items": [
+            "action_1783458339276_rs88x40t9"
+          ],
+          "color": "#A78BFA",
+          "timing": {
+            "mode": "anytime"
+          }
+        },
+        {
+          "id": "group-1783518941652-2",
+          "label": "Group B",
+          "mode": "flexible",
+          "items": [
+            "action_1783458399037_k25wgmmrf",
+            "patient.name",
+            "patient.dob"
+          ],
+          "color": "#F87171",
+          "timing": {
+            "mode": "anytime"
+          }
+        },
+        {
+          "id": "group-1783518960867-3",
+          "label": "Group C",
+          "mode": "flexible",
+          "items": [
+            "action_1783458770020_2gtsxakkt",
+            "patient.chiefComplaint"
+          ],
+          "color": "#FBBF24",
+          "timing": {
+            "mode": "anytime"
+          }
+        }
+      ]
+    }
+  ],
+  "scenarioImage": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/RWAI-HC-Gradient-Image--10--1784113319910-305192871.png",
+  "actionGroupName": "",
+  "actionGroupDescription": "",
+  "teamCommunication": {
+    "prompt": "",
+    "referenceTranscript": "",
+    "passThreshold": 0,
+    "onPassUnlockOrderIds": [],
+    "limitType": "unlimited",
+    "maxAttempts": 1,
+    "typeRequirement": "Optional",
+    "passMessage": "Great job! Your SBAR report was accepted.",
+    "failMessage": "Your report didn't meet all the required elements. Review the SBAR criteria and try again.",
+    "isButtonEnabled": false
+  },
+  "prebriefScriptPdf": "",
+  "debriefPointsPdf": "",
+  "setupNotesPdf": "",
+  "facilitationNotesPdf": "",
+  "printableSbarPdf": "",
+  "printablePatientChartPdf": "",
+  "additionalEquipment": "",
+  "optionalEquipment": "",
+  "setupNotes": "",
+  "topicsAddressed": "Communication; Documentation",
+  "estimatedDuration": "12 min",
+  "status": "published",
+  "sequenceGroupsOrderMode": "flexible"
+}

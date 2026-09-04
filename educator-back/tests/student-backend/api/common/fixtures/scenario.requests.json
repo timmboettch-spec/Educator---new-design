@@ -1,0 +1,14 @@
+{
+  "createScenario": {
+    "valid": {
+      "title": "Pneumonia Assessment",
+      "unitId": "unit-001",
+      "description": "Student scenario for pneumonia case"
+    }
+  },
+  "updateScenario": {
+    "valid": {
+      "title": "Updated Scenario Title"
+    }
+  }
+}

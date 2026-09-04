@@ -1,0 +1,95 @@
+name: "teams-notify"
+description: >-
+  Aggregated Teams notification: resolves a GitHub login to an Entra @mention
+  (RW Thrive SCIM convention) and posts an Adaptive Card in one step. Replaces
+  the two-step scim-resolve-mention + teams-notify-card wiring so every workflow
+  posts Teams cards through a single, consistent action. No-ops when webhook-url
+  is empty.
+
+inputs:
+  webhook-url:
+    description: 'Teams Incoming Webhook URL. Empty = skip (no-op).'
+    required: false
+    default: ''
+  github-login:
+    description: 'GitHub login to @mention (e.g. github.actor). Empty = no mention.'
+    required: false
+    default: ''
+  headline:
+    description: 'Bold headline at the top of the card'
+    required: true
+  style:
+    description: 'Container style: default | accent | good | warning | attention'
+    required: false
+    default: 'default'
+  subtitle:
+    description: 'Optional subtle text under the headline'
+    required: false
+    default: ''
+  mention-prefix:
+    description: >-
+      Text before the @mention in the mention line, e.g. "Submitted by ".
+      The mention line is only rendered when mention-prefix or mention-suffix
+      is non-empty.
+    required: false
+    default: ''
+  mention-suffix:
+    description: >-
+      Text after the @mention in the mention line, e.g. " — please review."
+      When github-login does not resolve to an Entra UPN (external
+      collaborator/bot), the line still renders with the plain login name
+      instead of a ping, so the message is never silently dropped.
+    required: false
+    default: ''
+  facts-json:
+    description: 'JSON array of {"title","value"} objects for the FactSet'
+    required: false
+    default: '[]'
+  footer:
+    description: 'Optional small subtle text block rendered after the FactSet.'
+    required: false
+    default: ''
+  actions-json:
+    description: 'JSON array of Adaptive Card Action.OpenUrl objects'
+    required: false
+    default: '[]'
+
+runs:
+  using: composite
+  steps:
+    # NOTE: step ids must be unique within the composite action's scope even
+    # when the two branches are mutually exclusive via `if:` — GitHub
+    # statically validates the whole manifest before running, so `id: notify`
+    # on both steps fails to load the action at all, on every OS.
+    - name: Resolve mention + post Teams card (bash)
+      if: runner.os != 'Windows'
+      id: notify-bash
+      shell: bash
+      env:
+        WEBHOOK_URL:  ${{ inputs.webhook-url }}
+        GH_LOGIN:     ${{ inputs.github-login }}
+        HEADLINE:     ${{ inputs.headline }}
+        STYLE:        ${{ inputs.style }}
+        SUBTITLE:     ${{ inputs.subtitle }}
+        MENTION_PREFIX: ${{ inputs.mention-prefix }}
+        MENTION_SUFFIX: ${{ inputs.mention-suffix }}
+        FACTS_JSON:   ${{ inputs.facts-json }}
+        FOOTER:       ${{ inputs.footer }}
+        ACTIONS_JSON: ${{ inputs.actions-json }}
+      run: ${{ github.action_path }}/scripts/teams-notify.sh
+    - name: Resolve mention + post Teams card (pwsh)
+      if: runner.os == 'Windows'
+      id: notify-pwsh
+      shell: pwsh
+      env:
+        WEBHOOK_URL:  ${{ inputs.webhook-url }}
+        GH_LOGIN:     ${{ inputs.github-login }}
+        HEADLINE:     ${{ inputs.headline }}
+        STYLE:        ${{ inputs.style }}
+        SUBTITLE:     ${{ inputs.subtitle }}
+        MENTION_PREFIX: ${{ inputs.mention-prefix }}
+        MENTION_SUFFIX: ${{ inputs.mention-suffix }}
+        FACTS_JSON:   ${{ inputs.facts-json }}
+        FOOTER:       ${{ inputs.footer }}
+        ACTIONS_JSON: ${{ inputs.actions-json }}
+      run: ${{ github.action_path }}/scripts/teams-notify.ps1

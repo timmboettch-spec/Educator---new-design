@@ -1,0 +1,36 @@
+name: "build-frontend"
+description: >-
+  Aggregated frontend build: Node setup + npm ci + vite build with the given
+  VITE_API_URL. Used by both deploy-frontend.yml (real environments) and
+  preview-deploy.yml (branch previews) so the build step can't drift between
+  the two pipelines.
+
+inputs:
+  api-url:
+    description: 'Value for VITE_API_URL during the build.'
+    required: true
+  node-version:
+    description: 'Node.js version to build with.'
+    required: false
+    default: '24'
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Build frontend
+      shell: bash
+      env:
+        VITE_API_URL: ${{ inputs.api-url }}
+      run: |
+        echo "Building with VITE_API_URL=$VITE_API_URL"
+        npm run build

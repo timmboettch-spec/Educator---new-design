@@ -1,0 +1,1240 @@
+{
+  "id": "AI_SCN_ADLT_NRSG_04",
+  "unitId": "AlphaTesting-01",
+  "title": "Colostomy Care and Education",
+  "difficulty": "Easy",
+  "avatarEnabled": false,
+  "avatarId": "",
+  "contextId": "",
+  "learnerLevel": "Post-Secondary Nursing",
+  "department": "Inpatient ",
+  "description": "After a new colostomy, learners perform a skin/stoma assessment, change the appliance, teach basic care, and support emotional adjustment. ",
+  "learningObjective": "Perform a focused stoma/peristomal skin assessment on an adult with a newly placed colostomy. \nDemonstrate colostomy care, including bag emptying and replacement of a colostomy flange and bag. \nReinforce introductory, health-literacy-sensitive patient education on colostomy care and management. \nProvide empathetic support for the patient and address their questions and concerns related to the colostomy. ",
+  "language": "en-US",
+  "voice": "Davis",
+  "disabled": false,
+  "Status": "Paid",
+  "actionGroupName": "",
+  "actionGroupDescription": "",
+  "actions": [
+    {
+      "id": "action_1784062996556_g5i9ouwk3",
+      "order": 1,
+      "title": "Complete Pain Screening & Assessment ",
+      "prompt": "Indicate the pain verbalized by the patient. ",
+      "type": "single",
+      "items": [
+        "Incisional pain",
+        "Headache pain ",
+        "Heartburn pain ",
+        "Rectal pain "
+      ],
+      "correct": "Incisional pain",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The patient will verbalize level of pain severity and location when asked.   ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784063692398_729yerszm",
+      "order": 2,
+      "title": "Ostomy - Change Pouching System ",
+      "prompt": "Indicate how this step was performed. ",
+      "type": "single",
+      "items": [
+        "Performed on the manikin using clean technique.",
+        "Action/intervention not demonstrated or completed on the manikin."
+      ],
+      "correct": "Performed on the manikin using clean technique.",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "This is a good moment to reinforce skin protection and invite the patient to participate next time. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784063768265_4yblidx5v",
+      "order": 3,
+      "title": "Ostomy - Empty Ostomy Pouch ",
+      "prompt": "Indicate how this step was performed.",
+      "type": "single",
+      "items": [
+        "Performed on the manikin using clean technique.",
+        "Action/intervention not demonstrated or completed on the manikin."
+      ],
+      "correct": "Performed on the manikin using clean technique.",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Consider reinforcing the emptying schedule using teach-back.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784063968455_i280yh325",
+      "order": 4,
+      "title": "Ostomy – Irrigate",
+      "prompt": "Indicate how this step was performed.",
+      "type": "single",
+      "items": [
+        "Performed on the manikin.",
+        "Action/intervention not demonstrated or completed on the manikin."
+      ],
+      "correct": "Performed on the manikin.",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Distractor",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Colostomy irrigation is not appropriate for this newly created colostomy on postoperative day 2. Routine pouch emptying and prescribed postoperative care should be continued instead.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064021419_7it0vjnvy",
+      "order": 5,
+      "title": "Ostomy – Protect Peristomal Skin",
+      "prompt": "Indicate how this step was performed.",
+      "type": "single",
+      "items": [
+        "Performed on the manikin using clean technique.",
+        "Action/intervention not demonstrated or completed on the manikin."
+      ],
+      "correct": "Performed on the manikin using clean technique.",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The peristomal skin is assessed before appliance application. Mild intact erythema is present from 3–5 o’clock.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064062293_7q5fap8tf",
+      "order": 6,
+      "title": "Ostomy – Patient Education: Odor/Leak Prevention Strategies",
+      "prompt": "A patient with a new colostomy says, “I’m worried everyone will smell it.” Which teaching point is most important to include to help prevent odor and leakage?",
+      "type": "single",
+      "items": [
+        "“Empty the pouch before it gets too full and make sure the skin barrier fits snugly around the stoma.”",
+        "“Rinse the inside of the pouch with scented soap every time you empty it.”",
+        "“Keep the pouch covered with several layers of gauze to block odors.”",
+        "“Avoid drinking fluids so the output is less frequent.”"
+      ],
+      "correct": "“Empty the pouch before it gets too full and make sure the skin barrier fits snugly around the stoma.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Remember to teach the patient that a properly fitted barrier and secure seal help prevent leakage, and that emptying the pouch before it becomes heavy reduces pulling on the seal. Mild odor is expected while emptying, but persistent odor may indicate leakage. Normalize concerns and reinforce that confidence improves with practice.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064119142_1602sk0ei",
+      "order": 7,
+      "title": "Ostomy – Patient Education: Emptying Schedule",
+      "prompt": "Which statement shows the patient correctly understands the pouch-emptying schedule using teach-back?",
+      "type": "single",
+      "items": [
+        "“I’ll empty it when it’s about one-third full and before it gets heavy.”",
+        "“I’ll empty it only if I see blood.”",
+        "“I won’t empty it until my follow-up appointment.”",
+        "“I’ll empty it only when it feels uncomfortable.”"
+      ],
+      "correct": "“I’ll empty it when it’s about one-third full and before it gets heavy.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Remember to teach the patient that the pouch should be emptied when it is about one-third full and before it becomes heavy. Frequent emptying helps prevent pulling, leakage, and skin irritation.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064169329_1bfdvazur",
+      "order": 8,
+      "title": "Ostomy – Patient Education: Skin Protection",
+      "prompt": "Which statement demonstrates correct patient understanding of skin protection?",
+      "type": "single",
+      "items": [
+        "“I’ll keep the skin clean and dry, and I’ll avoid using oily creams under the barrier.”",
+        "“I’ll cut the opening much bigger so nothing touches the stoma.”",
+        "“I’ll use powder every day even if my skin is healthy.”",
+        "“I’ll remove the pouch quickly by pulling hard so it comes off in one piece.”"
+      ],
+      "correct": "“I’ll keep the skin clean and dry, and I’ll avoid using oily creams under the barrier.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Teach the patient about the need for gentle pouch removal, clean and dry skin, a closely fitted opening, and appropriate barrier products. The patient should be informed of the need to identify and report persistent redness, open skin, pain, or leakage.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064233390_vn6u0fprg",
+      "order": 9,
+      "title": "Ostomy – Patient Education: Stoma Care Basics",
+      "prompt": "Which symptom should the learner teach the patient to report right away?",
+      "type": "single",
+      "items": [
+        "A stoma that becomes dusky, purple, brown, or black.",
+        "A small amount of gas in the pouch.",
+        "Soft brown stool in the pouch.",
+        "Mild swelling of the stoma during the first postoperative week."
+      ],
+      "correct": "A stoma that becomes dusky, purple, brown, or black.",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Normal early findings include a pink-red, moist stoma with mild swelling and small amounts of bleeding during gentle cleansing. The patient should be instructed to report dark discoloration, severe or increasing pain, heavy bleeding, persistent leakage, or a sudden lack of output with abdominal symptoms. Teach-back confirms understanding and improves readiness for discharge.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064291281_g7xf2meli",
+      "order": 10,
+      "title": "Obtain Vital Signs #1",
+      "prompt": "Click to indicate which vital sign measurements you want to obtain and reveal. Results will be shown after approximately 10 seconds.",
+      "type": "vital",
+      "items": [],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Vital sign measurements obtained. Results are stable and consistent with uncomplicated postoperative recovery.",
+      "limitType": "limited",
+      "maxAttempts": 1,
+      "vitals": {
+        "heartRate": [
+          "86 bpm"
+        ],
+        "bloodPressure": [
+          "132/78 mmHg"
+        ],
+        "temperature": [
+          "99.1°F"
+        ],
+        "respiratoryRate": [
+          "18 breaths/min"
+        ],
+        "spO2": [
+          "98%"
+        ]
+      },
+      "vitalRequirements": {
+        "heartRate": "Optional",
+        "bloodPressure": "Optional",
+        "temperature": "Optional",
+        "respiratoryRate": "Optional",
+        "spO2": "Optional"
+      },
+      "vitalRequirementEntries": {
+        "heartRate": [
+          "Optional"
+        ],
+        "bloodPressure": [
+          "Optional"
+        ],
+        "temperature": [
+          "Optional"
+        ],
+        "respiratoryRate": [
+          "Optional"
+        ],
+        "spO2": [
+          "Optional"
+        ]
+      }
+    },
+    {
+      "id": "action_1784064341178_9ism5qa81",
+      "order": 11,
+      "title": "Perform Focused Gastrointestinal Assessment",
+      "prompt": "Which assessment findings should the nurse include when performing a focused gastrointestinal assessment for a patient with a colostomy?",
+      "type": "single",
+      "items": [
+        "Bowel sounds, abdominal distention or tenderness, nausea or vomiting, and ostomy output.",
+        "Stoma size, stoma color, and pouch brand preference only.",
+        "Coping level, body-image concerns, and support system only.",
+        "Breath sounds, pedal edema, and capillary refill only."
+      ],
+      "correct": "Bowel sounds, abdominal distention or tenderness, nausea or vomiting, and ostomy output.",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The abdomen is soft and non-distended with mild tenderness near the incision. Bowel sounds are present in all quadrants. Soft brown stool and mild gas are present in the pouch, and the patient is tolerating the ordered diet.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064392002_ve7e8yy4v",
+      "order": 12,
+      "title": "Perform Focused Stoma Assessment",
+      "prompt": "When performing a focused stoma assessment on a patient with a newly placed colostomy, which set of findings is most important to assess and document?",
+      "type": "single",
+      "items": [
+        "Stoma color and moisture, output, peristomal skin condition, and pouch seal.",
+        "Diet choices, fluid intake, and food tolerance today only.",
+        "Home supply coverage and caregiver availability only.",
+        "Lung sounds, heart rhythm, and peripheral pulses only."
+      ],
+      "correct": "Stoma color and moisture, output, peristomal skin condition, and pouch seal.",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The stoma is pink-red, moist, and slightly edematous. Scant bleeding occurs with gentle cleansing and is expected. Soft brown output is present. The peristomal skin is intact with mild erythema from 3–5 o’clock, and the lower edge of the existing seal is lifting slightly. Remember it is helpful to verbalize findings aloud to reinforce patient understanding.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064446038_uiwtrc9fk",
+      "order": 13,
+      "title": "Perform Patient Repositioning",
+      "prompt": "Indicate how this step was performed.",
+      "type": "single",
+      "items": [
+        "The manikin/patient was repositioned for comfort and safe access to the ostomy.",
+        "The manikin/patient was left in the original position despite discomfort.",
+        "The action was described verbally but not demonstrated on the manikin/patient.",
+        "The manikin/patient was repositioned without preserving privacy or using safe body mechanics."
+      ],
+      "correct": "The manikin/patient was repositioned for comfort and safe access to the ostomy.",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Optional",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The patient should be repositioned for comfort and access during ostomy care. Safe body mechanics and privacy are maintained. Positioning is often overlooked but makes a big difference in patient tolerance and caregiver safety.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1784064509389_8fn2osqs1",
+      "order": 14,
+      "title": "Restrict All Oral Intake",
+      "prompt": "Indicate what a patient can consume when all oral intake is restricted.",
+      "type": "single",
+      "items": [
+        "Nothing by mouth, including food and fluids.",
+        "Water only.",
+        "Food only.",
+        "Any item the patient can tolerate."
+      ],
+      "correct": "Nothing by mouth, including food and fluids.",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Distractor",
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Restricting all oral intake is not indicated. The patient is tolerating the ordered low-residue/low-fiber diet without nausea, vomiting, or abdominal distention.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1784064570309_efzzw8snt",
+      "order": 15,
+      "title": "Review Previous Laboratory Results",
+      "prompt": "Arrange the steps in the best order. The existing laboratory results will then be revealed.",
+      "type": "ordering",
+      "items": [
+        "Verify the correct patient information and identifiers.",
+        "Review the existing laboratory results.",
+        "Interpret the laboratory results in the context of the patient’s postoperative status."
+      ],
+      "correct": "",
+      "categoryId": "cat_labs",
+      "typeRequirement": "Optional",
+      "resultMediaType": "image",
+      "resultMediaUrl": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/Screenshot-2026-07-14-at-2-31-01-PM-1784064676903-945395254.png",
+      "resultMediaName": "Screenshot-2026-07-14-at-2-31-01-PM-1784064676903-945395254.png",
+      "resultName": "",
+      "limitType": "unlimited"
+    }
+  ],
+  "patientData": {
+    "name": "Michael Carter ",
+    "gender": "Male",
+    "age": 45,
+    "race": "Caucasian ",
+    "dateOfBirth": "07-14-1981",
+    "dobMonthDay": "07-14",
+    "vitals": {
+      "heartRate": "",
+      "bloodPressure": "",
+      "respiratoryRate": "",
+      "spO2": "",
+      "temperature": "",
+      "weight": "89",
+      "height": "178"
+    },
+    "chiefComplaint": "Complicated diverticulitis with perforation; postoperative day 2 with newly placed colostomy.",
+    "medicalHistory": "Hypertension, well controlled; hyperlipidemia; recurrent diverticulitis with multiple prior flares.",
+    "allergies": "Penicillin - rash during childhood; no known anaphylaxis.",
+    "socialHistory": {
+      "tobacco": "Former smoker, approximately 10 pack-years; quit about 5 years ago; denies vaping.",
+      "alcohol": "Approximately 1-2 alcoholic drinks per week; denies binge drinking.",
+      "drugs": "Denies recreational or illicit drug use."
+    },
+    "lifestyle": {
+      "housing": "Stable single-family home shared with spouse; bathroom, running water, and space for supplies available.",
+      "transportation": "Normally drives; spouse can provide transportation during recovery.",
+      "occupation": "Warehouse supervisor; currently on medical leave.",
+      "diet": "Mixed diet with moderate processed food intake; limited fiber during diverticulitis flares; currently following a low-residue/low-fiber postoperative diet.",
+      "exercise": "Light activity; generally sedentary during the workweek with occasional walking.",
+      "stress": "Moderate stress related to body image, possible leakage or odor, return to work, intimacy, and independent self-care.",
+      "sleep": "Sleep is disrupted in the hospital; normally sleeps 6-7 hours per night."
+    },
+    "historyVisibility": {
+      "weight": true,
+      "height": true,
+      "chiefComplaint": true,
+      "historyOfPresentIllness": true,
+      "medicalHistory": true,
+      "pastSurgicalHistory": true,
+      "allergies": true,
+      "medications": true,
+      "immunizations": true,
+      "familyMedicalHistoryClinical": true,
+      "primaryCareProvider": true,
+      "tobacco": true,
+      "alcohol": true,
+      "drugs": true,
+      "transportation": true,
+      "stress": true,
+      "exercise": true,
+      "housing": true,
+      "occupation": true,
+      "diet": true,
+      "sleep": true
+    },
+    "preferredName": "Mike",
+    "historyOfPresentIllness": "45-year-old male on postoperative day 2 following sigmoid colectomy with end colostomy (Hartmann procedure) for complicated diverticulitis with perforation. Recovery has been uncomplicated. The colostomy is functioning with stool and gas in the pouch. The patient reports feeling overwhelmed, worries about odor and leakage, and is unsure what a normal stoma should look like. He denies chest pain, shortness of breath, dizziness, nausea, or vomiting. Mild incisional soreness improves with repositioning.",
+    "pastSurgicalHistory": "Sigmoid colectomy with end colostomy (current admission); appendectomy during adolescence.",
+    "currentMedications": [
+      "Lisinopril 10 mg PO daily - hypertension; atorvastatin 20 mg PO nightly - hyperlipidemia; psyllium fiber supplement, 1 dose PO daily PRN - bowel regularity before surgery."
+    ],
+    "immunizationHistory": [
+      "Influenza vaccine received this season; COVID-19 primary series completed; Tdap up to date per patient; childhood immunizations complete."
+    ],
+    "familyMedicalHistoryClinical": "Father: hypertension and type 2 diabetes. Mother: hyperlipidemia.",
+    "primaryCareProvider": "Father: hypertension and type 2 diabetes. Mother: hyperlipidemia."
+  },
+  "expectedActions": {
+    "labs": [],
+    "imaging": [],
+    "physicalExam": [],
+    "medications": []
+  },
+  "historyPrompts": [],
+  "assessmentGuidance": {
+    "actions": [],
+    "educationPoints": []
+  },
+  "learningObjectiveCard": "",
+  "phases": [],
+  "availableMedications": [],
+  "grading": {
+    "maxScore": 100,
+    "rubric": [
+      {
+        "id": "rubric_actions",
+        "name": "Actions & Interventions",
+        "categoryType": "Technical Skill",
+        "subCategory": "Action",
+        "weight": 45,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Section Raw Score = (Sum of completed Mandatory actions) ÷ (Total number of Mandatory actions) × 100 × Weight %"
+      },
+      {
+        "id": "rubric_medications",
+        "name": "Medications",
+        "categoryType": "Technical Skill",
+        "subCategory": "Medications",
+        "weight": 0,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Medication administration accuracy graded automatically from the orders configured for this scenario."
+      },
+      {
+        "id": "rubric_ppe",
+        "name": "PPE, Privacy & Safety",
+        "categoryType": "Technical Skill",
+        "subCategory": "Expected Actions",
+        "weight": 10,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Safety and privacy measures evaluated from the Common Actions Panel.",
+        "checklistItems": [
+          {
+            "id": "ppe-inf-1a",
+            "text": "Eye Protection Donned",
+            "order": 1,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-1b",
+            "text": "Eye Protection Doffed",
+            "order": 2,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2a",
+            "text": "Isolation Gown Donned",
+            "order": 3,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-2b",
+            "text": "Isolation Gown Doffed",
+            "order": 4,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-3a",
+            "text": "Standard Gloves Donned",
+            "order": 5,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-3b",
+            "text": "Standard Gloves Doffed",
+            "order": 6,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-4a",
+            "text": "Sterile Gloves Donned",
+            "order": 7,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-4b",
+            "text": "Sterile Gloves Doffed",
+            "order": 8,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-5a",
+            "text": "Respirator Mask (N95) Donned",
+            "order": 9,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-5b",
+            "text": "Respirator Mask (N95) Doffed",
+            "order": 10,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-6a",
+            "text": "Surgical Mask Donned",
+            "order": 11,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-6b",
+            "text": "Surgical Mask Doffed",
+            "order": 12,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-7",
+            "text": "Hand Hygiene Performed",
+            "order": 13,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-8",
+            "text": "Sharps Discarded",
+            "order": 14,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-9",
+            "text": "Non-Infectious Waste Discarded",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-10",
+            "text": "Infectious Waste Discarded",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-1",
+            "text": "Knock / Announce Entry",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2b",
+            "text": "Door Opened",
+            "order": 17,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2a",
+            "text": "Door Closed",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3b",
+            "text": "Curtain Opened",
+            "order": 19,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3a",
+            "text": "Curtain Drawn",
+            "order": 18,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-1a",
+            "text": "Bed/Chair Locked",
+            "order": 20,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-2a",
+            "text": "Bed/Chair Alarm Activated",
+            "order": 22,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-3a",
+            "text": "Bed Lowered to Lowest Position",
+            "order": 24,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-4",
+            "text": "Call Light In Reach",
+            "order": 26,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-5",
+            "text": "Equipment Checked",
+            "order": 27,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-6",
+            "text": "Lines / Tubes / Drains Checked",
+            "order": 28,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-7",
+            "text": "Personal Items Within Reach",
+            "order": 29,
+            "status": "Optional"
+          }
+        ]
+      },
+      {
+        "id": "rubric_documentation",
+        "name": "Clinical Documentation Quality",
+        "categoryType": "Technical Skill",
+        "subCategory": "Documentation",
+        "weight": 14,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Quality and completeness of clinical documentation.",
+        "checklistItems": [
+          {
+            "id": "doc-1",
+            "text": "Actions, Assessment & Intervention Documentation",
+            "status": "Mandatory",
+            "order": 1
+          },
+          {
+            "id": "doc-2",
+            "text": "Medical and health history updated",
+            "status": "Optional",
+            "order": 2
+          },
+          {
+            "id": "doc-3",
+            "text": "Patient emotional response documented",
+            "status": "Mandatory",
+            "order": 3
+          }
+        ]
+      },
+      {
+        "id": "rubric_communication",
+        "name": "Communication",
+        "categoryType": "Technical Skill",
+        "subCategory": "Communication",
+        "weight": 30,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Evaluation of patient-centered communication skills and empathy.",
+        "communicationCriteria": [
+          {
+            "id": "comm-crit-1",
+            "title": "Establish rapport, privacy, consent, and dignity ",
+            "prompt": " Evaluate whether the student introduces themselves, verifies the patient using two identifiers, explains the purpose of care, requests permission before exposing the abdomen or touching the pouch, and protects privacy throughout ostomy care. Return PASS only if most of these behaviors are present. ",
+            "enabled": true,
+            "order": 1
+          },
+          {
+            "id": "comm-crit-2",
+            "title": "Demonstrate empathy and emotional support ",
+            "prompt": "Evaluate whether the student acknowledges and validates concerns about body image, odor, leakage, work, relationships, or dependence; uses a calm nonjudgmental tone; and avoids minimizing the patient’s feelings. Return PASS only when clear empathic statements are present. ",
+            "enabled": true,
+            "order": 2
+          },
+          {
+            "id": "comm-crit-1784065723407",
+            "title": "Use patient-centered and therapeutic communication ",
+            "prompt": "Evaluate whether the student asks open-ended questions, allows the patient to elaborate, listens without interruption, reflects or summarizes concerns, invites questions, and includes the patient in decisions and hands-on learning. Return PASS if multiple strategies are evident.",
+            "enabled": true,
+            "order": 3
+          },
+          {
+            "id": "comm-crit-1784065750602",
+            "title": "Use clear, health-literacy-sensitive language ",
+            "prompt": "Evaluate whether the student explains the stoma, pouch, skin care, and warning signs in plain language; avoids unexplained jargon; presents information in manageable steps; and checks understanding. Return PASS only if education is accessible.",
+            "enabled": true,
+            "order": 4
+          },
+          {
+            "id": "comm-crit-1784065766819",
+            "title": "Provide introductory colostomy education using teach-back ",
+            "prompt": "Evaluate whether the student teaches normal versus concerning stoma findings, when to empty the pouch, how proper fit protects skin and prevents leakage, and when to seek help; then asks the patient to explain or demonstrate key points. Return PASS when basic education and teach-back are both present. ",
+            "enabled": true,
+            "order": 5
+          }
+        ],
+        "communicationSummaryPrompt": "Give a summary of what the student did well and what, if anything, the student did wrong in communication practice for these five criteria. Limit the analysis to 50 words or less. "
+      },
+      {
+        "id": "rubric_timeline",
+        "name": "Sequencing & Prioritization",
+        "categoryType": "Technical Skill",
+        "subCategory": "Sequencing & Prioritization",
+        "weight": 1,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Correct sequencing and prioritization of actions throughout the scenario."
+      }
+    ],
+    "components": {
+      "softSkills": {
+        "weight": 0
+      },
+      "technicalSkills": {
+        "weight": 100
+      }
+    },
+    "showDebriefToStudents": true,
+    "debriefReflectionPrompt": "Please respond to at least two of the following: \n\nHow are you feeling now that the simulation is over? \nWhat felt most challenging? \nWhere did you feel most confident? \nWhat emotions did you notice the patient expressing, and how did that influence the way you communicated? \nHow did you explain what was normal versus concerning during the stoma and skin assessment? \nWhat strategies did you use to keep education clear and manageable? \nWhat communication or privacy actions supported dignity during ostomy care? "
+  },
+  "requiresProductSetup": true,
+  "productSetup": {
+    "title": "Realityworks Adult Nursing Manikin with Colostomy (or similar product)"
+  },
+  "aiPatientData": {
+    "openingReasonForVisit": "“Hi... I’m Michael. I had surgery a couple of days ago, and now I have this bag on my stomach. The nurse said you were coming in to check it and show me how to take care of it. I’m still trying to wrap my head around all of this.” ",
+    "mainConcernAttributes": "“I’m worried I’m going to mess something up. I don’t know exactly what it should look like, and I’m nervous about leaks or smells when I go home or return to work.” ",
+    "associatedSymptoms": "“I’m a little sore around the surgery area, especially when I move, but it’s manageable. I feel tired and stressed. My stomach feels different, but I’m not nauseated and I haven’t been vomiting.” ",
+    "allergies": "“Penicillin gave me a rash when I was a kid. I’ve never had trouble breathing from it.” ",
+    "currentMedications": "“At home I take lisinopril for my blood pressure and atorvastatin for cholesterol. I used a fiber supplement sometimes before the surgery.” ",
+    "diagnosedChronicIllnesses": "“I have high blood pressure, high cholesterol, and I’ve had several attacks of diverticulitis.” ",
+    "medicalHistory": "“I had my appendix out as a teenager. This bowel surgery and colostomy are the biggest medical things I’ve dealt with. I get my flu shot and my regular vaccines are up to date as far as I know.” ",
+    "familyMedicalHistory": "“My dad has high blood pressure and type 2 diabetes. My mom has high cholesterol.” ",
+    "relationshipStatusSexualHealth": "“I’m married. My wife is supportive, but I’m embarrassed and worried about how the bag might affect intimacy.” ",
+    "personalSocialHistory": "“I’m a warehouse supervisor. I’m used to being active and handling things myself. My wife can help while I recover, but I don’t want to depend on her for everything.” ",
+    "housing": "“My wife and I live in a one-level house with running water and room to store supplies.” ",
+    "transportation": "“I usually drive. My wife can drive me while I’m recovering.” ",
+    "occupation": "“I supervise a warehouse. I’m on medical leave and worried about lifting, moving around, and whether people at work will notice the pouch.” ",
+    "diet": "“I eat a mixed diet and probably too much fast food. Right now I’m on a low-fiber diet after surgery, and I have questions about what I can eat with the colostomy.” ",
+    "exercise": "“My job keeps me moving, but I don’t have a regular exercise program. I walk sometimes.” ",
+    "stress": "“I’m pretty stressed about body changes, leaks, smells, work, and how this will affect my relationship.” ",
+    "sleep": "“I usually sleep six or seven hours, but the hospital is noisy and I’ve been waking up because I’m worried.” ",
+    "adls": "“Before surgery I did everything on my own. I want to learn enough to take care of the pouch myself.” ",
+    "drugs": "“I quit smoking about five years ago. I don’t vape or use drugs. I might have one or two drinks in a week.” ",
+    "emotionalStatePersonality": "Situationally anxious and emotionally vulnerable but calm, alert, and cooperative. Practical, responsible, and independent. Values competence and does not want to be a burden. Becomes more open when the learner validates concerns and explains care step by step. ",
+    "conversationalAttitudeSpeechStyle": "Polite, cooperative, and initially hesitant. Uses natural everyday language, short responses at first, and occasional nervous humor. Asks practical questions about leakage, odor, work, diet, intimacy, and what findings are normal. Avoid clinical shorthand and medical jargon unless the learner first explains the term. ",
+    "specialPatientInfo": "White/Caucasian, non-Hispanic man. Christian, non-denominational; no requested religious accommodations. High school diploma with vocational training. Moderate health literacy and learns best through demonstration, repetition, plain language, and teach-back. Employer-sponsored insurance; unsure which ostomy supplies will be covered. Stable income, housing, transportation, and food access. Primary barriers are embarrassment, fear of stigma, and low confidence with new self-care. ",
+    "locationSpecificInfo": "The patient is in an inpatient medical-surgical room in Columbus, Ohio. He is postoperative day 2, seated or semi-Fowler’s in bed, with the abdomen covered for privacy and the colostomy pouch in place. He is oriented to person, place, time, and situation and does not spontaneously discuss politics or current events. "
+  },
+  "enableStudentBriefing": true,
+  "studentBriefing": {
+    "safeEnvironment": "This simulation is designed to promote integrity, trust, and respect.\nWe believe that everyone participating in this activity is intelligent, capable, cares about doing their best, and wants to improve.\nThis is a safe learning space intended for practice and skill development. Engage fully, make decisions to the best of your ability, and reflect on the experience during debriefing. \nDuring the simulation, please suspend disbelief and respond as though the situation is entirely real. Maintain professionalism and respectful behavior toward the patient, the environment, and your peers at all times.",
+    "facilitatorSupport": "This simulation may be completed in a self-directed or asynchronous manner. \nComplete any orientation and preparation requirements prior to this experience as indicated by your educator. \nPlease seek guidance from your educator if you are unsure how to use a piece of equipment, locate supplies, or safely complete a task. Asking for assistance is encouraged and supports safety and learning.",
+    "orientationSpace": "The manikin and necessary equipment/supplies should be prepared for your use prior to starting the simulation.",
+    "orientationEquipment": "Some equipment used in the simulation may be fully functional, while other items are simulated for training purposes. Your educator should inform you which equipment is real versus simulated, as well as which supplies are new and which may be reused from prior simulations.\n\nIf you are unfamiliar with how any equipment or supplies operate, pause and ask the educator for clarification before proceeding.",
+    "evaluation": "During this simulation, observations of your knowledge, skills, behaviors, and attitudes may be conducted, information gathered may be used to identify areas for additional learning or practice. Assessment data collected is used for educational purposes.",
+    "rolesExpectations": "You may be working independently or with peers, clarify the expectations for this simulation as set by your educator prior to starting the simulation.\nYou are responsible for completing tasks associated with your assigned role to the best of your ability.\nPlease refrain from sharing details of this simulated experience with users who have not yet completed their experiences as this diminishes their learning opportunity.",
+    "simulationLimitations": "Please note that time may be compressed during the simulation, and patient conditions may improve or worsen more quickly than in real clinical practice. This is intentional and supports learning within a limited time frame.\nThe simulated date and time of this experience is: July 16, 09:00.",
+    "timeAllotment": "The date and time of this simulated clinical encounter is: July 16, 09:00. This scenario is designed to take approximately 20-25 minutes to complete. You may manage your time independently within this window.",
+    "purpose": "The purpose of this simulation is to help you practice caring for a patient who has a new colostomy. You will assess the stoma and surrounding skin, empty and replace the pouching system, explain basic care in clear language, and use empathy and respectful communication while the patient adjusts to a change in body function and appearance.",
+    "learningObjectives": "Perform a focused stoma/peristomal skin assessment on an adult with a newly placed colostomy. \nDemonstrate colostomy care, including bag emptying and replacement of a colostomy flange and bag. \nReinforce introductory, health-literacy-sensitive patient education on colostomy care and management. \nProvide empathetic support for the patient and address their questions and concerns related to the colostomy."
+  },
+  "sbar": {
+    "situation": "The date and time of this simulated clinical encounter is: July 16, 09:00.\nMichael Carter is a 45-year-old man admitted to the inpatient medical-surgical unit following recent bowel surgery with placement of a new colostomy. You are assuming care during a routine daytime shift.",
+    "background": "Mr. Carter is postoperative day 2 after a sigmoid colectomy with end colostomy (Hartmann procedure) for complicated diverticulitis with perforation. This is his first experience with an ostomy. His recovery has been uncomplicated, and he has expressed uncertainty and concern about caring for the colostomy. ",
+    "assessment": "Vital signs are stable. The colostomy is functioning with soft brown output and mild gas present in the pouch. The patient appears anxious and has questions about normal stoma appearance, leakage, odor, skin protection, and managing the pouch at home and work. ",
+    "recommendation": "Complete a focused stoma and peristomal skin assessment, provide routine colostomy care as indicated, reinforce basic education using simple and clear language, use teach-back, and offer emotional support while preserving privacy and dignity. "
+  },
+  "orders": [
+    {
+      "id": "order_1784064757395",
+      "scenarioId": "",
+      "title": "Vital Signs Every 8 Hours ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Obtain and document routine vital signs every 8 hours. ",
+      "linkedActionIds": [
+        "action_1784064291281_g7xf2meli"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1784064291281_g7xf2meli",
+          "title": "Obtain Vital Signs #1"
+        }
+      ],
+      "startDay": "Jul-16-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "09:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Monitoring & Assessments",
+        "name": "Vital Signs Every 8 Hours "
+      }
+    },
+    {
+      "id": "order_1784064851529",
+      "scenarioId": "",
+      "title": "Low-Residue/Low-Fiber Diet",
+      "category": "Diet",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Low-residue/low-fiber postoperative diet; advance and consume as tolerated. ",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "startDay": "Jul-16-2026",
+      "due": "Jul-16-2026",
+      "dueTime": "07:00",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "07:00"
+      },
+      "dietConfig": {
+        "subCategory": "Not Applicable",
+        "details": "",
+        "name": "Low-Residue/Low-Fiber Diet"
+      }
+    },
+    {
+      "id": "order_1784064938092",
+      "scenarioId": "",
+      "title": "Patient Education - Stoma Care Basics ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Provide introductory, health-literacy-sensitive education on normal stoma appearance, pouch emptying, pouch fit, peristomal skin care, leak/odor prevention, warning signs, and available support. Use teach-back. ",
+      "linkedActionIds": [
+        "action_1784064233390_vn6u0fprg"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1784064233390_vn6u0fprg",
+          "title": "Ostomy – Patient Education: Stoma Care Basics"
+        }
+      ],
+      "startDay": "Jul-09-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "09:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Patient Education & Teaching",
+        "name": "Patient Education - Stoma Care Basics "
+      }
+    },
+    {
+      "id": "order_1784065040443",
+      "scenarioId": "",
+      "title": "Measure and Record Intake and Output ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Measure and record oral intake, urine output, and colostomy output each shift. Document the amount and characteristics of ostomy output. ",
+      "linkedActionIds": [
+        "action_1784063768265_4yblidx5v"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1784063768265_4yblidx5v",
+          "title": "Ostomy - Empty Ostomy Pouch "
+        }
+      ],
+      "startDay": "Jul-14-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "09:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "I&O & Elimination",
+        "name": "Measure and Record Intake and Output "
+      }
+    },
+    {
+      "id": "order_1784065083968",
+      "scenarioId": "",
+      "title": "Complete Blood Count (CBC) ",
+      "category": "Lab",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "CBC collected for routine postoperative monitoring. ",
+      "linkedActionIds": [
+        "action_1784064570309_efzzw8snt"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1784064570309_efzzw8snt",
+          "title": "Review Previous Laboratory Results"
+        }
+      ],
+      "startDay": "Jul-16-2026",
+      "due": "Jul-16-2026",
+      "dueTime": "06:00",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "06:00"
+      },
+      "labConfig": {
+        "name": "Complete Blood Count (CBC) ",
+        "frequency": "Once",
+        "subCategory": "Hematology",
+        "count": "1"
+      }
+    },
+    {
+      "id": "order_1784065159435",
+      "scenarioId": "",
+      "title": "Basic Metabolic Panel (BMP) ",
+      "category": "Lab",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Basic metabolic panel collected for routine postoperative monitoring. ",
+      "linkedActionIds": [
+        "action_1784064570309_efzzw8snt"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1784064570309_efzzw8snt",
+          "title": "Review Previous Laboratory Results"
+        }
+      ],
+      "startDay": "Jul-16-2026",
+      "due": "Jul-16-2026",
+      "dueTime": "06:00",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "06:00"
+      },
+      "labConfig": {
+        "name": "Basic Metabolic Panel (BMP) ",
+        "frequency": "Once",
+        "subCategory": "Chemistry",
+        "count": "1"
+      }
+    }
+  ],
+  "actionCategories": [
+    {
+      "id": "cat_assessments",
+      "name": "Assessments & Exams",
+      "description": "Assessment findings and exam results",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_bedside",
+      "name": "Bedside Procedures",
+      "description": "Procedures performed at bedside",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_labs",
+      "name": "Labs & Diagnostics",
+      "description": "Laboratory and diagnostic testing",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_medication",
+      "name": "Medication Administration",
+      "description": "Medication-related actions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_nursing",
+      "name": "Nursing Care & Interventions",
+      "description": "General nursing care and interventions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_other",
+      "name": "Other",
+      "description": "Miscellaneous actions and documentation",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_patient_ed",
+      "name": "Patient Education",
+      "description": "Patient education activities",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_team_comm",
+      "name": "Team Communication",
+      "description": "Communication with care team",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "description": "Default category for actions",
+      "isSystem": false,
+      "scenarioId": ""
+    }
+  ],
+  "simulationStartTime": "2026-07-16T09:00",
+  "additionalEquipment": "Hand hygiene supplies; clean gloves; hospital bed and linens; bedside/overbed table; ostomy pouch and flange; stoma measuring guide; skin barrier/prep wipes; barrier ring or paste; disposable wipes or gauze; absorbent pad; disposal bags. ",
+  "optionalEquipment": "Privacy drape or screen; plain-language ostomy education handout; sample take-home pouching supplies. ",
+  "setupNotes": "Position the manikin in a hospital bed in a standard inpatient room. Apply the simulated colostomy appliance before learner entry and place soft brown simulated output and mild gas in the pouch. Configure the stoma as pink-red, moist, and mildly edematous. Add mild intact erythema from the 3-5 o’clock position and slightly lift the lower edge of the existing seal. Keep the abdomen covered until the learner explains the care, obtains consent, and provides privacy. Stage ostomy supplies together so the learner selects appropriate items.",
+  "topicsAddressed": "Colostomy Care; Skin and Stoma Assessment; Altered Elimination; Altered Self-Perception; Patient Education; Empathetic Care ",
+  "estimatedDuration": "25 min",
+  "prebriefScriptPdf": "",
+  "debriefPointsPdf": "",
+  "setupNotesPdf": "",
+  "facilitationNotesPdf": "",
+  "printableSbarPdf": "",
+  "printablePatientChartPdf": "",
+  "scenarioImage": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/ChatGPT-Image-Jul-14--2026--09-20-15-PM-1784082054191-885517538.png",
+  "sequences": [
+    {
+      "parentRef": "ppe.handHygiene",
+      "parentLabel": "Hand Hygiene Performed",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "anytime"
+      },
+      "afterTiming": {
+        "mode": "withinMinutes",
+        "withinMinutesFromStart": 1
+      },
+      "beforeOrderControl": "strict",
+      "afterOrderControl": "flexible",
+      "before": [],
+      "after": [
+        {
+          "ref": "patient.name",
+          "label": "Patient Name",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "ref": "patient.dob",
+          "label": "Date of Birth",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "ref": "ppe.donStandardGloves",
+          "label": "Don Standard Gloves",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1784064392002_ve7e8yy4v",
+          "label": "Perform Focused Stoma Assessment",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1784063768265_4yblidx5v",
+          "label": "Ostomy - Empty Ostomy Pouch",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1784064021419_7it0vjnvy",
+          "label": "Ostomy – Protect Peristomal Skin",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1784064233390_vn6u0fprg",
+          "label": "Ostomy – Patient Education: Stoma Care Basics",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ],
+      "afterGroups": [
+        {
+          "id": "group-1784083115169-3",
+          "label": "Group A",
+          "mode": "flexible",
+          "items": [
+            "patient.name",
+            "patient.dob"
+          ],
+          "subgroups": [],
+          "color": "#A78BFA",
+          "timing": {
+            "mode": "anytime"
+          }
+        },
+        {
+          "id": "group-1784083144833-5",
+          "label": "Group B",
+          "mode": "strict",
+          "items": [
+            "ppe.donStandardGloves",
+            "action_1784064392002_ve7e8yy4v"
+          ],
+          "color": "#F87171",
+          "timing": {
+            "mode": "anytime"
+          }
+        },
+        {
+          "id": "group-1784083228584-6",
+          "label": "Group C",
+          "mode": "flexible",
+          "items": [
+            "action_1784063768265_4yblidx5v",
+            "action_1784064021419_7it0vjnvy",
+            "action_1784064233390_vn6u0fprg"
+          ],
+          "color": "#FBBF24",
+          "timing": {
+            "mode": "anytime"
+          }
+        }
+      ]
+    },
+    {
+      "parentRef": "ppe.handHygiene",
+      "parentLabel": "Hand Hygiene",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "withinMinutes",
+        "withinMinutesFromStart": 1
+      },
+      "afterTiming": {
+        "mode": "anytime"
+      },
+      "beforeOrderControl": "strict",
+      "afterOrderControl": "strict",
+      "before": [
+        {
+          "ref": "ppe.doffStandardGloves",
+          "label": "Doff Standard Gloves",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ],
+      "after": []
+    }
+  ],
+  "ethnicity": "",
+  "age": "",
+  "assessmentNarrativeExpected": "",
+  "preBriefPdf": "",
+  "teamCommunication": {
+    "prompt": "",
+    "referenceTranscript": "",
+    "passThreshold": 0,
+    "onPassUnlockOrderIds": [],
+    "limitType": "unlimited",
+    "maxAttempts": 1,
+    "typeRequirement": "Optional",
+    "passMessage": "Great job! Your SBAR report was accepted.",
+    "failMessage": "Your report didn't meet all the required elements. Review the SBAR criteria and try again.",
+    "isButtonEnabled": false
+  }
+}

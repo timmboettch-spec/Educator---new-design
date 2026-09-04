@@ -1,0 +1,29 @@
+{
+  "valid": {
+    "full_name": "Admin Test User",
+    "email": "admin-smoke@example.com",
+    "password": "Test@1234"
+  },
+  "missingEmail": {
+    "full_name": "No Email User",
+    "password": "Test@1234"
+  },
+  "missingPassword": {
+    "full_name": "No Password User",
+    "email": "admin-smoke@example.com"
+  },
+  "missingFullName": {
+    "email": "admin-smoke@example.com",
+    "password": "Test@1234"
+  },
+  "invalidEmail": {
+    "full_name": "Invalid Email User",
+    "email": "not-an-email",
+    "password": "Test@1234"
+  },
+  "shortPassword": {
+    "full_name": "Short Pass User",
+    "email": "admin-smoke@example.com",
+    "password": "Abc@1"
+  }
+}

@@ -1,0 +1,66 @@
+name: Notify pending deployment approval
+
+# =============================================================================
+# Standalone workflow (same shape as the frontend's notify-pending-approval.yml;
+# no workflow_call/reusable-workflow indirection).
+# -----------------------------------------------------------------------------
+# Fires whenever a deployment targeting a gated GitHub Environment (e.g. prod)
+# is waiting on reviewer approval. Posts a Teams Adaptive Card @mentioning the
+# deployer and linking to the approval page.
+# =============================================================================
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  notify:
+    if: ${{ github.event.deployment_status.state == 'waiting' && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build notification content
+        id: content
+        run: |
+          ENV="${{ github.event.deployment.environment }}"
+          case "$ENV" in
+            prod) STYLE="warning" ;;
+            qa)   STYLE="accent"  ;;
+            *)    STYLE="default" ;;
+          esac
+          echo "style=$STYLE" >> "$GITHUB_OUTPUT"
+
+          SHORT_SHA=$(echo "${{ github.event.deployment.sha }}" | cut -c1-7)
+          FACTS=$(jq -n \
+            --arg env "$ENV" \
+            --arg sha "$SHORT_SHA" \
+            --arg actor "${{ github.event.deployment.creator.login }}" \
+            '[
+              {title:"Environment",  value:$env},
+              {title:"Repository",   value:"${{ github.repository }}"},
+              {title:"SHA",          value:$sha},
+              {title:"Triggered by", value:$actor}
+            ]')
+          {
+            echo 'facts<<EOF'
+            echo "$FACTS"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post Teams card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login:   ${{ github.event.deployment.creator.login }}
+          headline:       "🟡 Educator Backend deploy awaiting approval — ${{ github.event.deployment.environment }}"
+          style:          ${{ steps.content.outputs.style }}
+          mention-prefix: 'Submitted by '
+          mention-suffix: ' — please review.'
+          facts-json:     ${{ steps.content.outputs.facts }}
+          actions-json: |
+            [{"type":"Action.OpenUrl","title":"Review & approve","url":"${{ github.event.deployment_status.target_url }}"}]

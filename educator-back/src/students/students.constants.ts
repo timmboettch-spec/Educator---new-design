@@ -1,0 +1,101 @@
+export const StudentConstants = {
+  ROUTES: {
+    BASE: 'students',
+    ID: ':id',
+    CLASS_ID: 'class/:classId',
+    USER: 'user',
+    UPDATE_CODE: 'update-code',
+    REVOKE_CODE: 'revoke-code/:id',
+    REGENERATE_CODE: 'regenerate-code/:id',
+    LOOKUP_BY_CODE: 'lookup/:studentCode',
+    LOGIN: 'login',
+    LOGOUT: 'logout',
+    SIMULATIONS_BY_CODE: 'simulations/:studentCode',
+    START_ASSESSMENT: ':studentId/start-assessment',
+    BULK: 'bulk',
+  },
+  SWAGGER: {
+    TAG: 'Students',
+  },
+  VALIDATION: {
+    STUDENT_EXISTS: 'Student already exists in this class',
+    STUDENT_NOT_FOUND:
+      'Invalid student code. No student found with the provided code. Please check and try again.',
+    CLASS_INACTIVE:
+      'Access denied. Your student account or class is currently inactive. Please contact your educator.',
+    CLASS_DRAFT:
+      'Access denied. Your student account or class is currently draft. Please contact your educator.',
+    CLASS_ARCHIVED:
+      'Access denied. Your student account or class is currently archived. Please contact your educator.',
+    STUDENT_CODE_INVALID: 'The student code you entered is invalid or does not exist.',
+    STUDENT_ID_NOT_FOUND:
+      'No student account found with the provided student ID. Please check and try again.',
+    FILE_NOT_PROVIDED: 'File not provided',
+    MISSING_DATA: 'Missing student data (ID or Name)',
+    INVALID_CLASS: 'Invalid or missing class ID',
+    INVALID_USER_CONTEXT: 'Invalid or missing user ID',
+    CLASS_NOT_FOUND: 'Class not found',
+    USER_NOT_EDUCATOR: 'Invalid user (Not found or not Educator)',
+    DUPLICATE_ID: 'Duplicate student ID',
+    CSV_PARSE_FAILED: 'CSV parsing failed',
+    CLASS_ID_REQUIRED: 'class_id is required',
+    STUDENT_ID_REQUIRED: 'student_id query param is required',
+    STUDENT_NOT_IN_CLASS: 'Student not found in the given class',
+    EMAIL_MISSING: 'Student email is required',
+    EMAIL_FAILED_ALL: 'Student email is required',
+    EMAIL_FAILED: 'Failed to send student email',
+    EMAIL_SUCCESS: 'Email sent successfully',
+    CREATE_FAILED: 'Failed to create student',
+    BULK_COUNT_INVALID: 'count must be a positive integer between 1 and 50',
+    BULK_CREATE_FAILED: 'Failed to bulk create students',
+    FETCH_FAILED: 'Failed to fetch students',
+    FETCH_BY_CLASS_FAILED: 'Failed to fetch students by class',
+    FETCH_ONE_FAILED: 'Failed to fetch student',
+    UPDATE_FAILED: 'Failed to update student',
+    DELETE_FAILED: 'Failed to delete student',
+    UPDATE_CODE_FAILED: 'Failed to update student code',
+    STUDENT_CLASS_MISSING: 'Student is not assigned to a class',
+    NO_SIMULATIONS_ASSIGNED:
+      'No simulations have been assigned to your class yet. Please contact your educator.',
+    ID_GEN_FAILED: 'Failed to generate unique student ID',
+    COLLISION_ERROR: 'Failed to generate unique student ID after multiple attempts',
+    CODE_FORMAT_INVALID:
+      'Generated student code does not match required CCC-XXXX format (3-char prefix, hyphen, 4-char alphanumeric suffix)',
+    ASSESSMENT_ALREADY_COMPLETED:
+      'Assessment already completed for this simulation. No further attempts (Practice or Assessment) are allowed.',
+    PRACTICE_NOT_ALLOWED:
+      'Assessment already completed for this simulation. Practice mode is no longer available.',
+    EMAIL_IN_USE: 'Email already in use by an Admin or Educator',
+    EMAIL_ALREADY: 'Email already enrolled in this class.',
+    EMAIL_ALREADY_EXISTS: 'Email already exists in the system',
+  },
+  MESSAGES: {
+    CREATED: 'Student created successfully',
+    UPDATED: 'Student updated successfully',
+    DELETED: 'Student deleted successfully',
+    FETCHED: 'Students fetched successfully',
+    EMAIL_SENT_SINGLE: 'Email sent successfully',
+    EMAIL_SENT_COUNT: (sent: number): string =>
+      `Email student code sent to ${sent} student(s) successfully`,
+    EMAIL_FAILED_COUNT: (failed: number): string => `, ${failed} failed`,
+    CODE_REGENERATED: 'Student ID generated successfully',
+    CODE_REVOKED: 'Student code revoked successfully',
+    LOGIN_SUCCESS: 'Student login successful',
+    LOGOUT_SUCCESS: 'Student logged out successfully',
+    NO_TOKEN_PROVIDED: 'No token provided',
+    ASSESSMENT_CAN_PROCEED: 'Assessment attempt validated. You may proceed.',
+    EDUCATOR_NOT_FOUND: 'Educator not found',
+    NO_PERMISSION: 'You do not have permission to delete this student'
+  },
+  CSV_HEADERS: {
+    STUDENT_ID: 'student_id',
+    STUDENT_NAME: 'student_name',
+    EMAIL: 'email',
+    CLASS_ID: 'class_id',
+    USER_ID: 'user_id',
+  },
+  ROLES: {
+    EDUCATOR: 'Educator',
+    DISTRICT_ADMIN: 'District Admin',
+  },
+};

@@ -1,0 +1,322 @@
+name: Branch Preview Environment
+
+# =============================================================================
+# Ephemeral per-branch preview container for the Educator backend.
+# -----------------------------------------------------------------------------
+# Built on Educator's aggregated composite actions (.github/actions/):
+#   • aca-deploy   — OIDC + ACR build + Bicep deploy + wait-health (+ smoke)
+#   • teams-notify — mention-resolve + Adaptive Card, one step
+# Deployed via infra/preview-deploy.bicep (reuses the container-app module, so
+# the preview inherits the Redis sidecar + all env/secret wiring). Scales to
+# zero when idle. Teardown on branch delete / PR close.
+# =============================================================================
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'fix/**'
+      - 'bug/**'
+      - 'epic/**'
+      - 'chore/**'
+      - 'devops/**'
+      - 'ci/**'
+      - 'infra/**'
+      - 'release/**'
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - 'package*.json'
+      - 'tsconfig*.json'
+      - 'infra/**'
+      - '.github/workflows/preview-deploy.yml'
+      - '.github/actions/**'
+
+  delete: {}
+
+  pull_request:
+    types: [closed]
+    branches: [main, qa, dev]
+
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy a preview for'
+        required: false
+        type: string
+
+concurrency:
+  group: preview-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+env:
+  ACR_NAME: acrall1rwai
+  ACR_RG: ARG-all1-rwai
+  IMAGE_NAME: educator-backend
+  RESOURCE_GROUP: ARG-dev1-rwai
+  SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+
+jobs:
+  deploy-preview:
+    name: Deploy preview
+    if: |
+      github.event_name != 'delete'
+      && github.event_name != 'pull_request'
+      && !(github.event_name == 'create' && github.ref_type == 'tag')
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      backend_url: ${{ steps.url.outputs.backend_url }}
+      backend_app: ${{ steps.names.outputs.backend_app }}
+      branch_slug: ${{ steps.names.outputs.branch_slug }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set preview names
+        id: names
+        env:
+          DISPATCH_BRANCH_INPUT: ${{ github.event.inputs.branch }}
+          REF_NAME:               ${{ github.ref_name }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$DISPATCH_BRANCH_INPUT" ]; then
+            BRANCH="$DISPATCH_BRANCH_INPUT"
+          else
+            BRANCH="$REF_NAME"
+          fi
+          BRANCH_LOWER=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]')
+          HASH=$(echo -n "$BRANCH_LOWER" | sha256sum | cut -c1-4)
+          # cut to 10 (not 15): the shared ACR/RG (acrall1rwai / ARG-dev1-rwai) also
+          # hosts other apps' previews (e.g. the HA student app). The "edu" segment
+          # below — matching this repo's prod naming aca-<env>1-rwai-eduback — is
+          # what actually prevents a name collision; the branch slug alone doesn't,
+          # since two repos can both have a branch called e.g. "fix/login-bug".
+          SLUG=$(echo "$BRANCH_LOWER" | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g' | cut -c1-10 | sed 's/-$//')
+          echo "branch=$BRANCH"                                             >> "$GITHUB_OUTPUT"
+          echo "branch_slug=${SLUG}-${HASH}"                                >> "$GITHUB_OUTPUT"
+          echo "backend_app=aca-p-${SLUG}-${HASH}-eduback"                  >> "$GITHUB_OUTPUT"
+          echo "image_tag=prev-${SLUG}-${HASH}-$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_OUTPUT"
+      - name: Build & deploy preview (Bicep)
+        id: deploy
+        uses: ./.github/actions/aca-deploy
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          acr-name:        ${{ env.ACR_NAME }}
+          acr-rg:          ${{ env.ACR_RG }}
+          image-name:      ${{ env.IMAGE_NAME }}
+          image-tag:       ${{ steps.names.outputs.image_tag }}
+          bicep-template:  infra/preview-deploy.bicep
+          bicep-params:    previewAppName=${{ steps.names.outputs.backend_app }} backendImageTag=${{ steps.names.outputs.image_tag }}
+          container-app:   ${{ steps.names.outputs.backend_app }}
+          resource-group:  ${{ env.RESOURCE_GROUP }}
+          run-smoke:       'false'   # blocking smoke runs as its own required-check job below
+
+      - name: Expose preview URL
+        id: url
+        run: echo "backend_url=https://${{ steps.deploy.outputs.app-fqdn }}" >> "$GITHUB_OUTPUT"
+
+  # WARNING-ONLY CHECK — does not block merge.
+  # 1. Curls the preview /health (no Azure auth needed: it hits the public
+  #    URL from deploy-preview) — still fails RED if the preview didn't
+  #    deploy at all, so the "no preview to test" case stays loud, but the
+  #    job's actual smoke-suite step below never fails the job itself.
+  # 2. Runs the real tests/api suite (module-executor.js: login -> school ->
+  #    educator -> dashboard -> user -> class -> student -> simulation ->
+  #    cleanup) against the deployed preview, not a bare health check. This
+  #    is the SAME suite deploy-backend.yml's `test-api` job already runs on
+  #    every dev/qa/main push (there it's continue-on-error / informational
+  #    only) — here it's the same: continue-on-error, so failures surface as
+  #    a warning (with the specific failing test names) instead of blocking
+  #    merge. Needs tests/api/utils/env.ts's BASE_URL override (added
+  #    alongside this) to target the preview instead of silently falling
+  #    back to the shared dev backend.
+  # Note: previews share the DEV Postgres instance (see infra/preview-deploy.bicep
+  # header) — same as deploy-backend.yml's existing test-api runs against dev
+  # today, so this doesn't introduce new shared-data risk, just runs the same
+  # create/cleanup suite more often. module-executor.js's own cleanup module
+  # (step 9) is what keeps that safe; a failure before cleanup runs can still
+  # leave test data behind, same pre-existing risk as the main pipeline.
+  preview-smoke-test:
+    name: Preview smoke test (warning only)
+    if: ${{ !cancelled() && github.event_name == 'push' }}
+    needs: [deploy-preview]
+    runs-on: ubuntu-latest
+    outputs:
+      total:        ${{ steps.summary.outputs.total }}
+      passed:       ${{ steps.summary.outputs.passed }}
+      failed:       ${{ steps.summary.outputs.failed }}
+      summary:      ${{ steps.summary.outputs.summary }}
+      failed_names: ${{ steps.summary.outputs.failed_names }}
+    steps:
+      - name: Require a deployed preview
+        run: |
+          [ "${{ needs.deploy-preview.result }}" = "success" ] || {
+            echo "::error::No preview to smoke-test (deploy-preview: ${{ needs.deploy-preview.result }})."; exit 1; }
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run API test suite against the preview
+        id: summary
+        continue-on-error: true  # warning only — a failure here must not block merge
+        uses: ./.github/actions/run-api-test-suite
+        with:
+          base-url:           ${{ needs.deploy-preview.outputs.backend_url }}/api
+          artifact-json-name: preview-api-test-results-${{ needs.deploy-preview.outputs.branch_slug }}
+          artifact-html-name: preview-api-html-report-${{ needs.deploy-preview.outputs.branch_slug }}
+          label:              preview
+
+      - name: Warn on failing tests
+        if: always()
+        run: |
+          FAILED="${{ steps.summary.outputs.failed }}"
+          NAMES="${{ steps.summary.outputs.failed_names }}"
+          if [ "${FAILED:-0}" -gt 0 ]; then
+            echo "::warning::Preview smoke suite: ${FAILED} test(s) failed against the live preview (non-blocking). Failing: ${NAMES}"
+          fi
+          {
+            echo "## Preview Smoke Test (warning only)"
+            echo ""
+            echo "${{ steps.summary.outputs.summary }}"
+            if [ -n "$NAMES" ]; then
+              echo ""
+              echo "**Failing tests:** ${NAMES}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  preview-comment:
+    name: PR preview comment
+    if: ${{ !cancelled() && github.event_name == 'push' }}
+    needs: [deploy-preview, preview-smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      # Needed so ./.github/actions/pr-sticky-comment (a local composite
+      # action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build comment body
+        id: body
+        run: |
+          URL="${{ needs.deploy-preview.outputs.backend_url }}"
+          DEPLOY="${{ needs.deploy-preview.result }}"
+          SMOKE_FAILED="${{ needs.preview-smoke-test.outputs.failed }}"
+          SMOKE_NAMES="${{ needs.preview-smoke-test.outputs.failed_names }}"
+          {
+            echo "body<<BODY_EOF"
+            echo "## Preview container"
+            echo ""
+            if [ "$DEPLOY" = "success" ]; then
+              echo "| | |"; echo "|---|---|"
+              echo "| **URL** | [$URL]($URL) |"
+              echo "| **App** | \`${{ needs.deploy-preview.outputs.backend_app }}\` |"
+              if [ "${SMOKE_FAILED:-0}" -eq 0 ]; then
+                echo "| **Smoke test** | :white_check_mark: passed (${{ needs.preview-smoke-test.outputs.summary }}) |"
+              else
+                echo "| **Smoke test** | :warning: ${SMOKE_FAILED} failing (warning only — does not block merge) |"
+                echo ""
+                echo "**Failing tests:** ${SMOKE_NAMES}"
+              fi
+            else
+              echo ":warning: Preview was not deployed (\`deploy-preview: $DEPLOY\`)."
+            fi
+            echo ""
+            echo "<sub>preview-container • \`${{ env.RESOURCE_GROUP }}\` • run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky PR comment
+        uses: ./.github/actions/pr-sticky-comment
+        with:
+          header:       preview-container
+          body:         ${{ steps.body.outputs.body }}
+          branch:       ${{ github.ref_name }}
+          github-token: ${{ github.token }}
+
+  preview-notify:
+    name: Notify Teams (preview)
+    if: ${{ always() && github.event_name == 'push' && vars.TEAMS_PREVIEW_NOTIFICATIONS_ENABLED == 'true' }}
+    needs: [deploy-preview, preview-smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Post Teams card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_PREVIEW_WEBHOOK_URL }}
+          github-login:   ${{ github.actor }}
+          # A combined "not ok" guard is checked FIRST, covering both:
+          # (a) deploy-preview fails outright, and (b) preview-smoke-test's own
+          # job fails (e.g. its Checkout step) even though deploy succeeded.
+          # In either case preview-smoke-test's test-suite step never sets
+          # `failed`, leaving that output empty (''). GitHub Actions' loose
+          # `==` coerces '' to 0, so `failed == '0'` evaluates true and would
+          # otherwise post a "Ready"/"good" card for a run that never actually
+          # produced a working preview.
+          headline:       ${{ (needs.deploy-preview.result != 'success' || needs.preview-smoke-test.result != 'success') && '❌ Educator Backend Preview Deploy Failed' || (needs.preview-smoke-test.outputs.failed == '0' && '🚀 Educator Backend Preview Ready' || '⚠️ Educator Backend Preview Smoke Tests Failing (warning only)') }}
+          style:          ${{ (needs.deploy-preview.result != 'success' || needs.preview-smoke-test.result != 'success') && 'attention' || (needs.preview-smoke-test.outputs.failed == '0' && 'good' || 'warning') }}
+          subtitle:       ${{ (needs.deploy-preview.result != 'success' || needs.preview-smoke-test.result != 'success') && format('{0} — preview deploy failed, no preview was created.', github.ref_name) || (needs.preview-smoke-test.outputs.failed == '0' && github.ref_name || format('{0} — smoke suite has failing tests against the live preview; non-blocking, merge is not affected', github.ref_name)) }}
+          mention-prefix: 'Deployed by '
+          mention-suffix: ${{ (needs.deploy-preview.result != 'success' || needs.preview-smoke-test.result != 'success') && ' — please check the deploy logs.' || (needs.preview-smoke-test.outputs.failed != '0' && ' — please check the failing tests (non-blocking).' || '') }}
+          facts-json: |
+            [
+              {"title":"Repository","value":"${{ github.repository }}"},
+              {"title":"Branch","value":"${{ github.ref_name }}"},
+              {"title":"Author","value":"${{ github.actor }}"},
+              {"title":"Preview","value":"${{ needs.deploy-preview.result == 'success' && needs.deploy-preview.outputs.backend_url || 'not deployed' }}"},
+              {"title":"Smoke test","value":"${{ needs.deploy-preview.result == 'success' && needs.preview-smoke-test.result == 'success' && needs.preview-smoke-test.outputs.summary || 'n/a — deploy or smoke job failed' }}"},
+              {"title":"Failing tests","value":"${{ needs.preview-smoke-test.outputs.failed_names || 'none' }}"}
+            ]
+          actions-json: |
+            [
+              {"type":"Action.OpenUrl","title":"${{ needs.deploy-preview.result == 'success' && 'Open Preview' || 'View deploy logs' }}","url":"${{ needs.deploy-preview.result == 'success' && needs.deploy-preview.outputs.backend_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}"}
+            ]
+
+  cleanup-preview:
+    name: Cleanup preview
+    if: |
+      (github.event_name == 'delete' && github.event.ref_type == 'branch')
+      || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+      - name: Set preview names
+        id: names
+        env:
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          DELETE_REF:  ${{ github.event.ref }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BRANCH="$PR_HEAD_REF"
+          else
+            BRANCH="$DELETE_REF"
+          fi
+          BRANCH_LOWER=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]')
+          HASH=$(echo -n "$BRANCH_LOWER" | sha256sum | cut -c1-4)
+          # Must match the "Set preview names" step in deploy-preview exactly.
+          SLUG=$(echo "$BRANCH_LOWER" | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g' | cut -c1-10 | sed 's/-$//')
+          echo "backend_app=aca-p-${SLUG}-${HASH}-eduback" >> "$GITHUB_OUTPUT"
+          echo "branch_slug=${SLUG}-${HASH}"               >> "$GITHUB_OUTPUT"
+      - name: Delete preview app + image tags
+        run: |
+          az containerapp delete --name "${{ steps.names.outputs.backend_app }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" --yes 2>/dev/null \
+            || echo "Preview app already gone"
+          SLUG="${{ steps.names.outputs.branch_slug }}"
+          for TAG in $(az acr repository show-tags --name "${{ env.ACR_NAME }}" --repository "${{ env.IMAGE_NAME }}" \
+            --query "[?starts_with(@, 'prev-${SLUG}-')]" -o tsv 2>/dev/null || true); do
+            az acr repository delete --name "${{ env.ACR_NAME }}" --image "${{ env.IMAGE_NAME }}:$TAG" --yes 2>/dev/null || true
+          done

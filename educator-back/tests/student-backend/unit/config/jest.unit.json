@@ -1,0 +1,36 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../../../..",
+  "testEnvironment": "node",
+  "testMatch": ["<rootDir>/tests/student-backend/unit/modules/**/*.spec.ts"],
+  "transform": {
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/student-backend/$1",
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "setupFilesAfterEnv": ["<rootDir>/tests/student-backend/setup/jest.setup.ts"],
+  "collectCoverageFrom": [
+    "<rootDir>/src/student-backend/**/*.ts",
+    "!<rootDir>/src/student-backend/**/*.spec.ts",
+    "!<rootDir>/src/student-backend/**/*.module.ts",
+    "!<rootDir>/src/main.ts",
+    "!<rootDir>/src/instrumentation.ts",
+    "!<rootDir>/src/student-backend/**/*.d.ts"
+  ],
+  "coverageDirectory": "<rootDir>/tests/student-backend/unit/reports/coverage",
+  "coverageReporters": ["text", "lcov", "html"],
+  "testTimeout": 10000,
+  "reporters": [
+    "default",
+    [
+      "<rootDir>/tests/student-backend/api/config/friendly-html-reporter.js",
+      {
+        "outputPath": "<rootDir>/tests/student-backend/unit/reports/html/unit-test-report.html",
+        "pageTitle": "Unit Test Report",
+        "subtitle": "User-friendly summary of every unit test — what it validates and why it passed / failed."
+      }
+    ]
+  ]
+}

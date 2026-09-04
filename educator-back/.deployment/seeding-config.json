@@ -1,0 +1,34 @@
+{
+  "dev": {
+    "enabled": true,
+    "autoSeed": true,
+    "truncateBeforeSeed": false,
+    "seeders": ["roles"],
+    "reason": "Develop environment auto-seeds essential data (roles). Developers can manually run additional seeders as needed.",
+    "manualSeedCommands": [
+      "npm run seed:roles       # Essential - creates District Admin and Educator roles",
+      "npm run seed:schools     # Optional - adds sample schools",
+      "npm run seed:educators   # Optional - adds sample educators"
+    ]
+  },
+  "qa": {
+    "enabled": true,
+    "autoSeed": true,
+    "truncateBeforeSeed": false,
+    "seeders": ["roles"],
+    "reason": "QA environment seeds only essential roles. QA team creates test data via API/UI for realistic testing.",
+    "notes": "Avoid pre-seeded students/classes to ensure QA tests data creation workflows"
+  },
+  "prod": {
+    "enabled": true,
+    "autoSeed": true,
+    "truncateBeforeSeed": false,
+    "seeders": ["roles"],
+    "reason": "Production environment seeds ONLY essential roles. All production data must be created via proper admin workflows.",
+    "warnings": [
+      "DO NOT pre-populate production data",
+      "DO NOT use truncate on production",
+      "Only roles seeder should run automatically"
+    ]
+  }
+}

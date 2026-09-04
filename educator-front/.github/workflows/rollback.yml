@@ -1,0 +1,371 @@
+name: Rollback Educator Frontend
+
+# Manual rollback workflow for the standalone Educator frontend.
+# It rebuilds a previously deployed Git commit with the selected environment's
+# VITE_API_URL and uploads the resulting dist artifact to Azure Static Web Apps.
+#
+# Main rollbacks are gated by the GitHub Environment "main". Configure required
+# reviewers in Settings -> Environments -> main.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to roll back'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - qa
+          - main
+      target:
+        description: 'Target revision'
+        required: true
+        default: 'previous'
+        type: choice
+        options:
+          - previous
+          - specific-sha
+      sha:
+        description: 'Git commit SHA (only used when target = specific-sha)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run (build and validate, but do not deploy)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: deploy-frontend-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  rollback:
+    name: Rollback Educator Frontend
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      current_sha: ${{ steps.resolve.outputs.current_sha }}
+      resolved_sha: ${{ steps.resolve.outputs.resolved_sha }}
+      short_sha: ${{ steps.resolve.outputs.short_sha }}
+      swa_name: ${{ steps.environment.outputs.swa_name }}
+      frontend_url: ${{ steps.environment.outputs.frontend_url }}
+    steps:
+      - name: Resolve Educator environment
+        id: environment
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          set -euo pipefail
+
+          case "$TARGET_ENVIRONMENT" in
+            dev)
+              BRANCH="dev"
+              API_URL="https://dev.educatorbe.realityworksai.com"
+              SWA_NAME="swa-dev1-rwai-edufront"
+              FRONTEND_URL="https://dev.educator.realityworksai.com"
+              ;;
+            qa)
+              BRANCH="qa"
+              API_URL="https://qa.educatorbe.realityworksai.com"
+              SWA_NAME="swa-qa1-rwai-edufront"
+              FRONTEND_URL="https://qa.educator.realityworksai.com"
+              ;;
+            main)
+              BRANCH="main"
+              API_URL="https://educatorbe.realityworksai.com"
+              SWA_NAME="swa-main1-rwai-edufront"
+              FRONTEND_URL="https://educator.realityworksai.com"
+              ;;
+            *)
+              echo "::error::Unsupported Educator environment: $TARGET_ENVIRONMENT"
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "branch=$BRANCH"
+            echo "api_url=$API_URL"
+            echo "swa_name=$SWA_NAME"
+            echo "frontend_url=$FRONTEND_URL"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve previous successful deployment
+        if: inputs.target == 'previous'
+        id: previous
+        uses: actions/github-script@v7
+        env:
+          ENVIRONMENT_BRANCH: ${{ steps.environment.outputs.branch }}
+        with:
+          script: |
+            const response = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'deploy-frontend.yml',
+              branch: process.env.ENVIRONMENT_BRANCH,
+              status: 'success',
+              per_page: 50
+            });
+
+            const deployments = response.data.workflow_runs.filter(
+              run => run.event !== 'pull_request' && run.conclusion === 'success'
+            );
+
+            if (deployments.length < 2) {
+              core.setFailed(
+                `Fewer than two successful deploy-frontend.yml runs were found ` +
+                `for branch ${process.env.ENVIRONMENT_BRANCH}. Use target=specific-sha.`
+              );
+              return;
+            }
+
+            core.info(`Current successful deployment: ${deployments[0].head_sha}`);
+            core.info(`Previous successful deployment: ${deployments[1].head_sha}`);
+            core.setOutput('current_sha', deployments[0].head_sha);
+            core.setOutput('previous_sha', deployments[1].head_sha);
+
+      - name: Checkout environment history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.environment.outputs.branch }}
+          fetch-depth: 0
+
+      - name: Resolve and validate target commit
+        id: resolve
+        env:
+          TARGET_MODE: ${{ inputs.target }}
+          INPUT_SHA: ${{ inputs.sha }}
+          PREVIOUS_SHA: ${{ steps.previous.outputs.previous_sha }}
+          DEPLOYED_SHA: ${{ steps.previous.outputs.current_sha }}
+          ENVIRONMENT_BRANCH: ${{ steps.environment.outputs.branch }}
+        run: |
+          set -euo pipefail
+
+          if [ "$TARGET_MODE" = "previous" ]; then
+            TARGET_SHA="$PREVIOUS_SHA"
+            CURRENT_SHA="$DEPLOYED_SHA"
+          else
+            TARGET_SHA=$(printf '%s' "$INPUT_SHA" | tr -d '[:space:]')
+            CURRENT_SHA=$(git rev-parse "origin/$ENVIRONMENT_BRANCH")
+          fi
+
+          if [ -z "$TARGET_SHA" ]; then
+            echo "::error::The SHA input is required when target=specific-sha."
+            exit 1
+          fi
+
+          if ! printf '%s' "$TARGET_SHA" | grep -Eq '^[0-9a-fA-F]{7,40}$'; then
+            echo "::error::'$TARGET_SHA' is not a valid Git commit SHA."
+            exit 1
+          fi
+
+          if ! RESOLVED_SHA=$(git rev-parse --verify "$TARGET_SHA^{commit}" 2>/dev/null); then
+            echo "::error::Commit '$TARGET_SHA' was not found in this repository."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$RESOLVED_SHA" "origin/$ENVIRONMENT_BRANCH"; then
+            echo "::error::Commit '$RESOLVED_SHA' does not belong to the $ENVIRONMENT_BRANCH branch history."
+            exit 1
+          fi
+
+          CURRENT_SHA=$(git rev-parse "$CURRENT_SHA^{commit}")
+          if [ "$RESOLVED_SHA" = "$CURRENT_SHA" ]; then
+            echo "::error::Target commit matches the currently deployed commit. Nothing to roll back."
+            exit 1
+          fi
+
+          SHORT_SHA=$(git rev-parse --short=7 "$RESOLVED_SHA")
+          {
+            echo "current_sha=$CURRENT_SHA"
+            echo "resolved_sha=$RESOLVED_SHA"
+            echo "short_sha=$SHORT_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Resolved Educator rollback target: $RESOLVED_SHA"
+
+      - name: Checkout rollback commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.resolved_sha }}
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build rollback artifact
+        env:
+          VITE_API_URL: ${{ steps.environment.outputs.api_url }}
+        run: |
+          set -euo pipefail
+          echo "Building Educator commit ${{ steps.resolve.outputs.short_sha }}"
+          echo "VITE_API_URL=$VITE_API_URL"
+          npm run build
+          test -f dist/index.html
+
+      - name: Rollback plan
+        run: |
+          {
+            echo "## ${{ inputs.dry_run == true && '🧪 Educator rollback dry run' || '🔄 Educator rollback plan' }}"
+            echo ""
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Environment | \`${{ inputs.environment }}\` |"
+            echo "| Target mode | \`${{ inputs.target }}\` |"
+            echo "| Current commit | \`${{ steps.resolve.outputs.current_sha }}\` |"
+            echo "| Rollback commit | \`${{ steps.resolve.outputs.resolved_sha }}\` |"
+            echo "| Static Web App | \`${{ steps.environment.outputs.swa_name }}\` |"
+            echo "| Frontend URL | ${{ steps.environment.outputs.frontend_url }} |"
+            echo "| API URL embedded in build | ${{ steps.environment.outputs.api_url }} |"
+            echo "| Triggered by | @${{ github.actor }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # This job is already `environment: ${{ inputs.environment }}`-scoped
+      # (see the job header above), and dev/qa/main each carry their own
+      # AZURE_STATIC_WEB_APPS_API_TOKEN under that same unsuffixed name — the
+      # same secret deploy-frontend.yml relies on. Referencing it unsuffixed
+      # here resolves to the right environment's token automatically; the
+      # old repo-level _DEV/_QA/_MAIN split had no _MAIN secret provisioned
+      # at all (only _PROD), so a main rollback would fail with an empty
+      # deployment token.
+      - name: Roll back Azure SWA - Dev
+        if: inputs.dry_run != true && inputs.environment == 'dev'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: 'dist'
+          output_location: ''
+          skip_app_build: true
+
+      - name: Roll back Azure SWA - QA
+        if: inputs.dry_run != true && inputs.environment == 'qa'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: 'dist'
+          output_location: ''
+          skip_app_build: true
+
+      - name: Roll back Azure SWA - Main
+        if: inputs.dry_run != true && inputs.environment == 'main'
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: 'upload'
+          app_location: 'dist'
+          output_location: ''
+          skip_app_build: true
+
+      - name: Verify rolled-back frontend
+        if: inputs.dry_run != true
+        env:
+          FRONTEND_URL: ${{ steps.environment.outputs.frontend_url }}
+        run: |
+          set -euo pipefail
+
+          for attempt in {1..10}; do
+            STATUS=$(curl --silent --show-error --location \
+              --output /dev/null --write-out '%{http_code}' \
+              --max-time 20 "$FRONTEND_URL" || true)
+
+            if [ "$STATUS" -ge 200 ] && [ "$STATUS" -lt 400 ]; then
+              echo "Educator frontend is healthy: $FRONTEND_URL returned HTTP $STATUS"
+              exit 0
+            fi
+
+            echo "Attempt $attempt/10 returned HTTP ${STATUS:-000}; waiting 15 seconds..."
+            sleep 15
+          done
+
+          echo "::error::Educator frontend did not become healthy at $FRONTEND_URL."
+          exit 1
+
+      - name: Rollback result summary
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "## 🧪 Dry run complete — no deployment was changed" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## ✅ Educator frontend rollback complete" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Deployed commit \`${{ steps.resolve.outputs.resolved_sha }}\` to [${{ steps.environment.outputs.frontend_url }}](${{ steps.environment.outputs.frontend_url }})." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  notify-rollback:
+    name: Notify Teams
+    needs: rollback
+    if: ${{ always() && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine notification status
+        id: status
+        env:
+          ROLLBACK_RESULT: ${{ needs.rollback.result }}
+          TARGET_ENVIRONMENT: ${{ inputs.environment }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$ROLLBACK_RESULT" = "success" ] && [ "$DRY_RUN" = "true" ]; then
+            TITLE="Educator Frontend rollback dry run — no changes"
+            STYLE="default"
+          elif [ "$ROLLBACK_RESULT" = "success" ]; then
+            TITLE="Educator Frontend rollback completed"
+            case "$TARGET_ENVIRONMENT" in
+              main) STYLE="warning" ;;
+              qa)   STYLE="accent" ;;
+              *)    STYLE="default" ;;
+            esac
+          else
+            TITLE="Educator Frontend rollback failed"
+            STYLE="attention"
+          fi
+
+          {
+            echo "title=$TITLE"
+            echo "style=$STYLE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Teams
+        continue-on-error: true
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login:   ${{ github.actor }}
+          headline:       "${{ steps.status.outputs.title }} — ${{ inputs.environment }}"
+          style:          ${{ steps.status.outputs.style }}
+          mention-prefix: "Triggered by "
+          facts-json: |
+            [
+              { "title": "Repository", "value": "${{ github.repository }}" },
+              { "title": "Environment", "value": "${{ inputs.environment }}" },
+              { "title": "Previous commit", "value": "${{ needs.rollback.outputs.current_sha }}" },
+              { "title": "Rollback commit", "value": "${{ needs.rollback.outputs.resolved_sha }}" },
+              { "title": "Target mode", "value": "${{ inputs.target }}" },
+              { "title": "Static Web App", "value": "${{ needs.rollback.outputs.swa_name }}" },
+              { "title": "Frontend URL", "value": "${{ needs.rollback.outputs.frontend_url }}" },
+              { "title": "Dry run", "value": "${{ inputs.dry_run }}" }
+            ]
+          actions-json: |
+            [
+              {"type":"Action.OpenUrl","title":"View workflow run","url":"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
+            ]

@@ -1,0 +1,722 @@
+name: Branch Preview Environment (Frontend)
+
+# =============================================================================
+# Per-PR preview for the Educator frontend, on Azure's own built-in PR-based
+# preview mechanism — NOT a custom named environment.
+# -----------------------------------------------------------------------------
+# Why this changed from a push-triggered named-environment design (see git
+# history for the old approach): named environments created via an explicit
+# `deployment_environment` on a plain branch push are invisible to
+# `az staticwebapp environment list/show/delete` — confirmed empirically
+# (still showed only the `default` build even while 9 named environments were
+# live in the Portal) and by Microsoft's own docs, which only document
+# Portal-based deletion for named/branch environments, never the GitHub
+# Action's `close` mode or `az cli`. That made both real cleanup AND eviction
+# impossible to build reliably.
+#
+# Azure's OWN auto-managed PR-numbered environments (created when
+# `deployment_environment` is left EMPTY on a `pull_request` event) do NOT
+# have this problem — they're the thing `az staticwebapp environment
+# list/delete` and the `close` action were actually built for. Modeled
+# directly on pxt-crexo's deploy-swa.yml, which proves this works:
+#   - Deploy on `pull_request` (opened/synchronize/reopened), empty
+#     `deployment_environment` -> Azure auto-names the slot by PR number.
+#   - Evict the oldest OTHER preview via `az staticwebapp environment
+#     list`/`delete` (OIDC) if this PR would push the count over
+#     MAX_PREVIEWS, before deploying.
+#   - Close on `pull_request: closed`, via deploy-swa's `close` mode with NO
+#     explicit environment name — Azure auto-detects "this PR's slot" from
+#     the SAME pull_request event context used to create it. This is exactly
+#     why `close` failed before (created via push, closed via pull_request —
+#     mismatched context) and why it now works (created AND closed via
+#     pull_request, matching context both times).
+# Tradeoff accepted: previews now only exist once a PR is open (no more
+# preview-before-PR-exists on a plain branch push).
+#
+# Preview cap: Azure Static Web Apps hard-limits preview environments per app
+# — 3 on Free tier, 10 on Standard (swa-dev1-rwai-edufront is Standard, so
+# MAX_PREVIEWS=10 below). Eviction only ever considers OTHER PRs' previews —
+# this PR's own slot (new or being updated) is excluded from the count, same
+# as pxt-crexo's Setup-Script.ps1 -Action evict-old-previews.
+#
+# Backend selection, in priority order:
+#   1. Manual builds (workflow_dispatch) pick a backend explicitly via
+#      `backend_target`: dev/qa/prod resolve to that environment's known,
+#      hardcoded API URL; `custom` uses whatever URL is passed in
+#      `custom_backend_url` (e.g. a backend branch-preview link produced by
+#      Educator-App-Backend's own preview-deploy.yml).
+#   2. Otherwise, this PR's own base branch: base `main` -> prod backend,
+#      base `qa` -> qa backend, anything else (e.g. base `dev`) -> dev
+#      backend. Directly from github.event.pull_request.base.ref — no
+#      lookup needed, unlike the old push-triggered design which had to
+#      `gh pr list` to find an open PR for the branch.
+# There's no auto-bind-by-branch-name option for the BACKEND APP itself (only
+# its already-known URL) — computing a backend preview's FQDN would require
+# `az containerapp env show` against the backend's Container App Environment,
+# which this repo can't authenticate for. No approval gate on the prod
+# backend choice either — it's still just a disposable preview, not a real
+# prod deploy. All previews deploy onto the SAME swa-dev1-rwai-edufront
+# resource regardless of backend_target — that only changes VITE_API_URL,
+# not which Static Web App hosts the preview.
+#
+# preview-smoke-test's blocking behavior is controlled by two repo
+# variables, keyed on which backend the preview resolved to (dev/qa/custom
+# vs prod): vars.PREVIEW_SMOKE_TEST_BLOCKING and
+# vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN, both default 'false' — a failure
+# only warns (job annotation + non-blocking PR comment/Teams note) while the
+# relevant one is 'false'; flip either to 'true' to make a failure fail the
+# job for real for that backend tier, no code change needed. Both are
+# 'false' currently while a recurring 06-class-create login failure is under
+# investigation. It runs the Playwright smoke
+# suite (`npm run e2e:smoke`: 01-admin-login -> 02-subscription-activation ->
+# 03-school-create -> 04-educator-create -> 05-educator-login ->
+# 06-class-create) against the just-deployed preview URL, not the static dev
+# URL. That only works because of the BASE_URL override added to
+# tests/e2e/config/playwright.smoke.config.ts — without it, the smoke suite's
+# LoginPage-driven specs would silently test the static dev frontend no
+# matter what preview was actually deployed.
+# =============================================================================
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [dev, qa, main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/e2e/**'
+      - 'package*.json'
+      - 'tsconfig*.json'
+      - 'vite.config.*'
+      - 'playwright*.config.ts'
+      - '.github/workflows/preview-deploy.yml'
+      - '.github/actions/**'
+
+  workflow_dispatch:
+    inputs:
+      preview_name:
+        description: 'Preview slot name for this manual test preview (e.g. a short label).'
+        required: true
+        type: string
+      backend_target:
+        description: 'Which backend to build this preview against'
+        required: false
+        type: choice
+        default: dev
+        options: [dev, qa, prod, custom]
+      custom_backend_url:
+        description: 'Backend URL to use when backend_target = custom (e.g. a backend branch-preview link). Ignored otherwise.'
+        required: false
+        type: string
+
+concurrency:
+  group: preview-frontend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write # OIDC for azure/login (eviction via `az staticwebapp environment list/delete`)
+
+env:
+  NODE_VERSION: '24'
+  SWA_NAME: swa-dev1-rwai-edufront
+  RESOURCE_GROUP: ARG-dev1-rwai
+  MAX_PREVIEWS: 10 # Standard tier cap for swa-dev1-rwai-edufront
+  # Known backend links for the workflow_dispatch backend_target choice.
+  BACKEND_URL_DEV: https://dev.educatorbe.realityworksai.com
+  BACKEND_URL_QA: https://qa.educatorbe.realityworksai.com
+  BACKEND_URL_PROD: https://educatorbe.realityworksai.com
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Lint — same ratchet-against-baseline check as deploy-frontend.yml's lint
+  # job, via the shared composite action, so a preview can't deploy code that
+  # would fail the real deploy pipeline's lint gate.
+  # ─────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (React)
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ratchet lint against baseline
+        id: lint
+        uses: ./.github/actions/lint-ratchet-against-baseline
+        with:
+          node-version:    ${{ env.NODE_VERSION }}
+          install-command: npm ci
+          working-directory: .
+          lint-command:       'npx eslint . --format json --output-file eslint-report.json'
+          report-file:        eslint-report.json
+          baseline-file:       .github/lint-baseline.json
+          baseline-key:        frontend
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-eslint-report
+          path: eslint-report.json
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Type Check: same gap as deploy-frontend.yml — `vite build` (esbuild)
+  # strips types without checking them and the ESLint config here is
+  # syntax-only, so nothing else in this pipeline catches a real TypeScript
+  # error before it reaches a preview. Non-blocking for now (continue-on-error
+  # on the tsc step) — the repo currently has ~64 pre-existing type errors
+  # (mostly test-file mock typings) that were never caught before this job
+  # existed. Flip continue-on-error to false once that backlog is cleaned up.
+  # ─────────────────────────────────────────────────────────────────────────
+  type-check:
+    name: Type Check (TypeScript)
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type-check
+        continue-on-error: true
+        run: npx tsc --noEmit -p tsconfig.json
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Unit + integration tests — same run-test-suite action deploy-frontend.yml
+  # uses, so a preview can't deploy code that would fail the real deploy
+  # pipeline's test gate either.
+  # ─────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run unit test suite
+        uses: ./.github/actions/run-test-suite
+        with:
+          test-command:    npm run report:unit:generate
+          report-json:     tests/unit/reports/test-results.json
+          report-html:     tests/unit/reports/index.html
+          node-version:    ${{ env.NODE_VERSION }}
+          artifact-prefix: preview-unit
+          name-prefix:     'unit: '
+
+  integration-tests:
+    name: Integration Tests
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run integration test suite
+        uses: ./.github/actions/run-test-suite
+        with:
+          test-command:    npm run report:integration:generate
+          report-json:     tests/integration/reports/test-results.json
+          report-html:     tests/integration/reports/index.html
+          node-version:    ${{ env.NODE_VERSION }}
+          artifact-prefix: preview-integration
+          name-prefix:     'integration: '
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build & deploy the preview
+  # ─────────────────────────────────────────────────────────────────────────
+  deploy-preview:
+    name: Build & deploy preview
+    needs: [lint, unit-tests, integration-tests, type-check]
+    # A custom `if:` on a job with `needs` drops the implicit success()
+    # requirement entirely (GitHub's default-gating only applies when no
+    # `if:` is specified at all) — so lint/unit-tests/integration-tests/
+    # type-check succeeding has to be checked explicitly here, or this job
+    # would still attempt to deploy even if one of them genuinely failed.
+    if: |
+      (github.event_name == 'workflow_dispatch' || github.event.action != 'closed')
+      && needs.lint.result == 'success'
+      && needs.unit-tests.result == 'success'
+      && needs.integration-tests.result == 'success'
+      && needs.type-check.result == 'success'
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      frontend_url:  ${{ steps.deploy.outputs.url }}
+      backend_url:   ${{ steps.names.outputs.backend_url }}
+      backend_source: ${{ steps.names.outputs.backend_source }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve backend
+        id: names
+        env:
+          BACKEND_TARGET_INPUT: ${{ github.event.inputs.backend_target }}
+          CUSTOM_BACKEND_URL:   ${{ github.event.inputs.custom_backend_url }}
+          PR_BASE_BRANCH:       ${{ github.event.pull_request.base.ref }}
+        run: |
+          TARGET="$BACKEND_TARGET_INPUT"
+          if [ -z "$TARGET" ]; then
+            case "$PR_BASE_BRANCH" in
+              main) TARGET="prod" ;;
+              qa)   TARGET="qa" ;;
+              *)    TARGET="dev" ;;
+            esac
+          fi
+
+          case "$TARGET" in
+            custom)
+              BACKEND_URL="$CUSTOM_BACKEND_URL"
+              if [ -z "$BACKEND_URL" ]; then
+                echo "::error::backend_target=custom requires custom_backend_url to be set."; exit 1
+              fi
+              BACKEND_SOURCE="custom"
+              ;;
+            qa)   BACKEND_URL="${{ env.BACKEND_URL_QA }}";   BACKEND_SOURCE="qa" ;;
+            prod) BACKEND_URL="${{ env.BACKEND_URL_PROD }}"; BACKEND_SOURCE="prod" ;;
+            *)    BACKEND_URL="${{ env.BACKEND_URL_DEV }}";  BACKEND_SOURCE="dev" ;;
+          esac
+
+          echo "backend_url=$BACKEND_URL"     >> "$GITHUB_OUTPUT"
+          echo "backend_source=$BACKEND_SOURCE" >> "$GITHUB_OUTPUT"
+
+      - name: Build frontend
+        uses: ./.github/actions/build-frontend
+        with:
+          api-url: ${{ steps.names.outputs.backend_url }}
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:        ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Mirrors pxt-crexo's Setup-Script.ps1 -Action evict-old-previews:
+      # buildId 'default' is production, buildId == this PR's own number is
+      # this PR's own slot (already counted whether new or being updated) —
+      # both excluded from the "existing other previews" count. Only OTHER
+      # PRs' previews are eviction candidates, oldest first.
+      - name: Evict old preview environments if over limit
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.inputs.preview_name }}
+        run: |
+          ENVS=$(az staticwebapp environment list --name "${{ env.SWA_NAME }}" --resource-group "${{ env.RESOURCE_GROUP }}" -o json)
+          OTHERS=$(echo "$ENVS" | jq --arg pr "$PR_NUMBER" '[.[] | select(.buildId != "default" and .buildId != $pr)]')
+          OTHERS_COUNT=$(echo "$OTHERS" | jq 'length')
+          TO_DELETE=$(( OTHERS_COUNT + 1 - ${{ env.MAX_PREVIEWS }} ))
+
+          if [ "$TO_DELETE" -le 0 ]; then
+            echo "$OTHERS_COUNT other preview(s) + this one = $((OTHERS_COUNT + 1)), within limit of ${{ env.MAX_PREVIEWS }} — nothing to evict."
+            exit 0
+          fi
+
+          VICTIMS=$(echo "$OTHERS" | jq -r --argjson n "$TO_DELETE" 'sort_by(.createdTimeUtc) | .[:$n] | .[].buildId')
+          echo "$VICTIMS" | while read -r victim; do
+            [ -z "$victim" ] && continue
+            echo "Evicting oldest preview — slot $victim — to stay within the ${{ env.MAX_PREVIEWS }}-preview limit"
+            az staticwebapp environment delete --name "${{ env.SWA_NAME }}" --resource-group "${{ env.RESOURCE_GROUP }}" --environment-name "$victim" --yes
+          done
+
+      - name: Deploy to Azure SWA (preview environment)
+        id: deploy
+        uses: ./.github/actions/deploy-swa
+        with:
+          api-token:              ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          deployment-environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.preview_name || '' }}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Runs the Playwright smoke suite against the just-deployed preview URL
+  # (see file header for why the BASE_URL override in
+  # playwright.smoke.config.ts is required for this to be valid).
+  #
+  # Blocking is controlled by two separate repo variables, keyed on which
+  # backend this preview resolved to (deploy-preview's backend_source):
+  #   - vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN — backend_source == 'prod'
+  #   - vars.PREVIEW_SMOKE_TEST_BLOCKING      — everything else (dev/qa/custom)
+  # Both default to 'false'. Flip either to 'true' to make a failure fail the
+  # job for real for that backend tier, no workflow edit needed — e.g. make
+  # prod-backend previews blocking while dev/qa stay warning-only.
+  # ─────────────────────────────────────────────────────────────────────────
+  preview-smoke-test:
+    name: Preview smoke test
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event.action != 'closed') }}
+    needs: [deploy-preview]
+    runs-on: ubuntu-latest
+    outputs:
+      smoke_outcome: ${{ steps.smoke.outcome }}
+    steps:
+      - name: Require a deployed preview
+        run: |
+          [ "${{ needs.deploy-preview.result }}" = "success" ] || {
+            echo "::error::No preview to smoke-test (deploy-preview: ${{ needs.deploy-preview.result }})."; exit 1; }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Playwright smoke suite against the preview
+        id: smoke
+        continue-on-error: >-
+          ${{
+            (needs.deploy-preview.outputs.backend_source == 'prod' && vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN != 'true')
+            || (needs.deploy-preview.outputs.backend_source != 'prod' && vars.PREVIEW_SMOKE_TEST_BLOCKING != 'true')
+          }}
+        uses: ./.github/actions/run-smoke-suite
+        with:
+          base-url:      ${{ needs.deploy-preview.outputs.frontend_url }}
+          api-url:       ${{ needs.deploy-preview.outputs.backend_url }}/api
+          node-version:  ${{ env.NODE_VERSION }}
+          artifact-name: preview-smoke-report-${{ github.event.pull_request.number || github.event.inputs.preview_name }}
+
+      - name: Report smoke suite outcome
+        if: always() && steps.smoke.outcome == 'failure'
+        env:
+          BACKEND_SOURCE: ${{ needs.deploy-preview.outputs.backend_source }}
+          BLOCKING_DEFAULT: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING }}
+          BLOCKING_MAIN:    ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
+        run: |
+          if [ "$BACKEND_SOURCE" = "prod" ]; then
+            BLOCKING="$BLOCKING_MAIN"
+            VAR_NAME="PREVIEW_SMOKE_TEST_BLOCKING_MAIN"
+          else
+            BLOCKING="$BLOCKING_DEFAULT"
+            VAR_NAME="PREVIEW_SMOKE_TEST_BLOCKING"
+          fi
+
+          if [ "$BLOCKING" = "true" ]; then
+            echo "::error::Preview smoke suite failed — $VAR_NAME=true, this fails the check."
+          else
+            echo "::warning::Preview smoke suite failed — merge is not blocked ($VAR_NAME=false), but please investigate before relying on this preview."
+          fi
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Runs the Playwright regression suite against the just-deployed preview
+  # URL. Same BASE_URL-override mechanism and same blocking-toggle pattern as
+  # preview-smoke-test above, kept on its own pair of repo variables so
+  # regression can be made blocking independently of smoke:
+  #   - vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN — backend_source == 'prod'
+  #   - vars.PREVIEW_REGRESSION_TEST_BLOCKING      — everything else (dev/qa/custom)
+  # Both default to 'false' (non-blocking), same as smoke.
+  # ─────────────────────────────────────────────────────────────────────────
+  preview-regression-test:
+    name: Preview regression test
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || github.event.action != 'closed') }}
+    needs: [deploy-preview]
+    runs-on: ubuntu-latest
+    outputs:
+      regression_outcome: ${{ steps.regression.outcome }}
+    steps:
+      - name: Require a deployed preview
+        run: |
+          [ "${{ needs.deploy-preview.result }}" = "success" ] || {
+            echo "::error::No preview to regression-test (deploy-preview: ${{ needs.deploy-preview.result }})."; exit 1; }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Playwright regression suite against the preview
+        id: regression
+        continue-on-error: >-
+          ${{
+            (needs.deploy-preview.outputs.backend_source == 'prod' && vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN != 'true')
+            || (needs.deploy-preview.outputs.backend_source != 'prod' && vars.PREVIEW_REGRESSION_TEST_BLOCKING != 'true')
+          }}
+        uses: ./.github/actions/run-regression-suite
+        with:
+          base-url:      ${{ needs.deploy-preview.outputs.frontend_url }}
+          api-url:       ${{ needs.deploy-preview.outputs.backend_url }}/api
+          node-version:  ${{ env.NODE_VERSION }}
+          artifact-name: preview-regression-report-${{ github.event.pull_request.number || github.event.inputs.preview_name }}
+
+      - name: Report regression suite outcome
+        if: always() && steps.regression.outcome == 'failure'
+        env:
+          BACKEND_SOURCE: ${{ needs.deploy-preview.outputs.backend_source }}
+          BLOCKING_DEFAULT: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING }}
+          BLOCKING_MAIN:    ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
+        run: |
+          if [ "$BACKEND_SOURCE" = "prod" ]; then
+            BLOCKING="$BLOCKING_MAIN"
+            VAR_NAME="PREVIEW_REGRESSION_TEST_BLOCKING_MAIN"
+          else
+            BLOCKING="$BLOCKING_DEFAULT"
+            VAR_NAME="PREVIEW_REGRESSION_TEST_BLOCKING"
+          fi
+
+          if [ "$BLOCKING" = "true" ]; then
+            echo "::error::Preview regression suite failed — $VAR_NAME=true, this fails the check."
+          else
+            echo "::warning::Preview regression suite failed — merge is not blocked ($VAR_NAME=false), but please investigate before relying on this preview."
+          fi
+
+  preview-comment:
+    name: PR preview comment
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.action != 'closed' }}
+    needs: [deploy-preview, preview-smoke-test, preview-regression-test]
+    runs-on: ubuntu-latest
+    steps:
+      # Needed so ./.github/actions/pr-sticky-comment (a local composite
+      # action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build comment body
+        id: body
+        env:
+          BLOCKING_DEFAULT: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING }}
+          BLOCKING_MAIN:    ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
+          REGRESSION_BLOCKING_DEFAULT: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING }}
+          REGRESSION_BLOCKING_MAIN:    ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
+        run: |
+          URL="${{ needs.deploy-preview.outputs.frontend_url }}"
+          BACKEND="${{ needs.deploy-preview.outputs.backend_url }}"
+          BACKEND_SOURCE="${{ needs.deploy-preview.outputs.backend_source }}"
+          DEPLOY="${{ needs.deploy-preview.result }}"
+          SMOKE="${{ needs.preview-smoke-test.outputs.smoke_outcome }}"
+          REGRESSION="${{ needs.preview-regression-test.outputs.regression_outcome }}"
+          case "$BACKEND_SOURCE" in
+            custom) BACKEND_NOTE=" (custom override)" ;;
+            qa)     BACKEND_NOTE=" (qa backend)" ;;
+            prod)   BACKEND_NOTE=" (prod backend)" ;;
+            *)      BACKEND_NOTE=" (shared dev backend)" ;;
+          esac
+          if [ "$BACKEND_SOURCE" = "prod" ]; then
+            BLOCKING="$BLOCKING_MAIN"
+            REGRESSION_BLOCKING="$REGRESSION_BLOCKING_MAIN"
+          else
+            BLOCKING="$BLOCKING_DEFAULT"
+            REGRESSION_BLOCKING="$REGRESSION_BLOCKING_DEFAULT"
+          fi
+          {
+            echo "body<<BODY_EOF"
+            echo "## Preview frontend"
+            echo ""
+            if [ "$DEPLOY" = "success" ]; then
+              echo "| | |"; echo "|---|---|"
+              echo "| **URL** | [$URL]($URL) |"
+              echo "| **Backend used** | $BACKEND$BACKEND_NOTE |"
+              if [ "$SMOKE" = "success" ]; then
+                echo "| **Smoke test** | :white_check_mark: passed |"
+              elif [ "$BLOCKING" = "true" ]; then
+                echo "| **Smoke test** | :x: failed — merge blocked until the smoke suite passes |"
+              else
+                echo "| **Smoke test** | :warning: failed (non-blocking) — please investigate before relying on this preview |"
+              fi
+              if [ "$REGRESSION" = "success" ]; then
+                echo "| **Regression test** | :white_check_mark: passed |"
+              elif [ "$REGRESSION_BLOCKING" = "true" ]; then
+                echo "| **Regression test** | :x: failed — merge blocked until the regression suite passes |"
+              else
+                echo "| **Regression test** | :warning: failed (non-blocking) — please investigate before relying on this preview |"
+              fi
+            else
+              echo ":warning: Preview was not deployed (\`deploy-preview: $DEPLOY\`)."
+            fi
+            echo ""
+            echo "<sub>preview-frontend • \`${{ env.SWA_NAME }}\` • run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # No `branch` input — this job runs on `pull_request`, so the composite
+      # action auto-detects the PR from event context directly.
+      - name: Upsert sticky PR comment
+        uses: ./.github/actions/pr-sticky-comment
+        with:
+          header:       preview-frontend
+          body:         ${{ steps.body.outputs.body }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Matches Educator-App-Backend / HS-online-AI-app's preview-notify: the
+  # @mention has to be part of the SAME TextBlock as the greeting text, not
+  # a separate TextBlock next to it, or Teams renders the greeting as plain
+  # text and the mention chip doesn't actually ping the person.
+  preview-notify:
+    name: Notify Teams (preview)
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.action != 'closed' && vars.TEAMS_PREVIEW_NOTIFICATIONS_ENABLED == 'true' }}
+    needs: [deploy-preview, preview-smoke-test, preview-regression-test]
+    runs-on: ubuntu-latest
+    steps:
+      # Needed so ./.github/actions/teams-notify (a local composite action)
+      # resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine card status
+        id: status
+        env:
+          BLOCKING_DEFAULT: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING }}
+          BLOCKING_MAIN:    ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
+          REGRESSION_BLOCKING_DEFAULT: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING }}
+          REGRESSION_BLOCKING_MAIN:    ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
+        run: |
+          DEPLOY="${{ needs.deploy-preview.result }}"
+          SMOKE="${{ needs.preview-smoke-test.outputs.smoke_outcome }}"
+          REGRESSION="${{ needs.preview-regression-test.outputs.regression_outcome }}"
+          BACKEND_SOURCE="${{ needs.deploy-preview.outputs.backend_source }}"
+
+          if [ "$BACKEND_SOURCE" = "prod" ]; then
+            BLOCKING="$BLOCKING_MAIN"
+            REGRESSION_BLOCKING="$REGRESSION_BLOCKING_MAIN"
+          else
+            BLOCKING="$BLOCKING_DEFAULT"
+            REGRESSION_BLOCKING="$REGRESSION_BLOCKING_DEFAULT"
+          fi
+
+          if [ "$REGRESSION" = "success" ] || [ "$REGRESSION" = "" ]; then
+            REGRESSION_FACT="✅ passed"
+          elif [ "$REGRESSION_BLOCKING" = "true" ]; then
+            REGRESSION_FACT="❌ failed — merge blocked until the regression suite passes"
+          else
+            REGRESSION_FACT="⚠️ failed — non-blocking, please investigate"
+          fi
+          echo "regression_fact=$REGRESSION_FACT" >> "$GITHUB_OUTPUT"
+
+          if [ "$DEPLOY" != "success" ]; then
+            {
+              echo "title=🚀 Educator Frontend Preview — ❌ Deploy Did Not Succeed"
+              echo "style=attention"
+              echo "smoke_fact=⏭️ skipped (deploy-preview: $DEPLOY)"
+              echo "mention_suffix= — preview deployment did not succeed (deploy-preview: $DEPLOY). Please investigate."
+            } >> "$GITHUB_OUTPUT"
+          elif [ "$SMOKE" = "success" ] && { [ "$REGRESSION" = "success" ] || [ "$REGRESSION" = "" ]; }; then
+            {
+              echo "title=🚀 Educator Frontend Preview Ready"
+              echo "style=good"
+              echo "smoke_fact=✅ passed"
+              echo "mention_suffix= — your preview is live."
+            } >> "$GITHUB_OUTPUT"
+          elif [ "$BLOCKING" = "true" ] || [ "$REGRESSION_BLOCKING" = "true" ]; then
+            {
+              echo "title=🚀 Educator Frontend Preview Ready — ❌ Tests Failed"
+              echo "style=attention"
+              echo "smoke_fact=$([ "$SMOKE" = "success" ] && echo '✅ passed' || echo '❌ failed — merge blocked until the smoke suite passes')"
+              echo "mention_suffix= — preview is live; tests failed (merge blocked). Please investigate."
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "title=🚀 Educator Frontend Preview Ready — ⚠️ Tests Failed (non-blocking)"
+              echo "style=warning"
+              echo "smoke_fact=$([ "$SMOKE" = "success" ] && echo '✅ passed' || echo '⚠️ failed — non-blocking, please investigate')"
+              echo "mention_suffix= — preview is live; tests failed (merge not blocked). Please investigate."
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build facts + actions JSON
+        id: payload
+        env:
+          FRONTEND_URL: ${{ needs.deploy-preview.outputs.frontend_url }}
+          BACKEND_URL: ${{ needs.deploy-preview.outputs.backend_url }}
+          BACKEND_SOURCE: ${{ needs.deploy-preview.outputs.backend_source }}
+          SMOKE_FACT: ${{ steps.status.outputs.smoke_fact }}
+          REGRESSION_FACT: ${{ steps.status.outputs.regression_fact }}
+        run: |
+          if [ -n "$FRONTEND_URL" ]; then
+            FRONTEND_FACT="[$FRONTEND_URL]($FRONTEND_URL)"
+          else
+            FRONTEND_FACT="_not deployed_"
+          fi
+
+          if [ -n "$BACKEND_URL" ]; then
+            BACKEND_FACT="$BACKEND_URL ($BACKEND_SOURCE)"
+          else
+            BACKEND_FACT="_not resolved_"
+          fi
+
+          FACTS=$(jq -cn \
+            --arg repo "${{ github.repository }}" \
+            --arg branch "${{ github.event.pull_request.head.ref }}" \
+            --arg author "${{ github.actor }}" \
+            --arg pr "#${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}" \
+            --arg frontend "$FRONTEND_FACT" \
+            --arg backend "$BACKEND_FACT" \
+            --arg smoke "$SMOKE_FACT" \
+            --arg regression "$REGRESSION_FACT" \
+            '[
+              {title:"Repository", value:$repo},
+              {title:"Branch", value:$branch},
+              {title:"Author", value:$author},
+              {title:"PR", value:$pr},
+              {title:"Frontend", value:$frontend},
+              {title:"Backend API", value:$backend},
+              {title:"Smoke tests", value:$smoke},
+              {title:"Regression tests", value:$regression}
+            ]')
+
+          # Only link to the frontend if it actually deployed - an
+          # Action.OpenUrl with an empty url renders as a dead button.
+          PR_URL="${{ github.event.pull_request.html_url }}"
+          if [ -n "$FRONTEND_URL" ]; then
+            ACTIONS=$(jq -cn \
+              --arg frontend "$FRONTEND_URL" \
+              --arg pr_url "$PR_URL" \
+              '[
+                {type:"Action.OpenUrl", title:"Open Frontend", url:$frontend},
+                {type:"Action.OpenUrl", title:"View PR", url:$pr_url}
+              ]')
+          else
+            ACTIONS=$(jq -cn \
+              --arg pr_url "$PR_URL" \
+              '[
+                {type:"Action.OpenUrl", title:"View PR", url:$pr_url}
+              ]')
+          fi
+
+          {
+            echo "facts<<PAYLOAD_EOF"
+            echo "$FACTS"
+            echo "PAYLOAD_EOF"
+            echo "actions<<PAYLOAD_EOF"
+            echo "$ACTIONS"
+            echo "PAYLOAD_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Same shared action deploy-frontend.yml's notification uses — the
+      # @mention has to land in the SAME TextBlock as the greeting text (see
+      # file header), which is exactly what teams-notify's mention-suffix
+      # produces, so that fix can't regress via drift between the two cards.
+      - name: Notify Teams
+        continue-on-error: true
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_PREVIEW_WEBHOOK_URL }}
+          github-login:   ${{ github.actor }}
+          headline:       ${{ steps.status.outputs.title }}
+          style:          ${{ steps.status.outputs.style }}
+          mention-suffix: ${{ steps.status.outputs.mention_suffix }}
+          facts-json:     ${{ steps.payload.outputs.facts }}
+          footer:         "⚠️ First request may take ~30s (scales to zero when idle)"
+          actions-json:   ${{ steps.payload.outputs.actions }}
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Close the preview when the PR closes (merged or not). No explicit
+  # deployment-environment — Azure auto-detects "this PR's slot" from the
+  # SAME pull_request event context that created it, exactly like
+  # pxt-crexo's close_pull_request job. No OIDC/az cli needed here at all.
+  # ─────────────────────────────────────────────────────────────────────────
+  close-preview:
+    name: Close preview
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Close pull request preview
+        uses: ./.github/actions/deploy-swa
+        with:
+          api-token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          action:    'close'

@@ -1,0 +1,29 @@
+{
+  "createLog": {
+    "valid": {
+      "scenarioId": "scenario-001",
+      "userId": "user-001",
+      "studentName": "Jane Doe",
+      "studentKey": "JANE-001",
+      "studentClass": "Nursing 101"
+    },
+    "minimal": {
+      "scenarioId": "scenario-001"
+    }
+  },
+  "updateLog": {
+    "valid": {
+      "messages": [
+        { "speaker": "student", "text": "Updated message", "timestamp": "2026-05-19T11:00:00Z" }
+      ]
+    }
+  },
+  "appendMessages": {
+    "valid": {
+      "messages": [
+        { "speaker": "student", "text": "Hello", "timestamp": "2026-05-19T10:00:00Z" },
+        { "speaker": "patient", "text": "Hi there", "timestamp": "2026-05-19T10:00:05Z" }
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../../../..",
+  "testEnvironment": "node",
+  "testMatch": ["<rootDir>/tests/student-backend/integration/modules/**/*.spec.ts"],
+  "transform": {
+    "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/student-backend/$1",
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "setupFilesAfterEnv": ["<rootDir>/tests/student-backend/setup/jest.setup.ts"],
+  "collectCoverageFrom": [
+    "<rootDir>/src/student-backend/**/*.ts",
+    "!<rootDir>/src/student-backend/**/*.spec.ts",
+    "!<rootDir>/src/student-backend/**/*.module.ts",
+    "!<rootDir>/src/main.ts",
+    "!<rootDir>/src/instrumentation.ts",
+    "!<rootDir>/src/student-backend/**/*.d.ts"
+  ],
+  "coverageDirectory": "<rootDir>/tests/student-backend/integration/reports/coverage",
+  "coverageReporters": ["text", "lcov", "html"],
+  "testTimeout": 60000,
+  "reporters": [
+    "default",
+    [
+      "<rootDir>/tests/student-backend/api/config/friendly-html-reporter.js",
+      {
+        "outputPath": "<rootDir>/tests/student-backend/integration/reports/html/integration-test-report.html",
+        "pageTitle": "Integration Test Report",
+        "subtitle": "User-friendly summary of every integration test — what it validates and why it passed / failed."
+      }
+    ]
+  ]
+}

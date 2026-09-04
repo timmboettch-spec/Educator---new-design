@@ -1,0 +1,10 @@
+{
+  "activityLogQuery": {
+    "page": 1,
+    "limit": 10
+  },
+  "invalidPage": {
+    "page": -1,
+    "limit": 10
+  }
+}

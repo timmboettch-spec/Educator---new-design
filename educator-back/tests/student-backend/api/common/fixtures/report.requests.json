@@ -1,0 +1,22 @@
+{
+  "generate": {
+    "valid": {
+      "logId": "log-001"
+    }
+  },
+  "create": {
+    "valid": {
+      "logId": "log-001",
+      "userId": "user-001"
+    }
+  },
+  "email": {
+    "valid": {
+      "to": "instructor@example.com",
+      "message": "Please review this report.",
+      "studentName": "Jane Doe",
+      "studentClass": "Nursing 101",
+      "key": "JANE-001"
+    }
+  }
+}

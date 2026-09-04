@@ -1,0 +1,105 @@
+name: "resolve-environment-from-branch"
+description: >-
+  Centralizes the branch/dispatch-input → environment → Azure naming
+  resolution logic that was copy-pasted across HS-online-AI-app's
+  deploy-app.yml and rollback.yml. Resolves the target environment from
+  either a workflow_dispatch input or the current branch, then derives the
+  standard resource-group / key-vault / storage-account names.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Example usage:
+#
+#   - name: Resolve environment
+#     id: env
+#     uses: ./.github/actions/resolve-environment-from-branch
+#     with:
+#       event-name:               ${{ github.event_name }}
+#       ref:                      ${{ github.ref }}
+#       dispatch-environment-input: ${{ github.event.inputs.environment }}
+#       branch-environment-map:   '{"main":"prod","qa":"qa","dev":"dev","test/*":"test"}'
+#       env-prefix-map:           '{"test":"hsoaia"}'
+#       default-prefix:           rwai
+#
+#   - run: echo "Deploying to ${{ steps.env.outputs.environment }} (RG ${{ steps.env.outputs.resource-group }})"
+#
+# Cross-repo note: reusable workflows in this repo reference this action by
+# full path (not "./"), since local paths resolve against the calling repo:
+#   uses: Realityworks-AI/Global-Standards-Policy/.github/actions/resolve-environment-from-branch@main
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  event-name:
+    description: 'Triggering event name, e.g. github.event_name'
+    required: true
+  ref:
+    description: 'Triggering ref, e.g. github.ref'
+    required: true
+  dispatch-environment-input:
+    description: 'The workflow_dispatch environment choice, used only when event-name is workflow_dispatch'
+    required: false
+    default: ''
+  branch-environment-map:
+    description: >-
+      JSON object mapping branch name to environment, e.g.
+      {"main":"prod","qa":"qa","dev":"dev"}. A key ending in "/*" (e.g.
+      "test/*") matches any branch with that prefix via a simple string
+      prefix check.
+    required: true
+  env-prefix-map:
+    description: 'JSON object mapping environment to an az-prefix override, e.g. {"test":"hsoaia"}'
+    required: false
+    default: '{}'
+  default-prefix:
+    description: 'Default az-prefix used when env-prefix-map has no override for the resolved environment, e.g. rwai'
+    required: true
+  az-version:
+    description: 'Naming version segment, e.g. 1'
+    required: false
+    default: '1'
+
+outputs:
+  environment:
+    description: 'Resolved environment name, e.g. prod'
+    value: ${{ steps.resolve-bash.outputs.environment || steps.resolve-pwsh.outputs.environment }}
+  prefix:
+    description: 'Resolved az-prefix for the environment'
+    value: ${{ steps.resolve-bash.outputs.prefix || steps.resolve-pwsh.outputs.prefix }}
+  resource-group:
+    description: 'Derived resource group name: ARG-{environment}{az-version}-{prefix}'
+    value: ${{ steps.resolve-bash.outputs.resource-group || steps.resolve-pwsh.outputs.resource-group }}
+  key-vault:
+    description: 'Derived Key Vault name: akv{environment}{az-version}{prefix}'
+    value: ${{ steps.resolve-bash.outputs.key-vault || steps.resolve-pwsh.outputs.key-vault }}
+  storage-account:
+    description: 'Derived Storage Account name: asa{environment}{az-version}{prefix}'
+    value: ${{ steps.resolve-bash.outputs.storage-account || steps.resolve-pwsh.outputs.storage-account }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve environment from branch (bash)
+      if: runner.os != 'Windows'
+      id: resolve-bash
+      shell: bash
+      env:
+        EVENT_NAME: ${{ inputs.event-name }}
+        REF: ${{ inputs.ref }}
+        DISPATCH_ENVIRONMENT_INPUT: ${{ inputs.dispatch-environment-input }}
+        BRANCH_ENVIRONMENT_MAP: ${{ inputs.branch-environment-map }}
+        ENV_PREFIX_MAP: ${{ inputs.env-prefix-map }}
+        DEFAULT_PREFIX: ${{ inputs.default-prefix }}
+        AZ_VERSION: ${{ inputs.az-version }}
+      run: ${{ github.action_path }}/scripts/resolve-environment-from-branch.sh
+    - name: Resolve environment from branch (pwsh)
+      if: runner.os == 'Windows'
+      id: resolve-pwsh
+      shell: pwsh
+      env:
+        EVENT_NAME: ${{ inputs.event-name }}
+        REF: ${{ inputs.ref }}
+        DISPATCH_ENVIRONMENT_INPUT: ${{ inputs.dispatch-environment-input }}
+        BRANCH_ENVIRONMENT_MAP: ${{ inputs.branch-environment-map }}
+        ENV_PREFIX_MAP: ${{ inputs.env-prefix-map }}
+        DEFAULT_PREFIX: ${{ inputs.default-prefix }}
+        AZ_VERSION: ${{ inputs.az-version }}
+      run: ${{ github.action_path }}/scripts/resolve-environment-from-branch.ps1

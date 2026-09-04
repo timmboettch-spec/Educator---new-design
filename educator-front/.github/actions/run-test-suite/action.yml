@@ -1,0 +1,115 @@
+name: "run-test-suite"
+description: >-
+  Aggregated JS test run: Node setup + npm ci + a test command that writes a
+  Jest-shaped JSON report, then upload JSON/HTML report artifacts and parse a
+  pass/fail summary + up to 5 failing test names. Extracted from
+  deploy-frontend.yml, which hand-rolled this exact run+upload+parse sequence
+  once for unit tests and once for integration tests. Used for both suites so
+  the parsing logic can't drift between them.
+
+inputs:
+  test-command:
+    description: 'npm script (or any command) that runs the suite and writes report-json.'
+    required: true
+  report-json:
+    description: 'Path to the JSON results file written by test-command (Jest-shaped: numTotalTests/numPassedTests/numFailedTests/testResults).'
+    required: true
+  report-html:
+    description: 'Path to an HTML report to upload alongside the JSON results. Empty = skip.'
+    required: false
+    default: ''
+  node-version:
+    description: 'Node.js version to run the suite with.'
+    required: false
+    default: '24'
+  artifact-prefix:
+    description: 'Prefix for uploaded artifact names, e.g. "unit" -> unit-test-results / unit-html-report.'
+    required: true
+  name-prefix:
+    description: 'Prefix for each failing test name in the failed_names output, e.g. "unit: ".'
+    required: true
+
+outputs:
+  total:
+    description: 'numTotalTests from report-json (0 if missing).'
+    value: ${{ steps.summary.outputs.total }}
+  passed:
+    description: 'numPassedTests from report-json (0 if missing).'
+    value: ${{ steps.summary.outputs.passed }}
+  failed:
+    description: 'numFailedTests from report-json (0 if missing).'
+    value: ${{ steps.summary.outputs.failed }}
+  summary:
+    description: 'Human-readable one-line summary, e.g. "✅ 12/12 passed".'
+    value: ${{ steps.summary.outputs.summary }}
+  failed_names:
+    description: 'Up to 5 failing test full names, name-prefixed and "; "-joined.'
+    value: ${{ steps.summary.outputs.failed_names }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Run test suite
+      shell: bash
+      run: ${{ inputs.test-command }}
+
+    - name: Upload JSON results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ${{ inputs.artifact-prefix }}-test-results
+        path: ${{ inputs.report-json }}
+        retention-days: 7
+
+    - name: Upload HTML report
+      uses: actions/upload-artifact@v4
+      if: always() && inputs.report-html != ''
+      with:
+        name: ${{ inputs.artifact-prefix }}-html-report
+        path: ${{ inputs.report-html }}
+        retention-days: 14
+
+    - name: Parse test summary
+      id: summary
+      if: always()
+      shell: bash
+      env:
+        REPORT_FILE: ${{ inputs.report-json }}
+        NAME_PREFIX: ${{ inputs.name-prefix }}
+      run: |
+        set -euo pipefail
+        if [ ! -f "$REPORT_FILE" ]; then
+          echo "total=0" >> "$GITHUB_OUTPUT"
+          echo "passed=0" >> "$GITHUB_OUTPUT"
+          echo "failed=0" >> "$GITHUB_OUTPUT"
+          echo "summary=⚠️ No results" >> "$GITHUB_OUTPUT"
+          echo "failed_names=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        TOTAL=$(jq '.numTotalTests // 0' "$REPORT_FILE")
+        PASSED=$(jq '.numPassedTests // 0' "$REPORT_FILE")
+        FAILED=$(jq '.numFailedTests // 0' "$REPORT_FILE")
+        if [ "$FAILED" -gt 0 ]; then
+          SUMMARY="❌ $PASSED/$TOTAL passed ($FAILED failed)"
+        else
+          SUMMARY="✅ $PASSED/$TOTAL passed"
+        fi
+        FAILED_NAMES=$(jq -r --arg prefix "$NAME_PREFIX" '
+          [ .testResults[]? | .assertionResults[]? | select(.status=="failed") | (.fullName // (((.ancestorTitles // []) + [.title]) | join(" "))) ]
+          | unique | .[0:5] | map($prefix + .) | join("; ")
+        ' "$REPORT_FILE" 2>/dev/null || echo "")
+        echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+        echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+        echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+        echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+        echo "failed_names=$FAILED_NAMES" >> "$GITHUB_OUTPUT"

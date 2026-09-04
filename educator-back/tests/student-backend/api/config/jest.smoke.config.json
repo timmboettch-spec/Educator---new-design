@@ -1,0 +1,26 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../../../..",
+  "testEnvironment": "node",
+  "testMatch": ["<rootDir>/tests/student-backend/api/smoke/*.smoke.ts"],
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
+  },
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/student-backend/$1"
+  },
+  "testSequencer": "<rootDir>/tests/student-backend/api/config/testSequencer.js",
+  "testTimeout": 30000,
+  "setupFiles": ["dotenv/config"],
+  "reporters": [
+    "default",
+    [
+      "<rootDir>/tests/student-backend/api/config/friendly-html-reporter.js",
+      {
+        "outputPath": "<rootDir>/tests/student-backend/api/reports/html/api-smoke-report.html",
+        "pageTitle": "Post-Deployment Smoke Test Report",
+        "showTargetUrl": true
+      }
+    ]
+  ]
+}

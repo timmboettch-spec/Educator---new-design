@@ -1,0 +1,9 @@
+export enum CommonStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  PENDING = 'PENDING',
+  DRAFT = 'DRAFT',
+  ARCHIVED = 'ARCHIVED',
+  ATTENTION = 'ATTENTION',
+  ARCHIEVED = 'ARCHIEVED',
+}

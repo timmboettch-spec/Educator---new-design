@@ -1,0 +1,71 @@
+name: "run-smoke-suite"
+description: >-
+  Aggregated Playwright smoke test: Node setup + npm ci + Playwright browser
+  install + wait-for-URL + run the e2e:smoke suite (01-admin-login ->
+  02-subscription-activation -> 03-school-create -> 04-educator-create ->
+  05-educator-login -> 06-class-create) against a deployed frontend, then
+  upload the report artifact. Used by both deploy-frontend.yml (real
+  environments) and preview-deploy.yml (branch previews) so the smoke suite
+  can't drift between the two pipelines. Failure fails this action's step —
+  callers that want a non-blocking smoke test should set
+  `continue-on-error: true` on the step that invokes this action, not inside
+  it.
+
+inputs:
+  base-url:
+    description: 'Deployed frontend URL to test against (sets BASE_URL).'
+    required: true
+  api-url:
+    description: 'Backend API URL to build/test against (sets VITE_API_URL).'
+    required: true
+  node-version:
+    description: 'Node.js version to run the suite with.'
+    required: false
+    default: '24'
+  artifact-name:
+    description: 'Name for the uploaded report artifact (must be unique per run in the same workflow).'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Install Playwright browsers
+      shell: bash
+      run: npx playwright install --with-deps chromium
+
+    - name: Wait for frontend to respond
+      shell: bash
+      run: |
+        curl --fail --retry 12 --retry-delay 6 --retry-connrefused \
+          "${{ inputs.base-url }}"
+
+    - name: Run Playwright smoke suite
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base-url }}
+        VITE_API_URL: ${{ inputs.api-url }}
+        CI: true
+      run: |
+        mkdir -p tests/e2e/reports
+        set -o pipefail
+        npm run e2e:smoke 2>&1 | tee tests/e2e/reports/smoke-output.log
+
+    - name: Upload smoke test report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          tests/e2e/reports/
+          tests/e2e/test-results/
+        retention-days: 7

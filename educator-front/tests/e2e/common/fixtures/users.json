@@ -1,0 +1,88 @@
+{
+  "admin": {
+    "id": "admin-001",
+    "email": "admin@test.com",
+    "password": "Admin@123456",
+    "firstName": "Admin",
+    "lastName": "User",
+    "role": "admin"
+  },
+  "educator": {
+    "id": "educator-001",
+    "email": "educator@test.com",
+    "password": "Educator@123456",
+    "firstName": "John",
+    "lastName": "Educator",
+    "role": "educator",
+    "schoolId": "school-001"
+  },
+  "student": {
+    "id": "student-001",
+    "email": "student@test.com",
+    "password": "Student@123456",
+    "firstName": "Jane",
+    "lastName": "Student",
+    "role": "student",
+    "classId": "class-001"
+  },
+  "newUser": {
+    "id": "new-user-001",
+    "email": "newuser@test.com",
+    "password": "NewUser@123456",
+    "firstName": "New",
+    "lastName": "User",
+    "role": "educator"
+  },
+  "invalidUser": {
+    "id": "invalid-001",
+    "email": "invalid@test.com",
+    "password": "WrongPassword123",
+    "firstName": "Invalid",
+    "lastName": "User",
+    "role": "user"
+  },
+  "expiredUser": {
+    "id": "expired-001",
+    "email": "expired@test.com",
+    "password": "Expired@123456",
+    "firstName": "Expired",
+    "lastName": "Account",
+    "role": "educator",
+    "accountStatus": "expired"
+  },
+  "signUpUser": {
+    "id": "signup-001",
+    "email": "signup@test.com",
+    "password": "SignUp@123456",
+    "firstName": "Sign",
+    "lastName": "Up",
+    "role": "educator"
+  },
+  "passwordResetUser": {
+    "id": "reset-001",
+    "email": "reset@test.com",
+    "password": "OldPassword@123456",
+    "newPassword": "NewPassword@123456",
+    "firstName": "Reset",
+    "lastName": "User",
+    "role": "educator"
+  },
+  "lockedUser": {
+    "id": "locked-001",
+    "email": "locked@test.com",
+    "password": "Locked@123456",
+    "firstName": "Locked",
+    "lastName": "Account",
+    "role": "educator",
+    "accountStatus": "locked"
+  },
+  "suspendedUser": {
+    "id": "suspended-001",
+    "email": "suspended@test.com",
+    "password": "Suspended@123456",
+    "firstName": "Suspended",
+    "lastName": "Account",
+    "role": "educator",
+    "accountStatus": "suspended"
+  }
+}

@@ -1,0 +1,115 @@
+name: "run-api-test-suite"
+description: >-
+  Aggregated API test run: Node setup + npm ci + tests/api/executor/module-executor.js
+  + JSON/HTML artifact upload + pass/fail parsing (via parse-api-test-results).
+  Extracted from deploy-backend.yml's test-api job and preview-deploy.yml's
+  preview-smoke-test job, which both hand-rolled this same run+upload+parse
+  sequence — one against the shared dev backend, one against a live preview's
+  BASE_URL — so the sequence can't drift between the two call sites.
+
+inputs:
+  base-url:
+    description: >-
+      BASE_URL env var for the test run, e.g. https://<preview-fqdn>/api.
+      Empty (the default) leaves BASE_URL unset — tests/api/utils/env.ts
+      falls back to its own default (the shared dev backend).
+    required: false
+    default: ''
+  node-env:
+    description: >-
+      NODE_ENV env var for the test run, e.g. dev/qa/main. Must be set
+      explicitly in CI — with no .env file present, tests/api/utils/env.ts's
+      `process.env.NODE_ENV || 'dev'` falls through to whatever Jest already
+      set NODE_ENV to ("test"), silently resolving to the wrong backend URL
+      when base-url is also empty. Empty (the default) leaves NODE_ENV unset,
+      which is only safe when base-url is provided (it always takes priority
+      over NODE_ENV-derived URLs).
+    required: false
+    default: ''
+  node-version:
+    description: 'Node.js version to run the suite with.'
+    required: false
+    default: '22'
+  results-json:
+    description: 'Path to the module-executor JSON results file.'
+    required: false
+    default: 'tests/api/reports/.test-results.json'
+  results-html:
+    description: 'Path to the module-executor HTML report.'
+    required: false
+    default: 'tests/api/reports/html/api-test-report.html'
+  artifact-json-name:
+    description: 'Artifact name for the uploaded JSON results.'
+    required: true
+  artifact-html-name:
+    description: 'Artifact name for the uploaded HTML report.'
+    required: true
+  label:
+    description: 'Prefix for failed test names in failed_names output, e.g. "api" or "preview".'
+    required: false
+    default: 'api'
+
+outputs:
+  total:
+    description: 'Total assertions run.'
+    value: ${{ steps.parse.outputs.total }}
+  passed:
+    description: 'Passed assertions.'
+    value: ${{ steps.parse.outputs.passed }}
+  failed:
+    description: 'Failed assertions.'
+    value: ${{ steps.parse.outputs.failed }}
+  summary:
+    description: 'One-line pass/fail summary string.'
+    value: ${{ steps.parse.outputs.summary }}
+  failed_names:
+    description: 'Semicolon-joined list (max 5) of failing test full names, prefixed with label.'
+    value: ${{ steps.parse.outputs.failed_names }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Run API test suite
+      shell: bash
+      env:
+        BASE_URL:  ${{ inputs.base-url }}
+        NODE_ENV:  ${{ inputs.node-env }}
+      run: |
+        [ -n "${BASE_URL:-}" ] && echo "BASE_URL=$BASE_URL"
+        [ -n "${NODE_ENV:-}" ] && echo "NODE_ENV=$NODE_ENV"
+        node tests/api/executor/module-executor.js
+
+    - name: Upload JSON results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-json-name }}
+        path: ${{ inputs.results-json }}
+        retention-days: 7
+        include-hidden-files: true
+
+    - name: Upload HTML report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-html-name }}
+        path: ${{ inputs.results-html }}
+        retention-days: 14
+
+    - name: Parse test summary
+      id: parse
+      if: always()
+      uses: ./.github/actions/parse-api-test-results
+      with:
+        results-file: ${{ inputs.results-json }}
+        label: ${{ inputs.label }}

@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output (builder stage produces this)
+dist/
+build/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# VCS
+.git/
+.gitignore
+
+# Tests and coverage
+tests/
+test/
+coverage/
+playwright-report/
+test-results/
+
+# CI/CD and tooling config
+.github/
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+
+# Docs
+*.md
+docs/

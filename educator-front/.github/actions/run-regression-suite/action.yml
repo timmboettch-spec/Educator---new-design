@@ -1,0 +1,68 @@
+name: "run-regression-suite"
+description: >-
+  Aggregated Playwright regression test: Node setup + npm ci + Playwright
+  browser install + wait-for-URL + run the test:e2e:regression suite against
+  a deployed frontend, then upload the report artifact. Mirrors
+  run-smoke-suite so the regression suite can't drift from the smoke suite's
+  setup steps. Failure fails this action's step — callers that want a
+  non-blocking regression test should set `continue-on-error: true` on the
+  step that invokes this action, not inside it.
+
+inputs:
+  base-url:
+    description: 'Deployed frontend URL to test against (sets BASE_URL).'
+    required: true
+  api-url:
+    description: 'Backend API URL to build/test against (sets VITE_API_URL).'
+    required: true
+  node-version:
+    description: 'Node.js version to run the suite with.'
+    required: false
+    default: '24'
+  artifact-name:
+    description: 'Name for the uploaded report artifact (must be unique per run in the same workflow).'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Install Playwright browsers
+      shell: bash
+      run: npx playwright install --with-deps chromium
+
+    - name: Wait for frontend to respond
+      shell: bash
+      run: |
+        curl --fail --retry 12 --retry-delay 6 --retry-connrefused \
+          "${{ inputs.base-url }}"
+
+    - name: Run Playwright regression suite
+      shell: bash
+      env:
+        BASE_URL: ${{ inputs.base-url }}
+        VITE_API_URL: ${{ inputs.api-url }}
+        CI: true
+      run: |
+        mkdir -p tests/e2e/reports
+        set -o pipefail
+        npm run test:e2e:regression 2>&1 | tee tests/e2e/reports/regression-output.log
+
+    - name: Upload regression test report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          tests/e2e/reports/
+          tests/e2e/test-results/
+        retention-days: 7

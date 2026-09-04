@@ -1,0 +1,18 @@
+{
+    "createSchoolValidData": {
+        "school_name": "High Schools",
+        "status": "ACTIVE",
+        "user_id": "string"
+    },
+    "createSchoolInvalidData": {
+        "school_name": "",
+        "status": "ACTIVE",
+        "user_id": "5234DSG"
+    },
+    "inactiveschool":{
+        "status":"INACTIVE"
+    },
+    "activeschool":{
+        "status":"ACTIVE"
+    }
+}

@@ -1,0 +1,51 @@
+{
+  "createStudent": {
+    "valid": {
+      "name": "Jane Doe",
+      "email": "jane.doe@example.com",
+      "key": "JANE-001",
+      "units": ["unit-001"]
+    },
+    "nameTooShort": {
+      "name": "Jo",
+      "email": "jo@example.com",
+      "key": "JO-001"
+    },
+    "missingName": {
+      "email": "noname@example.com",
+      "key": "NN-001"
+    }
+  },
+  "updateStudentPermissions": {
+    "valid": {
+      "units": ["unit-001", "unit-002"],
+      "createIfNotExists": false
+    }
+  },
+  "createScenario": {
+    "valid": {
+      "scenarioId": "scenario-api-001",
+      "title": "API Test Scenario",
+      "unitId": "unit-001",
+      "estimatedDuration": "20 minutes"
+    },
+    "missingId": {
+      "title": "No ID Scenario",
+      "unitId": "unit-001"
+    }
+  },
+  "createUnit": {
+    "valid": {
+      "id": "unit-api-001",
+      "name": "API Test Unit"
+    }
+  },
+  "createPermission": {
+    "valid": {
+      "key": "PERM-001",
+      "units": ["unit-001"],
+      "scenarios": [],
+      "avatars": []
+    }
+  }
+}

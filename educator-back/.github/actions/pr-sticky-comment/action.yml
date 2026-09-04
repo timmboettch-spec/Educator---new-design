@@ -1,0 +1,66 @@
+name: "pr-sticky-comment"
+description: >-
+  Upserts a sticky PR comment. On pull_request-triggered jobs, leave `branch`
+  empty and the PR is auto-detected from event context (e.g.
+  deploy-frontend.yml's lint comment). On push-triggered jobs there is no
+  implicit PR context, so set `branch` to resolve the open PR for that
+  branch via `gh pr list` first (e.g. preview-deploy.yml's preview comment,
+  which runs on a plain branch push) — the comment silently no-ops if no
+  open PR is found for that branch.
+
+inputs:
+  header:
+    description: 'Sticky comment header/key — unique per comment thread on the PR.'
+    required: true
+  body:
+    description: 'Full markdown comment body.'
+    required: true
+  branch:
+    description: >-
+      Branch to resolve an open PR for via `gh pr list`. Empty (the default)
+      lets sticky-pull-request-comment auto-detect the PR from a
+      pull_request event — only set this on push-triggered jobs.
+    required: false
+    default: ''
+  github-token:
+    description: 'Token for `gh pr list`. Required only when branch is non-empty.'
+    required: false
+    default: ''
+
+outputs:
+  pr-number:
+    description: 'Resolved PR number when branch was set (empty if no open PR was found).'
+    value: ${{ steps.resolve.outputs.number }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve PR number from branch
+      id: resolve
+      if: inputs.branch != ''
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        BRANCH:   ${{ inputs.branch }}
+      run: |
+        NUMBER=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+        echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+
+    - name: Write comment body
+      id: write
+      if: inputs.branch == '' || steps.resolve.outputs.number != ''
+      shell: bash
+      env:
+        BODY: ${{ inputs.body }}
+      run: |
+        BODY_PATH="${{ runner.temp }}/pr-sticky-comment-body.md"
+        printf '%s\n' "$BODY" > "$BODY_PATH"
+        echo "path=$BODY_PATH" >> "$GITHUB_OUTPUT"
+
+    - name: Upsert sticky PR comment
+      if: inputs.branch == '' || steps.resolve.outputs.number != ''
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: ${{ inputs.header }}
+        path: ${{ steps.write.outputs.path }}
+        number: ${{ steps.resolve.outputs.number }}

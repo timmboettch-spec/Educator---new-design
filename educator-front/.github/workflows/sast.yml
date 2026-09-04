@@ -1,0 +1,317 @@
+name: "SAST · Security"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Static Application Security Testing
+#
+# • Runs on every PR AND on every push to every branch (including
+#   dev/qa/main) so nothing is unscanned, not just PRs opened against
+#   dev/qa/main.
+# • Gitleaks  — scans the diff since the branch's base for committed secrets
+# • Trivy     — scans repo filesystem for known CVEs (CRITICAL + HIGH only)
+# • Results surface as a sticky PR comment (PR runs) + a Teams Adaptive Card
+#   on failure (both PR and push runs), via its own dedicated
+#   TEAMS_SAST_WEBHOOK_URL — kept separate from TEAMS_WEBHOOK_URL (deploy)
+#   and TEAMS_PREVIEW_WEBHOOK_URL (preview deploy status) so a SAST alert
+#   can't get lost in a channel meant for deploy notifications.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push: {}
+
+concurrency:
+  group: sast-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ── 1a. Gitleaks — secret detection ─────────────────────────────────────────
+  gitleaks:
+    name: Gitleaks · Secret Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      result:   ${{ steps.scan.outputs.result }}
+      findings: ${{ steps.scan.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Detect secrets (diff since base)
+        id: scan
+        env:
+          # PR runs diff against the PR's real base branch. Push runs (preview
+          # branches) have no PR base, so diff against dev — the common
+          # integration branch every preview branch forks from.
+          BASE_REF: ${{ github.event.pull_request.base.ref || 'dev' }}
+        run: |
+          set +e
+          gitleaks detect \
+            --source . \
+            --redact \
+            --exit-code 1 \
+            --report-format json \
+            --report-path gitleaks-results.json \
+            --log-opts "origin/${BASE_REF}..HEAD"
+          EXIT=$?
+
+          FINDINGS=0
+          if [[ -f gitleaks-results.json ]]; then
+            FINDINGS=$(jq 'length' gitleaks-results.json 2>/dev/null || echo 0)
+          fi
+
+          echo "result=$([[ $EXIT -eq 0 ]] && echo success || echo failure)" >> "$GITHUB_OUTPUT"
+          echo "findings=${FINDINGS}"                                         >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## 🔐 Gitleaks Report"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Result   | \`$([[ $EXIT -eq 0 ]] && echo success || echo failure)\` |"
+            echo "| Findings | \`${FINDINGS}\` |"
+            echo "| Scope    | \`origin/${BASE_REF}..HEAD\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $EXIT
+
+      - name: Upload Gitleaks results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results-${{ github.run_id }}
+          path: gitleaks-results.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ── 1b. Trivy — dependency & IaC vulnerability scan ─────────────────────────
+  trivy:
+    name: Trivy · Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      result:   ${{ steps.scan.outputs.result }}
+      critical: ${{ steps.scan.outputs.critical }}
+      high:     ${{ steps.scan.outputs.high }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+          trivy --version
+
+      - name: Run Trivy filesystem scan
+        id: scan
+        run: |
+          set +e
+          trivy fs . \
+            --scanners vuln,secret,misconfig \
+            --severity CRITICAL,HIGH \
+            --exit-code 0 \
+            --format json \
+            --output trivy-results.json \
+            --ignore-unfixed \
+            --quiet
+
+          CRITICAL=0
+          HIGH=0
+          if [[ -f trivy-results.json ]]; then
+            CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-results.json 2>/dev/null || echo 0)
+            HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-results.json 2>/dev/null || echo 0)
+          fi
+
+          # Trivy itself is invoked with --exit-code 0 so this script always
+          # gets to parse the JSON report regardless of severity — but that
+          # left EXIT hardcoded to 0 below, so the "Trivy · Vulnerability
+          # Scan" check always showed green even with CRITICAL findings.
+          # outputs.result was already correctly wired to failure (the PR
+          # comment and Teams alert both work off it), only the job's own
+          # GitHub-level status was wrong. Derive EXIT from the actual
+          # findings, matching how the Gitleaks step above handles this.
+          if [[ $CRITICAL -gt 0 ]]; then
+            EXIT=1
+            echo "result=failure" >> "$GITHUB_OUTPUT"
+          else
+            EXIT=0
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          fi
+          echo "critical=${CRITICAL}"                                         >> "$GITHUB_OUTPUT"
+          echo "high=${HIGH}"                                                 >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## 🛡️ Trivy Report"
+            echo ""
+            echo "| Metric   | Value |"
+            echo "|---|---|"
+            echo "| Result   | \`$([[ $EXIT -eq 0 ]] && echo success || echo failure)\` |"
+            echo "| Critical | \`${CRITICAL}\` |"
+            echo "| High     | \`${HIGH}\` |"
+            echo "| Scope    | filesystem (vuln + secret + misconfig) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $EXIT
+
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results-${{ github.run_id }}
+          path: trivy-results.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ── 2. PR comment — sticky status table ────────────────────────────────────
+  # On a push-triggered preview run there's no PR context to auto-detect, so
+  # pr-sticky-comment resolves the open PR (if any) for this branch instead —
+  # same pattern preview-deploy.yml's preview comment uses.
+  pr-comment:
+    name: Post PR Comment
+    needs: [gitleaks, trivy]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build comment body
+        id: body
+        run: |
+          GL_RESULT="${{ needs.gitleaks.outputs.result || needs.gitleaks.result }}"
+          TV_RESULT="${{ needs.trivy.outputs.result   || needs.trivy.result }}"
+          GL_FINDINGS="${{ needs.gitleaks.outputs.findings || '0' }}"
+          TV_CRITICAL="${{ needs.trivy.outputs.critical   || '0' }}"
+          TV_HIGH="${{ needs.trivy.outputs.high           || '0' }}"
+
+          icon() { [[ "$1" == "success" ]] && echo ":white_check_mark: passed" || echo ":x: failed"; }
+
+          {
+            echo "body<<BODY_EOF"
+            echo "## SAST · Security"
+            echo ""
+            echo "| Check | Result | Detail |"
+            echo "|---|---|---|"
+            echo "| Gitleaks — Secret Detection | $(icon "$GL_RESULT") | ${GL_FINDINGS} finding(s) |"
+            echo "| Trivy — Vulnerability Scan  | $(icon "$TV_RESULT") | CRITICAL: ${TV_CRITICAL}, HIGH: ${TV_HIGH} |"
+            echo ""
+            echo "<sub>Run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky PR comment
+        uses: ./.github/actions/pr-sticky-comment
+        with:
+          header:       sast-security
+          body:         ${{ steps.body.outputs.body }}
+          branch:       ${{ github.event_name == 'push' && github.ref_name || '' }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── 3. Teams alert — Adaptive Card on failure only ─────────────────────────
+  # Fires for both PR runs and preview-branch push runs — subject/author/
+  # subtitle/open-link all resolve per event type below. Uses its own
+  # TEAMS_SAST_WEBHOOK_URL (not the deploy or preview webhook) so a SAST
+  # finding always lands in the security channel regardless of which event
+  # triggered the scan.
+  teams-alert:
+    name: Notify Teams (on failure)
+    needs: [gitleaks, trivy]
+    if: >-
+      always() &&
+      (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      (needs.gitleaks.outputs.result == 'failure' || needs.trivy.outputs.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build facts + actions JSON
+        id: payload
+        env:
+          GL_FINDINGS: ${{ needs.gitleaks.outputs.findings || '0' }}
+          TV_CRITICAL: ${{ needs.trivy.outputs.critical || '0' }}
+          TV_HIGH: ${{ needs.trivy.outputs.high || '0' }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_TITLE:  ${{ github.event.pull_request.title }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            SUBJECT="PR #${{ github.event.pull_request.number }}"
+            AUTHOR="$PR_AUTHOR"
+            SUBTITLE="$PR_TITLE"
+            OPEN_TITLE="Open PR"
+            OPEN_URL="${{ github.event.pull_request.html_url }}"
+          else
+            SUBJECT="branch ${{ github.ref_name }}"
+            AUTHOR="${{ github.actor }}"
+            SUBTITLE=$(printf '%s' "${COMMIT_MSG:-(push)}" | head -1 | sed 's/"/\\"/g')
+            OPEN_TITLE="View Branch"
+            OPEN_URL="https://github.com/${{ github.repository }}/tree/${{ github.ref_name }}"
+          fi
+
+          FACTS=$(jq -cn \
+            --arg repo "${{ github.repository }}" \
+            --arg author "$AUTHOR" \
+            --arg gl "$GL_FINDINGS secret(s)" \
+            --arg crit "$TV_CRITICAL" \
+            --arg high "$TV_HIGH" \
+            '[
+              {title:"Repository", value:$repo},
+              {title:"Author", value:$author},
+              {title:"Gitleaks findings", value:$gl},
+              {title:"Trivy Critical", value:$crit},
+              {title:"Trivy High", value:$high}
+            ]')
+          ACTIONS=$(jq -cn \
+            --arg open_title "$OPEN_TITLE" \
+            --arg open_url "$OPEN_URL" \
+            --arg run_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '[
+              {type:"Action.OpenUrl", title:$open_title, url:$open_url},
+              {type:"Action.OpenUrl", title:"View SAST run", url:$run_url}
+            ]')
+          {
+            echo "subject=$SUBJECT"
+            echo "author=$AUTHOR"
+            echo "facts<<PAYLOAD_EOF"
+            echo "$FACTS"
+            echo "PAYLOAD_EOF"
+            echo "actions<<PAYLOAD_EOF"
+            echo "$ACTIONS"
+            echo "PAYLOAD_EOF"
+            echo "subtitle<<PAYLOAD_EOF"
+            echo "$SUBTITLE"
+            echo "PAYLOAD_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send Teams Adaptive Card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_SAST_WEBHOOK_URL }}
+          github-login:   ${{ steps.payload.outputs.author }}
+          headline:       🚨 Educator Frontend SAST · Security Issue Detected in ${{ steps.payload.outputs.subject }}
+          style:          attention
+          subtitle:       ${{ steps.payload.outputs.subtitle }}
+          mention-suffix: ' — please review your SAST security findings.'
+          facts-json:     ${{ steps.payload.outputs.facts }}
+          actions-json:   ${{ steps.payload.outputs.actions }}

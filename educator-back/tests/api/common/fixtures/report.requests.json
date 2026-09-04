@@ -1,0 +1,13 @@
+{
+  "studentReportQuery": {
+    "classId": "",
+    "studentId": ""
+  },
+  "simulationReportQuery": {
+    "educatorId": ""
+  },
+  "emailReport": {
+    "student_id": "",
+    "class_id": ""
+  }
+}

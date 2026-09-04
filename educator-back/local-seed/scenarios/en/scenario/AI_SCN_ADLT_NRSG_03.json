@@ -1,0 +1,2126 @@
+{
+  "id": "AI_SCN_ADLT_NRSG_03",
+  "unitId": "AlphaTesting-01",
+  "title": "Gastric Decompression via NG Tube ",
+  "difficulty": "Medium",
+  "avatarEnabled": false,
+  "avatarId": "",
+  "contextId": "",
+  "learnerLevel": "Post-Secondary Nursing",
+  "department": "Inpatient",
+  "description": "Students assess abdominal symptoms, insert an NG tube for decompression, manage ongoing suction, educate the patient, and document results. ",
+  "learningObjective": "Perform a focused assessment of an adult with abdominal distention, discomfort, and nausea/vomiting. \nSafely insert and manage a nasogastric tube and initiate gastric decompression. \nProvide patient education and support related to a temporary NG tube for gastric decompression. \nDocument key findings and results of assessments and interventions. ",
+  "class": "n/a",
+  "language": "en-US",
+  "voice": "Jenny",
+  "ethnicity": "",
+  "age": "",
+  "disabled": false,
+  "Status": "Paid",
+  "actions": [
+    {
+      "id": "action_1781844452883_ligt12o56",
+      "order": 1,
+      "title": "Adjust Bed to Working Height",
+      "prompt": "Indicate the most appropriate height you adjust the bed to when at the bedside assessing the patient, performing interventions, or assisting the patient in bed.",
+      "type": "single",
+      "items": [
+        "Raise the bed to the maximum available height, keep all side rails down to make it easier to reach the patient and lean over the patient as necessary.",
+        "Leave the bed at the current height, stand with feet close together for balance, and lean forward with straight legs.",
+        "Lower the bed completely to keep the patient safe and sit on the bed or bend at the waist as necessary to provide care or assess the patient.",
+        "Raise the bed to a comfortable working height for yourself and stand close to the patient with knees slightly bent."
+      ],
+      "correct": "Raise the bed to a comfortable working height for yourself and stand close to the patient with knees slightly bent.",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The bed height has been adjusted to a comfortable working height for use of safe body mechanics.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781844583874_7smyv9o4r",
+      "order": 2,
+      "title": "Complete Pain Screening & Assessment  - Pre-Procedure",
+      "prompt": "Indicate whether the patient reports pain.",
+      "type": "single",
+      "items": [
+        "Patient complains of pain",
+        "Patient denies pain"
+      ],
+      "correct": "Patient complains of pain",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The patient will verbalize level of pain severity and location when asked.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781844837029_r18lu30vx",
+      "order": 3,
+      "title": "Complete Pain Screening & Assessment  - Post-Procedure",
+      "prompt": "Indicate whether the patient reports pain.",
+      "type": "single",
+      "items": [
+        "Patient complains of pain",
+        "Patient denies pain"
+      ],
+      "correct": "Patient denies pain",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "The patient will verbalize level of pain severity and location when asked.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781844886577_qq3ysv3p1",
+      "order": 4,
+      "title": "Confirm NPO Status with Patient",
+      "prompt": "Before preparing for NG tube insertion, which statement by the nurse best demonstrates correct verification of the patient’s NPO status?",
+      "type": "single",
+      "items": [
+        "“Have you eaten or had anything to drink, including water, gum, or hard candy, while you have been admitted to the hospital?”",
+        "“I see an NPO order in your chart, so I’ll assume you haven’t had anything to eat or drink today.”",
+        "“You haven’t been given a meal tray, so I know you’ve been NPO.”",
+        "“Your nausea has been pretty bad, so I’m sure you haven’t tried to drink anything.”"
+      ],
+      "correct": "“Have you eaten or had anything to drink, including water, gum, or hard candy, while you have been admitted to the hospital?”",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient will confirm when she last had oral when asked (food, fluids, gum, ice chips, or medications).",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781844972953_abwtvq3qi",
+      "order": 5,
+      "title": "Gather and Prepare Supplies and Equipment",
+      "prompt": "The nurse is preparing to insert an NG tube for gastric decompression. Which of the following sets of supplies and equipment reflects correct and complete preparation before beginning the procedure?",
+      "type": "single",
+      "items": [
+        "NG tube, sterile gloves, suction canister, petroleum-based lubricant, sterile field drape, and emesis basin.",
+        "NG tube, alcohol-based hand sanitizer, ice chips for comfort, oral medications for nausea, and suction tubing connected directly to the wall without a canister. ",
+        "NG tube, water‑soluble lubricant, clean gloves, tape or securement device, cup of water with straw, emesis basin, and functioning suction setup (canister, regulator, tubing).",
+        "NG tube, water bottle for patient hydration, oral thermometer, clean gloves, large syringe for IV use, and non‑rebreather mask."
+      ],
+      "correct": "NG tube, water‑soluble lubricant, clean gloves, tape or securement device, cup of water with straw, emesis basin, and functioning suction setup (canister, regulator, tubing).",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "All required supplies for NG tube insertion have been gathered",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781845053633_2eidc6ivn",
+      "order": 6,
+      "title": "Monitor Intake & Output",
+      "prompt": "A nurse has just connected a patient’s newly inserted NG tube to low‑intermittent suction. Which action demonstrates correct monitoring of the NG tube output?",
+      "type": "single",
+      "items": [
+        "Document only the total volume at the end of the shift because early measurements are unnecessary.",
+        "Clamp the NG tube every hour to check whether the patient still feels nauseated before recording output. ",
+        "Assess the color, consistency, and amount of output; ensure the suction is functioning; and record the initial drainage volume as soon as suction begins.",
+        "Increase suction pressure if output is minimal during the first 5 minutes. "
+      ],
+      "correct": "Assess the color, consistency, and amount of output; ensure the suction is functioning; and record the initial drainage volume as soon as suction begins.",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "NG tube connected to low‑intermittent suction per provider order. Initial output measured at 150 mL green, watery gastric fluid collected in suction canister within the first 20 minutes.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781845155753_0ij0mwpa7",
+      "order": 7,
+      "title": "Notify Imaging Department of Need for Chest Xray",
+      "prompt": "Arrange the following steps in chronological order for how they should be performed.",
+      "type": "ordering",
+      "items": [
+        "Contact laboratory staff/department via approved method",
+        "Notify lab of specimen collection needs via clear messaging"
+      ],
+      "correct": "",
+      "categoryId": "cat_team_comm",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Imaging department staff notified of order for Chest XRay.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781845224394_y6xxpct52",
+      "order": 8,
+      "title": "Obtain Vital Signs #1",
+      "prompt": "Click to reveal vital sign measurements, results will be shown after approximately 10 seconds.",
+      "type": "vital",
+      "items": [],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Vital sign measurements obtained. ",
+      "limitType": "limited",
+      "maxAttempts": 1,
+      "vitals": {
+        "heartRate": [
+          "102 bpm"
+        ],
+        "bloodPressure": [
+          "128/78 mmHg"
+        ],
+        "temperature": [
+          "99.1°F"
+        ],
+        "respiratoryRate": [
+          "20 breaths/min"
+        ],
+        "spO2": [
+          "98%"
+        ]
+      },
+      "vitalRequirements": {
+        "heartRate": "Mandatory",
+        "bloodPressure": "Optional",
+        "temperature": "Optional",
+        "respiratoryRate": "Mandatory",
+        "spO2": "Mandatory"
+      },
+      "vitalRequirementEntries": {
+        "heartRate": [
+          "Mandatory"
+        ],
+        "bloodPressure": [
+          "Optional"
+        ],
+        "temperature": [
+          "Optional"
+        ],
+        "respiratoryRate": [
+          "Mandatory"
+        ],
+        "spO2": [
+          "Mandatory"
+        ]
+      }
+    },
+    {
+      "id": "action_1781845392162_jdtjhs7h4",
+      "order": 9,
+      "title": "Obtain Vital Signs #2 ",
+      "prompt": "Click to reveal vital sign measurements, results will be shown after approximately 10 seconds.",
+      "type": "vital",
+      "items": [],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Vital sign measurements obtained.",
+      "limitType": "limited",
+      "maxAttempts": 1,
+      "vitals": {
+        "heartRate": [
+          "108 bpm"
+        ],
+        "bloodPressure": [
+          "132/82 mmHg"
+        ],
+        "temperature": [
+          ""
+        ],
+        "respiratoryRate": [
+          "22 breaths/min"
+        ],
+        "spO2": [
+          "98%"
+        ]
+      },
+      "vitalRequirements": {
+        "heartRate": "Optional",
+        "bloodPressure": "Optional",
+        "temperature": "Optional",
+        "respiratoryRate": "Optional",
+        "spO2": "Optional"
+      },
+      "vitalRequirementEntries": {
+        "heartRate": [
+          "Optional"
+        ],
+        "bloodPressure": [
+          "Optional"
+        ],
+        "temperature": [
+          "Optional"
+        ],
+        "respiratoryRate": [
+          "Optional"
+        ],
+        "spO2": [
+          "Optional"
+        ]
+      }
+    },
+    {
+      "id": "action_1781845467017_z86jtpi4f",
+      "order": 10,
+      "title": "Obtain Vital Signs #3",
+      "prompt": "Click to reveal vital sign measurements, results will be shown after approximately 10 seconds.",
+      "type": "vital",
+      "items": [],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Vital sign measurements obtained.",
+      "limitType": "limited",
+      "maxAttempts": 1,
+      "vitals": {
+        "heartRate": [
+          "88 bpm"
+        ],
+        "bloodPressure": [
+          "122/76 mmHg"
+        ],
+        "temperature": [
+          ""
+        ],
+        "respiratoryRate": [
+          "18 breaths/min"
+        ],
+        "spO2": [
+          "98%"
+        ]
+      },
+      "vitalRequirements": {
+        "heartRate": "Optional",
+        "bloodPressure": "Optional",
+        "temperature": "Optional",
+        "respiratoryRate": "Optional",
+        "spO2": "Optional"
+      },
+      "vitalRequirementEntries": {
+        "heartRate": [
+          "Optional"
+        ],
+        "bloodPressure": [
+          "Optional"
+        ],
+        "temperature": [
+          "Optional"
+        ],
+        "respiratoryRate": [
+          "Optional"
+        ],
+        "spO2": [
+          "Optional"
+        ]
+      }
+    },
+    {
+      "id": "action_1781845524473_dcmdy6d15",
+      "order": 11,
+      "title": "Perform Focused Gastrointestinal Assessment - Initial",
+      "prompt": "Indicate what you would assess as part of an initial focused gastrointestinal assessment on this patient.  ",
+      "type": "question",
+      "items": [],
+      "concepts": [
+        {
+          "id": "concept_1781845579746_m0u4b",
+          "description": "Inspection (shape, symmetry, distention, scars, visible peristalsis), Auscultation (all 4 quadrants; frequency, character), Palpation (light then deep; tenderness, guarding, rebound)",
+          "type": "Mandatory"
+        },
+        {
+          "id": "concept_1781845590473_tfs1k",
+          "description": "Last bowel movement & stool characteristics, Nausea/vomiting pattern, oral intake tolerance",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781845601554_yl5c7",
+          "description": "Pain assessment (quality, region, pattern), Hydration status (mucous membranes)",
+          "type": "Optional"
+        }
+      ],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Abdomen visibly distended and taut; hypoactive bowel sounds x4 quadrants; mild diffuse tenderness without peritoneal signs; multiple episodes of non‑bloody vomiting; unable to tolerate even sips of water; mucous membranes mildly dry ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781845628810_cx5mai7py",
+      "order": 12,
+      "title": "Perform Focused Gastrointestinal Assessment - Reassessment",
+      "prompt": "Indicate what you would assess as part of a focused gastrointestinal re-assessment on this patient.",
+      "type": "question",
+      "items": [],
+      "concepts": [
+        {
+          "id": "concept_1781845662168_oq2kh",
+          "description": "Reassess abdominal contour/distention post‑decompression",
+          "type": "Mandatory"
+        },
+        {
+          "id": "concept_1781845663889_60oum",
+          "description": "Palpate for tenderness and evaluate nausea and pain levels",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781845665921_p100g",
+          "description": "Measure & describe gastric output",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781845667266_aznlz",
+          "description": "Assess NG tube site and functioning",
+          "type": "Optional"
+        }
+      ],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Abdomen still distended but less tense; decreased nausea (“feels better”); ~150 mL green gastric fluid output (during initial 15-20 minutes post insertion of NG tube); bowel sounds remain hypoactive; skin around nares mildly irritated ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781845712457_ey4rc6j6t",
+      "order": 13,
+      "title": "   Perform Focused Respiratory Assessment - Initial",
+      "prompt": "Indicate what you would assess as part of an initial focused respiratory assessment on this patient.",
+      "type": "question",
+      "items": [],
+      "concepts": [
+        {
+          "id": "concept_1781846890504_9ff2r",
+          "description": "Work of breathing (rate, rhythm, effort), Chest expansion symmetry, Breath sounds (bilateral, full anterior & posterior)",
+          "type": "Mandatory"
+        },
+        {
+          "id": "concept_1781846892306_691kh",
+          "description": "Presence/absence of cough or aspiration risk signs and ability to maintain airway during nausea",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781846892953_6tqw2",
+          "description": "SpO₂",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781846911360_ly69w",
+          "description": "Baseline gag/cough reflex",
+          "type": "Optional"
+        }
+      ],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Respiratory status is stable and assessment is within normal limits.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781846938832_3du2k7tvs",
+      "order": 14,
+      "title": "Perform Focused Respiratory Assessment - Reassessment",
+      "prompt": "Indicate what you would assess as part of a focused respiratory re-assessment on this patient.",
+      "type": "question",
+      "items": [],
+      "concepts": [
+        {
+          "id": "concept_1781846964136_jtmwk",
+          "description": "Reassess respiratory rate and work of breathing after nasogastric tube placed",
+          "type": "Mandatory"
+        },
+        {
+          "id": "concept_1781846965377_z1zws",
+          "description": "Check for improvement in discomfort‑related tachypnea",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781846966001_f1ll9",
+          "description": "Confirm head of bed elevation for aspiration risk reduction",
+          "type": "Optional"
+        },
+        {
+          "id": "concept_1781846969512_k3ygu",
+          "description": "Evaluate ability to handle secretions",
+          "type": "Optional"
+        }
+      ],
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Respiratory status is stable and assessment is within normal limits; breath sounds still clear; no distress noted; SpO₂ stable; patient breathing easier now that abdominal pressure is reduced ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781847042921_7zpzc3b30",
+      "order": 15,
+      "title": "Perform Nasogastric Tube Clamping",
+      "prompt": "A student nurse clamps the NG tube of a patient receiving gastric decompression to “let the stomach rest.” Which of the following statements reflects the correct understanding of why this action is inappropriate in this clinical situation?",
+      "type": "single",
+      "items": [
+        "Clamping the NG tube prevents air from entering the stomach but does not affect fluid removal.",
+        "Clamping the NG tube during gastric decompression can worsen abdominal distention, increase nausea and vomiting, and raise aspiration risk.",
+        "Clamping the NG tube prevents air from entering the stomach but does not affect fluid removal.",
+        "Clamping the NG tube is required whenever the patient asks for a break from suction."
+      ],
+      "correct": "Clamping the NG tube during gastric decompression can worsen abdominal distention, increase nausea and vomiting, and raise aspiration risk.",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Distractor",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Abdomen noted to be distended with mild increase in discomfort.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847173520_17aa6nn1x",
+      "order": 16,
+      "title": "Perform Nasogastric Tube Insertion",
+      "prompt": "Arrange the following steps in chronological order for how they should be performed to demonstrate adherence to best-practice guidelines during insertion of a nasogastric tube for gastric decompression.",
+      "type": "ordering",
+      "items": [
+        "Assess patient readiness and nasal patency and drape patient with towel or chux",
+        "Measure tube length (from tip of nose to earlobe to halfway between xiphoid process and umbilicus) and mark tube length with tape or marker",
+        "Lubricate distal 2-4 inches of NG tube with water-soluble lubricant and insert NG tube into selected nostril",
+        "Advance NG tube into nasopharynx and ask/assist patient to tuck chin to chest and swallow repeatedly, then advance tube with each swallow",
+        "Advance tube to pre-measured length and secure tube at nostril"
+      ],
+      "correct": "",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "NG tube inserted. Patient experienced brief gagging but remained able to speak and breathe without difficulty. Respirations unlabored; SpO₂ 98% RA. No complications observed.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781847283272_q2xg8n7ol",
+      "order": 17,
+      "title": "Perform Nasogastric Tube Placement Check",
+      "prompt": "After inserting a nasogastric tube for gastric decompression, which action by the nurse best reflects evidence‑based practice for verifying NG‑tube placement at the bedside prior to connecting to suction?",
+      "type": "single",
+      "items": [
+        "Checking for a “gurgling” sound over the epigastric area while instilling air through the tube.",
+        "Assessing for patient coughing or respiratory distress during insertion, as this confirms gastric placement.",
+        "Asking the patient to speak while the tube is in place, as the ability to talk proves that the tube is in the stomach.",
+        "Aspirating gastric contents and evaluating the color and pH, while ensuring the external length of tubing matches the measured insertion depth."
+      ],
+      "correct": "Aspirating gastric contents and evaluating the color and pH, while ensuring the external length of tubing matches the measured insertion depth.",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Placement was verified using gastric aspirate evaluation. Aspirated green, watery gastric fluid; pH measured at 3, consistent with gastric placement. External tube marking at nare remained at premeasured length, matching measured insertion depth. No coughing, respiratory distress, or difficulty speaking observed during or after verification.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847451601_atdl548nx",
+      "order": 18,
+      "title": "Perform Nasogastric Tube Removal",
+      "prompt": "Arrange the following steps in chronological order for how they should be performed to demonstrate adherence to best-practice guidelines during removal of a nasogastric tube currently in place for gastric decompression.",
+      "type": "ordering",
+      "items": [
+        "Turn off suction, disconnect tubing from suction system, then clamp or kink tube to prevent spillage",
+        "Remove securement device from nose and instruct patient to take three deep breaths in and out",
+        "Remove the tube swiftly and smoothing during exhalation",
+        "Place tube into disposable bag and clean or assist with cleaning nares, face, oral cavity"
+      ],
+      "correct": "",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Distractor",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Nasogastric tube removed from patient.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847569576_kzpynom38",
+      "order": 19,
+      "title": "Perform Patient Repositioning – Supine – HOB Elevated 0-20 Degrees",
+      "prompt": "Arrange the following steps in chronological order for how they should be performed to place the patient into a supine position with the head of bed (HOB) elevated 0-20 degrees.",
+      "type": "ordering",
+      "items": [
+        "Place patient into supine position with HOB elevated 0-20 degrees",
+        "Confirm patient is comfortable in supine position with HOB elevated 0-20 degrees"
+      ],
+      "correct": "",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Distractor",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient repositioned.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847615903_ys2jh0440",
+      "order": 20,
+      "title": "Perform Patient Repositioning – Semi-Fowler’s HOB Elevated 30-45 Degrees",
+      "prompt": "Arrange the following steps in chronological order for how they should be performed to place the patient into a Semi-Fowler’s position with the head of bed (HOB) elevated 30-45 degrees.",
+      "type": "ordering",
+      "items": [
+        "Place patient into Semi-Fowler’s position with HOB elevated 30-45 degrees",
+        "Confirm patient is comfortable in Semi-Fowler’s position with HOB elevated 30-45 degrees"
+      ],
+      "correct": "",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient repositioned.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847666431_5ubpzt8je",
+      "order": 21,
+      "title": "Perform Patient Repositioning – High Fowler’s – HOB Elevated 60-90 Degrees",
+      "prompt": "Arrange the following steps in chronological order for how they should be performed to place the patient into a High-Fowler’s position with the head of bed (HOB) elevated 60-90 degrees.",
+      "type": "ordering",
+      "items": [
+        "Place patient into High-Fowler’s position with HOB elevated 60-90 degrees",
+        "Confirm patient is comfortable in High-Fowler’s position with HOB elevated 60-90 degrees"
+      ],
+      "correct": "",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient repositioned.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847712495_ilf9nlaeu",
+      "order": 22,
+      "title": "Provide Patient Education - General",
+      "prompt": "When teaching a patient about their plan of care during an acute episode of abdominal distention and nausea, which of the following communication strategies best supports patient understanding and reduces anxiety?",
+      "type": "single",
+      "items": [
+        "Explain procedures using short chunks of information and pause frequently to check for understanding.",
+        "Provide all necessary education at the beginning of the encounter so the patient hears the “full plan” up front.",
+        "Wait until the patient asks questions to avoid overwhelming them with details they may not want.",
+        "Avoid repeating information unless the patient appears confused."
+      ],
+      "correct": "Explain procedures using short chunks of information and pause frequently to check for understanding.",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient nodded and appeared engaged in education.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847814576_vkhwy1y3p",
+      "order": 23,
+      "title": "Provide Patient Education – Purpose of NG Tube",
+      "prompt": "A patient asks, “Why do I need this tube in my nose?” Which nurse response best explains the purpose of the NG tube in this scenario?",
+      "type": "single",
+      "items": [
+        "“The tube lets us give you medications more quickly.”",
+        "“The tube helps your stomach empty so the pressure, nausea, and vomiting can improve.”",
+        "“The tube helps us see if you need surgery later.”",
+        "“The tube will help your bowel movements return immediately.”"
+      ],
+      "correct": "“The tube helps your stomach empty so the pressure, nausea, and vomiting can improve.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient nodded and appeared engaged in education.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847904271_jv8tgeeut",
+      "order": 24,
+      "title": "Provide Patient Education – NG Tube Insertion Procedure",
+      "prompt": "When preparing a patient for NG tube insertion, which explanation best prepares them for what to expect during the procedure?",
+      "type": "single",
+      "items": [
+        "“You shouldn’t feel anything at all—this is usually painless.”",
+        "“You will feel a strong burning sensation; this is normal and cannot be reduced.”",
+        "“Most patients vomit during insertion, but that means the tube is in the right place.”",
+        "“You may gag or have watery eyes, but I’ll guide you to take slow breaths and swallow to make it easier.”"
+      ],
+      "correct": "“You may gag or have watery eyes, but I’ll guide you to take slow breaths and swallow to make it easier.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient nodded and appeared engaged in education.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781847963408_pzj3b1p62",
+      "order": 25,
+      "title": "Provide Patient Education – NG Tube Safety and Comfort",
+      "prompt": "Which teaching point is most important for maintaining patient safety after the NG tube has been inserted?",
+      "type": "single",
+      "items": [
+        "“If the tape comes loose, just push the tube back in yourself.”",
+        "“You may chew gum or eat ice chips at any time to keep your mouth moist.”",
+        "“You should lie flat after the tube is placed to help the suction work better.”",
+        "“Keep the head of your bed elevated to reduce your risk of vomiting or aspiration.”"
+      ],
+      "correct": "“Keep the head of your bed elevated to reduce your risk of vomiting or aspiration.”",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient nodded and appeared engaged in education.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781848022072_13qrprgf1",
+      "order": 26,
+      "title": "Provide Patient Education – Suction for Gastric Decompression",
+      "prompt": "Which explanation accurately describes the suction connected to the patient’s NG tube?",
+      "type": "single",
+      "items": [
+        "“The suction pulls air and fluid out of your stomach to relieve the pressure that’s making you nauseated.\"",
+        "“The suction gives your stomach medication to help it empty.”",
+        "“The suction inflates your intestines so we can better assess them.”",
+        "“The suction is only for collecting samples; it won’t change your symptoms.”"
+      ],
+      "correct": "“The suction pulls air and fluid out of your stomach to relieve the pressure that’s making you nauseated.\"",
+      "categoryId": "cat_patient_ed",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient nodded and appeared engaged in education.",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781848093751_r4dyp6soh",
+      "order": 27,
+      "title": "Review Previous Imaging Results",
+      "prompt": "Indicate what order you will perform the following, then the previous imaging results will be revealed.",
+      "type": "ordering",
+      "items": [
+        "Verify correct patient information/identification ",
+        "Review existing results from prior diagnostics completed in ED",
+        "Interpret available prior diagnostics completed in ED"
+      ],
+      "correct": "",
+      "categoryId": "cat_labs",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Recorded Impression from Abdominal XRay Completed in ED:  \n\nDilated small bowel loops with air–fluid levels; reduced gas in colon. Impression: Findings concerning for small bowel obstruction vs. severe ileus. ",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781848160352_9ouy88dzs",
+      "order": 28,
+      "title": "Review Previous Laboratory Results",
+      "prompt": "Indicate what order you will perform the following, then the previous laboratory results will be revealed.",
+      "type": "ordering",
+      "items": [
+        "Verify correct patient information/identification",
+        "Review existing laboratory results from blood draw in ED",
+        "Interpret available laboratory results from blood draw in ED"
+      ],
+      "correct": "",
+      "categoryId": "cat_labs",
+      "typeRequirement": "Optional",
+      "isExcluded": false,
+      "resultMediaType": "image",
+      "resultMediaUrl": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/Screenshot-2026-06-18-225206-1781848339611-413011695.png",
+      "resultMediaName": "Screenshot-2026-06-18-225206-1781848339611-413011695.png",
+      "resultName": "",
+      "limitType": "unlimited"
+    },
+    {
+      "id": "action_1781848352311_c29viyqb5",
+      "order": 29,
+      "title": "Suction Initiation – Connecting to NG Tube",
+      "prompt": "Arrange the following items in chronological order for how they should be performed to adhere to best-practice guidelines for initiating suction on an NG tube.",
+      "type": "ordering",
+      "items": [
+        "Ensure NG tube placement has been verified and ensure suction canister is securely/appropriately mounted to wall bracket or stand before use",
+        "Connect vacuum tubing from wall suction port to canister “vac” or “in” port",
+        "Turn on wall suction to confirm suction system is functioning, then turn back off",
+        "Attach patient suction tubing to the NG tube connector snuggly",
+        "Turn on wall suction and adjust to ordered setting",
+        "Observe initial suction function by watching for movement of fluid/air in tubing"
+      ],
+      "correct": "",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Suction has been initiated. Initial output of thin green gastric fluid observed.",
+      "limitType": "limited",
+      "maxAttempts": 2
+    },
+    {
+      "id": "action_1781848431592_jj0iwdct0",
+      "order": 30,
+      "title": "Suction Set-Up – Preparing Suction Canister, Regulator, and Tubing",
+      "prompt": "While preparing to initiate gastric decompression for a patient with a newly placed NG tube, the nurse begins setting up wall suction. Which of the following steps demonstrates the correct sequence for preparing the suction canister, regulator, and tubing before attaching the NG tube?",
+      "type": "single",
+      "items": [
+        "1) Connect patient tubing directly to the wall suction port\n2) Turn the regulator to full suction\n3) Attach the canister after suction is already running ",
+        "1) Attach the suction canister to the wall bracket and connect the canister’s vacuum port to the wall suction source\n2) Connect the patient tubing to the canister’s patient port\n3) Adjust the suction regulator to the prescribed level",
+        "1) Attach patient tubing to the wall suction source\n2) Leave the canister empty to prevent contamination\n3) Set suction to continuous high suction ",
+        "1) Fill the suction canister with sterile water\n2) Attach the regulator to the patient tubing\n3) Connect the tubing directly to the NG tube "
+      ],
+      "correct": "1) Attach the suction canister to the wall bracket and connect the canister’s vacuum port to the wall suction source\n2) Connect the patient tubing to the canister’s patient port\n3) Adjust the suction regulator to the prescribed level",
+      "categoryId": "cat_bedside",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Suction has been set up.",
+      "limitType": "limited",
+      "maxAttempts": 1
+    }
+  ],
+  "patientData": {
+    "name": "Sofia Marisol Delgado ",
+    "gender": "Female",
+    "age": 34,
+    "race": "White",
+    "dateOfBirth": "09-30-1992",
+    "dobMonthDay": "09-30",
+    "vitals": {
+      "heartRate": "",
+      "bloodPressure": "",
+      "respiratoryRate": "",
+      "spO2": "",
+      "temperature": "",
+      "weight": "73.5",
+      "height": "165"
+    },
+    "chiefComplaint": "Progressive abdominal distention, nausea, decreased oral intake, and vomiting over the past 56 hours. ",
+    "medicalHistory": "Gastroesophageal reflux disease \nSeasonal allergic rhinitis ",
+    "allergies": "Seasonal environmental allergies \nNo known drug allergies ",
+    "socialHistory": {
+      "tobacco": "Denies",
+      "alcohol": "Occasionally drinks 1-2 glasses of wine per week ",
+      "drugs": "Denies"
+    },
+    "lifestyle": {
+      "housing": "Stable, owns home ",
+      "transportation": "Owns car ",
+      "occupation": "Middle-school science teacher ",
+      "diet": "Regular, mixed diet ",
+      "exercise": "Stays active while teaching, goes for walks ",
+      "stress": "Stressed about not feeling well ",
+      "sleep": "Generally good sleep habits; not currently sleeping well "
+    },
+    "historyVisibility": {
+      "weight": true,
+      "height": true,
+      "chiefComplaint": true,
+      "historyOfPresentIllness": true,
+      "medicalHistory": true,
+      "pastSurgicalHistory": true,
+      "allergies": true,
+      "medications": true,
+      "immunizations": true,
+      "familyMedicalHistoryClinical": true,
+      "primaryCareProvider": true,
+      "tobacco": true,
+      "drugs": true,
+      "alcohol": true,
+      "occupation": true,
+      "housing": true,
+      "transportation": true,
+      "exercise": true,
+      "stress": true,
+      "sleep": true
+    },
+    "preferredName": "Sofia",
+    "historyOfPresentIllness": "56 hours of progressively worsening abdominal distention, nausea, vomiting, and minimal oral intake ",
+    "pastSurgicalHistory": "None",
+    "currentMedications": [
+      "Loratadine 10 mg Daily, Seasonal allergies ",
+      "Omeprazole 20 mg Daily, GERD ",
+      "Ibuprofen 400 mg PRN, Headaches "
+    ],
+    "immunizationHistory": [
+      "Up-to-date "
+    ],
+    "familyMedicalHistoryClinical": "Type 2 diabetes \nHTN ",
+    "primaryCareProvider": "Dr. Mariela Contreras, DO "
+  },
+  "expectedActions": {
+    "labs": [],
+    "imaging": [],
+    "physicalExam": [],
+    "medications": []
+  },
+  "historyPrompts": [],
+  "assessmentGuidance": {
+    "actions": [],
+    "educationPoints": []
+  },
+  "assessmentNarrativeExpected": "",
+  "learningObjectiveCard": "",
+  "phases": [],
+  "availableMedications": [],
+  "grading": {
+    "maxScore": 100,
+    "rubric": [
+      {
+        "id": "rubric_actions",
+        "name": "Actions & Interventions",
+        "categoryType": "Technical Skill",
+        "subCategory": "Action",
+        "weight": 20,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Section Raw Score = (Sum of completed Mandatory actions) ÷ (Total number of Mandatory actions) × 100 × Weight %"
+      },
+      {
+        "id": "rubric_medications",
+        "name": "Medications",
+        "categoryType": "Technical Skill",
+        "subCategory": "Medications",
+        "weight": 0,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Medication administration accuracy graded automatically from the orders configured for this scenario."
+      },
+      {
+        "id": "rubric_ppe",
+        "name": "PPE, Privacy & Safety",
+        "categoryType": "Technical Skill",
+        "subCategory": "Expected Actions",
+        "weight": 25,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Safety and privacy measures evaluated from the Common Actions Panel.",
+        "checklistItems": [
+          {
+            "id": "ppe-inf-1a",
+            "text": "Eye Protection Donned",
+            "order": 1,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-1b",
+            "text": "Eye Protection Doffed",
+            "order": 2,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2a",
+            "text": "Isolation Gown Donned",
+            "order": 3,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2b",
+            "text": "Isolation Gown Doffed",
+            "order": 4,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-3a",
+            "text": "Standard Gloves Donned",
+            "order": 5,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-3b",
+            "text": "Standard Gloves Doffed",
+            "order": 6,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-4a",
+            "text": "Sterile Gloves Donned",
+            "order": 7,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-4b",
+            "text": "Sterile Gloves Doffed",
+            "order": 8,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-5a",
+            "text": "Respirator Mask (N95) Donned",
+            "order": 9,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-5b",
+            "text": "Respirator Mask (N95) Doffed",
+            "order": 10,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-6a",
+            "text": "Surgical Mask Donned",
+            "order": 11,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-6b",
+            "text": "Surgical Mask Doffed",
+            "order": 12,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-7",
+            "text": "Hand Hygiene Performed",
+            "order": 13,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-8",
+            "text": "Sharps Discarded",
+            "order": 14,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-9",
+            "text": "Non-Infectious Waste Discarded",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-10",
+            "text": "Infectious Waste Discarded",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-1",
+            "text": "Knock / Announce Entry",
+            "order": 15,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-prv-2b",
+            "text": "Door Opened",
+            "order": 17,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2a",
+            "text": "Door Closed",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3b",
+            "text": "Curtain Opened",
+            "order": 19,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3a",
+            "text": "Curtain Drawn",
+            "order": 18,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-1a",
+            "text": "Bed/Chair Locked",
+            "order": 20,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-2a",
+            "text": "Bed/Chair Alarm Activated",
+            "order": 22,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-3a",
+            "text": "Bed Lowered to Lowest Position",
+            "order": 24,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-env-4",
+            "text": "Call Light In Reach",
+            "order": 26,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-env-5",
+            "text": "Equipment Checked",
+            "order": 27,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-6",
+            "text": "Lines / Tubes / Drains Checked",
+            "order": 28,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-7",
+            "text": "Personal Items Within Reach",
+            "order": 29,
+            "status": "Mandatory"
+          }
+        ]
+      },
+      {
+        "id": "rubric_documentation",
+        "name": "Clinical Documentation Quality",
+        "categoryType": "Technical Skill",
+        "subCategory": "Documentation",
+        "weight": 25,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Quality and completeness of clinical documentation.",
+        "checklistItems": [
+          {
+            "id": "doc-1",
+            "text": "Actions, Assessment & Intervention Documentation",
+            "status": "Mandatory",
+            "order": 1
+          },
+          {
+            "id": "doc-2",
+            "text": "Medical and health history updated",
+            "status": "Optional",
+            "order": 2
+          },
+          {
+            "id": "doc-3",
+            "text": "Patient emotional response documented",
+            "status": "Optional",
+            "order": 3
+          }
+        ]
+      },
+      {
+        "id": "rubric_communication",
+        "name": "Communication",
+        "categoryType": "Technical Skill",
+        "subCategory": "Communication",
+        "weight": 25,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Evaluation of patient-centered communication skills and empathy.",
+        "communicationCriteria": [
+          {
+            "id": "comm-crit-1",
+            "title": "Demonstrate empathy",
+            "prompt": "Evaluate whether the student demonstrated empathy. Look for acknowledging feelings, validating concerns, expressing care, and using reassuring language — not just clinical task completion. Return PASS only if there are clear empathic statements, FAIL if the encounter is purely transactional.",
+            "enabled": true,
+            "order": 1
+          },
+          {
+            "id": "comm-crit-2",
+            "title": "Use patient-centered, therapeutic communication strategies",
+            "prompt": "Evaluate for patient-centered communication using open-ended questions, allowing the patient to elaborate, summarizing back, checking for understanding, avoiding interruptions, and including the patient in decision-making. Also evaluate for the use of therapeutic communication techniques (active listening, empathy, reflection) to acknowledge the patient’s anxiety, discomfort, and concerns while promoting safety and trust. Return PASS if multiple patient-centered and therapeutic communication strategies are visible.",
+            "enabled": true,
+            "order": 2
+          },
+          {
+            "id": "comm-crit-1782086165484",
+            "title": "Use clear, health-literacy sensitive language ",
+            "prompt": "Evaluate whether the student used clear, plain language and explained any medical terms (e.g., NPO, metabolic, hemorrhage) in patient-friendly words, as well as explained assessment findings and procedures in plain, health‑literacy–sensitive language. If the student used jargon without explanation or responded poorly when the patient said they did not understand, return FAIL. Return PASS only if education was accessible.",
+            "enabled": true,
+            "order": 3
+          },
+          {
+            "id": "comm-crit-1782086197946",
+            "title": "Establish rapport",
+            "prompt": "Evaluate whether the student established rapport with the patient at the start of the encounter using a calm, respectful, and non-judgmental tone. Did the student introduce themselves by name, confirm patient identity (name + DOB), use a warm tone, and orient the patient to what would happen? Return PASS only if most of these are present.",
+            "enabled": true,
+            "order": 4
+          }
+        ],
+        "communicationSummaryPrompt": "Give me a summary of what the student did well and what, if anything, the student did wrong in their communication practice for these 5 entries. Limit the analysis to 50 words or less."
+      },
+      {
+        "id": "rubric_timeline",
+        "name": "Sequencing & Prioritization",
+        "categoryType": "Technical Skill",
+        "subCategory": "Sequencing & Prioritization",
+        "weight": 5,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Correct sequencing and prioritization of actions throughout the scenario."
+      }
+    ],
+    "components": {
+      "softSkills": {
+        "weight": 0
+      },
+      "technicalSkills": {
+        "weight": 100
+      }
+    },
+    "showDebriefToStudents": true,
+    "debriefReflectionPrompt": "How are you feeling now that the simulation is over? What felt most challenging? Where did you feel most confident?  "
+  },
+  "requiresProductSetup": true,
+  "productSetup": {
+    "title": "Realityworks (or similar) Adult Nursing Manikin"
+  },
+  "aiPatientData": {
+    "openingReasonForVisit": "I’ve been having this constant pressure and cramping pain in the middle of my stomach, about a 6 out of 10, and it’s been getting worse over the past couple of days. My stomach feels really full and tight, and I’ve been very nauseous and have thrown up a few times. I feel like I might throw up again. ",
+    "mainConcernAttributes": "The pain and pressure in my stomach keep getting worse, and it feels really full and stretched. I’ve been constantly nauseous and throwing up, and I haven’t been able to eat because it makes it worse. Nothing I’ve tried has helped, and I just want the pressure and nausea to go away. ",
+    "associatedSymptoms": "I’ve been feeling very nauseous and have thrown up a few times over the past couple of days, mostly food and liquid without any blood. My stomach feels swollen, tight, and more bloated than usual. I haven’t wanted to eat because it makes the nausea worse, and my mouth feels dry. My last bowel movement was about three days ago, it was small and hard, and I haven’t really passed much gas since last night. I don’t have a fever, chills, diarrhea, chest pain, or trouble breathing. ",
+    "allergies": "I have seasonal allergies, but no allergies to any meds, at least none that I know of.",
+    "currentMedications": "I take some over-the-counter medications, one I take daily for my allergies, and another I take daily for indigestion. I also sometimes take ibuprofen for headaches and stuff. ",
+    "diagnosedChronicIllnesses": "I have acid reflux that I take medication for, but otherwise I haven’t been told I have any major health problems. ",
+    "medicalHistory": "I haven’t had any major surgeries or serious medical problems before this. I’ve generally been healthy aside from my acid reflux. ",
+    "familyMedicalHistory": "My mom has high blood pressure and takes medication for it. My dad has type 2 diabetes. I don’t know of any serious stomach or digestive problems in my family. ",
+    "relationshipStatusSexualHealth": "I’m married and live with my husband. I’m sexually active with him and don’t have any concerns. I’m not pregnant. ",
+    "personalSocialHistory": "I live at home with my husband and work full-time. My job can be a little stressful, but I usually manage it. I have a good support system at home and can rely on my husband when I need help. ",
+    "housing": "I live at home with my husband in a stable environment. ",
+    "transportation": "I have reliable transportation and can get to appointments without any problems. ",
+    "occupation": "I work full-time in an office setting, and my job can be stressful at times. ",
+    "diet": "I usually eat regular meals, but over the past couple of days I haven’t been able to eat much because of the nausea and vomiting. ",
+    "exercise": "I usually go for walks a few times a week when I feel well. ",
+    "stress": "My stress is usually manageable, but lately I’ve been more worried because of how sick I’ve been feeling. ",
+    "sleep": "I usually sleep okay, but the last couple of nights I haven’t been sleeping well because of the nausea and stomach discomfort. ",
+    "adls": "I’m able to take care of myself and do my normal daily activities without help, but lately I haven’t felt well enough to do as much. ",
+    "drugs": "I don’t smoke or use drugs. I drink alcohol occasionally, but not very often. ",
+    "emotionalStatePersonality": "I feel uncomfortable and sick to my stomach, and it’s making me anxious because my symptoms keep getting worse. I’m nervous about having a tube placed through my nose and throat, but I understand it’s needed and I just want to feel better. ",
+    "conversationalAttitudeSpeechStyle": "I speak in a calm, natural way and use simple language. I usually answer questions directly and then give more detail if needed. I describe things like “my stomach feels full and tight” and “I feel sick to my stomach.” I listen carefully and can repeat things back in my own words if they’re explained clearly. ",
+    "specialPatientInfo": "I haven’t had anything to eat or drink since yesterday afternoon because I was told not to. My stomach feels very full and tight, and the nausea has been constant. I feel like I could throw up at any time. \n\n \n\nI feel nervous about having a tube placed through my nose because I think it might make me gag and feel uncomfortable in my throat, but I’m willing to go through it because I want the pressure and nausea to get better. \n\n \n\nAfter the tube is placed, the pressure in my stomach feels better and the nausea improves, but my nose and throat feel sore and irritated. I understand I need to keep my head up, not pull on the tube, and let someone know if my symptoms get worse. ",
+    "locationSpecificInfo": "I’m in the hospital. I understand where I am and why I’m here, and I’m aware of current public figures like the president and state leaders. "
+  },
+  "preBriefPdf": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/AI-SCN-ADLT-NRSG-03---Briefing-Guide-1781823833988-15076394.pdf",
+  "enableStudentBriefing": true,
+  "studentBriefing": {
+    "safeEnvironment": "This simulation is designed to promote integrity, trust, and respect. \nThis is a safe learning space intended for practice and skill development. Engage fully, make decisions to the best of your ability, and reflect on the experience during debriefing. \nDuring the simulation, please suspend disbelief and respond as though the situation is entirely real. Maintain professionalism and respectful behavior toward the patient, the environment, and your peers at all times.",
+    "facilitatorSupport": "This simulation may be completed in a self-directed or asynchronous manner. \nComplete any orientation and preparation requirements prior to this experience as indicated by your educator. \nPlease seek guidance from your educator if you are unsure how to use a piece of equipment, locate supplies, or safely complete a task. Asking for assistance is encouraged and supports safety and learning.",
+    "orientationSpace": "The manikin and necessary equipment/supplies should be prepared for your use prior to starting the simulation.",
+    "orientationEquipment": "Some equipment used in the simulation may be fully functional, while other items are simulated for training purposes. Your educator should inform you which equipment is real versus simulated, as well as which supplies are new and which may be reused from prior simulations.\nIf you are unfamiliar with how any equipment or supplies operate, pause and ask the educator for clarification before proceeding.",
+    "evaluation": "During this simulation, observations of your knowledge, skills, behaviors, and attitudes may be conducted, information gathered may be used to identify areas for additional learning or practice. Assessment data collected is used for educational purposes.",
+    "rolesExpectations": "You may be working independently or with peers, clarify the expectations for this simulation as set by your educator prior to starting the simulation.\nYou are responsible for completing tasks associated with your assigned role to the best of your ability.",
+    "simulationLimitations": "Please note that time may be compressed during the simulation, and patient conditions may improve or worsen more quickly than in real clinical practice. This is intentional and supports learning within a limited time frame\nThe simulated date and time of this experience is: April 10th at 10:30.",
+    "timeAllotment": "The date and time of this simulated clinical encounter is: April 10th at 10:30. This scenario is designed to take approximately 20-25 minutes to complete. You may manage your time independently within this window.",
+    "purpose": "In this simulation, you will assess a patient experiencing abdominal distention and nausea, insert an NG tube using safe technique, begin gastric decompression, and provide clear explanations to help the patient understand what to expect. This activity allows you to practice important clinical assessment, communication, and documentation skills in a safe learning environment.",
+    "learningObjectives": "Perform a focused assessment of an adult with abdominal distention, discomfort, and nausea/vomiting. \nSafely insert and manage a nasogastric tube and initiate gastric decompression. \nProvide patient education and support related to a temporary NG tube for gastric decompression. \nDocument key findings and results of assessments and interventions."
+  },
+  "sbar": {
+    "situation": "The date and time of this simulated clinical encounter is: April 10th at 10:30. \n\nSofia Delgado, 34-year-old female admitted this morning with abdominal distention, nausea, and several episodes of non-bloody vomiting over the last 56 hours. Provider has ordered NG tube insertion for gastric decompression.  ",
+    "background": "History of intermittent constipation, no prior abdominal surgeries. Symptoms began yesterday evening and have progressively worsened. Last bowel movement was three days ago. No known food poisoning exposure. No pregnancy. Vital signs have been stable. No prior NG tube experience.  ",
+    "assessment": "Patient is alert and anxious, guarding abdomen during movement. Abdomen appears distended with hypoactive bowel sounds in all quadrants. Reports ongoing nausea and a sensation of “pressure.” Denies fever. Maintaining hydration but tolerating very little oral intake. IV access already initiated with 0.9% NS running at 100 mL/hr. ",
+    "recommendation": "Insert an NG tube per provider order and begin gastric decompression. Monitor patient comfort, abdominal distention, and suction output. Provide reassurance and education throughout the procedure. Document assessment, interventions, and patient response.    "
+  },
+  "orders": [
+    {
+      "id": "order_1781884675289",
+      "scenarioId": "",
+      "title": "Vital Signs Q4H ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Vital signs every 4 hours Vital signs every 4 hours ",
+      "linkedActionIds": [
+        "action_1781845224394_y6xxpct52",
+        "action_1781844583874_7smyv9o4r",
+        "action_1781844837029_r18lu30vx"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781845224394_y6xxpct52",
+          "title": "Obtain Vital Signs #1"
+        },
+        {
+          "id": "action_1781844583874_7smyv9o4r",
+          "title": "Complete Pain Screening & Assessment  - Pre-Procedure"
+        },
+        {
+          "id": "action_1781844837029_r18lu30vx",
+          "title": "Complete Pain Screening & Assessment  - Post-Procedure"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "05:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Monitoring & Assessments",
+        "name": "Vital Signs Q4H "
+      }
+    },
+    {
+      "id": "order_1781884751099",
+      "scenarioId": "",
+      "title": "Bedrest with Bathroom Privileges   ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Bedrest with Bathroom Privileges (with assistance).",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "05:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Monitoring & Assessments",
+        "name": "Bedrest with Bathroom Privileges   "
+      }
+    },
+    {
+      "id": "order_1781884803102",
+      "scenarioId": "",
+      "title": "Maintain HOB >30 Degrees  ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Maintain HOB>30 degrees to reduce risk of aspiration.",
+      "linkedActionIds": [
+        "action_1781847615903_ys2jh0440"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781847615903_ys2jh0440",
+          "title": "Perform Patient Repositioning – Semi-Fowler’s HOB Elevated 30-45 Degrees"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "05:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Mobility & Positioning",
+        "name": "Maintain HOB >30 Degrees  "
+      }
+    },
+    {
+      "id": "order_1781884941227",
+      "scenarioId": "",
+      "title": "NPO Diet ",
+      "category": "Diet",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "No food, drink, or medications by mouth",
+      "linkedActionIds": [
+        "action_1781844886577_qq3ysv3p1"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781844886577_qq3ysv3p1",
+          "title": "Confirm NPO Status with Patient"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "Apr-10-2026",
+      "dueTime": "10:30",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "05:00"
+      },
+      "dietConfig": {
+        "subCategory": "Not Applicable",
+        "details": "",
+        "name": "NPO Diet "
+      }
+    },
+    {
+      "id": "order_1781885071466",
+      "scenarioId": "",
+      "title": "Strict Intake & Output",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Maintain strict monitoring of intake and output. ",
+      "linkedActionIds": [
+        "action_1781845053633_2eidc6ivn"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781845053633_2eidc6ivn",
+          "title": "Monitor Intake & Output"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "05:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "I&O & Elimination",
+        "name": "Strict Intake & Output "
+      }
+    },
+    {
+      "id": "order_1781885141124",
+      "scenarioId": "",
+      "title": "0.9% Sodium Chloride Infusion",
+      "category": "Medication",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Maintain continuous infusion at 150 mL/hr while NPO ",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "Normal Saline Continuous IV Infusion at 100 mL/hr",
+        "dosage": "100 mL/hr",
+        "drugOnHand": "100 mg / 100 mL",
+        "route": "Intravenous",
+        "category": "PRN",
+        "time": "05:00",
+        "expirationDisplayMode": "not_expired",
+        "dosageCalculationAnswer": "100 mL/hr",
+        "site": "IV",
+        "frequency": "Continuous",
+        "indication": "Hydration",
+        "documentRateConfig": {
+          "enabled": true,
+          "mandatory": true,
+          "revealToLearner": false,
+          "correctAnswers": [
+            "100 mL/hr"
+          ]
+        },
+        "documentDurationConfig": {
+          "enabled": false,
+          "mandatory": false,
+          "revealToLearner": true,
+          "correctAnswers": []
+        },
+        "hasLastGiven": true,
+        "priorAdmins": [
+          {
+            "id": "jum46xucm",
+            "date": "Apr-10-2026",
+            "time": "05:00",
+            "status": "Given"
+          }
+        ],
+        "gradingConfig": {
+          "enabled": false,
+          "expectedClinicalDecision": null,
+          "expectedQuantityAnswers": [],
+          "expectedRateAnswers": [],
+          "expectedDurationAnswers": [],
+          "expectedEducationItems": [
+            "purpose_indication"
+          ],
+          "expectedVerificationItems": [
+            "name_checked",
+            "dob_checked",
+            "medication_name",
+            "expiration_date",
+            "no_allergies_contraindications",
+            "strength_concentration"
+          ],
+          "expectedFinalStatus": null,
+          "timingValidationEnabled": false
+        }
+      }
+    },
+    {
+      "id": "order_1781885697827",
+      "scenarioId": "",
+      "title": "Abdominal Xray: 2-View",
+      "category": "Imaging",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Completed",
+      "description": "",
+      "instructions": "Anterior and lateral view to evaluate for GI obstruction ",
+      "linkedActionIds": [
+        "action_1781848093751_r4dyp6soh"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781848093751_r4dyp6soh",
+          "title": "Review Previous Imaging Results"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "Apr-10-2026",
+      "dueTime": "05:00",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "05:00"
+      },
+      "imagingConfig": {
+        "name": "Abdominal Xray: 2-View",
+        "subCategory": "Radiography",
+        "type": "Urgent",
+        "frequency": "Once",
+        "count": "1"
+      }
+    },
+    {
+      "id": "order_1781885774784",
+      "scenarioId": "",
+      "title": "Chest Xray: 1-View",
+      "category": "Imaging",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Anterior view to evaluate for NG tube placement",
+      "linkedActionIds": [
+        "action_1781845155753_0ij0mwpa7",
+        "action_1781847283272_q2xg8n7ol"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781845155753_0ij0mwpa7",
+          "title": "Notify Imaging Department of Need for Chest Xray"
+        },
+        {
+          "id": "action_1781847283272_q2xg8n7ol",
+          "title": "Perform Nasogastric Tube Placement Check"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "Apr-10-2026",
+      "dueTime": "10:30",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "10:30"
+      },
+      "imagingConfig": {
+        "name": "Chest Xray: 1-View",
+        "subCategory": "Radiography",
+        "type": "Urgent",
+        "frequency": "Once",
+        "count": "1"
+      }
+    },
+    {
+      "id": "order_1781885970976",
+      "scenarioId": "",
+      "title": "Insert NG Tube for Gastric Decompression ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Insert NG Tube for Gastric Decompression; Verify Placement via Aspirate and Xray; Secure tube.",
+      "linkedActionIds": [
+        "action_1781844583874_7smyv9o4r",
+        "action_1781844837029_r18lu30vx",
+        "action_1781844972953_abwtvq3qi",
+        "action_1781845224394_y6xxpct52",
+        "action_1781845524473_dcmdy6d15",
+        "action_1781845628810_cx5mai7py",
+        "action_1781847173520_17aa6nn1x",
+        "action_1781847283272_q2xg8n7ol",
+        "action_1781847666431_5ubpzt8je",
+        "action_1781847814576_vkhwy1y3p",
+        "action_1781847963408_pzj3b1p62",
+        "action_1781848022072_13qrprgf1",
+        "action_1781848352311_c29viyqb5",
+        "action_1781848431592_jj0iwdct0"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781844583874_7smyv9o4r",
+          "title": "Complete Pain Screening & Assessment  - Pre-Procedure"
+        },
+        {
+          "id": "action_1781844837029_r18lu30vx",
+          "title": "Complete Pain Screening & Assessment  - Post-Procedure"
+        },
+        {
+          "id": "action_1781844972953_abwtvq3qi",
+          "title": "Gather and Prepare Supplies and Equipment"
+        },
+        {
+          "id": "action_1781845224394_y6xxpct52",
+          "title": "Obtain Vital Signs #1"
+        },
+        {
+          "id": "action_1781845524473_dcmdy6d15",
+          "title": "Perform Focused Gastrointestinal Assessment - Initial"
+        },
+        {
+          "id": "action_1781845628810_cx5mai7py",
+          "title": "Perform Focused Gastrointestinal Assessment - Reassessment"
+        },
+        {
+          "id": "action_1781847173520_17aa6nn1x",
+          "title": "Perform Nasogastric Tube Insertion"
+        },
+        {
+          "id": "action_1781847283272_q2xg8n7ol",
+          "title": "Perform Nasogastric Tube Placement Check"
+        },
+        {
+          "id": "action_1781847666431_5ubpzt8je",
+          "title": "Perform Patient Repositioning – High Fowler’s – HOB Elevated 60-90 Degrees"
+        },
+        {
+          "id": "action_1781847814576_vkhwy1y3p",
+          "title": "Provide Patient Education – Purpose of NG Tube"
+        },
+        {
+          "id": "action_1781847963408_pzj3b1p62",
+          "title": "Provide Patient Education – NG Tube Safety and Comfort"
+        },
+        {
+          "id": "action_1781848022072_13qrprgf1",
+          "title": "Provide Patient Education – Suction for Gastric Decompression"
+        },
+        {
+          "id": "action_1781848352311_c29viyqb5",
+          "title": "Suction Initiation – Connecting to NG Tube"
+        },
+        {
+          "id": "action_1781848431592_jj0iwdct0",
+          "title": "Suction Set-Up – Preparing Suction Canister, Regulator, and Tubing"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "10:30"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Devices, Lines, & Tubes",
+        "name": "Insert NG Tube for Gastric Decompression "
+      }
+    },
+    {
+      "id": "order_1781886158249",
+      "scenarioId": "",
+      "title": "NG Tube to Low Intermittent Suction",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Maintain NG tube to low intermittent suction (LIS) for gastric decompression. ",
+      "linkedActionIds": [
+        "action_1781844972953_abwtvq3qi",
+        "action_1781845524473_dcmdy6d15",
+        "action_1781845628810_cx5mai7py",
+        "action_1781847173520_17aa6nn1x",
+        "action_1781847283272_q2xg8n7ol",
+        "action_1781847666431_5ubpzt8je",
+        "action_1781847814576_vkhwy1y3p",
+        "action_1781847963408_pzj3b1p62",
+        "action_1781848022072_13qrprgf1",
+        "action_1781848352311_c29viyqb5",
+        "action_1781848431592_jj0iwdct0"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781844972953_abwtvq3qi",
+          "title": "Gather and Prepare Supplies and Equipment"
+        },
+        {
+          "id": "action_1781845524473_dcmdy6d15",
+          "title": "Perform Focused Gastrointestinal Assessment - Initial"
+        },
+        {
+          "id": "action_1781845628810_cx5mai7py",
+          "title": "Perform Focused Gastrointestinal Assessment - Reassessment"
+        },
+        {
+          "id": "action_1781847173520_17aa6nn1x",
+          "title": "Perform Nasogastric Tube Insertion"
+        },
+        {
+          "id": "action_1781847283272_q2xg8n7ol",
+          "title": "Perform Nasogastric Tube Placement Check"
+        },
+        {
+          "id": "action_1781847666431_5ubpzt8je",
+          "title": "Perform Patient Repositioning – High Fowler’s – HOB Elevated 60-90 Degrees"
+        },
+        {
+          "id": "action_1781847814576_vkhwy1y3p",
+          "title": "Provide Patient Education – Purpose of NG Tube"
+        },
+        {
+          "id": "action_1781847963408_pzj3b1p62",
+          "title": "Provide Patient Education – NG Tube Safety and Comfort"
+        },
+        {
+          "id": "action_1781848022072_13qrprgf1",
+          "title": "Provide Patient Education – Suction for Gastric Decompression"
+        },
+        {
+          "id": "action_1781848352311_c29viyqb5",
+          "title": "Suction Initiation – Connecting to NG Tube"
+        },
+        {
+          "id": "action_1781848431592_jj0iwdct0",
+          "title": "Suction Set-Up – Preparing Suction Canister, Regulator, and Tubing"
+        }
+      ],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "10:30"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "I&O & Elimination",
+        "name": "NG Tube to Low Intermittent Suction"
+      }
+    },
+    {
+      "id": "order_1781886280942",
+      "scenarioId": "",
+      "title": "Gastroenterology Consult ",
+      "category": "Referrals",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "GI consult for obstruction.",
+      "linkedActionIds": [],
+      "linkedActions": [],
+      "startDay": "Apr-10-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "10:30"
+      },
+      "referralConfig": {
+        "details": "",
+        "subCategory": "Medical",
+        "name": "Gastroenterology Consult "
+      }
+    }
+  ],
+  "actionCategories": [
+    {
+      "id": "cat_assessments",
+      "name": "Assessments & Exams",
+      "description": "Assessment findings and exam results",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_bedside",
+      "name": "Bedside Procedures",
+      "description": "Procedures performed at bedside",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_labs",
+      "name": "Labs & Diagnostics",
+      "description": "Laboratory and diagnostic testing",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_medication",
+      "name": "Medication Administration",
+      "description": "Medication-related actions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_nursing",
+      "name": "Nursing Care & Interventions",
+      "description": "General nursing care and interventions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_other",
+      "name": "Other",
+      "description": "Miscellaneous actions and documentation",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_patient_ed",
+      "name": "Patient Education",
+      "description": "Patient education activities",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_team_comm",
+      "name": "Team Communication",
+      "description": "Communication with care team",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "description": "Default category for actions",
+      "isSystem": false,
+      "scenarioId": ""
+    }
+  ],
+  "simulationStartTime": "2026-04-10T10:30",
+  "sequences": [
+    {
+      "parentRef": "ppe.handHygiene",
+      "parentLabel": "Hand Hygiene Performed",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "anytime"
+      },
+      "afterTiming": {
+        "mode": "anytime"
+      },
+      "beforeOrderControl": "strict",
+      "afterOrderControl": "flexible",
+      "before": [
+        {
+          "ref": "ppe.knock",
+          "label": "Knock",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ],
+      "after": [
+        {
+          "ref": "patient.name",
+          "label": "Patient Name",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "ref": "patient.dob",
+          "label": "Date of Birth",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "ref": "action_1781844886577_qq3ysv3p1",
+          "label": "Confirm NPO Status with Patient",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781844583874_7smyv9o4r",
+          "label": "Complete Pain Screening & Assessment  - Pre-Procedure",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781844837029_r18lu30vx",
+          "label": "Complete Pain Screening & Assessment  - Post-Procedure",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781844972953_abwtvq3qi",
+          "label": "Gather and Prepare Supplies and Equipment",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781845524473_dcmdy6d15",
+          "label": "Perform Focused Gastrointestinal Assessment - Initial",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781845628810_cx5mai7py",
+          "label": "Perform Focused Gastrointestinal Assessment - Reassessment",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781847173520_17aa6nn1x",
+          "label": "Perform Nasogastric Tube Insertion",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781847283272_q2xg8n7ol",
+          "label": "Perform Nasogastric Tube Placement Check",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781847666431_5ubpzt8je",
+          "label": "Perform Patient Repositioning – High Fowler’s – HOB Elevated 60-90 Degrees",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781848352311_c29viyqb5",
+          "label": "Suction Initiation – Connecting to NG Tube",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781848431592_jj0iwdct0",
+          "label": "Suction Set-Up – Preparing Suction Canister, Regulator, and Tubing",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "ppe.donStandardGloves",
+          "label": "Don Standard Gloves",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ],
+      "afterGroups": [
+        {
+          "id": "group-1784115159548-19",
+          "label": "Group A",
+          "mode": "flexible",
+          "items": [],
+          "subgroups": [
+            {
+              "id": "subgroup-1784115160597-20",
+              "label": "Subgroup A",
+              "mode": "flexible",
+              "items": [
+                "patient.name",
+                "patient.dob"
+              ],
+              "timing": {
+                "mode": "anytime"
+              }
+            },
+            {
+              "id": "subgroup-1784115161379-21",
+              "label": "Subgroup B",
+              "mode": "flexible",
+              "items": [
+                "action_1781844886577_qq3ysv3p1",
+                "action_1781844583874_7smyv9o4r",
+                "action_1781845524473_dcmdy6d15"
+              ],
+              "timing": {
+                "mode": "anytime"
+              }
+            },
+            {
+              "id": "subgroup-1784115162147-22",
+              "label": "Subgroup C",
+              "mode": "flexible",
+              "items": [
+                "action_1781844972953_abwtvq3qi",
+                "action_1781847666431_5ubpzt8je",
+                "action_1781848431592_jj0iwdct0",
+                "ppe.donStandardGloves"
+              ],
+              "timing": {
+                "mode": "anytime"
+              }
+            },
+            {
+              "id": "subgroup-1784115184595-23",
+              "label": "Subgroup D",
+              "mode": "strict",
+              "items": [
+                "action_1781847173520_17aa6nn1x",
+                "action_1781847283272_q2xg8n7ol",
+                "action_1781848352311_c29viyqb5"
+              ],
+              "timing": {
+                "mode": "anytime"
+              }
+            },
+            {
+              "id": "subgroup-1784115206467-25",
+              "label": "Subgroup E",
+              "mode": "flexible",
+              "items": [
+                "action_1781844837029_r18lu30vx",
+                "action_1781845628810_cx5mai7py"
+              ],
+              "timing": {
+                "mode": "anytime"
+              }
+            }
+          ],
+          "color": "#A78BFA",
+          "timing": {
+            "mode": "anytime"
+          }
+        }
+      ]
+    },
+    {
+      "parentRef": "ppe.doffStandardGloves",
+      "parentLabel": "Doff Standard Gloves",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "anytime"
+      },
+      "afterTiming": {
+        "mode": "anytime"
+      },
+      "beforeOrderControl": "strict",
+      "afterOrderControl": "strict",
+      "before": [],
+      "after": [
+        {
+          "ref": "ppe.handHygiene",
+          "label": "Hand Hygiene",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ]
+    }
+  ],
+  "scenarioImage": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/RWAI-HC-Gradient-Image--5--1784114431514-416039121.png",
+  "actionGroupName": "",
+  "actionGroupDescription": "",
+  "teamCommunication": {
+    "prompt": "",
+    "referenceTranscript": "",
+    "passThreshold": 0,
+    "onPassUnlockOrderIds": [],
+    "limitType": "unlimited",
+    "maxAttempts": 1,
+    "typeRequirement": "Optional",
+    "passMessage": "Great job! Your SBAR report was accepted.",
+    "failMessage": "Your report didn't meet all the required elements. Review the SBAR criteria and try again.",
+    "isButtonEnabled": false
+  },
+  "prebriefScriptPdf": "",
+  "debriefPointsPdf": "",
+  "setupNotesPdf": "",
+  "facilitationNotesPdf": "",
+  "printableSbarPdf": "",
+  "printablePatientChartPdf": "",
+  "additionalEquipment": "Nasogastric tube insertion supplies and suction equipment; PPE supplies ",
+  "optionalEquipment": "",
+  "setupNotes": "",
+  "topicsAddressed": "",
+  "estimatedDuration": "25 min"
+}

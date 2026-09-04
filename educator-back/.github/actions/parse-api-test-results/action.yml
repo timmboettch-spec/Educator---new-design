@@ -1,0 +1,47 @@
+name: "parse-api-test-results"
+description: >-
+  Parses a module-executor .test-results.json (Jest-shaped, assertionResults
+  format) into pass/fail counts and a short list of failing test names.
+  Shared by every job that runs tests/api/executor/module-executor.js
+  (deploy-backend.yml's test-api, preview-deploy.yml's preview-smoke-test)
+  so the counting logic lives in one place instead of being copy-pasted.
+
+inputs:
+  results-file:
+    description: 'Path to the .test-results.json file (module-executor output).'
+    required: true
+  label:
+    description: 'Prefix used in failed_names entries, e.g. "api" or "preview".'
+    required: false
+    default: 'api'
+
+outputs:
+  total:
+    description: 'Total assertions run.'
+    value: ${{ steps.parse.outputs.total }}
+  passed:
+    description: 'Passed assertions.'
+    value: ${{ steps.parse.outputs.passed }}
+  failed:
+    description: 'Failed assertions.'
+    value: ${{ steps.parse.outputs.failed }}
+  skipped:
+    description: 'Pending/todo/disabled assertions (counted in total but not passed or failed).'
+    value: ${{ steps.parse.outputs.skipped }}
+  summary:
+    description: 'One-line pass/fail summary string.'
+    value: ${{ steps.parse.outputs.summary }}
+  failed_names:
+    description: 'Semicolon-joined list (max 5) of failing test full names, prefixed with label.'
+    value: ${{ steps.parse.outputs.failed_names }}
+
+runs:
+  using: composite
+  steps:
+    - name: Parse test summary
+      id: parse
+      shell: bash
+      env:
+        RESULTS_FILE: ${{ inputs.results-file }}
+        LABEL: ${{ inputs.label }}
+      run: ${{ github.action_path }}/parse.sh

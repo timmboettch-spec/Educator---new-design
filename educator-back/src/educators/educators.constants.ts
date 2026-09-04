@@ -1,0 +1,50 @@
+export const EducatorConstants = {
+  ROUTES: {
+    BASE: 'educators',
+    ID: ':id',
+    ADMIN: 'admin/:adminId',
+    PROFILE: 'profile',
+    PROFILE_PICTURE: 'profile-picture',
+    RESEND_INVITE: ':id/resend-invite',
+    REQUEST_SEATS: 'request-seats',
+    REMOVE_SEATS: ':id/remove-seats',
+    REALLOCATE_SEATS: ':id/reallocate-seats',
+  },
+  SWAGGER: {
+    TAG: 'Educators',
+  },
+  MESSAGES: {
+    CREATED: 'Educator created successfully',
+    FETCHED: 'Educator(s) fetched successfully',
+    UPDATED: 'Educator updated successfully',
+    DELETED: 'Educator deleted successfully',
+    NOT_FOUND: 'Educator not found',
+    EMAIL_EXISTS: 'An educator with this email already exists',
+    FAILED_TO_SAVE: 'Failed to save educator',
+    UNAUTHORIZED_EDIT: 'You are not authorized to manage this educator',
+    SCHOOL_NOT_OWNED: 'The specified school does not belong to you',
+    ADMIN_NOT_FOUND: 'Admin user not found',
+    ACCOUNT_PENDING: 'Educator account is pending — invite not yet accepted',
+    ADMIN_FETCH_FORBIDDEN: 'You do not have permission to view educators for this admin',
+    REMOVE_PROFILE_PICTURE_FAILED: 'Failed to remove profile picture',
+    RESEND_INVITE_SENT: 'Invitation resent successfully',
+    EDUCATOR_NOT_PENDING: 'Invitation can only be resent for educators with Pending status',
+    SEAT_REQUEST_SENT: 'Your request for additional AI seats has been sent to the admin.',
+    SEAT_REQUEST_FAILED: 'Could not send seat request. Please try again in a moment.',
+    SEAT_REQUEST_COOLDOWN: (hours: number): string =>
+      `A seat request was already sent in the last ${hours} hour${hours === 1 ? '' : 's'}. Please wait before sending another.`,
+    SEAT_REQUEST_EMAIL_SUBJECT: (educatorName: string): string =>
+      `${educatorName} is requesting more AI seats`,
+    SEAT_REQUEST_FORBIDDEN: 'Only educators can request additional seats.',
+    REMOVE_SEATS_SUCCESS: 'Seats removed successfully',
+    REALLOCATE_SEATS_SUCCESS: 'Seats reallocated successfully',
+    REMOVE_SEATS_AMOUNT_INVALID: 'Amount must be a positive integer',
+    REMOVE_SEATS_EXCEEDS_AVAILABLE: (available: number): string =>
+      `You can remove a maximum of ${available} available tokens`,
+    REALLOCATE_SEATS_SAME_EDUCATOR: 'Source and target educator must be different',
+    REALLOCATE_SEATS_TARGET_NOT_FOUND: 'Target educator not found or does not belong to you',
+    REALLOCATE_SEATS_EXCEEDS_AVAILABLE: (available: number): string =>
+      `You can reallocate a maximum of ${available} available tokens`,
+    ADMIN_ONLY: 'Only administrators can perform this action',
+  },
+};

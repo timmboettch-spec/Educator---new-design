@@ -1,0 +1,9 @@
+# Code Owners for Educator-App-Backend
+# These owners will be requested for review when PRs modify these paths.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# GitHub Actions workflows - require DevOps review
+/.github/workflows/  @Realityworks-AI/realityworks-ai-devops
+
+# Infrastructure (Bicep) - require DevOps review
+/infra/              @Realityworks-AI/realityworks-ai-devops

@@ -1,0 +1,577 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "6361291973716060364"
+    }
+  },
+  "parameters": {
+    "environment": {
+      "type": "string",
+      "allowedValues": [
+        "dev",
+        "qa",
+        "prod"
+      ]
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus"
+    },
+    "prefix": {
+      "type": "string",
+      "defaultValue": "rwai"
+    },
+    "app": {
+      "type": "string",
+      "defaultValue": "edu"
+    },
+    "azureVersion": {
+      "type": "string",
+      "defaultValue": "1"
+    },
+    "backendImageTag": {
+      "type": "string",
+      "metadata": {
+        "description": "Image tag (commit SHA)."
+      }
+    },
+    "backendCustomDomain": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Custom domain bound to the container app (optional)."
+      }
+    },
+    "backendCustomDomainCertificateId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "ARM resource ID of the managed certificate for backendCustomDomain."
+      }
+    },
+    "stableRevisionName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Name of the currently-live (stable) revision, captured by the workflow before this deploy. Empty on first deploy."
+      }
+    }
+  },
+  "variables": {
+    "revisionSuffix": "[format('bg-{0}', take(parameters('backendImageTag'), 7))]",
+    "sharedRgName": "[format('ARG-all{0}-{1}', parameters('azureVersion'), parameters('prefix'))]",
+    "aenName": "[format('AEN-{0}{1}-{2}', parameters('environment'), parameters('azureVersion'), parameters('prefix'))]",
+    "acrName": "[format('acrall{0}{1}', parameters('azureVersion'), parameters('prefix'))]",
+    "keyVaultName": "[format('akv{0}{1}{2}', parameters('environment'), parameters('azureVersion'), parameters('prefix'))]",
+    "appInsightsName": "[format('appi-all{0}-{1}', parameters('azureVersion'), parameters('prefix'))]",
+    "backendAppName": "[format('aca-{0}{1}-{2}-{3}back', parameters('environment'), parameters('azureVersion'), parameters('prefix'), parameters('app'))]",
+    "backendIdentityName": "[format('id-{0}{1}-{2}-{3}back', parameters('environment'), parameters('azureVersion'), parameters('prefix'), parameters('app'))]",
+    "commonTags": {
+      "app": "educator-app",
+      "component": "backend",
+      "environment": "[parameters('environment')]",
+      "managedBy": "bicep"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "[format('aca-{0}-back-{1}-redeploy', parameters('app'), parameters('environment'))]",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "name": {
+            "value": "[variables('backendAppName')]"
+          },
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "tags": {
+            "value": "[variables('commonTags')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "managedEnvironmentId": {
+            "value": "[resourceId('Microsoft.App/managedEnvironments', variables('aenName'))]"
+          },
+          "acrLoginServer": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('sharedRgName')), 'Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-11-01-preview').loginServer]"
+          },
+          "imageName": {
+            "value": "educator-backend"
+          },
+          "imageTag": {
+            "value": "[parameters('backendImageTag')]"
+          },
+          "keyVaultName": {
+            "value": "[variables('keyVaultName')]"
+          },
+          "appInsightsConnectionString": {
+            "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, variables('sharedRgName')), 'Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').ConnectionString]"
+          },
+          "customDomain": {
+            "value": "[parameters('backendCustomDomain')]"
+          },
+          "customDomainCertificateId": {
+            "value": "[parameters('backendCustomDomainCertificateId')]"
+          },
+          "userAssignedIdentityId": {
+            "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('backendIdentityName'))]"
+          },
+          "userAssignedIdentityPrincipalId": {
+            "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('backendIdentityName')), '2023-01-31').principalId]"
+          },
+          "revisionSuffix": {
+            "value": "[variables('revisionSuffix')]"
+          },
+          "stableRevisionName": {
+            "value": "[parameters('stableRevisionName')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.43.8.12551",
+              "templateHash": "8304747746609372336"
+            }
+          },
+          "parameters": {
+            "name": {
+              "type": "string"
+            },
+            "location": {
+              "type": "string"
+            },
+            "tags": {
+              "type": "object",
+              "defaultValue": {}
+            },
+            "environment": {
+              "type": "string",
+              "allowedValues": [
+                "dev",
+                "qa",
+                "prod"
+              ]
+            },
+            "managedEnvironmentId": {
+              "type": "string"
+            },
+            "acrLoginServer": {
+              "type": "string"
+            },
+            "imageName": {
+              "type": "string"
+            },
+            "imageTag": {
+              "type": "string"
+            },
+            "keyVaultName": {
+              "type": "string"
+            },
+            "appInsightsConnectionString": {
+              "type": "string"
+            },
+            "customDomain": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "customDomainCertificateId": {
+              "type": "string",
+              "defaultValue": ""
+            },
+            "revisionSuffix": {
+              "type": "string",
+              "metadata": {
+                "description": "Suffix for the revision created by this deploy (blue/green)."
+              }
+            },
+            "stableRevisionName": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Name of the currently-live (stable) revision. When set, that revision keeps 100% traffic and the new revision gets 0% until promoted by the workflow. Empty on first deploy — the new revision then gets 100%."
+              }
+            },
+            "userAssignedIdentityId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the user-assigned managed identity to attach to the app."
+              }
+            },
+            "userAssignedIdentityPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal (object) ID of the user-assigned managed identity."
+              }
+            }
+          },
+          "variables": {
+            "copy": [
+              {
+                "name": "appSecrets",
+                "count": "[length(variables('kvSecretNames'))]",
+                "input": {
+                  "name": "[variables('kvSecretNames')[copyIndex('appSecrets')]]",
+                  "keyVaultUrl": "[format('{0}secrets/{1}', variables('kvUri'), variables('kvSecretNames')[copyIndex('appSecrets')])]",
+                  "identity": "[parameters('userAssignedIdentityId')]"
+                }
+              }
+            ],
+            "resourceMap": {
+              "dev": {
+                "cpu": "[json('1.0')]",
+                "memory": "2.0Gi",
+                "minReplicas": 0,
+                "maxReplicas": 1,
+                "nodeMaxOldSpaceMB": 1280
+              },
+              "qa": {
+                "cpu": "[json('1.25')]",
+                "memory": "2.5Gi",
+                "minReplicas": 0,
+                "maxReplicas": 2,
+                "nodeMaxOldSpaceMB": 1792
+              },
+              "prod": {
+                "cpu": "[json('1.5')]",
+                "memory": "3.0Gi",
+                "minReplicas": 1,
+                "maxReplicas": 8,
+                "nodeMaxOldSpaceMB": 2304
+              }
+            },
+            "resCfg": "[variables('resourceMap')[parameters('environment')]]",
+            "redisResCfg": {
+              "cpu": "[json('0.25')]",
+              "memory": "0.5Gi"
+            },
+            "placeholderImage": "mcr.microsoft.com/k8se/quickstart:latest",
+            "useRealImage": "[and(not(empty(parameters('imageTag'))), not(equals(parameters('imageTag'), 'placeholder')))]",
+            "imageRef": "[if(variables('useRealImage'), format('{0}/{1}:{2}', parameters('acrLoginServer'), parameters('imageName'), parameters('imageTag')), variables('placeholderImage'))]",
+            "kvUri": "[format('https://{0}{1}/', parameters('keyVaultName'), environment().suffixes.keyvaultDns)]",
+            "trafficConfig": "[if(not(empty(parameters('stableRevisionName'))), createArray(createObject('revisionName', parameters('stableRevisionName'), 'weight', 100), createObject('latestRevision', true(), 'weight', 0)), createArray(createObject('latestRevision', true(), 'weight', 100)))]",
+            "hasCustomDomain": "[and(not(empty(parameters('customDomain'))), not(empty(parameters('customDomainCertificateId'))))]",
+            "ingressBase": {
+              "external": true,
+              "targetPort": 3000,
+              "transport": "auto",
+              "allowInsecure": false,
+              "traffic": "[variables('trafficConfig')]"
+            },
+            "ingressConfig": "[if(variables('hasCustomDomain'), union(variables('ingressBase'), createObject('customDomains', createArray(createObject('name', parameters('customDomain'), 'bindingType', 'SniEnabled', 'certificateId', parameters('customDomainCertificateId'))))), variables('ingressBase'))]",
+            "kvSecretNames": [
+              "edu-db-host",
+              "edu-db-port",
+              "edu-db-name",
+              "edu-db-username",
+              "edu-db-password",
+              "edu-node-env",
+              "edu-app-port",
+              "edu-app-url",
+              "edu-frontend-url",
+              "edu-mail-from",
+              "edu-jwt-secret",
+              "edu-jwt-expires-in",
+              "edu-graph-tenant-id",
+              "edu-graph-client-id",
+              "edu-graph-client-secret",
+              "edu-azure-storage-connection-string",
+              "edu-azure-storage-account",
+              "edu-azure-storage-container",
+              "edu-azure-blob-container-name",
+              "edu-vite-api-url",
+              "edu-api-base-url"
+            ]
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[parameters('name')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', parameters('userAssignedIdentityId'))]": {}
+                }
+              },
+              "properties": {
+                "managedEnvironmentId": "[parameters('managedEnvironmentId')]",
+                "configuration": {
+                  "activeRevisionsMode": "Multiple",
+                  "ingress": "[variables('ingressConfig')]",
+                  "registries": "[if(variables('useRealImage'), createArray(createObject('server', parameters('acrLoginServer'), 'identity', parameters('userAssignedIdentityId'))), createArray())]",
+                  "secrets": "[variables('appSecrets')]"
+                },
+                "template": {
+                  "revisionSuffix": "[parameters('revisionSuffix')]",
+                  "containers": [
+                    {
+                      "name": "backend",
+                      "image": "[variables('imageRef')]",
+                      "resources": {
+                        "cpu": "[variables('resCfg').cpu]",
+                        "memory": "[variables('resCfg').memory]"
+                      },
+                      "env": [
+                        {
+                          "name": "AZURE_KEY_VAULT_URL",
+                          "value": "[variables('kvUri')]"
+                        },
+                        {
+                          "name": "AZURE_KEY_VAULT_SECRET_PREFIX",
+                          "value": "edu-"
+                        },
+                        {
+                          "name": "AZURE_SHARED_KEY_VAULT_URL",
+                          "value": "[variables('kvUri')]"
+                        },
+                        {
+                          "name": "NODE_OPTIONS",
+                          "value": "[format('--max-old-space-size={0}', variables('resCfg').nodeMaxOldSpaceMB)]"
+                        },
+                        {
+                          "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                          "value": "[parameters('appInsightsConnectionString')]"
+                        },
+                        {
+                          "name": "REDIS_HOST",
+                          "value": "127.0.0.1"
+                        },
+                        {
+                          "name": "REDIS_PORT",
+                          "value": "6379"
+                        },
+                        {
+                          "name": "DB_HOST",
+                          "secretRef": "edu-db-host"
+                        },
+                        {
+                          "name": "DB_PORT",
+                          "secretRef": "edu-db-port"
+                        },
+                        {
+                          "name": "DB_NAME",
+                          "secretRef": "edu-db-name"
+                        },
+                        {
+                          "name": "DB_USERNAME",
+                          "secretRef": "edu-db-username"
+                        },
+                        {
+                          "name": "DB_PASSWORD",
+                          "secretRef": "edu-db-password"
+                        },
+                        {
+                          "name": "NODE_ENV",
+                          "secretRef": "edu-node-env"
+                        },
+                        {
+                          "name": "APP_PORT",
+                          "secretRef": "edu-app-port"
+                        },
+                        {
+                          "name": "APP_URL",
+                          "secretRef": "edu-app-url"
+                        },
+                        {
+                          "name": "FRONTEND_URL",
+                          "secretRef": "edu-frontend-url"
+                        },
+                        {
+                          "name": "MAIL_FROM",
+                          "secretRef": "edu-mail-from"
+                        },
+                        {
+                          "name": "JWT_SECRET",
+                          "secretRef": "edu-jwt-secret"
+                        },
+                        {
+                          "name": "JWT_EXPIRES_IN",
+                          "secretRef": "edu-jwt-expires-in"
+                        },
+                        {
+                          "name": "GRAPH_TENANT_ID",
+                          "secretRef": "edu-graph-tenant-id"
+                        },
+                        {
+                          "name": "GRAPH_CLIENT_ID",
+                          "secretRef": "edu-graph-client-id"
+                        },
+                        {
+                          "name": "GRAPH_CLIENT_SECRET",
+                          "secretRef": "edu-graph-client-secret"
+                        },
+                        {
+                          "name": "AZURE_STORAGE_CONNECTION_STRING",
+                          "secretRef": "edu-azure-storage-connection-string"
+                        },
+                        {
+                          "name": "AZURE_STORAGE_ACCOUNT",
+                          "secretRef": "edu-azure-storage-account"
+                        },
+                        {
+                          "name": "AZURE_STORAGE_CONTAINER",
+                          "secretRef": "edu-azure-storage-container"
+                        },
+                        {
+                          "name": "AZURE_BLOB_CONTAINER_NAME",
+                          "secretRef": "edu-azure-blob-container-name"
+                        },
+                        {
+                          "name": "VITE_API_URL",
+                          "secretRef": "edu-vite-api-url"
+                        },
+                        {
+                          "name": "API_BASE_URL",
+                          "secretRef": "edu-api-base-url"
+                        }
+                      ],
+                      "probes": [
+                        {
+                          "type": "Startup",
+                          "httpGet": {
+                            "path": "/healthz",
+                            "port": 3000
+                          },
+                          "initialDelaySeconds": 15,
+                          "periodSeconds": 10,
+                          "timeoutSeconds": 5,
+                          "failureThreshold": 12
+                        },
+                        {
+                          "type": "Liveness",
+                          "httpGet": {
+                            "path": "/healthz",
+                            "port": 3000
+                          },
+                          "periodSeconds": 10,
+                          "timeoutSeconds": 5,
+                          "failureThreshold": 3
+                        },
+                        {
+                          "type": "Readiness",
+                          "httpGet": {
+                            "path": "/readyz",
+                            "port": 3000
+                          },
+                          "periodSeconds": 5,
+                          "timeoutSeconds": 3,
+                          "failureThreshold": 3
+                        }
+                      ]
+                    },
+                    {
+                      "name": "redis",
+                      "image": "docker.io/library/redis:7-alpine",
+                      "command": [
+                        "redis-server"
+                      ],
+                      "args": [
+                        "--save",
+                        "",
+                        "--appendonly",
+                        "no",
+                        "--maxmemory",
+                        "384mb",
+                        "--maxmemory-policy",
+                        "allkeys-lru"
+                      ],
+                      "resources": {
+                        "cpu": "[variables('redisResCfg').cpu]",
+                        "memory": "[variables('redisResCfg').memory]"
+                      },
+                      "probes": [
+                        {
+                          "type": "Startup",
+                          "tcpSocket": {
+                            "port": 6379
+                          },
+                          "initialDelaySeconds": 5,
+                          "periodSeconds": 5,
+                          "failureThreshold": 6
+                        },
+                        {
+                          "type": "Liveness",
+                          "tcpSocket": {
+                            "port": 6379
+                          },
+                          "periodSeconds": 15,
+                          "failureThreshold": 3
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[variables('resCfg').minReplicas]",
+                    "maxReplicas": "[variables('resCfg').maxReplicas]",
+                    "rules": [
+                      {
+                        "name": "http-rule",
+                        "http": {
+                          "metadata": {
+                            "concurrentRequests": "50"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "name": {
+              "type": "string",
+              "value": "[parameters('name')]"
+            },
+            "fqdn": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2024-03-01').configuration.ingress.fqdn]"
+            },
+            "principalId": {
+              "type": "string",
+              "value": "[parameters('userAssignedIdentityPrincipalId')]"
+            },
+            "customDomainConfigured": {
+              "type": "bool",
+              "value": "[not(empty(parameters('customDomain')))]"
+            },
+            "newRevisionName": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', parameters('name')), '2024-03-01').latestRevisionName]"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "backendAppName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('aca-{0}-back-{1}-redeploy', parameters('app'), parameters('environment'))), '2025-04-01').outputs.name.value]"
+    },
+    "backendFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('aca-{0}-back-{1}-redeploy', parameters('app'), parameters('environment'))), '2025-04-01').outputs.fqdn.value]"
+    },
+    "newRevisionName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Resources/deployments', format('aca-{0}-back-{1}-redeploy', parameters('app'), parameters('environment'))), '2025-04-01').outputs.newRevisionName.value]"
+    }
+  }
+}

@@ -1,0 +1,98 @@
+name: "aca-deploy"
+description: >-
+  Aggregated Bicep deploy for an Azure Container App: OIDC login → ACR login →
+  docker/build-push-action (GHA-cached) → `az deployment group create` (Bicep)
+  → wait for revision health → smoke test → step summary, in a single action.
+  Composes the docker-build-push-acr composite action for the build/push step
+  (GHA layer cache — much faster repeat builds than `az acr build`, which has
+  no cross-run cache) plus aca-wait-health + aca-smoke-test + aca-deployment-summary
+  folded into the aca-deploy.sh script. Works for both single-revision
+  (preview) and blue/green (revision-direct smoke) via inputs.
+
+inputs:
+  # ── auth ──
+  client-id:       { description: 'Azure AD client id (OIDC)', required: true }
+  tenant-id:       { description: 'Azure AD tenant id',        required: true }
+  subscription-id: { description: 'Azure subscription id',     required: true }
+  # ── build ──
+  acr-name:         { description: 'ACR short name, e.g. acrall1rwai', required: true }
+  acr-rg:           { description: 'Resource group owning the ACR',    required: true }
+  image-name:       { description: 'Image repository name',            required: true }
+  image-tag:        { description: 'Primary image tag',                required: true }
+  image-tags-extra: { description: 'Newline-separated extra tags (e.g. dev-latest)', required: false, default: '' }
+  build-context:    { description: 'Docker build context',             required: false, default: '.' }
+  dockerfile:       { description: 'Path to the Dockerfile', required: false, default: '' }
+  # ── deploy ──
+  bicep-template: { description: 'Path to the Bicep template',                         required: true }
+  bicep-params:   { description: 'Space-separated key=value params passed to the deploy', required: true }
+  container-app:  { description: 'Container App name',                                  required: true }
+  resource-group: { description: 'Resource group of the Container App',                required: true }
+  # ── verify ──
+  wait-health:    { description: "'true' to poll revision health until Healthy",        required: false, default: 'true' }
+  run-smoke:      { description: "'true' to run the smoke test",                        required: false, default: 'true' }
+  smoke-target:   { description: 'app = smoke app FQDN | latest-revision = smoke the new revision direct FQDN', required: false, default: 'app' }
+  smoke-path:     { description: 'Path appended for the smoke curl',                    required: false, default: '/health' }
+  smoke-blocking: { description: "'true' = fail the step on smoke failure; 'false' = warn only", required: false, default: 'true' }
+
+outputs:
+  app-fqdn:
+    description: 'Container App ingress FQDN'
+    value: ${{ steps.run.outputs.app-fqdn }}
+  new-revision:
+    description: 'Latest (new) revision name'
+    value: ${{ steps.run.outputs.new-revision }}
+  staging-fqdn:
+    description: 'Revision-direct https URL base'
+    value: ${{ steps.run.outputs.staging-fqdn }}
+  smoke-passed:
+    description: "'true'/'false' — smoke outcome"
+    value: ${{ steps.run.outputs.smoke-passed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Azure login (OIDC)
+      uses: azure/login@v2
+      with:
+        client-id:       ${{ inputs.client-id }}
+        tenant-id:       ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+
+    - name: Resolve ACR login server
+      id: acr
+      shell: bash
+      run: |
+        LS=$(az acr show --name "${{ inputs.acr-name }}" --resource-group "${{ inputs.acr-rg }}" --query loginServer -o tsv)
+        echo "login-server=$LS" >> "$GITHUB_OUTPUT"
+
+    - name: ACR login (docker)
+      shell: bash
+      run: az acr login --name ${{ inputs.acr-name }}
+
+    - name: Build & push image (GHA-cached)
+      id: build
+      uses: ./.github/actions/docker-build-push-acr
+      with:
+        context:    ${{ inputs.build-context }}
+        dockerfile: ${{ inputs.dockerfile != '' && inputs.dockerfile || format('{0}/Dockerfile', inputs.build-context) }}
+        registry:   ${{ steps.acr.outputs.login-server }}
+        image-name: ${{ inputs.image-name }}
+        tags: |
+          ${{ inputs.image-tag }}
+          ${{ inputs.image-tags-extra }}
+
+    - name: Deploy · verify
+      id: run
+      shell: bash
+      env:
+        BICEP_TEMPLATE:   ${{ inputs.bicep-template }}
+        BICEP_PARAMS:     ${{ inputs.bicep-params }}
+        CONTAINER_APP:    ${{ inputs.container-app }}
+        RESOURCE_GROUP:   ${{ inputs.resource-group }}
+        WAIT_HEALTH:      ${{ inputs.wait-health }}
+        RUN_SMOKE:        ${{ inputs.run-smoke }}
+        SMOKE_TARGET:     ${{ inputs.smoke-target }}
+        SMOKE_PATH:       ${{ inputs.smoke-path }}
+        SMOKE_BLOCKING:   ${{ inputs.smoke-blocking }}
+        RUN_ID:           ${{ github.run_id }}
+      run: ${{ github.action_path }}/scripts/aca-deploy.sh

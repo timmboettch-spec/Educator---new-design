@@ -1,0 +1,864 @@
+{
+  "id": "AI_SCN_ADLT_NRSG_02",
+  "unitId": "AlphaTesting-01",
+  "title": "Lower-Extremity Wound Assessment and Care ",
+  "difficulty": "Medium",
+  "avatarEnabled": false,
+  "avatarId": "",
+  "contextId": "",
+  "learnerLevel": "High School Health Science",
+  "department": "Outpatient Clinic ",
+  "description": "In this scenario, the learner cares for a middle-aged adult with poorly controlled type 2 diabetes and a diabetic foot ulcer. Learners will obtain a focused health history, perform a focused lower-extremity assessment, and provide evidence-based wound care. ",
+  "learningObjective": "Obtain a diabetes-focused patient health history. \nConduct a lower-extremity skin assessment with wound description. \nDemonstrate evidence-based wound care and infection-prevention techniques. ",
+  "class": "",
+  "language": "en-US",
+  "voice": "Davis",
+  "ethnicity": "",
+  "age": "",
+  "disabled": false,
+  "Status": "Paid",
+  "actions": [
+    {
+      "id": "action_1781818951805_tdgqum0jn",
+      "order": 1,
+      "title": "Patient Positioning and Comfort ",
+      "prompt": "Indicate how this step (patient assisted into a supported and comfortable position) was performed. ",
+      "type": "single",
+      "items": [
+        "Performed on manikin",
+        "Not performed on manikin "
+      ],
+      "correct": "Performed on manikin",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Patient positioned safely and comfortably. ",
+      "limitType": "limited",
+      "maxAttempts": 2
+    },
+    {
+      "id": "action_1781819005457_ue5zsoq92",
+      "order": 2,
+      "title": "Perform Focused Physical Assessment ",
+      "prompt": "Arrange the following items in the order in which they would be performed to complete a focused physical assessment. ",
+      "type": "ordering",
+      "items": [
+        "Inspect lower extremity  ",
+        "Palpate lower extremity ",
+        "Evaluate lower extremity perfusion ",
+        "Evaluate lower extremity sensation "
+      ],
+      "correct": "",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "mixed",
+      "resultMediaUrl": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/Screenshot-2026-06-18-at-2-54-03-PM-1781819659745-769514205.png",
+      "resultMediaName": "Screenshot-2026-06-18-at-2-54-03-PM-1781819659745-769514205.png",
+      "resultName": "Skin: \nRight plantar surface under great toe is ulcerated with moderate serous to serosanguinous drainage; mild odor; surrounding callus and some erythema around wound; skin warm but not hot. \n​Toenails thickened and slightly discolored; callus on left plantar surface as well. \n\nNeurovascular: \nCapillary refill in toes ~3 seconds; dorsalis pedis pulses palpable bilaterally but slightly diminished (1+–2+); posterior tibial pulses. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781819717717_17omgbff2",
+      "order": 3,
+      "title": "Perform Objective Wound Assessment ",
+      "prompt": "Arrange the following items in the order in which they would be performed when completing an objective wound assessment. ",
+      "type": "ordering",
+      "items": [
+        "Measure and describe wound size (length, width, depth), location, and describe tissue type, drainage, odor ",
+        "Describe periwound skin "
+      ],
+      "correct": "",
+      "categoryId": "cat_assessments",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "mixed",
+      "resultMediaUrl": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/Screenshot-2026-06-18-at-2-54-03-PM-1781819794792-192611515.png",
+      "resultMediaName": "Screenshot-2026-06-18-at-2-54-03-PM-1781819794792-192611515.png",
+      "resultName": "Right plantar foot ulcer under the great toe, measuring 2.5 cm × 2 cm × 0.3 cm depth, with pale pink granulation tissue, yellow slough at edges, moderate serosanguineous drainage, and mild odor. Periwound skin shows callus, mild erythema (0.3 cm margin), and warmth. Surrounding skin is dry with fissures. ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781819799263_tshbyl2io",
+      "order": 4,
+      "title": "Provide Wound Care ",
+      "prompt": "Arrange the following items in the order in which they would be performed when completing wound care. ",
+      "type": "ordering",
+      "items": [
+        "Explain the procedure to the patient, gather supplies, and assist the patient to a supported and comfortable position  ",
+        "Place an absorbent pad under the foot, irrigate the wound with gentle to moderate pressure normal saline, and direct irrigation flow from cleanest area to dirtiest area ",
+        "Pat dry periwound skin with gauze, and apply skin protectant to intact periwound skin ",
+        "Apply non-adherent dressing over wound bed and apply absorbent dressing, secure dressings with gauze wrap ",
+        "Confirm dressing is non-constrictive and assist the patient back to a safe and comfortable position "
+      ],
+      "correct": "",
+      "categoryId": "cat_nursing",
+      "typeRequirement": "Mandatory",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Wound care completed ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    },
+    {
+      "id": "action_1781819863404_gdsin9snx",
+      "order": 5,
+      "title": "Point-of-Care Blood Glucose  ",
+      "prompt": "Arrange the following items in the order in which they would be performed to obtain the Point-of-Care blood glucose measurement. ",
+      "type": "ordering",
+      "items": [
+        "Power on the glucometer, check the expiration date and integrity of test strips, and insert a new test strip into the meter.  ",
+        "Select a lateral side of a fingertip, place the hand in a dependent position, clean the selected fingertip area with an alcohol wipe, and allow the selected fingertip area to dry completely.  ",
+        "Position the lancet within the cleaned fingertip area, activate the lancet to puncture the skin, dispose of used lancet immediately in sharps container.  ",
+        "Wipe away first drop of blood, gently squeeze finger proximal to puncture site to produce drop of blood, bring test strip in meter to the blood drop, allow capillary action to wick blood into test strip.  ",
+        "Apply clean gauze to puncture site with slight pressure to stop bleeding, then apply bandage to site as needed, and read glucometer results when displayed on meter and verbally share results. "
+      ],
+      "correct": "",
+      "categoryId": "cat_labs",
+      "typeRequirement": "Distractor",
+      "isExcluded": false,
+      "resultMediaType": "text",
+      "resultMediaUrl": "",
+      "resultMediaName": "",
+      "resultName": "Point of Care Glucose\t216 mg/dL \t(70–99 mg/dL) ",
+      "limitType": "limited",
+      "maxAttempts": 1
+    }
+  ],
+  "patientData": {
+    "name": "Carlos Hernandez ",
+    "gender": "Male",
+    "age": 48,
+    "race": "Hispanic / Latino ",
+    "dateOfBirth": "05-05-1978",
+    "dobMonthDay": "05-05",
+    "vitals": {
+      "heartRate": "",
+      "bloodPressure": "",
+      "respiratoryRate": "",
+      "spO2": "",
+      "temperature": "",
+      "weight": "105",
+      "height": "175"
+    },
+    "chiefComplaint": "Poorly controlled type 2 diabetes, non-healing plantar ulcer beneath right great toe for 3 weeks. ",
+    "medicalHistory": "Type 2 diabetes mellitus \nHypertension \nHyperlipidemia \nDiabetic peripheral neuropathy \nObesity ",
+    "allergies": "No known drug allergies ",
+    "socialHistory": {
+      "tobacco": "No current tobacco (quit smoking 3 years ago) ",
+      "alcohol": "Occasional weekend alcohol (1–2 beers) ",
+      "drugs": "Denies "
+    },
+    "lifestyle": {
+      "housing": "Living with his 71-year-old mother in a modest rental home ",
+      "transportation": "Owns a 15-year-old pickup with unreliable transmission; sometimes relies on cousin for rides ",
+      "occupation": "Line cook ",
+      "diet": "End of the month can be tight; buys lower-cost, high-carb foods (tortillas, rice, soda) more often than fresh produce.   Sometimes skips meals during double shifts and then overeats late at night. ",
+      "exercise": "No structured exercise ",
+      "stress": "",
+      "sleep": ""
+    },
+    "historyVisibility": {
+      "weight": true,
+      "height": true,
+      "chiefComplaint": true,
+      "pastSurgicalHistory": true,
+      "allergies": true,
+      "medications": true,
+      "immunizations": true,
+      "primaryCareProvider": true
+    },
+    "preferredName": "Carlos",
+    "historyOfPresentIllness": "Poorly controlled type 2 diabetes, non-healing plantar ulcer beneath right great toe for 3 weeks. Male with a 10-year history of poorly controlled type 2 diabetes mellitus presents for wound clinic evaluation of a right plantar foot ulcer present for ~3 weeks. Patient reports the wound began as a blister after prolonged standing during work shifts in worn footwear; blister ruptured and progressed to an open ulcer. Reports mild aching with pressure, drainage, and mild odor. Denies fever or chills. Endorses numbness in both feet consistent with known diabetic neuropathy, increased fatigue, polyuria, and polydipsia. Admits to inconsistent adherence with diabetes medications and lack of routine foot inspections. Expresses anxiety due to family history of diabetes-related amputation. ",
+    "pastSurgicalHistory": "Appendectomy (age 17) ",
+    "currentMedications": [
+      "Metformin 1000 mg PO twice daily with meals (Type 2 diabetes) ",
+      "Insulin glargine 30 units subcutaneously at bedtime (Basal glucose control) ",
+      "Insulin lispro 6 units subcutaneously before largest meal; sliding scale for additional coverage (Prandial control) ",
+      "Lisinopril 20 mg PO daily (Hypertension, renal protection) ",
+      "Atorvastatin 40 mg PO nightly (Hyperlipidemia, cardiovascular risk reduction) ",
+      "Gabapentin 300 mg PO at bedtime (Neuropathic pain in feet) ",
+      "OTC ibuprofen 400 mg PO as needed (Musculoskeletal aches from work) "
+    ],
+    "immunizationHistory": [
+      "Influenza vaccine last fall. ",
+      "Pneumococcal vaccine at age 45. ",
+      "Tdap 4 years ago. "
+    ],
+    "familyMedicalHistoryClinical": "Father: Type 2 diabetes, status post below-knee amputation due to infected foot ulcer; died of myocardial infarction at 62. \nMother: Hypertension, osteoarthritis. \nSister: Gestational diabetes (resolved). ",
+    "primaryCareProvider": "Dr. Maria Gonzalez "
+  },
+  "expectedActions": {
+    "labs": [],
+    "imaging": [],
+    "physicalExam": [],
+    "medications": []
+  },
+  "historyPrompts": [],
+  "assessmentGuidance": {
+    "actions": [],
+    "educationPoints": []
+  },
+  "assessmentNarrativeExpected": "",
+  "learningObjectiveCard": "",
+  "phases": [],
+  "availableMedications": [],
+  "grading": {
+    "maxScore": 100,
+    "rubric": [
+      {
+        "id": "rubric_actions",
+        "name": "Actions & Interventions",
+        "categoryType": "Technical Skill",
+        "subCategory": "Action",
+        "weight": 20,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Section Raw Score = (Sum of completed Mandatory actions) ÷ (Total number of Mandatory actions) × 100 × Weight %"
+      },
+      {
+        "id": "rubric_medications",
+        "name": "Medications",
+        "categoryType": "Technical Skill",
+        "subCategory": "Medications",
+        "weight": 0,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Medication administration accuracy graded automatically from the orders configured for this scenario."
+      },
+      {
+        "id": "rubric_ppe",
+        "name": "PPE, Privacy & Safety",
+        "categoryType": "Technical Skill",
+        "subCategory": "Expected Actions",
+        "weight": 25,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Safety and privacy measures evaluated from the Common Actions Panel.",
+        "checklistItems": [
+          {
+            "id": "ppe-inf-1a",
+            "text": "Eye Protection Donned",
+            "order": 1,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-1b",
+            "text": "Eye Protection Doffed",
+            "order": 2,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2a",
+            "text": "Isolation Gown Donned",
+            "order": 3,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-2b",
+            "text": "Isolation Gown Doffed",
+            "order": 4,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-3a",
+            "text": "Standard Gloves Donned",
+            "order": 5,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-3b",
+            "text": "Standard Gloves Doffed",
+            "order": 6,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-4a",
+            "text": "Sterile Gloves Donned",
+            "order": 7,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-4b",
+            "text": "Sterile Gloves Doffed",
+            "order": 8,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-5a",
+            "text": "Respirator Mask (N95) Donned",
+            "order": 9,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-5b",
+            "text": "Respirator Mask (N95) Doffed",
+            "order": 10,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-6a",
+            "text": "Surgical Mask Donned",
+            "order": 11,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-6b",
+            "text": "Surgical Mask Doffed",
+            "order": 12,
+            "status": "Exclude"
+          },
+          {
+            "id": "ppe-inf-7",
+            "text": "Hand Hygiene Performed",
+            "order": 13,
+            "status": "Mandatory"
+          },
+          {
+            "id": "ppe-inf-8",
+            "text": "Sharps Discarded",
+            "order": 14,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-9",
+            "text": "Non-Infectious Waste Discarded",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-inf-10",
+            "text": "Infectious Waste Discarded",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-1",
+            "text": "Knock / Announce Entry",
+            "order": 15,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2b",
+            "text": "Door Opened",
+            "order": 17,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-2a",
+            "text": "Door Closed",
+            "order": 16,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3b",
+            "text": "Curtain Opened",
+            "order": 19,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-prv-3a",
+            "text": "Curtain Drawn",
+            "order": 18,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-1a",
+            "text": "Bed/Chair Locked",
+            "order": 20,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-2a",
+            "text": "Bed/Chair Alarm Activated",
+            "order": 22,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-3a",
+            "text": "Bed Lowered to Lowest Position",
+            "order": 24,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-4",
+            "text": "Call Light In Reach",
+            "order": 26,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-5",
+            "text": "Equipment Checked",
+            "order": 27,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-6",
+            "text": "Lines / Tubes / Drains Checked",
+            "order": 28,
+            "status": "Optional"
+          },
+          {
+            "id": "ppe-env-7",
+            "text": "Personal Items Within Reach",
+            "order": 29,
+            "status": "Optional"
+          }
+        ]
+      },
+      {
+        "id": "rubric_documentation",
+        "name": "Clinical Documentation Quality",
+        "categoryType": "Technical Skill",
+        "subCategory": "Documentation",
+        "weight": 25,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Quality and completeness of clinical documentation.",
+        "checklistItems": [
+          {
+            "id": "doc-1",
+            "text": "Actions, Assessment & Intervention Documentation",
+            "status": "Mandatory",
+            "order": 1
+          },
+          {
+            "id": "doc-2",
+            "text": "Medical and health history updated",
+            "status": "Mandatory",
+            "order": 2
+          },
+          {
+            "id": "doc-3",
+            "text": "Patient emotional response documented",
+            "status": "Optional",
+            "order": 3
+          }
+        ]
+      },
+      {
+        "id": "rubric_communication",
+        "name": "Communication",
+        "categoryType": "Technical Skill",
+        "subCategory": "Communication",
+        "weight": 25,
+        "scoringModel": "Graded",
+        "required": true,
+        "evaluationSource": "AI",
+        "description": "Evaluation of patient-centered communication skills and empathy.",
+        "communicationCriteria": [
+          {
+            "id": "comm-crit-2",
+            "title": "Use patient-centered communication strategies",
+            "prompt": "Evaluate patient-centered communication: open-ended questions, allowing the patient to elaborate, summarizing back, checking understanding, avoiding interruptions, and including the patient in decision-making. Return PASS if multiple patient-centered strategies are visible.",
+            "enabled": true,
+            "order": 2
+          },
+          {
+            "id": "comm-crit-1781907967930",
+            "title": "Use clear, health-literacy sensitive language ",
+            "prompt": "Evaluate whether the student used clear, plain language and explained any medical terms (e.g., NPO, metabolic, hemorrhage) in patient-friendly words. If the student used jargon without explanation or responded poorly when the patient said they did not understand, return FAIL. Return PASS only if education was accessible.",
+            "enabled": true,
+            "order": 2
+          },
+          {
+            "id": "comm-crit-1781908036147",
+            "title": "Provided introductory-level education on wound care",
+            "prompt": "Evaluate whether the student provided introductory-level education on wound care at home. Return PASS only if the student provided basic wound care education and did not overelaborate or go too in depth on the wound care education. ",
+            "enabled": true,
+            "order": 3
+          }
+        ],
+        "communicationSummaryPrompt": "Give me a summary of what the student did well and what, if anything, the student did wrong in their communication practice for these 5 entries. Limit the analysis to 50 words or less."
+      },
+      {
+        "id": "rubric_timeline",
+        "name": "Sequencing & Prioritization",
+        "categoryType": "Technical Skill",
+        "subCategory": "Sequencing & Prioritization",
+        "weight": 5,
+        "scoringModel": "Binary",
+        "required": true,
+        "evaluationSource": "System Check",
+        "description": "Correct sequencing and prioritization of actions throughout the scenario."
+      }
+    ],
+    "components": {
+      "softSkills": {
+        "weight": 0
+      },
+      "technicalSkills": {
+        "weight": 100
+      }
+    },
+    "showDebriefToStudents": true,
+    "debriefReflectionPrompt": "How are you feeling now that the simulation is over? What felt most challenging? Where did you feel most confident?  "
+  },
+  "requiresProductSetup": true,
+  "productSetup": {
+    "title": "Realityworks (or similar) Adult Nursing Manikin"
+  },
+  "aiPatientData": {
+    "openingReasonForVisit": "I’ve had a sore on the bottom of my right foot for about three weeks now, and it’s not healing. It started as a blister after a long shift in old work boots, and now it’s open and smells a little. That’s what made me come in. ",
+    "mainConcernAttributes": "The sore on the bottom of my right foot hasn’t been getting better for about three weeks. What worries me is that my feet feel numb most of the time, so I don’t always notice injuries right away. I kept walking on it because I have to work, and it doesn’t hurt much, just a little ache when I put pressure on it. Now it’s open and starting to smell, and I’m worried it could turn into something serious. ",
+    "associatedSymptoms": "My feet are mostly numb, but sometimes at night I feel a burning sensation. I’ve also been more tired than usual. I’ve noticed I’ve been more thirsty and going to the bathroom more often lately, which I know probably means my blood sugar hasn’t been under control. Otherwise, I don’t feel sick. ",
+    "allergies": "I don’t have any allergies that I know of. ",
+    "currentMedications": "I take metformin twice a day, insulin at night, and another insulin before my biggest meal. I also take something for blood pressure and cholesterol, and something at night for nerve pain. I take ibuprofen sometimes if I’m sore. I’ll be honest, I don’t always take my medications the way I should, especially when work gets busy or money is tight. ",
+    "diagnosedChronicIllnesses": "I’ve had type 2 diabetes for about ten years, and I know it hasn’t been well controlled. I also have high blood pressure, high cholesterol, and nerve problems in my feet from diabetes. I’m overweight. I’ve never had a foot sore like this before. ",
+    "medicalHistory": "I’ve been dealing with diabetes for a long time, and I’ve had trouble keeping my blood sugar under control. I haven’t had any amputations or serious infections before, but I know it can happen. I haven’t had any major surgeries. ",
+    "familyMedicalHistory": "My dad had diabetes and lost part of his leg because of a bad foot infection, and he died from a heart attack. My mom has high blood pressure and arthritis. My sister had diabetes during pregnancy. ",
+    "relationshipStatusSexualHealth": "I’m divorced and live with my mom. I don’t have any concerns about sexual health right now. ",
+    "personalSocialHistory": "I live with my mom and help take care of her. I work long hours as a line cook, and my schedule is all over the place. Money can be tight, and it’s not always easy to stay on top of my health. I see my kids on the weekends when I can. ",
+    "housing": "I live with my mom in a small rental home. It’s stable, but we don’t have a lot of extra resources. ",
+    "transportation": "I don’t always have reliable transportation. Sometimes I rely on family or rides, which makes it harder to get to appointments. ",
+    "occupation": "I work as a line cook, usually long shifts on my feet in a hot kitchen. ",
+    "diet": "I eat a lot of fried and fast food, mostly what’s available at work. I drink soda and sweet tea, and I don’t eat many vegetables. My meals are not on a regular schedule. ",
+    "exercise": "I don’t really exercise outside of work. I’m on my feet all day, but I don’t do anything extra. ",
+    "stress": "I feel a lot of stress from work, money, and taking care of my mom. I also worry because of what happened to my dad. ",
+    "sleep": "I sleep about five or six hours a night, but it’s not very consistent. My feet sometimes bother me at night. ",
+    "adls": "I take care of myself, but it’s getting harder with my weight and my foot. I can still bathe and dress myself, but I don’t always check my feet like I should. ",
+    "drugs": "I don’t use drugs. I drink occasionally, but not heavily. I don’t smoke. ",
+    "emotionalStatePersonality": "I feel embarrassed about how I’ve handled my diabetes and this sore. I’m worried because I’ve seen what can happen from this kind of thing. I don’t always say everything right away, but I’ll open up if I feel like I’m being treated with respect. ",
+    "conversationalAttitudeSpeechStyle": "I speak in simple, direct language, sometimes with a bit of Spanish mixed in when I’m stressed. I might downplay things at first and say it’s “not that bad,” but I’ll give more details if you ask. I’m polite and cooperative, but a little anxious",
+    "specialPatientInfo": "I usually say the sore started as a blister after a long shift, and I kept working on it because I didn’t think it was a big deal. It doesn’t hurt much, which is why I didn’t pay attention to it at first, but now it’s open and smells, and that worries me. \n\n \n\nMy feet feel numb most of the time, so I don’t always notice injuries. At night, I sometimes feel burning. I know my diabetes hasn’t been controlled well, and I don’t always take my medications like I should because of my schedule and cost. \n\n \n\nI get worried thinking about my dad losing his leg, and that makes me anxious when people talk about my foot. I might try to act like it’s not serious, but I’m concerned deep down. \n\n \n\nIf things are explained clearly in simple language, I understand better. I do better when people don’t use a lot of medical terms and take time to explain things step by step. ",
+    "locationSpecificInfo": "I’m at an outpatient wound care clinic getting my foot checked. I understand where I am and why I’m here. I know who the current president and state leaders are, but I don’t really follow politics closely. "
+  },
+  "preBriefPdf": "",
+  "enableStudentBriefing": true,
+  "studentBriefing": {
+    "safeEnvironment": "This simulation is designed to promote integrity, trust, and respect.\nThis is a safe learning space intended for practice and skill development. Engage fully, make decisions to the best of your ability, and reflect on the experience during debriefing. \nDuring the simulation, please suspend disbelief and respond as though the situation is entirely real. Maintain professionalism and respectful behavior toward the patient, the environment, and your peers at all times.",
+    "facilitatorSupport": "This simulation may be completed in a self-directed or asynchronous manner. \nComplete any orientation and preparation requirements prior to this experience as indicated by your educator. \nPlease seek guidance from your educator if you are unsure how to use a piece of equipment, locate supplies, or safely complete a task. Asking for assistance is encouraged and supports safety and learning.",
+    "orientationSpace": "The manikin and necessary equipment/supplies should be prepared for your use prior to starting the simulation.",
+    "orientationEquipment": "Some equipment used in the simulation may be fully functional, while other items are simulated for training purposes. Your educator should inform you which equipment is real versus simulated, as well as which supplies are new and which may be reused from prior simulations.\nIf you are unfamiliar with how any equipment or supplies operate, pause and ask the educator for clarification before proceeding.",
+    "evaluation": "During this simulation, observations of your knowledge, skills, behaviors, and attitudes may be conducted, information gathered may be used to identify areas for additional learning or practice. Assessment data collected is used for educational purposes.",
+    "rolesExpectations": "You may be working independently or with peers, clarify the expectations for this simulation as set by your educator prior to starting the simulation.\nYou are responsible for completing tasks associated with your assigned role to the best of your ability.",
+    "simulationLimitations": "Please note that time may be compressed during the simulation, and patient conditions may improve or worsen more quickly than in real clinical practice. This is intentional and supports learning within a limited time frame.\nThe simulated date and time of this experience is: October 6th at 13:00.",
+    "timeAllotment": "The date and time of this simulated clinical encounter is: October 6th at 13:00. This scenario is designed to take approximately 20 minutes to complete. You may manage your time independently within this window.",
+    "purpose": "The purpose of this experience is to strengthen communication and psychomotor skills related to diabetic patients, lower-extremity assessments, wound care, and infection prevention.",
+    "learningObjectives": "Obtain a diabetes-focused patient health history. \nConduct a lower-extremity skin assessment with wound description. \n​Demonstrate evidence-based wound care and infection-prevention techniques."
+  },
+  "sbar": {
+    "situation": "The date and time of this simulated clinical encounter is: October 6th at 13:00. \nCarlos Hernandez, a 48-year-old male with poorly controlled type 2 diabetes, is in the exam room for a scheduled wound clinic visit. He was referred today by his PCP (Dr. Maria Gonzalez) after calling with a non-healing sore on the bottom of his right foot for approximately 3 weeks. ",
+    "background": "Past Medical History: Type 2 Diabetes Mellitus (10 years, last A1C 9.3%), hypertension, hypercholesterolemia, diabetic neuropathy, and obesity. \nHome meds: Metformin 1000 mg BID, insulin glargine 30U QHS, lispro sliding scale, lisinopril 20 mg daily, atorvastatin 40 mg QHS, gabapentin 300 mg QHS (adherence inconsistent). \nNKDA. No recent hospitalizations. Lives with mother; works long shifts as a line cook. \nTriage vitals (taken by medical assistant): BP 148/88, HR 94, RR 18, Temp 37.4°C, SpO2 98% RA. ",
+    "assessment": "Patient reports mild aching in right foot with some drainage and odor from plantar ulcer under great toe; denies fever/chills but notes increased fatigue. No recent home glucose logs available; appears anxious about family history of amputation. Foot ulcer visible on quick triage glance and shows erythema and drainage on old dressing. ",
+    "recommendation": "Perform a diabetes-focused health history, foot/lower extremity assessment, and objectively describe any identified wounds. Demonstrate evidence-based wound care and infection-prevention techniques.   "
+  },
+  "orders": [
+    {
+      "id": "order_1781819943645",
+      "scenarioId": "",
+      "title": "Wound Care Instructions ",
+      "category": "Nursing",
+      "priority": "ROUTINE",
+      "systemVisibility": "Visible at start",
+      "status": "Active",
+      "description": "",
+      "instructions": "Irrigate the wound with normal saline and apply a non-adherent primary dressing and secondary absorbent dressing.",
+      "linkedActionIds": [
+        "action_1781819005457_ue5zsoq92",
+        "action_1781819717717_17omgbff2",
+        "action_1781819799263_tshbyl2io"
+      ],
+      "linkedActions": [
+        {
+          "id": "action_1781819005457_ue5zsoq92",
+          "title": "Perform Focused Physical Assessment "
+        },
+        {
+          "id": "action_1781819717717_17omgbff2",
+          "title": "Perform Objective Wound Assessment "
+        },
+        {
+          "id": "action_1781819799263_tshbyl2io",
+          "title": "Provide Wound Care "
+        }
+      ],
+      "startDay": "Oct-06-2026",
+      "due": "",
+      "dueTime": "",
+      "unlockConditions": [],
+      "medicationConfig": {
+        "name": "",
+        "dosage": "",
+        "route": "",
+        "drugOnHand": "",
+        "time": "13:00"
+      },
+      "nursingConfig": {
+        "details": "",
+        "subCategory": "Skin & Wound Care",
+        "name": "Wound Care Instructions "
+      }
+    }
+  ],
+  "actionCategories": [
+    {
+      "id": "cat_assessments",
+      "name": "Assessments & Exams",
+      "description": "Assessment findings and exam results",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_bedside",
+      "name": "Bedside Procedures",
+      "description": "Procedures performed at bedside",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_labs",
+      "name": "Labs & Diagnostics",
+      "description": "Laboratory and diagnostic testing",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_medication",
+      "name": "Medication Administration",
+      "description": "Medication-related actions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_nursing",
+      "name": "Nursing Care & Interventions",
+      "description": "General nursing care and interventions",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_other",
+      "name": "Other",
+      "description": "Miscellaneous actions and documentation",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_patient_ed",
+      "name": "Patient Education",
+      "description": "Patient education activities",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "cat_team_comm",
+      "name": "Team Communication",
+      "description": "Communication with care team",
+      "isSystem": true,
+      "scenarioId": ""
+    },
+    {
+      "id": "uncategorized",
+      "name": "Uncategorized",
+      "description": "Default category for actions",
+      "isSystem": false,
+      "scenarioId": ""
+    }
+  ],
+  "simulationStartTime": "2026-08-01T00:00",
+  "sequences": [
+    {
+      "parentRef": "ppe.handHygiene",
+      "parentLabel": "Hand Hygiene Performed",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "anytime"
+      },
+      "afterTiming": {
+        "mode": "anytime"
+      },
+      "beforeOrderControl": "strict",
+      "afterOrderControl": "flexible",
+      "before": [],
+      "after": [
+        {
+          "ref": "ppe.donStandardGloves",
+          "label": "Don Standard Gloves",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781818951805_tdgqum0jn",
+          "label": "Patient Positioning and Comfort",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781819005457_ue5zsoq92",
+          "label": "Perform Focused Physical Assessment",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781819717717_17omgbff2",
+          "label": "Perform Objective Wound Assessment",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "action_1781819799263_tshbyl2io",
+          "label": "Provide Wound Care",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "patient.name",
+          "label": "Patient Name",
+          "assessmentMethod": "patientInformationUpdated"
+        },
+        {
+          "ref": "patient.dob",
+          "label": "Date of Birth",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ]
+    },
+    {
+      "parentRef": "ppe.doffStandardGloves",
+      "parentLabel": "Doff Standard Gloves",
+      "assessmentMethod": "patientInformationUpdated",
+      "timing": {
+        "mode": "anytime"
+      },
+      "afterTiming": {
+        "mode": "withinMinutes",
+        "withinMinutesFromStart": 5
+      },
+      "beforeOrderControl": "strict",
+      "afterOrderControl": "strict",
+      "before": [],
+      "after": [
+        {
+          "ref": "ppe.handHygiene",
+          "label": "Hand Hygiene",
+          "assessmentMethod": "patientInformationUpdated"
+        }
+      ]
+    }
+  ],
+  "scenarioImage": "https://asaprodrwai.blob.core.windows.net/rwai-data-files/RWAI-HC-Gradient-Image--3--1784114320697-220253579.png",
+  "teamCommunication": {
+    "prompt": "",
+    "referenceTranscript": "",
+    "passThreshold": 0,
+    "onPassUnlockOrderIds": [],
+    "limitType": "unlimited",
+    "maxAttempts": 1,
+    "typeRequirement": "Optional",
+    "passMessage": "Great job! Your SBAR report was accepted.",
+    "failMessage": "Your report didn't meet all the required elements. Review the SBAR criteria and try again.",
+    "isButtonEnabled": false
+  },
+  "actionGroupName": "",
+  "actionGroupDescription": "",
+  "prebriefScriptPdf": "",
+  "debriefPointsPdf": "",
+  "setupNotesPdf": "",
+  "facilitationNotesPdf": "",
+  "printableSbarPdf": "",
+  "printablePatientChartPdf": "",
+  "additionalEquipment": "Lower extremity or foot model set up with moulage. PPE items and wound care items should also be readily available. ",
+  "optionalEquipment": "",
+  "setupNotes": "",
+  "topicsAddressed": "Health History; Wound Assessment; Wound Care; Infection Prevention",
+  "estimatedDuration": "20 min",
+  "status": "published",
+  "sequenceGroupsOrderMode": "strict",
+  "sequenceGroups": [
+    {
+      "id": "group-1785887777739-1",
+      "label": "Group A",
+      "mode": "flexible",
+      "items": [
+        "ppe.handHygiene"
+      ],
+      "color": "#A78BFA"
+    },
+    {
+      "id": "group-1785887791801-2",
+      "label": "Group B",
+      "mode": "flexible",
+      "items": [
+        {
+          "id": "patient.name",
+          "assessmentMethod": "questionAsked"
+        },
+        {
+          "id": "patient.dob",
+          "assessmentMethod": "questionAsked"
+        }
+      ],
+      "color": "#F87171"
+    },
+    {
+      "id": "group-1785888047154-9",
+      "label": "Group F",
+      "mode": "strict",
+      "items": [
+        "action_1781819005457_ue5zsoq92",
+        "ppe.doffStandardGloves"
+      ],
+      "subgroups": [
+        {
+          "id": "subgroup-1785888153718-11",
+          "label": "Subgroup A",
+          "mode": "flexible",
+          "items": [
+            "ppe.donStandardGloves",
+            "action_1781818951805_tdgqum0jn",
+            "action_1781819005457_ue5zsoq92"
+          ]
+        },
+        {
+          "id": "subgroup-1785888162803-12",
+          "label": "Subgroup B",
+          "mode": "flexible",
+          "items": [
+            "action_1781819717717_17omgbff2"
+          ]
+        }
+      ],
+      "childOrder": [
+        "ppe.donStandardGloves",
+        "subgroup:subgroup-1785888153718-11",
+        "subgroup:subgroup-1785888162803-12"
+      ],
+      "color": "#F472B6"
+    },
+    {
+      "id": "group-1785887911248-7",
+      "label": "Group D",
+      "mode": "flexible",
+      "items": [
+        "action_1781819799263_tshbyl2io"
+      ],
+      "color": "#34D399"
+    },
+    {
+      "id": "group-1785887956670-8",
+      "label": "Group E",
+      "mode": "flexible",
+      "items": [
+        "action_1781818951805_tdgqum0jn",
+        "ppe.doffStandardGloves"
+      ],
+      "color": "#60A5FA"
+    },
+    {
+      "id": "group-1785888355808-14",
+      "label": "Group G",
+      "mode": "flexible",
+      "items": [
+        "ppe.handHygiene"
+      ],
+      "color": "#FB923C"
+    }
+  ]
+}

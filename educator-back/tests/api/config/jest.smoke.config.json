@@ -1,0 +1,33 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "rootDir": "../../..",
+  "testMatch": ["**/tests/api/smoke/*.smoke.ts"],
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/$1"
+  },
+  "transform": {
+    "^.+\\.tsx?$": ["ts-jest", {
+      "tsconfig": {
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "target": "ES2020",
+        "module": "commonjs",
+        "types": ["jest", "node"],
+        "resolveJsonModule": true
+      }
+    }]
+  },
+  "setupFiles": ["dotenv/config"],
+  "reporters": [
+    "default",
+    ["<rootDir>/tests/api/config/friendly-html-reporter.js", {
+      "outputPath": "<rootDir>/tests/api/reports/html/api-smoke-report.html",
+      "pageTitle": "API Smoke Test Report",
+      "showTargetUrl": true
+    }]
+  ],
+  "testTimeout": 60000,
+  "maxWorkers": 1,
+  "bail": false
+}

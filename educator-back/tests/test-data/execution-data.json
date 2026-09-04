@@ -1,0 +1,5 @@
+{
+  "auth": {
+    "testUserEmail": "preseeded-admin@predeployment.test"
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "should login with same credentials @login": {
+    "moduleName": "Auth API",
+    "category": "Positive Tests",
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "statusCode": 201,
+    "description": "returns 201 for valid credentials",
+    "successReason": "The API returned status code 201 and successfully authenticated the user with valid credentials.",
+    "failureReason": "Authentication failed - the API did not return 201 status or valid token."
+  },
+  "should fail login with wrong password @login": {
+    "moduleName": "Auth API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "statusCode": 401,
+    "description": "returns 401 for invalid password",
+    "successReason": "The API correctly returned 401 Unauthorized for invalid password.",
+    "failureReason": "The API did not return 401 Unauthorized as expected."
+  },
+  "should fail login with empty email @login": {
+    "moduleName": "Auth API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "statusCode": 400,
+    "description": "returns 400 for missing email",
+    "successReason": "The API correctly returned 400 Bad Request for missing email field.",
+    "failureReason": "The API did not validate empty email correctly."
+  },
+  "should fail login with empty password @login": {
+    "moduleName": "Auth API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "statusCode": 400,
+    "description": "returns 400 for missing password",
+    "successReason": "The API correctly returned 400 Bad Request for missing password field.",
+    "failureReason": "The API did not validate empty password correctly."
+  },
+  "should fail login with invalid email format @login": {
+    "moduleName": "Auth API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "statusCode": 400,
+    "description": "returns 400 for invalid email format",
+    "successReason": "The API correctly returned 400 Bad Request for invalid email format.",
+    "failureReason": "The API did not validate email format correctly."
+  },
+  "should fail login with non existing email @login": {
+    "moduleName": "Auth API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/auth/login",
+    "statusCode": 401,
+    "description": "returns 401 for non-existing user",
+    "successReason": "The API correctly returned 401 Unauthorized for non-existent email.",
+    "failureReason": "The API did not handle non-existent email correctly."
+  },
+  "should redeem code successfully @login": {
+    "moduleName": "Auth API",
+    "category": "Positive Tests",
+    "method": "POST",
+    "endpoint": "/auth/redeem",
+    "statusCode": 200,
+    "description": "returns 200 when redeeming valid code",
+    "successReason": "The API successfully redeemed the code and returned 200.",
+    "failureReason": "The API failed to redeem the code."
+  },
+  "should create a new school @school": {
+    "moduleName": "School API",
+    "category": "Positive Tests",
+    "method": "POST",
+    "endpoint": "/schools",
+    "statusCode": 201,
+    "description": "returns 201 when creating school with valid data",
+    "successReason": "The API successfully created a new school and returned 201 status.",
+    "failureReason": "The API failed to create a new school."
+  },
+  "should fail to retrieve school with invalid school id @school": {
+    "moduleName": "School API",
+    "category": "Negative Tests",
+    "method": "GET",
+    "endpoint": "/schools/:id",
+    "statusCode": 404,
+    "description": "returns 404 for invalid school ID",
+    "successReason": "The API correctly returned 404 Not Found for invalid school ID.",
+    "failureReason": "The API did not return 404 for invalid school ID."
+  },
+  "should create educator invite with valid data @educator": {
+    "moduleName": "Educator API",
+    "category": "Positive Tests",
+    "method": "POST",
+    "endpoint": "/invites/create",
+    "statusCode": 201,
+    "description": "returns 201 when creating educator invite",
+    "successReason": "The API successfully created educator invite and returned 201.",
+    "failureReason": "The API failed to create educator invite."
+  },
+  "should fail create educator invite without token @educator": {
+    "moduleName": "Educator API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/invites/create",
+    "statusCode": 401,
+    "description": "returns 401 when token is missing",
+    "successReason": "The API correctly returned 401 Unauthorized for missing token.",
+    "failureReason": "The API did not validate missing token correctly."
+  },
+  "should get dashboard overview @dashboard": {
+    "moduleName": "Dashboard API",
+    "category": "Positive Tests",
+    "method": "GET",
+    "endpoint": "/dashboard/overview",
+    "statusCode": 200,
+    "description": "returns 200 with dashboard data",
+    "successReason": "The API successfully returned dashboard overview data with 200 status.",
+    "failureReason": "The API failed to retrieve dashboard overview."
+  },
+  "should create a new user @user": {
+    "moduleName": "User API",
+    "category": "Positive Tests",
+    "method": "POST",
+    "endpoint": "/students",
+    "statusCode": 201,
+    "description": "returns 201 when creating user with valid data",
+    "successReason": "The API successfully created a new user and returned 201 status.",
+    "failureReason": "The API failed to create a new user."
+  },
+  "should fail create user without required fields @user": {
+    "moduleName": "User API",
+    "category": "Negative Tests",
+    "method": "POST",
+    "endpoint": "/students",
+    "statusCode": 400,
+    "description": "returns 400 for missing required fields",
+    "successReason": "The API correctly returned 400 Bad Request for missing required fields.",
+    "failureReason": "The API did not validate required fields correctly."
+  },
+  "should create a new class @class": {
+    "moduleName": "Class API",
+    "category": "Positive Tests",
+    "method": "POST",
+    "endpoint": "/classes",
+    "statusCode": 201,
+    "description": "returns 201 when creating class with valid data",
+    "successReason": "The API successfully created a new class and returned 201 status.",
+    "failureReason": "The API failed to create a new class."
+  },
+  "should get student by class ID @student": {
+    "moduleName": "Student API",
+    "category": "Positive Tests",
+    "method": "GET",
+    "endpoint": "/students/class/:classId",
+    "statusCode": 200,
+    "description": "returns 200 with student list",
+    "successReason": "The API successfully returned student list with 200 status.",
+    "failureReason": "The API failed to retrieve student list."
+  },
+  "should get simulation scenarios @simulation": {
+    "moduleName": "Simulation API",
+    "category": "Positive Tests",
+    "method": "GET",
+    "endpoint": "/simulation-catalog/scenarios",
+    "statusCode": 200,
+    "description": "returns 200 with simulation scenarios",
+    "successReason": "The API successfully returned simulation scenarios with 200 status.",
+    "failureReason": "The API failed to retrieve simulation scenarios."
+  }
+}

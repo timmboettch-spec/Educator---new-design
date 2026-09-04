@@ -1,0 +1,12 @@
+{
+  "validScenario": {
+    "scenario_id": "mock-scenario-001"
+  },
+  "invalidScenarioId": {
+    "scenario_id": "non-existent-scenario-999"
+  },
+  "emptyPayload": {},
+  "queryParams": {
+    "ls": "true"
+  }
+}

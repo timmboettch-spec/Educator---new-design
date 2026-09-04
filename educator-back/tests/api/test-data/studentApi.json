@@ -1,0 +1,17 @@
+
+{
+  "valid": {
+    "status": "ACTIVE"
+  },
+
+  "batchemail": {
+    "accessCode": true,
+    "message": "checked success"
+  },
+  
+  "report": {
+    "sendPdf": true,
+    "subject": "Monthly Report",
+    "message": "Please find your report."
+  }
+}

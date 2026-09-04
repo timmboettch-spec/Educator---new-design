@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>You're Invited</title>
+  </head>
+  <body style="margin: 0; padding: 24px 0; background-color: #e9edf2; font-family: Arial, Helvetica, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+      <tr>
+        <td align="center">
+          <table
+            role="presentation"
+            width="560"
+            cellpadding="0"
+            cellspacing="0"
+            border="0"
+            style="width: 560px; max-width: 560px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;"
+          >
+            <tr>
+              <td style="padding: 16px 24px 14px; background-color: #eaac6d;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+                  <tr>
+                    <td align="center" style="padding-bottom: 8px;">
+                      {{#if logoUrl}}
+                        <img src="{{logoUrl}}" alt="Realityworks AI" width="124" style="display: block; border: 0; outline: none; text-decoration: none;" />
+                      {{else}}
+                        <p style="margin: 0; text-align: center; font-size: 26px; line-height: 1.2; font-weight: 600; color: #ff6b00;">Realityworks AI</p>
+                      {{/if}}
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin: 0; text-align: center; font-size: 33px; line-height: 1.2; font-weight: 600; color: #ffffff;">You're Invited!</p>
+                <p style="margin: 4px 0 0; text-align: center; font-size: 13px; line-height: 1.35; color: #ffffff;">Join your school on Realityworks</p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding: 26px 24px 18px; background-color: #ffffff;">
+                <p style="margin: 0; font-size: 26px; line-height: 1.2; font-weight: 600; color: #1f2a37;">Hi {{fullName}}</p>
+                <p style="margin: 14px 0 0; font-size: 13px; line-height: 1.5; color: #6b7280;">
+                  You've been invited to join as an Educator. Here are your invitation details:
+                </p>
+
+                <table
+                  role="presentation"
+                  width="100%"
+                  cellpadding="0"
+                  cellspacing="0"
+                  border="0"
+                  style="margin-top: 18px; border-collapse: collapse; border: 1px solid #f0a15c; background-color: #fbf7f3;"
+                >
+                  <tr>
+                    <td style="padding: 10px 14px 4px; width: 36%; font-size: 11px; line-height: 1.4; font-weight: 600; color: #ff6b00; text-transform: uppercase;">School</td>
+                    <td style="padding: 10px 14px 4px; font-size: 13px; line-height: 1.4; color: #111827; font-weight: 500;">{{schoolName}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 14px; width: 36%; font-size: 11px; line-height: 1.4; font-weight: 600; color: #ff6b00; text-transform: uppercase;">Invited By</td>
+                    <td style="padding: 4px 14px; font-size: 13px; line-height: 1.4; color: #111827; font-weight: 500;">{{creatorName}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 14px 10px; width: 36%; font-size: 11px; line-height: 1.4; font-weight: 600; color: #ff6b00; text-transform: uppercase;">Role</td>
+                    <td style="padding: 4px 14px 10px; font-size: 13px; line-height: 1.4; color: #111827; font-weight: 500;">Educator</td>
+                  </tr>
+                </table>
+
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; margin-top: 20px;">
+                  <tr>
+                    <td align="center">
+                      <a
+                        href="{{inviteUrl}}"
+                        style="display: inline-block; min-width: 190px; padding: 12px 24px; background-color: #ff7a00; color: #ffffff; font-size: 14px; font-weight: 600; line-height: 1.2; text-decoration: none; border-radius: 6px;"
+                      >
+                        Accept Invitation
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin: 16px 0 0; padding: 10px 12px; border: 1px solid #f0a15c; background-color: #fffaf5; font-size: 11px; line-height: 1.45; color: #6b7280;">
+                  If you did not expect this invitation, you can safely ignore this email. No account will be created without your action.
+                </p>
+
+                <p style="margin: 14px 0 0; text-align: right; font-size: 11px; line-height: 1.4; color: #ff7a00;">
+                  Expires in {{#if expiryMinutes}}{{expiryMinutes}}{{else}}60{{/if}} minute(s)
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

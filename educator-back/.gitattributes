@@ -1,0 +1,5 @@
+# Treat PowerShell scripts as text so git can diff/merge them.
+# (Avoids the UTF-16 binary-detection issue that broke PR #26.)
+*.ps1   text working-tree-encoding=UTF-8 eol=crlf diff
+*.psm1  text working-tree-encoding=UTF-8 eol=crlf diff
+*.psd1  text working-tree-encoding=UTF-8 eol=crlf diff

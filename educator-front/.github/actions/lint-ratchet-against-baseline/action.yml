@@ -1,0 +1,124 @@
+name: "lint-ratchet-against-baseline"
+description: >-
+  Runs a lint command, counts errors/warnings from its JSON report, and
+  compares the counts against a checked-in baseline file. Fails the build if
+  the lint counts have regressed past baseline, and prints a notice if they've
+  improved (a nudge to lower the baseline). Extracted from HS-online-AI-app's
+  deploy-app.yml, which ran ESLint inline and hand-rolled this exact
+  compare-against-baseline logic per app.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Example usage:
+#
+#   - name: Ratchet backend lint
+#     id: lint
+#     uses: ./.github/actions/lint-ratchet-against-baseline
+#     with:
+#       working-directory: backend
+#       lint-command:      'npx eslint "{src,apps,libs,test}/**/*.ts" --format json --output-file eslint-report.json'
+#       report-file:       eslint-report.json
+#       baseline-file:     .github/lint-baseline.json
+#       baseline-key:      backend
+#
+#   - run: echo "verdict=${{ steps.lint.outputs.verdict }}"
+#
+# Cross-repo note: reusable workflows in this repo reference this action by
+# full path (not "./"), since local paths resolve against the calling repo:
+#   uses: Realityworks-AI/Global-Standards-Policy/.github/actions/lint-ratchet-against-baseline@main
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  node-version:
+    description: >-
+      Node.js version to set up before installing/linting, e.g. '24'. Empty
+      (the default) skips Node setup entirely — needed for non-JS callers
+      (e.g. a PHP or .NET app's lint-command) that set up their own runtime
+      before this action, or that don't need one at all.
+    required: false
+    default: ''
+  install-command:
+    description: >-
+      Dependency-install command to run before lint-command, e.g. "npm ci".
+      Empty (the default) skips this step — for callers that already install
+      dependencies themselves before this action.
+    required: false
+    default: ''
+  working-directory:
+    description: 'Directory to run lint-command from, e.g. backend'
+    required: true
+  lint-command:
+    description: >-
+      Full lint command to execute, e.g. npx eslint "{src,apps,libs,test}/**/*.ts"
+      --format json --output-file eslint-report.json. Allowed to exit non-zero
+      (lint tools commonly exit 1 on findings) — this action does not fail the
+      step on the command's own exit code, only on a baseline regression.
+    required: true
+  report-file:
+    description: 'Path to the JSON report file written by lint-command, relative to working-directory'
+    required: true
+  baseline-file:
+    description: 'Path to the baseline JSON file, relative to the repo root, e.g. .github/lint-baseline.json'
+    required: true
+  baseline-key:
+    description: 'Top-level key inside baseline-file for this app/package, e.g. backend'
+    required: true
+
+outputs:
+  errors:
+    description: 'Total errorCount summed across the report-file'
+    value: ${{ steps.ratchet-bash.outputs.errors || steps.ratchet-pwsh.outputs.errors }}
+  warnings:
+    description: 'Total warningCount summed across the report-file'
+    value: ${{ steps.ratchet-bash.outputs.warnings || steps.ratchet-pwsh.outputs.warnings }}
+  baseline-errors:
+    description: 'Baseline error count read from baseline-file (0 if file/key missing)'
+    value: ${{ steps.ratchet-bash.outputs.baseline-errors || steps.ratchet-pwsh.outputs.baseline-errors }}
+  baseline-warnings:
+    description: 'Baseline warning count read from baseline-file (0 if file/key missing)'
+    value: ${{ steps.ratchet-bash.outputs.baseline-warnings || steps.ratchet-pwsh.outputs.baseline-warnings }}
+  verdict:
+    description: 'One of: fail (regressed past baseline), improved (below baseline), flat (matches baseline)'
+    value: ${{ steps.ratchet-bash.outputs.verdict || steps.ratchet-pwsh.outputs.verdict }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      if: inputs.node-version != ''
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      if: inputs.install-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.install-command }}
+
+    # NOTE: step ids must be unique within the composite action's scope even
+    # when the two branches are mutually exclusive via `if:` — GitHub
+    # statically validates the whole manifest before running, so `id: ratchet`
+    # on both steps fails to load the action at all, on every OS.
+    - name: Ratchet lint against baseline (bash)
+      if: runner.os != 'Windows'
+      id: ratchet-bash
+      shell: bash
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        LINT_COMMAND: ${{ inputs.lint-command }}
+        REPORT_FILE: ${{ inputs.report-file }}
+        BASELINE_FILE: ${{ inputs.baseline-file }}
+        BASELINE_KEY: ${{ inputs.baseline-key }}
+      run: ${{ github.action_path }}/scripts/lint-ratchet-against-baseline.sh
+    - name: Ratchet lint against baseline (pwsh)
+      if: runner.os == 'Windows'
+      id: ratchet-pwsh
+      shell: pwsh
+      env:
+        WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        LINT_COMMAND: ${{ inputs.lint-command }}
+        REPORT_FILE: ${{ inputs.report-file }}
+        BASELINE_FILE: ${{ inputs.baseline-file }}
+        BASELINE_KEY: ${{ inputs.baseline-key }}
+      run: ${{ github.action_path }}/scripts/lint-ratchet-against-baseline.ps1

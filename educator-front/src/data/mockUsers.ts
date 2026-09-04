@@ -1,0 +1,38 @@
+export const users = [
+  {
+    id: '1',
+    email: 'valid@test.com',
+    password: '123456',
+    activationKey: 'ABCD1234EFGH5678',
+    activationKeyExpiry: new Date('2026-04-10'),
+    isLicenseActive: false,
+    redeemStatus: 'NOT_USED',
+  },
+  {
+    id: '2',
+    email: 'used@test.com',
+    password: 'Test@123456',
+    activationKey: 'USED1234CODE9999',
+    activationKeyExpiry: new Date('2026-04-10'),
+    isLicenseActive: true,
+    redeemStatus: 'USED',
+  },
+  {
+    id: '3',
+    email: 'expired@test.com',
+    password: '123456',
+    activationKey: 'EXPR1111CODE2222',
+    activationKeyExpiry: new Date('2025-01-01'),
+    isLicenseActive: false,
+    redeemStatus: 'EXPIRED',
+  },
+  {
+    id: '4',
+    email: 'new@test.com',
+    password: '123456',
+    activationKey: null,
+    activationKeyExpiry: null,
+    isLicenseActive: false,
+    redeemStatus: 'NOT_USED',
+  },
+];

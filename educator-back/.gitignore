@@ -1,0 +1,73 @@
+# compiled output
+/dist
+/node_modules
+/build
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+
+# Tests
+/coverage
+/.nyc_output
+/tests/unit/reports
+/tests/api/reports
+/tests/integration/reports
+/tests/lint/reports
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+*.code-workspace
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# dotenv environment variable files
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# temp directory
+.temp
+.tmp
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Bicep param compile artifacts (generated; only top-level main.json / app-deploy.json are tracked)
+infra/env/*.json
+infra/modules/*.json
+
+# Local provision deployment outputs (az deployment group create -o json)
+.provision-*.json
+
+# Local env backups - must never be committed (contain real credentials)
+.env.bak*
+*.bak-pre-seed
+.env.*.local

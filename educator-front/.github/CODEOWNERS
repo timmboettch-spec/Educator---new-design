@@ -1,0 +1,9 @@
+# Code Owners for Educator-App-Realityworks
+# These owners will be requested for review when PRs modify these paths.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# GitHub Actions workflows - require DevOps review
+/.github/workflows/  @Realityworks-AI/realityworks-ai-devops
+
+# Deployment scripts - require DevOps review
+/scripts/            @Realityworks-AI/realityworks-ai-devops

@@ -1,0 +1,441 @@
+name: "SAST · Security"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Static Application Security Testing — standalone workflow (same shape as
+# the frontend's sast.yml; no workflow_call/reusable-workflow indirection).
+#
+# • Gitleaks  — scans the PR diff for committed secrets
+# • Trivy     — scans repo filesystem for known CVEs (CRITICAL + HIGH only;
+#               warning-only, never blocks the pipeline)
+# • CodeQL    — disabled below (enable-codeql equivalent: see the codeql job's
+#               `if:`) — its init step fails with "Resource not accessible by
+#               integration" on this repo's GitHub API permissions, a private-
+#               repo quirk unrelated to code. Re-enable by flipping the job's
+#               `if: false` once that's resolved.
+# • Semgrep   — pattern-based scan for language-specific security issues (SQLi,
+#               unsafe deserialization, XSS) using the `p/security-audit` ruleset
+# • Results surface as a sticky PR comment + a Teams Adaptive Card and a
+#   Power Automate webhook notification on failure (both @mention the PR
+#   author via the org's SCIM convention)
+#
+# Weekly scheduled scan (CI-CD-STANDARDS §4.2.2) catches newly published CVE/
+# Semgrep signatures between PRs.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  schedule:
+    - cron: "0 3 * * 1" # Mondays 03:00 UTC
+
+concurrency:
+  group: sast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  gitleaks:
+    name: Gitleaks · Secret Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      result:   ${{ steps.scan.outputs.result }}
+      findings: ${{ steps.scan.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks
+        run: |
+          curl -sSfL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Detect secrets (PR diff)
+        id: scan
+        run: |
+          set +e
+          gitleaks detect \
+            --source . \
+            --redact \
+            --exit-code 1 \
+            --report-format json \
+            --report-path gitleaks-results.json \
+            --log-opts "origin/${{ github.base_ref }}..HEAD"
+          EXIT=$?
+
+          FINDINGS=0
+          if [[ -f gitleaks-results.json ]]; then
+            FINDINGS=$(jq 'length' gitleaks-results.json 2>/dev/null || echo 0)
+          fi
+
+          echo "result=$([[ $EXIT -eq 0 ]] && echo success || echo failure)" >> "$GITHUB_OUTPUT"
+          echo "findings=${FINDINGS}"                                         >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Gitleaks Report"
+            echo ""
+            echo "| Metric | Value |"
+            echo "|---|---|"
+            echo "| Result   | \`$([[ $EXIT -eq 0 ]] && echo success || echo failure)\` |"
+            echo "| Findings | \`${FINDINGS}\` |"
+            echo "| Scope    | \`origin/${{ github.base_ref }}..HEAD\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit $EXIT
+
+      - name: Upload Gitleaks results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-results-${{ github.run_id }}
+          path: gitleaks-results.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  trivy:
+    name: Trivy · Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      result:   ${{ steps.scan.outputs.result }}
+      critical: ${{ steps.scan.outputs.critical }}
+      high:     ${{ steps.scan.outputs.high }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+          trivy --version
+
+      - name: Run Trivy filesystem scan
+        id: scan
+        run: |
+          set +e
+          trivy fs . \
+            --scanners vuln,secret,misconfig \
+            --severity CRITICAL,HIGH \
+            --exit-code 0 \
+            --format json \
+            --output trivy-results.json \
+            --ignore-unfixed \
+            --quiet
+
+          CRITICAL=0
+          HIGH=0
+          if [[ -f trivy-results.json ]]; then
+            CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' trivy-results.json 2>/dev/null || echo 0)
+            HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' trivy-results.json 2>/dev/null || echo 0)
+          fi
+
+          # fail-on-critical-only=false: both CRITICAL and HIGH count, per
+          # CI-CD-STANDARDS.md §4.3.
+          { [[ $CRITICAL -gt 0 ]] || [[ $HIGH -gt 0 ]]; } && RESULT=failure || RESULT=success
+
+          echo "result=${RESULT}"       >> "$GITHUB_OUTPUT"
+          echo "critical=${CRITICAL}"   >> "$GITHUB_OUTPUT"
+          echo "high=${HIGH}"           >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Trivy Report"
+            echo ""
+            echo "| Metric   | Value |"
+            echo "|---|---|"
+            echo "| Result   | \`${RESULT}\` |"
+            echo "| Critical | \`${CRITICAL}\` |"
+            echo "| High     | \`${HIGH}\` |"
+            echo "| Scope    | filesystem (vuln + secret + misconfig) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Warning only — surface findings (outputs/PR comment/Teams alert still see
+          # RESULT=failure) without blocking the pipeline on CRITICAL/HIGH findings.
+          if [[ "$RESULT" == "failure" ]]; then
+            echo "::warning::Trivy found ${CRITICAL} CRITICAL and ${HIGH} HIGH vulnerabilities — not blocking the pipeline (warning only). See the Trivy Report step summary and uploaded trivy-results artifact for details."
+          fi
+          exit 0
+
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results-${{ github.run_id }}
+          path: trivy-results.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  codeql:
+    name: CodeQL · Static Analysis
+    # Disabled: CodeQL's init step fails with "Resource not accessible by
+    # integration" on this repo's GitHub API permissions — a private-repo
+    # quirk, not a code issue — every run failed the whole sast check. Flip
+    # to `if: true` once that's resolved upstream. Its job doesn't run, so it
+    # never posts a check context; harmless since this repo has no branch
+    # protection rules/rulesets referencing it.
+    if: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    outputs:
+      result:   ${{ steps.gate.outputs.result }}
+      findings: ${{ steps.gate.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          output: codeql-results
+          upload: true
+
+      - name: Gate on error-level findings
+        id: gate
+        run: |
+          set +e
+          FINDINGS=0
+          for f in codeql-results/*.sarif; do
+            [[ -f "$f" ]] || continue
+            COUNT=$(jq '[.runs[].results[]? | select(.level=="error")] | length' "$f" 2>/dev/null || echo 0)
+            FINDINGS=$((FINDINGS + COUNT))
+          done
+
+          RESULT=$([[ $FINDINGS -gt 0 ]] && echo failure || echo success)
+          echo "result=${RESULT}"     >> "$GITHUB_OUTPUT"
+          echo "findings=${FINDINGS}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## CodeQL Report"
+            echo ""
+            echo "| Metric   | Value |"
+            echo "|---|---|"
+            echo "| Result    | \`${RESULT}\` |"
+            echo "| Findings  | \`${FINDINGS}\` (error-level) |"
+            echo "| Languages | \`javascript-typescript\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [[ "$RESULT" == "failure" ]] && exit 1 || exit 0
+
+  semgrep:
+    name: Semgrep · Pattern Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    outputs:
+      result:   ${{ steps.scan.outputs.result }}
+      findings: ${{ steps.scan.outputs.findings }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Semgrep
+        run: pipx install semgrep
+
+      - name: Run Semgrep
+        id: scan
+        env:
+          SEMGREP_CONFIG: "p/security-audit"
+        run: |
+          set +e
+          semgrep scan \
+            --config "$SEMGREP_CONFIG" \
+            --sarif --output semgrep-results.sarif \
+            --json --json-output semgrep-results.json \
+            --quiet
+
+          FINDINGS=0
+          if [[ -f semgrep-results.json ]]; then
+            FINDINGS=$(jq '[.results[]? | select(.extra.severity=="ERROR")] | length' semgrep-results.json 2>/dev/null || echo 0)
+          fi
+
+          RESULT=$([[ $FINDINGS -gt 0 ]] && echo failure || echo success)
+          echo "result=${RESULT}"     >> "$GITHUB_OUTPUT"
+          echo "findings=${FINDINGS}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Semgrep Report"
+            echo ""
+            echo "| Metric         | Value |"
+            echo "|---|---|"
+            echo "| Result         | \`${RESULT}\` |"
+            echo "| ERROR findings | \`${FINDINGS}\` |"
+            echo "| Ruleset        | \`${SEMGREP_CONFIG}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          [[ "$RESULT" == "failure" ]] && exit 1 || exit 0
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep-results.sarif
+          category: semgrep
+
+      - name: Upload Semgrep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results-${{ github.run_id }}
+          path: semgrep-results.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  pr-comment:
+    name: Post PR Comment
+    needs: [gitleaks, trivy, codeql, semgrep]
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read      # required for actions/checkout (needed to resolve ./.github/actions/pr-sticky-comment)
+      pull-requests: write
+    steps:
+      # Needed so ./.github/actions/pr-sticky-comment (a local composite
+      # action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build comment body
+        id: body
+        run: |
+          GL_RESULT="${{ needs.gitleaks.outputs.result || needs.gitleaks.result }}"
+          TV_RESULT="${{ needs.trivy.outputs.result   || needs.trivy.result }}"
+          CQ_RESULT="${{ needs.codeql.outputs.result  || needs.codeql.result }}"
+          SG_RESULT="${{ needs.semgrep.outputs.result || needs.semgrep.result }}"
+          GL_FINDINGS="${{ needs.gitleaks.outputs.findings || '0' }}"
+          TV_CRITICAL="${{ needs.trivy.outputs.critical   || '0' }}"
+          TV_HIGH="${{ needs.trivy.outputs.high           || '0' }}"
+          CQ_FINDINGS="${{ needs.codeql.outputs.findings  || '0' }}"
+          SG_FINDINGS="${{ needs.semgrep.outputs.findings || '0' }}"
+
+          icon() {
+            case "$1" in
+              success) echo ":white_check_mark: passed" ;;
+              skipped) echo ":fast_forward: skipped" ;;
+              *)       echo ":x: failed" ;;
+            esac
+          }
+
+          {
+            echo "body<<BODY_EOF"
+            echo "## SAST · Security"
+            echo ""
+            echo "| Check | Result | Detail |"
+            echo "|---|---|---|"
+            echo "| Gitleaks — Secret Detection | $(icon "$GL_RESULT") | ${GL_FINDINGS} finding(s) |"
+            echo "| Trivy — Vulnerability Scan  | $(icon "$TV_RESULT") | CRITICAL: ${TV_CRITICAL}, HIGH: ${TV_HIGH} |"
+            echo "| CodeQL — Static Analysis    | $(icon "$CQ_RESULT") | ${CQ_FINDINGS} error-level finding(s) |"
+            echo "| Semgrep — Pattern Scan      | $(icon "$SG_RESULT") | ${SG_FINDINGS} ERROR-severity finding(s) |"
+            echo ""
+            echo "<sub>Run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) · PR #${{ github.event.pull_request.number }}</sub>"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky PR comment
+        uses: ./.github/actions/pr-sticky-comment
+        with:
+          header:       sast-security
+          body:         ${{ steps.body.outputs.body }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Feeds teams-alert so the finding counts / facts / subtitle are built once.
+  sast-notification-content:
+    name: Prepare notification content
+    needs: [gitleaks, trivy, codeql, semgrep]
+    if: >-
+      always() &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (needs.gitleaks.outputs.result == 'failure' || needs.trivy.outputs.result == 'failure' ||
+       needs.codeql.outputs.result == 'failure' || needs.semgrep.outputs.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      facts:    ${{ steps.content.outputs.facts }}
+      subtitle: ${{ steps.content.outputs.subtitle }}
+    steps:
+      - name: Build notification content
+        id: content
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_TITLE:  ${{ github.event.pull_request.title }}
+        run: |
+          GL_FINDINGS="${{ needs.gitleaks.outputs.findings || '0' }}"
+          TV_CRITICAL="${{ needs.trivy.outputs.critical   || '0' }}"
+          TV_HIGH="${{ needs.trivy.outputs.high           || '0' }}"
+          CQ_FINDINGS="${{ needs.codeql.outputs.findings  || '0' }}"
+          SG_FINDINGS="${{ needs.semgrep.outputs.findings || '0' }}"
+
+          FACTS=$(jq -n \
+            --arg author "$PR_AUTHOR" \
+            --arg gl "${GL_FINDINGS} secret(s)" \
+            --arg crit "${TV_CRITICAL}" \
+            --arg high "${TV_HIGH}" \
+            --arg cq "${CQ_FINDINGS}" \
+            --arg sg "${SG_FINDINGS}" \
+            '[
+              {title:"Repository",        value:"${{ github.repository }}"},
+              {title:"Author",            value:$author},
+              {title:"Gitleaks findings", value:$gl},
+              {title:"Trivy Critical",    value:$crit},
+              {title:"Trivy High",        value:$high},
+              {title:"CodeQL findings",   value:$cq},
+              {title:"Semgrep findings",  value:$sg}
+            ]')
+          {
+            echo 'facts<<EOF'
+            echo "$FACTS"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo 'subtitle<<EOF'
+            echo "$PR_TITLE"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+  teams-alert:
+    name: Notify Teams (on failure)
+    needs: [sast-notification-content]
+    if: always() && needs.sast-notification-content.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Post Teams Adaptive Card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_SAST_WEBHOOK_URL }}
+          github-login:   ${{ github.event.pull_request.user.login }}
+          headline:       "🔴 Educator Backend SAST · Security issue detected in PR #${{ github.event.pull_request.number }}"
+          style:          attention
+          subtitle:       ${{ needs.sast-notification-content.outputs.subtitle }}
+          mention-prefix: "Author: "
+          facts-json:     ${{ needs.sast-notification-content.outputs.facts }}
+          actions-json: |
+            [
+              {"type":"Action.OpenUrl","title":"Open PR","url":"${{ github.event.pull_request.html_url }}"},
+              {"type":"Action.OpenUrl","title":"View SAST run","url":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}
+            ]

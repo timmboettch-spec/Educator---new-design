@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ESNext"
+    ],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "types": [
+      "vitest/globals",
+      "@testing-library/jest-dom",
+      "node",
+
+    ],
+    "allowJs": true,
+    "incremental": true,
+    "esModuleInterop": true,
+    "ignoreDeprecations": "5.0",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "src",
+    "tests/e2e/**/*",
+    "tests/unit/class/ClassManagement.test.tsx", "tests/unit/class/ClassManagementError.test.tsx", "tests/unit/dashboard/admin/AdminDashboard.test.tsx", "tests/unit/educator/Educators.behavior.test.tsx", "tests/unit/educator/EditEducator.test.tsx", "tests/unit/educator/DeleteEducator.test.tsx", "tests/unit/educator/CreateEducator.test.tsx", "tests/unit/educator/geteducator.test.tsx", "tests/unit/educator/filtereducator.test.tsx", "tests/unit/schools/CreateSchool.test.tsx", "tests/unit/schools/ListSchools.test.tsx", "tests/unit/schools/DeleteSchool.test.tsx", "tests/unit/schools/EditSchool.test.tsx", "tests/unit/schools/Schools.behavior.test.tsx", "tests/unit/simulationlibrary/SimulationLibrary.test.tsx", "tests/unit/simulationlibrary/SimulationLibraryError.test.tsx", "tests/unit/otpverify/OtpVerify.test.tsx", "tests/components/class/BulkEmailReportModal.test.tsx", "tests/components/class/ClassEmailAccesscode.test.tsx", "tests/components/class/Classformmodal.test.tsx", "tests/components/class/Classrowactions.test.tsx", "tests/components/class/PrintAccessCode.test.tsx", "tests/components/class/ReportSubTable.test.tsx", "tests/components/class/StatusTabs.test.tsx", "tests/components/class/Useclasscolumns.test.tsx", "tests/components/class-simulation/DeleteSimulationModal.test.tsx", "tests/components/class-simulation/EditSimulationModal.test.tsx", "tests/components/class-simulation/SimsExpandedRow.test.tsx", "tests/components/class-simulation/Simsubtable.test.tsx", "tests/components/class-simulation/EmailReportModal.test.tsx", "tests/components/class-simulation/ExportReportModal.test.tsx", "tests/components/students/PrintAccessCode.test.tsx", "tests/components/students/RegenerateAccessCodeModal.test.tsx", "tests/components/students/StudentEmailAccessCodeModal.test.tsx", "tests/components/students/StudentEmailReportModal.test.tsx", "tests/components/students/StudentModal.test.tsx", "tests/components/students/Studentsubtable.test.tsx", "tests/components/common/AppLoader.test.tsx", "tests/components/common/FilterPanel.test.tsx", "tests/components/common/ListTable.test.tsx", "tests/components/common/RedeemHeader.test.tsx", "tests/components/dashboard/DashboardQuickAction.test.tsx", "tests/components/dashboard/EducatorDashboard.test.tsx", "tests/components/dashboard/MetricsCard.test.tsx", "tests/components/dashboard/MetricsSummary.test.tsx", "tests/components/layout/Sidebar.test.tsx", "tests/components/layout/SidebarError.test.tsx", "tests/components/layout/Header.test.tsx", "tests/components/model/AddSimulationModal.test.tsx", "tests/components/model/ConfirmationModal.test.tsx", "tests/components/model/CreateEducatorModal.test.tsx", "tests/components/model/CreateSchoolModal.test.tsx", "tests/components/model/DeleteEducatorModal.test.tsx", "tests/components/model/EducatorModal.test.tsx", "tests/components/model/MyLibraryModal.test.tsx", "tests/components/simulation/FilterPanel.test.tsx", "tests/components/simulation/SimulationComponents.test.tsx", "tests/components/simulation/SimulationGrid.test.tsx", "tests/components/ui/ClassCard.test.tsx", "tests/unit/utils/studentCodeGenerator.test.ts", "tests/unit/account/account.test.tsx", "tests/unit/forgetpassword/ForgotPassword.test.tsx", "tests/unit/redeemcode/RedeemCode.behavior.test.tsx", "tests/unit/redeemcode/RedeemCode.test.tsx", "tests/unit/resetpassword/ResetPassWord.test.tsx", "tests/unit/signin/SignIn.test.tsx", "tests/unit/signup/SignUp.test.tsx", "tests/redux/auth/ResetPassword.test.tsx", "tests/redux/class/EmailReportRedux.test.ts", "tests/redux/class/PatchClassRedux.test.ts", "tests/redux/class/PostClassRedux.test.ts", "tests/redux/class/StudentEmailAccessRedux.test.ts", "tests/redux/class/StudentEmailReportRedux.test.ts", "tests/redux/coreReducers.test.ts", "tests/redux/student/PostStudentRedux.test.ts"  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

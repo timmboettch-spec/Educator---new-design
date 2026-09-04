@@ -1,0 +1,165 @@
+{
+    "shared-secrets": {
+    "vault": "akv-all1-all",
+    "vault-resource-group": "ARG-all1-rwai",
+    "secrets": {
+      "GRAPH_TENANT_ID": "graph-tenant-id",
+      "GRAPH_CLIENT_ID": "graph-client-id",
+      "GRAPH_CLIENT_SECRET": "graph-client-secret"
+    }
+  },
+  "dev": {
+    "vault": "akvdev1rwai",
+    "cpu": "0.5",
+    "memory": "1Gi",
+    "replicas": {
+      "min": 0,
+      "max": 1
+    },
+    "reason": "Cost optimization for development environment. Single deployment instance sufficient for testing.",
+    "env-vars": {
+      "NODE_ENV": "development",
+      "APP_PORT": "3000",
+      "APP_URL": "https://dev.educatorbe.realityworksai.com",
+      "FRONTEND_URL": "https://dev.educator.realityworksai.com",
+      "MAIL_FROM": "no-reply@realityworks.com",
+      "SMTP_HOST": "smtp.sendgrid.net",
+      "SMTP_PORT": "587",
+      "SMTP_FROM": "no-reply@realityworksai.com",
+      "AZURE_KEY_VAULT_URL": "https://akvdev1rwai.vault.azure.net",
+      "AZURE_KEY_VAULT_SECRET_PREFIX": "edu-",
+      "AZURE_SHARED_KEY_VAULT_URL": "https://akvdev1rwai.vault.azure.net",
+      "DB_HOST": "apg-dev-edu.postgres.database.azure.com",
+      "DB_PORT": "5432",
+      "DB_NAME": "educator_dev"
+    },
+    "secrets": {
+      "DB_USERNAME": "edu-db-username",
+      "DB_PASSWORD": "edu-db-password",
+      "JWT_SECRET": "edu-jwt-secret",
+      "JWT_EXPIRES_IN": "edu-jwt-expires-in",
+      "GRAPH_TENANT_ID": "GRAPH-TENANT-ID",
+      "GRAPH_CLIENT_ID": "GRAPH-CLIENT-ID",
+      "GRAPH_CLIENT_SECRET": "GRAPH-CLIENT-SECRET",
+      "AZURE_STORAGE_CONNECTION_STRING": "edu-azure-storage-connection-string",
+      "AZURE_STORAGE_ACCOUNT": "edu-azure-storage-account",
+      "AZURE_STORAGE_CONTAINER": "edu-azure-storage-container"
+    },
+    "probes": {
+      "liveness": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000,
+        "initialDelaySeconds": 30,
+        "periodSeconds": 10,
+        "timeoutSeconds": 5,
+        "failureThreshold": 3
+      },
+      "readiness": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000,
+        "initialDelaySeconds": 10,
+        "periodSeconds": 5,
+        "timeoutSeconds": 3,
+        "failureThreshold": 2
+      }
+    }
+  },
+  "qa": {
+    "vault": "akvqa1rwai",
+    "cpu": "1",
+    "memory": "2Gi",
+    "replicas": {
+      "min": 0,
+      "max": 2
+    },
+    "reason": "Realistic testing environment. Can scale for load tests.",
+    "env-vars": {
+      "NODE_ENV": "staging",
+      "APP_PORT": "3000",
+      "APP_URL": "https://qa.educatorbe.realityworksai.com",
+      "AZURE_KEY_VAULT_URL": "https://akvqa1rwai.vault.azure.net",
+      "AZURE_KEY_VAULT_SECRET_PREFIX": "edu-",
+      "AZURE_SHARED_KEY_VAULT_URL": "https://akv-all1-all.vault.azure.net"
+    },
+    "secrets": {
+      "DB_USERNAME": "edu-db-username",
+      "DB_PASSWORD": "edu-db-password",
+      "JWT_SECRET": "edu-jwt-secret",
+      "JWT_EXPIRES_IN": "edu-jwt-expires-in",
+      "GRAPH_TENANT_ID": "GRAPH-TENANT-ID",
+      "GRAPH_CLIENT_ID": "GRAPH-CLIENT-ID",
+      "GRAPH_CLIENT_SECRET": "GRAPH-CLIENT-SECRET",
+      "AZURE_STORAGE_CONNECTION_STRING": "AZURE-STORAGE-CONNECTION-STRING"
+    },
+    "probes": {
+      "liveness": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000,
+        "initialDelaySeconds": 30,
+        "periodSeconds": 10,
+        "timeoutSeconds": 5,
+        "failureThreshold": 3
+      },
+      "readiness": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000,
+        "initialDelaySeconds": 10,
+        "periodSeconds": 5,
+        "timeoutSeconds": 3,
+        "failureThreshold": 2
+      }
+    }
+  },
+  "prod": {
+    "vault": "akvprod1rwai",
+    "cpu": "2",
+    "memory": "4Gi",
+    "replicas": {
+      "min": 1,
+      "max": 6
+    },
+    "reason": "High availability production environment. Dual minimum replicas with auto-scaling for peak load handling.",
+    "env-vars": {
+      "NODE_ENV": "production",
+      "APP_PORT": "3000",
+      "APP_URL": "https://educatorbe.realityworksai.com",
+      "AZURE_KEY_VAULT_URL": "https://akvprod1rwai.vault.azure.net",
+      "AZURE_KEY_VAULT_SECRET_PREFIX": "edu-",
+      "AZURE_SHARED_KEY_VAULT_URL": "https://akv-all1-all.vault.azure.net"
+    },
+    "secrets": {
+      "DB_USERNAME": "edu-db-username",
+      "DB_PASSWORD": "edu-db-password",
+      "JWT_SECRET": "edu-jwt-secret",
+      "JWT_EXPIRES_IN": "edu-jwt-expires-in",
+      "GRAPH_TENANT_ID": "GRAPH-TENANT-ID",
+      "GRAPH_CLIENT_ID": "GRAPH-CLIENT-ID",
+      "GRAPH_CLIENT_SECRET": "GRAPH-CLIENT-SECRET",
+      "AZURE_STORAGE_CONNECTION_STRING": "AZURE-STORAGE-CONNECTION-STRING"
+    },
+    "probes": {
+      "liveness": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000,
+        "initialDelaySeconds": 30,
+        "periodSeconds": 10,
+        "timeoutSeconds": 5,
+        "failureThreshold": 3
+      },
+      "readiness": {
+        "type": "http",
+        "path": "/health",
+        "port": 3000,
+        "initialDelaySeconds": 10,
+        "periodSeconds": 5,
+        "timeoutSeconds": 3,
+        "failureThreshold": 2
+      }
+    }
+  }
+}

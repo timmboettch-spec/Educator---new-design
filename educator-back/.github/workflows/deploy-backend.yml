@@ -1,0 +1,1214 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [dev, qa, main]
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - 'package*.json'
+      - 'tsconfig*.json'
+      - 'infra/**'
+      - '.github/workflows/deploy-backend.yml'
+  pull_request:
+    branches: [main, qa, dev]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/**'
+      - 'Dockerfile'
+      - 'package*.json'
+      - 'tsconfig*.json'
+      - '.github/workflows/deploy-backend.yml'
+      - '.github/lint-baseline.json'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, qa, prod]
+      image_tag:
+        description: 'Image tag (defaults to commit SHA)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write       # required for OIDC
+  contents: read
+  pull-requests: write  # required for PR lint comments and Teams mention lookup
+
+concurrency:
+  group: deploy-backend-${{ github.event.inputs.environment || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  AZ_PREFIX: rwai
+  APP: edu
+  AZ_VER: '1'
+  IMAGE_NAME: educator-backend
+  ACR_NAME: acrall1rwai
+  ACR_RG: ARG-all1-rwai      # shared RG — SP only has Contributor on per-env RG, so ACR lookups must be RG-scoped
+  SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Lint: ratcheted ESLint — counts compared to .github/lint-baseline.json.
+  # If counts exceed the baseline the job fails, blocking the deploy and
+  # surfacing the regression in the Teams card. Lower the baseline in the
+  # same PR to lock in any improvement.
+  # ─────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (NestJS)
+    runs-on: ubuntu-latest
+    outputs:
+      errors:            ${{ steps.lint.outputs.errors }}
+      warnings:          ${{ steps.lint.outputs.warnings }}
+      baseline_errors:   ${{ steps.lint.outputs.baseline-errors }}
+      baseline_warnings: ${{ steps.lint.outputs.baseline-warnings }}
+      verdict:           ${{ steps.lint.outputs.verdict }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint ratchet (ESLint vs baseline)
+        id: lint
+        # Org standard action: runs ESLint, sums the report, compares to the
+        # checked-in baseline, and fails ONLY on a regression past baseline.
+        # Node setup + npm ci are now folded into the action itself.
+        uses: ./.github/actions/lint-ratchet-against-baseline
+        with:
+          node-version: '22'
+          install-command: npm ci
+          working-directory: .
+          lint-command: npx eslint "{src,apps,libs,tests}/**/*.ts" --format json --output-file eslint-report.json
+          report-file: eslint-report.json
+          baseline-file: .github/lint-baseline.json
+          baseline-key: backend
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eslint-report
+          path: eslint-report.json
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PR lint comment: post a sticky comment on PRs so devs always see the lint
+  # delta without opening the Actions run.
+  # ─────────────────────────────────────────────────────────────────────────────
+  pr-lint-comment:
+    name: PR lint delta comment
+    if: github.event_name == 'pull_request' && !cancelled()
+    needs: [lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read      # required for actions/checkout (needed to resolve ./.github/actions/pr-sticky-comment)
+      pull-requests: write
+    steps:
+      # Needed so ./.github/actions/pr-sticky-comment (a local composite
+      # action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build comment body
+        id: body
+        env:
+          BE_E:  ${{ needs.lint.outputs.errors }}
+          BE_W:  ${{ needs.lint.outputs.warnings }}
+          BE_BE: ${{ needs.lint.outputs.baseline_errors }}
+          BE_BW: ${{ needs.lint.outputs.baseline_warnings }}
+          BE_V:  ${{ needs.lint.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          fmt_delta() {
+            local cur="${1:-0}" base="${2:-0}"
+            local d=$((cur - base))
+            if [ "$d" -gt 0 ]; then echo "**+${d}**"
+            elif [ "$d" -lt 0 ]; then echo "${d}"
+            else echo "0"; fi
+          }
+          icon() {
+            case "${1:-unknown}" in
+              fail)     echo ":x: regressed";;
+              improved) echo ":green_heart: improved";;
+              flat)     echo ":white_check_mark: flat";;
+              *)        echo ":grey_question: unknown";;
+            esac
+          }
+          {
+            echo "body<<BODY_EOF"
+            echo "## Lint report"
+            echo ""
+            echo "| Project | Errors (cur / base) | Warnings (cur / base) | Δ errors | Δ warnings | Status |"
+            echo "|---|---:|---:|:---:|:---:|:---|"
+            echo "| Backend | $BE_E / $BE_BE | $BE_W / $BE_BW | $(fmt_delta $BE_E $BE_BE) | $(fmt_delta $BE_W $BE_BW) | $(icon $BE_V) |"
+            echo ""
+            echo "Baselines: [.github/lint-baseline.json](.github/lint-baseline.json). If you improved the count, please lower the baseline in this PR to lock it in."
+            echo ""
+            echo "<sub>lint-ratchet • run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Upsert sticky PR comment
+        uses: ./.github/actions/pr-sticky-comment
+        with:
+          header: lint-ratchet
+          body:   ${{ steps.body.outputs.body }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PR lint Teams notification: fires on regression OR improvement so the
+  # channel flags regressions and celebrates wins. Skips the "flat" case to
+  # avoid noise. PR events only.
+  # ─────────────────────────────────────────────────────────────────────────────
+  notify-lint-pr:
+    name: Notify Teams (lint — PR)
+    if: |
+      github.event_name == 'pull_request'
+      && !cancelled()
+      && vars.LINT_NOTIFICATIONS_ENABLED == 'true'
+      && (needs.lint.outputs.verdict == 'fail' || needs.lint.outputs.verdict == 'improved')
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Notification Details
+        id: prep
+        run: |
+          BE_E='${{ needs.lint.outputs.errors }}'
+          BE_BE='${{ needs.lint.outputs.baseline_errors }}'
+          BE_W='${{ needs.lint.outputs.warnings }}'
+          BE_BW='${{ needs.lint.outputs.baseline_warnings }}'
+          BE_V='${{ needs.lint.outputs.verdict }}'
+
+          if [ "$BE_V" = "fail" ]; then
+            STYLE="attention"
+            HEADLINE="❌ Educator Backend lint regressed on PR #${{ github.event.pull_request.number }}"
+          else
+            STYLE="good"
+            HEADLINE="💚 Educator Backend lint improved on PR #${{ github.event.pull_request.number }}"
+          fi
+
+          BE_DELTA_E=$((BE_E - BE_BE))
+          BE_DELTA_W=$((BE_W - BE_BW))
+
+          fmt() { [ "$1" -gt 0 ] && echo "+$1" || echo "$1"; }
+          BE_SUMMARY="Backend: ${BE_E} err ($(fmt $BE_DELTA_E)), ${BE_W} warn ($(fmt $BE_DELTA_W))"
+
+          echo "style=$STYLE" >> "$GITHUB_OUTPUT"
+          echo "headline=$HEADLINE" >> "$GITHUB_OUTPUT"
+          echo "summary=$BE_SUMMARY" >> "$GITHUB_OUTPUT"
+
+      - name: Post Teams card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_LINT_URL }}
+          github-login:   ${{ github.event.pull_request.user.login }}
+          headline:       ${{ steps.prep.outputs.headline }}
+          style:          ${{ steps.prep.outputs.style }}
+          subtitle:       ${{ github.event.pull_request.title }}
+          mention-suffix: ${{ needs.lint.outputs.verdict == 'fail' && ' — please fix before merging.' || '' }}
+          facts-json: |
+            [
+              { "title": "Repository", "value": "${{ github.repository }}" },
+              { "title": "Author",     "value": "${{ github.event.pull_request.user.login }}" },
+              { "title": "Backend",    "value": "${{ steps.prep.outputs.summary }}" }
+            ]
+          actions-json: |
+            [
+              { "type": "Action.OpenUrl", "title": "Open PR",  "url": "${{ github.event.pull_request.html_url }}" },
+              { "type": "Action.OpenUrl", "title": "View run", "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
+            ]
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Unit Tests: Jest unit suite with JSON + HTML artifacts.
+  # continue-on-error on the test step so upstream test failures don't block
+  # the deploy; results are still surfaced in the Teams card and GITHUB_STEP_SUMMARY.
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    outputs:
+      total:        ${{ steps.suite.outputs.total }}
+      passed:       ${{ steps.suite.outputs.passed }}
+      failed:       ${{ steps.suite.outputs.failed }}
+      summary:      ${{ steps.suite.outputs.summary }}
+      failed_names: ${{ steps.suite.outputs.failed_names }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Chained (not continue-on-error, since the HTML report generator must
+      # run even when jest fails) but still exits 0 — TODO: fix upstream test
+      # failures, then let this fail the job normally.
+      - name: Run unit tests
+        id: suite
+        uses: ./.github/actions/run-test-suite
+        with:
+          test-command: |
+            mkdir -p tests/unit/reports
+            npx jest --ci --maxWorkers=2 --json --outputFile=tests/unit/reports/test-results.json
+            node tests/unit/reporters/generate-unit-test-report.mjs
+            exit 0
+          report-json: tests/unit/reports/test-results.json
+          report-html: tests/unit/reports/index.html
+          artifact-prefix: unit
+          name-prefix: 'unit: '
+
+      - name: Parse test summary
+        id: summary
+        if: always()
+        run: |
+          set -euo pipefail
+          FILE="tests/unit/reports/test-results.json"
+          if [ ! -f "$FILE" ]; then
+            echo "total=0" >> "$GITHUB_OUTPUT"
+            echo "passed=0" >> "$GITHUB_OUTPUT"
+            echo "failed=0" >> "$GITHUB_OUTPUT"
+            echo "summary=⚠️ No results" >> "$GITHUB_OUTPUT"
+            echo "failed_names=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          TOTAL=$(jq '.numTotalTests // 0' "$FILE")
+          PASSED=$(jq '.numPassedTests // 0' "$FILE")
+          FAILED=$(jq '.numFailedTests // 0' "$FILE")
+          if [ "$FAILED" -gt 0 ]; then
+            SUMMARY="❌ $PASSED/$TOTAL passed ($FAILED failed)"
+          else
+            SUMMARY="✅ $PASSED/$TOTAL passed"
+          fi
+          FAILED_NAMES=$(jq -r '
+            [ .testResults[]? | .assertionResults[]? | select(.status=="failed") | .fullName ]
+            | unique | .[0:5] | map("unit: " + .) | join("; ")
+          ' "$FILE" 2>/dev/null || echo "")
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "passed=$PASSED" >> "$GITHUB_OUTPUT"
+          echo "failed=$FAILED" >> "$GITHUB_OUTPUT"
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+          echo "failed_names=$FAILED_NAMES" >> "$GITHUB_OUTPUT"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # API Tests: sequential module executor with JSON + HTML artifacts.
+  # The module-executor accumulates results across all 8 modules and auto-
+  # generates the HTML report at tests/api/reports/html/api-test-report.html.
+  # Counts are derived from assertionResults because the executor only preserves
+  # the last module's top-level numTotalTests summary, not the accumulated total.
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-api:
+    name: API Tests
+    runs-on: ubuntu-latest
+    outputs:
+      total:        ${{ steps.summary.outputs.total }}
+      passed:       ${{ steps.summary.outputs.passed }}
+      failed:       ${{ steps.summary.outputs.failed }}
+      summary:      ${{ steps.summary.outputs.summary }}
+      failed_names: ${{ steps.summary.outputs.failed_names }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Without this, tests/api/utils/env.ts's `process.env.NODE_ENV || 'dev'`
+      # falls through to whatever NODE_ENV is already set to on the runner
+      # (Jest sets it to "test" elsewhere in this same workflow), silently
+      # resolving to the wrong backend URL on qa/prod pushes instead of
+      # intentionally targeting them.
+      - name: Resolve API environment
+        id: api-env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            case "${{ github.event.inputs.environment }}" in
+              prod) echo "api_env=main" >> "$GITHUB_OUTPUT" ;;
+              qa)   echo "api_env=qa"   >> "$GITHUB_OUTPUT" ;;
+              *)    echo "api_env=dev"  >> "$GITHUB_OUTPUT" ;;
+            esac
+          else
+            case "${{ github.ref_name }}" in
+              main) echo "api_env=main" >> "$GITHUB_OUTPUT" ;;
+              qa)   echo "api_env=qa"   >> "$GITHUB_OUTPUT" ;;
+              *)    echo "api_env=dev"  >> "$GITHUB_OUTPUT" ;;
+            esac
+          fi
+
+      - name: Run API test suite
+        id: summary
+        continue-on-error: true  # API tests require a live backend; results are informational
+        uses: ./.github/actions/run-api-test-suite
+        with:
+          node-env:           ${{ steps.api-env.outputs.api_env }}
+          artifact-json-name: api-test-results
+          artifact-html-name: api-html-report
+          label: api
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Integration Tests: runs on every push and on PRs targeting main or qa.
+  # PR runs act as a merge gate; push runs produce the HTML report attached
+  # as an artifact on every deploy.
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-integration:
+    name: Integration Tests
+    if: |
+      github.event_name == 'push'
+      || (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'qa'))
+    needs: [lint]
+    runs-on: ubuntu-latest
+    outputs:
+      total:        ${{ steps.suite.outputs.total }}
+      passed:       ${{ steps.suite.outputs.passed }}
+      failed:       ${{ steps.suite.outputs.failed }}
+      summary:      ${{ steps.suite.outputs.summary }}
+      failed_names: ${{ steps.suite.outputs.failed_names }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Unlike test-unit, this is a real gate (set-environment below requires
+      # this job to succeed) — the exit code below is jest's real exit code,
+      # captured before the HTML report generator runs so the generator
+      # can't mask a jest failure.
+      - name: Run integration tests
+        id: suite
+        uses: ./.github/actions/run-test-suite
+        with:
+          node-version: '22'
+          test-command: |
+            mkdir -p tests/integration/reports
+            npx jest --config tests/jest-integration.json --ci --json \
+              --outputFile=tests/integration/reports/test-results.json
+            JEST_EXIT=$?
+            node tests/integration/reporters/generate-integration-test-report.mjs
+            exit $JEST_EXIT
+          report-json: tests/integration/reports/test-results.json
+          report-html: tests/integration/reports/index.html
+          artifact-prefix: integration
+          name-prefix: 'integration: '
+
+      - name: Integration test summary
+        if: always()
+        run: |
+          echo "## Integration Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "**Target branch:** ${{ github.base_ref }}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "**Branch:** ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.suite.outputs.summary || '⚠️ No integration test results found' }}" >> "$GITHUB_STEP_SUMMARY"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Test Report: downloads unit + API artifacts and writes a combined
+  # GITHUB_STEP_SUMMARY table so the results are visible on the run page
+  # without downloading artifacts.
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-report:
+    name: Test report
+    needs: [test-unit, test-api]
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Download unit test results
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          path: unit
+        continue-on-error: true
+
+      - name: Download API test results
+        uses: actions/download-artifact@v4
+        with:
+          name: api-test-results
+          path: api
+        continue-on-error: true
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          write_suite() {
+            local SUITE="$1" FILE="$2" MODE="$3"
+            echo "### $SUITE" >> "$GITHUB_STEP_SUMMARY"
+            if [ ! -f "$FILE" ]; then
+              echo "⚠️ No test results found" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              return
+            fi
+            if [ "$MODE" = "assertions" ]; then
+              TOTAL=$(jq '[.testResults[]? | .assertionResults[]?] | length' "$FILE" 2>/dev/null || echo 0)
+              PASSED=$(jq '[.testResults[]? | .assertionResults[]? | select(.status=="passed")] | length' "$FILE" 2>/dev/null || echo 0)
+              FAILED=$(jq '[.testResults[]? | .assertionResults[]? | select(.status=="failed")] | length' "$FILE" 2>/dev/null || echo 0)
+              PENDING=$(jq '[.testResults[]? | .assertionResults[]? | select(.status=="pending")] | length' "$FILE" 2>/dev/null || echo 0)
+            else
+              TOTAL=$(jq '.numTotalTests // 0' "$FILE" 2>/dev/null || echo 0)
+              PASSED=$(jq '.numPassedTests // 0' "$FILE" 2>/dev/null || echo 0)
+              FAILED=$(jq '.numFailedTests // 0' "$FILE" 2>/dev/null || echo 0)
+              PENDING=$(jq '.numPendingTests // 0' "$FILE" 2>/dev/null || echo 0)
+            fi
+            if [ "$FAILED" -eq 0 ]; then
+              echo "✅ **All tests passed**" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "❌ **Some tests failed**" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Metric | Count |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Total | $TOTAL |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Passed | $PASSED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Failed | $FAILED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Pending | $PENDING |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          }
+          write_suite "Unit" "unit/test-results.json" "jest"
+          write_suite "API"  "api/.test-results.json" "assertions"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Test gate: hard-fails the deploy if unit/API test failures exceed zero,
+  # unless STRICT_TEST_GATING is off and the target isn't main (dev/qa can
+  # still deploy with known failures for faster iteration).
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-gate:
+    name: Test gate
+    needs: [test-unit, test-api]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      # Needed so ./.github/actions/test-gate-evaluate (a local composite
+      # action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Combine failure counts
+        id: combined
+        run: |
+          # test-unit/test-api always exit 0 from their own last step (see
+          # that job's "chained, not continue-on-error" comment), so a job
+          # result of anything other than success means it crashed before
+          # emitting outputs.failed (e.g. checkout failure, a runner outage,
+          # or a malformed report crashing the summary parse step) — treat
+          # that as a hard gate failure instead of letting ${VAR:-0} silently
+          # default a missing/crashed run to "0 failures".
+          if [ "${{ needs.test-unit.result }}" != "success" ]; then
+            echo "::error::test-unit job did not complete successfully (result: ${{ needs.test-unit.result }}) — failing test gate."
+            exit 1
+          fi
+          if [ "${{ needs.test-api.result }}" != "success" ]; then
+            echo "::error::test-api job did not complete successfully (result: ${{ needs.test-api.result }}) — failing test gate."
+            exit 1
+          fi
+
+          UNIT_FAILED="${{ needs.test-unit.outputs.failed }}"
+          API_FAILED="${{ needs.test-api.outputs.failed }}"
+          TOTAL_FAILED=$(( ${UNIT_FAILED:-0} + ${API_FAILED:-0} ))
+          echo "Unit failures: ${UNIT_FAILED:-0}"
+          echo "API failures: ${API_FAILED:-0}"
+          echo "Total failures: $TOTAL_FAILED"
+          echo "total_failed=$TOTAL_FAILED" >> "$GITHUB_OUTPUT"
+
+      # org-standard action (vendored from orgwide/pipelines/actions) — decides
+      # whether to block on failed-count>0 based on strict-mode / always-strict
+      # branches, matching this job's previous inline logic (STRICT_TEST_GATING
+      # var, always-strict on main).
+      - name: Test gate
+        uses: ./.github/actions/test-gate-evaluate
+        with:
+          failed-count:           ${{ steps.combined.outputs.total_failed }}
+          strict-mode:            ${{ vars.STRICT_TEST_GATING || 'false' }}
+          current-branch:         ${{ github.base_ref || github.ref_name }}
+          always-strict-branches: 'main'
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Set Environment: resolve target env, RG, and container app name from branch
+  # or dispatch input. Only runs on push / workflow_dispatch (not PRs).
+  # `!cancelled()` prevents skip-propagation from test-integration (which is
+  # skipped on workflow_dispatch) from silently blocking this job.
+  # ─────────────────────────────────────────────────────────────────────────────
+  set-environment:
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.lint.result == 'success'
+      && (needs.test-gate.result == 'success' || needs.test-gate.result == 'skipped')
+      && (needs.test-integration.result == 'success' || needs.test-integration.result == 'skipped')
+    needs: [lint, test-unit, test-api, test-gate, test-integration]
+    runs-on: ubuntu-latest
+    outputs:
+      environment:    ${{ steps.vars.outputs.environment }}
+      image_tag:      ${{ steps.vars.outputs.image_tag }}
+      resource_group: ${{ steps.vars.outputs.resource_group }}
+      container_app:  ${{ steps.vars.outputs.container_app }}
+    steps:
+      # Needed so ./.github/actions/resolve-environment-from-branch (a local
+      # composite action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard deploy source branch
+        # workflow_dispatch lets any branch be picked from the Actions UI
+        # independent of the `environment` dropdown. Without this guard,
+        # dispatching from e.g. `dev` with environment=prod would build and
+        # ship unreviewed dev code under prod's approval gate. Must mirror
+        # the branch-environment-map given to resolve-environment-from-branch
+        # below (dev->dev, qa->qa, main->prod).
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          TARGET_ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          case "$TARGET_ENVIRONMENT" in
+            dev)  EXPECTED_BRANCH="dev" ;;
+            qa)   EXPECTED_BRANCH="qa" ;;
+            prod) EXPECTED_BRANCH="main" ;;
+            *)    echo "::error::Unknown target environment: $TARGET_ENVIRONMENT"; exit 1 ;;
+          esac
+          if [ "${{ github.ref_name }}" != "$EXPECTED_BRANCH" ]; then
+            echo "::error::$TARGET_ENVIRONMENT deployment is allowed only from the $EXPECTED_BRANCH branch (dispatched from ${{ github.ref_name }})."
+            exit 1
+          fi
+
+      # org-standard action (vendored from orgwide/pipelines/actions) — resolves
+      # branch/dispatch-input -> environment -> resource-group naming. Only the
+      # env/resource-group piece comes from the action; container_app still
+      # appends this repo's own service suffix ("back") below, same as before.
+      - name: Resolve env from branch / dispatch input
+        id: env
+        uses: ./.github/actions/resolve-environment-from-branch
+        with:
+          event-name:                 ${{ github.event_name }}
+          ref:                        ${{ github.ref }}
+          dispatch-environment-input: ${{ github.event.inputs.environment }}
+          branch-environment-map:     '{"dev":"dev","qa":"qa","main":"prod"}'
+          default-prefix:             ${{ env.AZ_PREFIX }}
+          az-version:                 '1'
+
+      - name: Resolve image tag + container app name
+        id: vars
+        run: |
+          TAG="${{ github.event.inputs.image_tag || github.sha }}"
+          echo "environment=${{ steps.env.outputs.environment }}"         >> "$GITHUB_OUTPUT"
+          echo "image_tag=$TAG"                                           >> "$GITHUB_OUTPUT"
+          echo "resource_group=${{ steps.env.outputs.resource-group }}"   >> "$GITHUB_OUTPUT"
+          echo "container_app=aca-${{ steps.env.outputs.environment }}1-${{ env.AZ_PREFIX }}-${{ env.APP }}back" >> "$GITHUB_OUTPUT"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build & Deploy via Bicep (infra/app-deploy.bicep)
+  # -----------------------------------------------------------------------------
+  # • Builds & pushes image via the docker-build-push-acr composite action
+  #   (GHA-cached docker buildx — see that step below), NOT `az acr build`,
+  #   which has no cross-run cache and rebuilds every layer from scratch.
+  #   This is the same build mechanism preview-deploy.yml uses (there, via
+  #   the aca-deploy action, which composes docker-build-push-acr internally)
+  #   — there is only one real build path in this repo, not two. This job
+  #   calls docker-build-push-acr directly instead of via aca-deploy because
+  #   it needs custom-domain-cert preservation and stable-revision capture
+  #   for the blue/green flip, which aca-deploy's single-revision flow
+  #   doesn't support.
+  # • Preserves existing custom-domain cert binding by reading current cert ID
+  #   from the container app and passing it back into the Bicep deploy.
+  # • Reconciles the container app (image + env + secrets + probes + cpu/memory)
+  #   via `az deployment group create -t infra/app-deploy.bicep`.
+  # • DB migrations run inline at startup (Dockerfile CMD), no separate step.
+  #
+  # Runs unconditionally on push/dispatch (no approval gate here) — this only
+  # builds and deploys to the STAGING revision at 0% traffic, so there's
+  # nothing live for a human to approve yet. The approval gate sits later,
+  # right before promote-live flips 100% traffic — see await-approval below.
+  # ─────────────────────────────────────────────────────────────────────────────
+  build-and-deploy:
+    name: Build & Deploy (staging — 0% traffic)
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.set-environment.result == 'success'
+    needs: [set-environment]
+    runs-on: ubuntu-latest
+    outputs:
+      environment:     ${{ needs.set-environment.outputs.environment }}
+      new_revision:    ${{ steps.revision.outputs.new_revision }}
+      stable_revision: ${{ steps.stable.outputs.stable_revision }}
+      staging_fqdn:    ${{ steps.revision.outputs.staging_fqdn }}
+      fqdn:            ${{ steps.revision.outputs.fqdn }}
+      custom_domain:   ${{ steps.revision.outputs.custom_domain }}
+      cert_id:         ${{ steps.fetch-domain.outputs.cert_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Resolve ACR login server
+        id: acr
+        # ACR registries provisioned with a unique data-endpoint FQDN don't
+        # always resolve via the short `<name>.azurecr.io` form, so always
+        # discover the actual loginServer from ARM.
+        run: |
+          LOGIN_SERVER=$(az acr show \
+            --name "${{ env.ACR_NAME }}" \
+            --resource-group "${{ env.ACR_RG }}" \
+            --query loginServer -o tsv)
+          echo "login-server=$LOGIN_SERVER" >> "$GITHUB_OUTPUT"
+
+      - name: ACR login (docker)
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      # GHA-cached (cache-from/cache-to: type=gha) instead of `az acr build`,
+      # which has no cross-run cache and rebuilds every layer from scratch.
+      - name: Build & push image (GHA-cached)
+        uses: ./.github/actions/docker-build-push-acr
+        with:
+          context:    .
+          dockerfile: ./Dockerfile
+          registry:   ${{ steps.acr.outputs.login-server }}
+          image-name: ${{ env.IMAGE_NAME }}
+          tags: |
+            ${{ needs.set-environment.outputs.image_tag }}
+            ${{ needs.set-environment.outputs.environment }}-latest
+      - name: Fetch existing custom domain config
+        # Preserve custom domain binding across deploys by reading current cert ID.
+        id: fetch-domain
+        run: |
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          CUSTOM_DOMAIN=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.configuration.ingress.customDomains[0].name" -o tsv 2>/dev/null || echo "")
+          CERT_ID=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.configuration.ingress.customDomains[0].certificateId" -o tsv 2>/dev/null || echo "")
+          echo "CUSTOM_DOMAIN=${CUSTOM_DOMAIN}" >> "$GITHUB_ENV"
+          echo "CERT_ID=${CERT_ID}" >> "$GITHUB_ENV"
+          echo "cert_id=${CERT_ID}" >> "$GITHUB_OUTPUT"
+          echo "Custom domain: ${CUSTOM_DOMAIN:-none}"
+          echo "Certificate ID: ${CERT_ID:-none}"
+      - name: Capture current stable revision
+        id: stable
+        # Blue/green: read the revision holding traffic BEFORE this deploy so
+        # Bicep can pin it at 100% while the new revision goes live at 0%.
+        # Empty on first deploy after enabling multiple-revisions mode.
+        run: |
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          STABLE=$(az containerapp revision list \
+            --name "$ACA" --resource-group "$RG" \
+            --query "sort_by([?properties.active && properties.trafficWeight > \`0\`], &properties.createdTime)[-1].name" \
+            -o tsv 2>/dev/null || echo "")
+          echo "Stable revision before deploy: ${STABLE:-<none>}"
+          echo "stable_revision=$STABLE" >> "$GITHUB_OUTPUT"
+      - name: Reconcile Container App via Bicep (image + env + probes + resources)
+        run: |
+          ENV="${{ needs.set-environment.outputs.environment }}"
+          TAG="${{ needs.set-environment.outputs.image_tag }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          STABLE="${{ steps.stable.outputs.stable_revision }}"
+          PARAMS="environment=${ENV} backendImageTag=${TAG}"
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            PARAMS="$PARAMS backendCustomDomain=$CUSTOM_DOMAIN"
+          fi
+          if [ -n "$CERT_ID" ]; then
+            PARAMS="$PARAMS backendCustomDomainCertificateId=$CERT_ID"
+          fi
+          if [ -n "$STABLE" ]; then
+            PARAMS="$PARAMS stableRevisionName=$STABLE"
+          fi
+          az deployment group create \
+            --resource-group "$RG" \
+            --name "back-redeploy-${ENV}-${{ github.run_id }}" \
+            --template-file infra/app-deploy.bicep \
+            --parameters $PARAMS \
+            --only-show-errors
+      - name: Resolve new revision + staging FQDN
+        id: revision
+        if: always()
+        run: |
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          NEW_REVISION=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.latestRevisionName" -o tsv)
+          APP_FQDN=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.configuration.ingress.fqdn" -o tsv 2>/dev/null || echo "")
+          CUSTOM=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.configuration.ingress.customDomains[0].name" -o tsv 2>/dev/null || echo "")
+          ENV_DOMAIN="${APP_FQDN#${ACA}.}"
+          STAGING_FQDN="https://${NEW_REVISION}.${ENV_DOMAIN}"
+          echo "New revision: $NEW_REVISION"
+          echo "Staging URL: $STAGING_FQDN"
+          echo "new_revision=$NEW_REVISION" >> "$GITHUB_OUTPUT"
+          echo "staging_fqdn=$STAGING_FQDN" >> "$GITHUB_OUTPUT"
+          echo "fqdn=$APP_FQDN" >> "$GITHUB_OUTPUT"
+          echo "custom_domain=$CUSTOM" >> "$GITHUB_OUTPUT"
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Smoke test (staging — hard gate): verifies the new revision serves 200s on
+  # its own direct FQDN before any live traffic is routed to it. With
+  # min-replicas=0 + an HTTP readiness probe, `curl --retry` both wakes the
+  # container and confirms it's healthy end-to-end. Failure blocks promote-live
+  # on prod (or when STRICT_SMOKE_GATING=true); on dev/qa it's a warning so
+  # iteration isn't blocked by a flaky cold start.
+  # ─────────────────────────────────────────────────────────────────────────────
+  staging-smoke-tests:
+    name: Smoke test (staging — hard gate)
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.build-and-deploy.result == 'success'
+    needs: [set-environment, build-and-deploy]
+    runs-on: ubuntu-latest
+    outputs:
+      blocking:     ${{ steps.gate.outputs.blocking }}
+      result:       ${{ steps.smoke.outcome }}
+      api_total:    ${{ steps.api-suite.outputs.total }}
+      api_passed:   ${{ steps.api-suite.outputs.passed }}
+      api_failed:   ${{ steps.api-suite.outputs.failed }}
+      api_summary:  ${{ steps.api-suite.outputs.summary }}
+    steps:
+      - name: Curl staging /health
+        id: smoke
+        continue-on-error: true
+        run: |
+          curl --fail --retry 10 --retry-delay 6 --retry-connrefused \
+            "${{ needs.build-and-deploy.outputs.staging_fqdn }}/health"
+
+      # Needed so ./.github/actions/run-api-test-suite (a local composite
+      # action) resolves.
+      - name: Checkout
+        if: steps.smoke.outcome == 'success'
+        uses: actions/checkout@v4
+
+      # WARNING-ONLY — same tests/api module-executor suite preview-deploy.yml
+      # runs against previews. Health check above stays the sole blocking
+      # signal for promote-live; this just gives the same functional
+      # visibility on the staging (0%-traffic) revision before it goes live.
+      - name: Run API test suite against staging
+        id: api-suite
+        if: steps.smoke.outcome == 'success'
+        continue-on-error: true
+        uses: ./.github/actions/run-api-test-suite
+        with:
+          base-url:           ${{ needs.build-and-deploy.outputs.staging_fqdn }}/api
+          node-env:           ${{ needs.set-environment.outputs.environment }}
+          artifact-json-name: staging-api-test-results-${{ needs.set-environment.outputs.environment }}
+          artifact-html-name: staging-api-html-report-${{ needs.set-environment.outputs.environment }}
+          label:              staging
+
+      - name: Smoke gate
+        id: gate
+        run: |
+          RESULT="${{ steps.smoke.outcome }}"
+          STRICT="${{ vars.STRICT_SMOKE_GATING }}"
+          ENV="${{ needs.set-environment.outputs.environment }}"
+
+          echo "Smoke result: $RESULT"
+          echo "Strict mode:  ${STRICT:-false}"
+          echo "Environment:  $ENV"
+
+          if [ "$RESULT" != "success" ]; then
+            if [ "$STRICT" = "true" ] || [ "$ENV" = "prod" ]; then
+              echo "blocking=true" >> "$GITHUB_OUTPUT"
+              echo "::warning::Smoke gate BLOCKING on $ENV — new revision will NOT receive traffic."
+            else
+              echo "blocking=false" >> "$GITHUB_OUTPUT"
+              echo "::warning::Smoke test failed on $ENV. Promotion will still proceed for this non-production environment. Set STRICT_SMOKE_GATING=true to block."
+            fi
+            exit 1
+          else
+            echo "blocking=false" >> "$GITHUB_OUTPUT"
+            echo "Smoke gate: passed."
+          fi
+      - name: Staging smoke summary
+        if: always()
+        run: |
+          RESULT="${{ steps.smoke.outcome }}"
+          BLOCKING="${{ steps.gate.outputs.blocking }}"
+          ENV="${{ needs.set-environment.outputs.environment }}"
+          STAGING_URL="${{ needs.build-and-deploy.outputs.staging_fqdn }}"
+          API_SUMMARY="${{ steps.api-suite.outputs.summary }}"
+          {
+            echo "## Staging Smoke Test (blue/green gate)"
+            echo ""
+            echo "**Staging URL:** $STAGING_URL"
+            echo ""
+            if [ "$RESULT" = "success" ]; then
+              echo "✅ **Passed** — \`promote-live\` will flip 100% traffic to the new revision."
+            elif [ "$BLOCKING" = "true" ]; then
+              echo "❌ **Failed (blocking)** — the stable revision keeps 100% traffic. \`promote-live\` will NOT run."
+            else
+              echo "⚠️ **Failed (non-blocking on \`$ENV\`)** — \`promote-live\` will still run but needs attention."
+            fi
+            if [ -n "$API_SUMMARY" ]; then
+              echo ""
+              echo "**API test suite (warning only):** $API_SUMMARY"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Single approval gate for prod deploys — sits right before promote-live, not
+  # before the build/staging-deploy/smoke-test steps. Those all run
+  # automatically at 0% traffic regardless of approval, so a reviewer approves
+  # exactly the decision that matters: flipping 100% of prod traffic to a
+  # revision that has already passed its staging smoke test. Without this job,
+  # GitHub would prompt for approval on each downstream job that declares
+  # `environment: prod`; this job is the only one with that claim, so
+  # reviewers approve once. Downstream jobs auth via federated credentials on
+  # the `github-actions-sp` Entra app instead of the environment subject.
+  # ─────────────────────────────────────────────────────────────────────────────
+  await-approval:
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.set-environment.outputs.environment == 'prod'
+      && (
+        needs.staging-smoke-tests.result == 'success'
+        || (needs.staging-smoke-tests.result == 'failure' && needs.staging-smoke-tests.outputs.blocking != 'true')
+      )
+    needs: [set-environment, build-and-deploy, staging-smoke-tests]
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Approval recorded
+        run: echo "Prod promotion to 100% traffic approved by ${{ github.actor }} for SHA ${{ github.sha }}"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Promote Live: flip traffic to the new revision once the staging smoke gate
+  # passes (or fails non-blocking) and, for prod, a reviewer has approved.
+  #
+  # The `!cancelled()` guard is REQUIRED. Without it, GitHub Actions applies
+  # implicit skip-propagation: when `await-approval` is skipped (qa/dev — the
+  # gate only fires on prod), this job would be silently skipped before its
+  # `if:` is even evaluated. `!cancelled()` overrides the implicit skip so our
+  # explicit `result` checks take effect.
+  # ─────────────────────────────────────────────────────────────────────────────
+  promote-live:
+    name: Promote new revision to 100% traffic
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.build-and-deploy.result == 'success'
+      && (needs.await-approval.result == 'success' || needs.await-approval.result == 'skipped')
+      && (
+        needs.staging-smoke-tests.result == 'success'
+        || (needs.staging-smoke-tests.result == 'failure' && needs.staging-smoke-tests.outputs.blocking != 'true')
+      )
+    needs: [set-environment, build-and-deploy, staging-smoke-tests, await-approval]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Flip traffic to new revision
+        run: |
+          NEW="${{ needs.build-and-deploy.outputs.new_revision }}"
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          echo "Promoting: $NEW → 100%"
+          az containerapp ingress traffic set \
+            --name "$ACA" --resource-group "$RG" \
+            --revision-weight "${NEW}=100"
+      - name: Re-bind custom domain (defensive — traffic set can drop it)
+        # `az containerapp ingress traffic set` does a get-modify-put on the
+        # whole ingress object. On some CLI versions that round-trip doesn't
+        # preserve `customDomains`, silently unbinding the hostname on every
+        # promotion. Re-apply the binding using the values already fetched in
+        # build-and-deploy — idempotent, so this is a no-op when nothing broke.
+        if: ${{ needs.build-and-deploy.outputs.custom_domain != '' && needs.build-and-deploy.outputs.cert_id != '' }}
+        run: |
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          DOMAIN="${{ needs.build-and-deploy.outputs.custom_domain }}"
+          CERT_ID="${{ needs.build-and-deploy.outputs.cert_id }}"
+          echo "Re-binding custom domain: $DOMAIN"
+          az containerapp hostname bind \
+            --name "$ACA" --resource-group "$RG" \
+            --hostname "$DOMAIN" --certificate "$CERT_ID"
+      - name: Deactivate previous stable revision
+        run: |
+          # Only deactivate the ONE revision displaced by this deploy. Any
+          # other revisions (manual deploys, etc.) are left alone.
+          STABLE="${{ needs.build-and-deploy.outputs.stable_revision }}"
+          NEW="${{ needs.build-and-deploy.outputs.new_revision }}"
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+
+          if [ -z "$STABLE" ] || [ "$STABLE" = "$NEW" ]; then
+            echo "No previous stable revision to deactivate (first deploy or same revision)"
+            exit 0
+          fi
+
+          echo "Deactivating replaced revision: $STABLE"
+          az containerapp revision deactivate \
+            --name "$ACA" --resource-group "$RG" \
+            --revision "$STABLE" 2>/dev/null \
+            && echo "Done" \
+            || echo "Revision $STABLE not found or already inactive — skipping"
+      - name: Write promotion summary
+        run: |
+          {
+            echo "## Live Promotion"
+            echo ""
+            echo "| Revision | Live URL |"
+            echo "|----------|----------|"
+            echo "| \`${{ needs.build-and-deploy.outputs.new_revision }}\` | https://${{ needs.build-and-deploy.outputs.fqdn }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Notify Teams: Adaptive Card summarising deploy outcome (success or failure).
+  # Card border color reflects environment (dev=default, qa=accent, prod=warning)
+  # and switches to attention (red) on failure. On failure the card includes the
+  # previous SHA so a rollback can be initiated quickly.
+  # ─────────────────────────────────────────────────────────────────────────────
+  notify-teams:
+    name: Notify Teams
+    if: ${{ always() && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true' && github.event_name != 'pull_request' }}
+    needs: [lint, set-environment, build-and-deploy, staging-smoke-tests, promote-live, test-unit, test-api]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine status, color, and icons
+        id: status
+        run: |
+          set -euo pipefail
+          LINT_V="${{ needs.lint.outputs.verdict }}"
+          BUILD="${{ needs.build-and-deploy.result }}"
+          PROMOTE="${{ needs.promote-live.result }}"
+          if [ "$PROMOTE" = "success" ]; then
+            DEPLOY="success"
+          elif [ "$BUILD" != "success" ]; then
+            DEPLOY="$BUILD"
+          else
+            DEPLOY="failure"  # build ok, but promote-live didn't run/fail — blocked by smoke gate
+          fi
+          ENV="${{ needs.set-environment.outputs.environment || github.event.inputs.environment || 'dev' }}"
+          icon() {
+            case "$1" in
+              success)   echo "✅" ;;
+              failure)   echo "❌" ;;
+              cancelled) echo "⚪" ;;
+              skipped)   echo "⏭️" ;;
+              *)         echo "❓" ;;
+            esac
+          }
+          lint_icon() {
+            case "${1:-}" in
+              fail)     echo "❌" ;;
+              improved) echo "💚" ;;
+              flat)     echo "✅" ;;
+              *)        echo "⏭️" ;;
+            esac
+          }
+          SMOKE="${{ needs.staging-smoke-tests.outputs.result || needs.staging-smoke-tests.result }}"
+          DEPLOY_ICON=$(icon "$DEPLOY")
+          LINT_ICON=$(lint_icon "$LINT_V")
+          SMOKE_ICON=$(icon "$SMOKE")
+          LINT_FAILED=false
+          [ "$LINT_V" = "fail" ] && LINT_FAILED=true
+          if [ "$DEPLOY" = "success" ] && [ "$LINT_FAILED" = "false" ]; then
+            OVERALL="success"
+            TITLE="Educator Backend deploy succeeded"
+            case "$ENV" in
+              prod) STYLE="warning" ;;
+              qa)   STYLE="accent" ;;
+              *)    STYLE="default" ;;
+            esac
+          elif [ "$DEPLOY" = "cancelled" ]; then
+            OVERALL="cancelled"
+            TITLE="Educator Backend deploy cancelled"
+            STYLE="default"
+          else
+            OVERALL="failed"
+            TITLE="Educator Backend deploy failed"
+            STYLE="attention"
+          fi
+          {
+            echo "overall=$OVERALL"
+            echo "title=$TITLE"
+            echo "style=$STYLE"
+            echo "deploy_icon=$DEPLOY_ICON"
+            echo "lint_icon=$LINT_ICON"
+            echo "smoke_icon=$SMOKE_ICON"
+            echo "environment=$ENV"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Get commit info
+        id: commit
+        env:
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          MSG="${HEAD_COMMIT_MSG}"
+          if [ -z "$MSG" ]; then MSG="(${EVENT_NAME})"; fi
+          MSG=$(printf '%s' "$MSG" | head -1 | sed 's/"/\\"/g')
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "message=$MSG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        if: ${{ needs.set-environment.outputs.container_app != '' }}
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Look up previous SHA for rollback hint
+        id: prev
+        if: ${{ needs.set-environment.outputs.container_app != '' }}
+        continue-on-error: true
+        run: |
+          # Find the most recent revision whose image tag is NOT the current
+          # image tag. Works for both successful and failed deploys.
+          PREV=$(az containerapp revision list \
+            --name "${{ needs.set-environment.outputs.container_app }}" \
+            --resource-group "${{ needs.set-environment.outputs.resource_group }}" \
+            --query "sort_by([?properties.template.containers[0].image && !ends_with(properties.template.containers[0].image, ':${{ needs.set-environment.outputs.image_tag }}')], &properties.createdTime)[-1].properties.template.containers[0].image" \
+            -o tsv 2>/dev/null | sed 's/.*://' || echo "")
+          echo "Previous SHA: ${PREV:-<none>}"
+          echo "sha=$PREV" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Actor & Prepare JSON Payload Details
+        id: payload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          # 1. Determine FQDN/APP_URL
+          FQDN="${{ needs.build-and-deploy.outputs.fqdn }}"
+          CUSTOM_DOMAIN="${{ needs.build-and-deploy.outputs.custom_domain }}"
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            APP_URL="https://${CUSTOM_DOMAIN}"
+          elif [ -n "$FQDN" ]; then
+            APP_URL="https://${FQDN}"
+          else
+            APP_URL=""
+          fi
+
+          # 2. Determine Actor Login (PR author for merges, actor for direct pushes)
+          COMMIT_MSG="${HEAD_COMMIT_MSG}"
+          if [[ "$COMMIT_MSG" =~ ^Merge\ pull\ request\ \#([0-9]+) ]]; then
+            PR_NUM="${BASH_REMATCH[1]}"
+            ACTOR_LOGIN=$(gh api repos/${{ github.repository }}/pulls/$PR_NUM --jq '.user.login' 2>/dev/null || echo "${{ github.actor }}")
+          else
+            ACTOR_LOGIN="${{ github.actor }}"
+          fi
+          echo "actor_login=$ACTOR_LOGIN" >> "$GITHUB_OUTPUT"
+
+          # 3. Determine Mention Template
+          OVERALL="${{ steps.status.outputs.overall }}"
+          if [ "$OVERALL" = "success" ]; then
+            MENTION_TEMPLATE="{mention}"
+          else
+            MENTION_TEMPLATE="{mention} — please investigate."
+          fi
+          echo "mention_template=$MENTION_TEMPLATE" >> "$GITHUB_OUTPUT"
+
+          # 4. Construct Facts Array
+          ENV="${{ steps.status.outputs.environment }}"
+          SHORT_SHA="${{ steps.commit.outputs.short_sha }}"
+          UNIT_SUMMARY="${{ needs.test-unit.outputs.summary || '⏭️ skipped' }}"
+          API_SUMMARY="${{ needs.test-api.outputs.summary || '⏭️ skipped' }}"
+          LINT_ICON="${{ steps.status.outputs.lint_icon }}"
+          LINT_E="${{ needs.lint.outputs.errors || '?' }}"
+          LINT_W="${{ needs.lint.outputs.warnings || '?' }}"
+          DEPLOY_ICON="${{ steps.status.outputs.deploy_icon }}"
+          SMOKE_ICON="${{ steps.status.outputs.smoke_icon }}"
+          PREV_SHA="${{ steps.prev.outputs.sha }}"
+
+          FACTS=$(jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg env "$ENV" \
+            --arg act "$ACTOR_LOGIN" \
+            --arg branch "${{ github.ref_name }}" \
+            --arg sha "$SHORT_SHA" \
+            --arg unit "$UNIT_SUMMARY" \
+            --arg api "$API_SUMMARY" \
+            --arg lint "$LINT_ICON $LINT_E errors / $LINT_W warnings" \
+            --arg deploy "$DEPLOY_ICON" \
+            --arg smoke "$SMOKE_ICON" \
+            '[
+              { "title": "Repository", "value": $repo },
+              { "title": "Environment", "value": $env },
+              { "title": "Author", "value": $act },
+              { "title": "Branch", "value": $branch },
+              { "title": "Commit", "value": $sha },
+              { "title": "Unit tests", "value": $unit },
+              { "title": "API tests", "value": $api },
+              { "title": "Lint", "value": $lint },
+              { "title": "Deploy", "value": $deploy },
+              { "title": "Smoke test", "value": $smoke }
+            ]')
+
+          if [ -n "$APP_URL" ]; then
+            FACTS=$(echo "$FACTS" | jq --arg url "$APP_URL" '. + [{ "title": "App URL", "value": ("[" + $url + "](" + $url + "/health)") }]')
+          fi
+
+          if [ -n "$PREV_SHA" ]; then
+            FACTS=$(echo "$FACTS" | jq --arg prev "$PREV_SHA" '. + [{ "title": "Previous SHA", "value": $prev }]')
+          fi
+
+          # Combined failing tests
+          U_FAILS='${{ needs.test-unit.outputs.failed_names }}'
+          A_FAILS='${{ needs.test-api.outputs.failed_names }}'
+          COMBINED=""
+          for x in "$U_FAILS" "$A_FAILS"; do
+            if [ -n "$x" ]; then
+              if [ -n "$COMBINED" ]; then COMBINED="$COMBINED; $x"; else COMBINED="$x"; fi
+            fi
+          done
+          if [ -n "$COMBINED" ]; then
+            FACTS=$(echo "$FACTS" | jq --arg comb "$COMBINED" '. + [{ "title": "Failing tests", "value": $comb }]')
+          fi
+
+          # Report URL
+          ARTIFACTS_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts"
+          FACTS=$(echo "$FACTS" | jq --arg url "$ARTIFACTS_URL" '. + [{ "title": "Test reports", "value": ("[View HTML test reports](" + $url + ")") }]')
+
+          echo "facts_json<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FACTS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          # 5. Construct Actions Array
+          ACTIONS=$(jq -n \
+            --arg run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg commit "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}" \
+            '[
+              { "type": "Action.OpenUrl", "title": "View run", "url": $run },
+              { "type": "Action.OpenUrl", "title": "View commit", "url": $commit }
+            ]')
+
+          if [ -n "$APP_URL" ]; then
+            ACTIONS=$(echo "$ACTIONS" | jq --arg url "$APP_URL" '. + [{ "type": "Action.OpenUrl", "title": "Open app", "url": ($url + "/health") }]')
+          fi
+
+          if [ "$OVERALL" != "success" ] && [ -n "$PREV_SHA" ]; then
+            ACTIONS=$(echo "$ACTIONS" | jq --arg prevSha "$PREV_SHA" '. + [{ "type": "Action.OpenUrl", "title": ("Run rollback (prev SHA: " + $prevSha + ")"), "url": "https://github.com/${{ github.repository }}/actions/workflows/rollback.yml" }]')
+          fi
+
+          echo "actions_json<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$ACTIONS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Send Teams Notification
+        continue-on-error: true
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login:   ${{ steps.payload.outputs.actor_login }}
+          headline:       "${{ steps.status.outputs.title }} — ${{ steps.status.outputs.environment }}"
+          style:          ${{ steps.status.outputs.style }}
+          subtitle:       ${{ steps.commit.outputs.message }}
+          mention-suffix: ${{ steps.status.outputs.overall != 'success' && ' — please investigate.' || '' }}
+          facts-json:     ${{ steps.payload.outputs.facts_json }}
+          actions-json:   ${{ steps.payload.outputs.actions_json }}

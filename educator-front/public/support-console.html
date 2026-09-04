@@ -1,0 +1,2751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Support Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --orange:#f5821f;
+    --orange-2:#f26522;
+    --orange-deep:#d95f0e;
+    --orange-soft:#fdece0;
+    --orange-soft-2:#fff5ec;
+    --ink:#211f1c;
+    --ink-soft:#6b6f76;
+    --ink-faint:#9aa1ac;
+    --border:#e9e5df;
+    --bg:#ffffff;
+    --bg-page:#faf9f7;
+    --bg-elevated:#ffffff;
+    --green:#178a4c;
+    --green-bg:#e7f7ee;
+    --red:#d1402f;
+    --red-bg:#fdeaea;
+    --blue:#3b6fe0;
+    --blue-bg:#eaf0fe;
+    --purple:#8b5cf6;
+    --purple-bg:#f1ebfe;
+    --teal:#0d9488;
+    --teal-bg:#e2f6f4;
+    --amber:#c07a05;
+    --amber-bg:#fdf1de;
+    --gray-bg:#f0efec;
+    --shadow-sm:0 1px 2px rgba(30,20,10,.06);
+    --shadow-md:0 8px 24px rgba(30,20,10,.10);
+    --shadow-lg:0 24px 64px rgba(20,15,10,.28);
+    --radius-card:16px;
+    --radius-input:10px;
+    --radius-pill:999px;
+    --sidebar-w:250px;
+    --sidebar-w-collapsed:82px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#f1efe9; --ink-soft:#b6b0a7; --ink-faint:#847d73;
+      --border:#33302a; --bg:#211f1b; --bg-page:#171512; --bg-elevated:#28251f;
+      --orange-soft:#3a2a17; --orange-soft-2:#2c2015;
+      --green-bg:#123322; --red-bg:#3a1c18; --blue-bg:#182747; --purple-bg:#2a2140; --teal-bg:#123531; --amber-bg:#3a2c10; --gray-bg:#2b2822;
+      --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow-md:0 8px 24px rgba(0,0,0,.5); --shadow-lg:0 24px 64px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#f1efe9; --ink-soft:#b6b0a7; --ink-faint:#847d73;
+    --border:#33302a; --bg:#211f1b; --bg-page:#171512; --bg-elevated:#28251f;
+    --orange-soft:#3a2a17; --orange-soft-2:#2c2015;
+    --green-bg:#123322; --red-bg:#3a1c18; --blue-bg:#182747; --purple-bg:#2a2140; --teal-bg:#123531; --amber-bg:#3a2c10; --gray-bg:#2b2822;
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow-md:0 8px 24px rgba(0,0,0,.5); --shadow-lg:0 24px 64px rgba(0,0,0,.6);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Poppins',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg-page); color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+    width:100%;
+  }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  button{ font-family:inherit; cursor:pointer; }
+  input,select,textarea{ font-family:inherit; }
+  a{ color:var(--orange); }
+  svg.icon{ width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; display:block; }
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    border:none; border-radius:var(--radius-pill); padding:11px 22px;
+    font-weight:600; font-size:14px; white-space:nowrap; transition:transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn-primary{ background:linear-gradient(135deg,#f7941d,#f26522); color:#fff; box-shadow:0 6px 16px rgba(242,101,34,.30); }
+  .btn-primary:hover{ box-shadow:0 8px 20px rgba(242,101,34,.4); }
+  .btn-secondary{ background:var(--gray-bg); color:var(--ink); }
+  .btn-secondary:hover{ background:var(--border); }
+  .btn-outline{ background:transparent; color:var(--ink); border:1.5px solid var(--border); }
+  .btn-outline:hover{ border-color:var(--orange); color:var(--orange-deep); }
+  .btn-ghost{ background:transparent; color:var(--ink-soft); padding:8px 12px; }
+  .btn-ghost:hover{ color:var(--ink); background:var(--gray-bg); }
+  .btn-danger-text{ background:transparent; color:var(--red); padding:8px 12px; font-weight:600; }
+  .btn-sm{ padding:7px 14px; font-size:13px; }
+  /* Inline "Edit" affordance on a table cell. btn-ghost read as muted body text and was
+     easy to miss, so this is a filled-on-hover orange pill with a pencil icon. */
+  .btn-edit-inline{
+    display:inline-flex; align-items:center; gap:5px; white-space:nowrap;
+    background:var(--orange-soft); color:var(--orange-deep);
+    border:1.5px solid var(--orange); border-radius:99px;
+    padding:3px 11px; font-size:11.5px; font-weight:700;
+    letter-spacing:.02em; text-transform:uppercase; cursor:pointer;
+  }
+  .btn-edit-inline:hover{ background:var(--orange); color:#fff; border-color:var(--orange-deep); }
+  .btn-edit-inline:focus-visible{ outline:2px solid var(--orange-deep); outline-offset:2px; }
+  .btn-edit-inline .icon{ width:12px; height:12px; stroke-width:2.4; }
+  /* Compact variant for the per-key rows, where two of these sit on every row and a
+     full-size pill would swamp a 50-row seat list. Same fill/border so it still reads
+     as the same control, just scaled for density. */
+  .btn-edit-inline.btn-edit-xs{ padding:2px 8px; font-size:10.5px; gap:4px; }
+  .btn-edit-inline.btn-edit-xs .icon{ width:10.5px; height:10.5px; }
+  .btn-block{ width:100%; }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+  .icon-btn{
+    width:38px; height:38px; border-radius:50%; border:1.5px solid var(--border); background:var(--bg-elevated);
+    display:inline-flex; align-items:center; justify-content:center; color:var(--ink-soft); position:relative;
+  }
+  .icon-btn:hover{ border-color:var(--orange); color:var(--orange-deep); }
+
+  /* ---------- Pills / badges ---------- */
+  .pill-filter{
+    border:1.5px solid var(--border); background:var(--bg-elevated); color:var(--ink-soft);
+    padding:9px 16px; border-radius:var(--radius-pill); font-weight:600; font-size:13.5px; display:inline-flex; align-items:center; gap:7px;
+  }
+  .pill-filter[aria-pressed="true"]{ background:linear-gradient(135deg,#f7941d,#f26522); color:#fff; border-color:transparent; }
+  .pill-filter .cnt{ background:rgba(0,0,0,.12); border-radius:999px; padding:1px 7px; font-size:11.5px; }
+  .pill-filter[aria-pressed="true"] .cnt{ background:rgba(255,255,255,.28); }
+
+  .badge{ display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:999px; font-size:12.5px; font-weight:700; letter-spacing:.01em; }
+  .badge-gray{ background:var(--gray-bg); color:var(--ink-soft); }
+  .badge-green{ background:var(--green-bg); color:var(--green); }
+  .badge-red{ background:var(--red-bg); color:var(--red); }
+  .badge-blue{ background:var(--blue-bg); color:var(--blue); }
+  .badge-purple{ background:var(--purple-bg); color:var(--purple); }
+  .badge-amber{ background:var(--amber-bg); color:var(--amber); }
+  .badge-teal{ background:var(--teal-bg); color:var(--teal); }
+  .tag-pill{ background:var(--gray-bg); color:var(--ink-soft); font-size:12px; font-weight:600; padding:3px 10px; border-radius:999px; }
+
+  /* ---------- Login screen ---------- */
+  #screen-login{ min-height:100vh; display:grid; grid-template-columns:1.1fr 1fr; }
+  @media (max-width:860px){ #screen-login{ grid-template-columns:1fr; } .login-brand{ display:none !important; } }
+  .login-brand{
+    background:
+      radial-gradient(circle at 15% 15%, rgba(255,255,255,.14), transparent 40%),
+      radial-gradient(circle at 85% 85%, rgba(255,255,255,.10), transparent 45%),
+      linear-gradient(150deg,#f7941d,#e8570f 65%,#c94a10);
+    color:#fff; padding:64px 60px; display:flex; flex-direction:column; justify-content:center; position:relative; overflow:hidden;
+  }
+  .login-brand .brand-row{ display:flex; align-items:center; gap:12px; margin-bottom:56px; }
+  .login-brand h1{ font-size:38px; line-height:1.15; margin:0 0 16px; font-weight:800; max-width:16ch; }
+  .login-brand p.sub{ font-size:16px; line-height:1.6; opacity:.92; max-width:44ch; margin:0 0 28px; }
+  .brand-points{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:14px; max-width:40ch; }
+  .brand-points li{ display:flex; gap:12px; align-items:flex-start; font-size:14.5px; opacity:.95; }
+  .brand-points li .dot{ width:22px; height:22px; border-radius:50%; background:rgba(255,255,255,.22); flex-shrink:0; display:flex; align-items:center; justify-content:center; margin-top:1px; }
+  .brand-points li .dot svg{ width:13px; height:13px; }
+  .login-form-wrap{ display:flex; align-items:center; justify-content:center; padding:40px; background:var(--bg); }
+  .login-card{ width:100%; max-width:380px; }
+  .login-card .logo-row{ display:flex; align-items:center; gap:10px; margin-bottom:36px; }
+  .login-card h2{ font-size:24px; margin:0 0 4px; font-weight:700; }
+  .login-card p.login-sub{ color:var(--ink-soft); margin:0 0 28px; font-size:14px; }
+  .form-group{ margin-bottom:18px; }
+  .form-group label{ display:block; font-size:13.5px; font-weight:600; margin-bottom:7px; color:var(--ink); }
+  .form-group .req{ color:var(--red); }
+  .form-group .hint{ font-size:12px; color:var(--ink-faint); margin-top:5px; }
+  .form-input, select.form-input, textarea.form-input{
+    width:100%; border:1.5px solid var(--border); border-radius:var(--radius-input); padding:12px 14px; font-size:14.5px;
+    background:var(--bg-elevated); color:var(--ink); outline:none; transition:border-color .12s ease;
+  }
+  .form-input:focus{ border-color:var(--orange); }
+  textarea.form-input{ resize:vertical; min-height:80px; }
+  .login-hint{ text-align:center; font-size:12.5px; color:var(--ink-faint); margin-top:18px; }
+  .login-hint code{ background:var(--gray-bg); padding:2px 6px; border-radius:6px; }
+  .pw-field-wrap{ position:relative; }
+  .pw-field-wrap input{ padding-right:44px; }
+  .pw-eye-btn{
+    position:absolute; right:4px; top:50%; transform:translateY(-50%); width:32px; height:32px;
+    border:none; background:transparent; color:var(--ink-faint); display:flex; align-items:center; justify-content:center; border-radius:50%;
+  }
+  .pw-eye-btn:hover{ color:var(--ink-soft); background:var(--gray-bg); }
+  .login-forgot-link{ text-align:right; margin:-10px 0 18px; font-size:12.5px; }
+
+  /* ---------- App shell ---------- */
+  #app{ display:flex; min-height:100vh; }
+  .sidebar{
+    width:var(--sidebar-w); flex-shrink:0; background:var(--bg-elevated); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; transition:width .18s ease; position:relative;
+  }
+  .sidebar.collapsed{ width:var(--sidebar-w-collapsed); }
+  .sidebar-top{ display:flex; align-items:center; justify-content:space-between; padding:22px 20px 18px; }
+  .logo{ display:flex; align-items:center; gap:9px; overflow:hidden; }
+  .logo-mark{ width:34px; height:34px; flex-shrink:0; }
+  .logo-text{ font-weight:800; font-size:16.5px; white-space:nowrap; }
+  .logo-text .hl{ color:var(--orange); }
+  .sidebar.collapsed .logo-text, .sidebar.collapsed .sidebar-role{ display:none; }
+  .collapse-btn{
+    width:26px; height:26px; border-radius:50%; border:1.5px solid var(--border); background:var(--bg-elevated);
+    color:var(--ink-soft); display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .sidebar.collapsed .collapse-btn svg{ transform:rotate(180deg); }
+  .sidebar-role{ margin:0 20px 14px; background:var(--orange-soft); color:var(--orange-deep); font-size:11.5px; font-weight:700;
+    padding:7px 12px; border-radius:10px; text-align:center; letter-spacing:.03em; text-transform:uppercase; }
+  .sidebar-nav{ flex:1; padding:6px 12px; display:flex; flex-direction:column; gap:3px; overflow-y:auto; }
+  .nav-item{
+    display:flex; align-items:center; gap:13px; padding:12px 14px; border-radius:12px; border:none; background:transparent;
+    color:var(--ink-soft); font-weight:600; font-size:14.5px; text-align:left; width:100%; border-left:3px solid transparent;
+  }
+  .nav-item:hover{ background:var(--orange-soft-2); color:var(--ink); }
+  .nav-item.active{ background:var(--orange-soft); color:var(--orange-deep); border-left:3px solid var(--orange); }
+  .nav-item svg{ flex-shrink:0; }
+  .nav-item span.label{ flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .sidebar.collapsed .nav-item span.label{ display:none; }
+  .sidebar.collapsed .nav-item{ justify-content:center; padding:12px; }
+  .sidebar.collapsed .nav-item{ position:relative; }
+  .nav-badge{ background:var(--orange); color:#fff; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; }
+  .sidebar.collapsed .nav-badge{ display:none; }
+  .sidebar-foot{ padding:16px 20px; border-top:1px solid var(--border); font-size:11.5px; color:var(--ink-faint); }
+  .sidebar.collapsed .sidebar-foot{ display:none; }
+
+  .main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .topbar{
+    height:66px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 28px;
+    border-bottom:1px solid var(--border); background:var(--bg-elevated); position:sticky; top:0; z-index:20;
+  }
+  .topbar-left{ font-size:13.5px; color:var(--ink-faint); font-weight:600; }
+  .topbar-left b{ color:var(--ink); }
+  .topbar-right{ display:flex; align-items:center; gap:12px; }
+  .avatar{
+    width:38px; height:38px; border-radius:50%; background:var(--orange-soft); color:var(--orange-deep);
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14.5px; border:1.5px solid var(--orange);
+  }
+
+  .info-banner{
+    display:flex; align-items:center; gap:14px; background:var(--orange-soft-2); border-bottom:1px solid var(--border);
+    padding:12px 28px; font-size:13px; color:var(--ink-soft);
+  }
+  .info-banner b{ color:var(--ink); }
+  .info-banner button{ margin-left:auto; background:none; border:none; color:var(--ink-faint); flex-shrink:0; }
+
+  .content{ padding:32px 32px 64px; max-width:1400px; }
+  .page{ display:none; animation:fadeIn .25s ease; }
+  .page.active{ display:block; }
+  @keyframes fadeIn{ from{ opacity:0; transform:translateY(6px);} to{ opacity:1; transform:translateY(0);} }
+
+  .page-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:20px; margin-bottom:26px; flex-wrap:wrap; }
+  .page-head h1{ color:var(--orange); font-size:28px; margin:0 0 6px; font-weight:800; }
+  .page-head p{ margin:0; color:var(--ink-soft); font-size:14.5px; max-width:62ch; }
+
+  /* ---------- Stat cards ---------- */
+  .stat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:18px; margin-bottom:28px; }
+  @media (max-width:1000px){ .stat-grid{ grid-template-columns:repeat(2,1fr);} }
+  .stat-card{ background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-card); padding:20px; }
+  .stat-ico{ width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; margin-bottom:14px; }
+  .stat-card .num{ font-size:28px; font-weight:800; line-height:1; margin-bottom:4px; }
+  .stat-card .lbl{ color:var(--ink-soft); font-size:13.5px; font-weight:600; }
+  .stat-card .sub{ color:var(--ink-faint); font-size:12px; margin-top:6px; }
+
+  /* ---------- Panels / cards ---------- */
+  .panel{ background:var(--bg-elevated); border:1px solid var(--border); border-radius:var(--radius-card); overflow:hidden; }
+  .panel-head{ display:flex; align-items:center; justify-content:space-between; padding:20px 22px; gap:16px; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+  .panel-head h3{ margin:0; font-size:16px; font-weight:700; }
+  .panel-head p{ margin:2px 0 0; font-size:12.5px; color:var(--ink-faint); }
+  .panel-body{ padding:22px; }
+
+  .two-col{ display:grid; grid-template-columns:1.1fr 1fr; gap:20px; margin-bottom:24px; }
+  @media (max-width:980px){ .two-col{ grid-template-columns:1fr; } }
+
+  .toolbar{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:18px 22px; flex-wrap:wrap; border-bottom:1px solid var(--border); }
+  .filter-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .search-wrap{ display:flex; align-items:center; gap:10px; }
+  .search-input{
+    display:flex; align-items:center; gap:9px; border:1.5px solid var(--border); border-radius:var(--radius-pill);
+    padding:9px 16px; background:var(--bg-elevated); min-width:230px;
+  }
+  .search-input svg{ color:var(--ink-faint); flex-shrink:0; }
+  .search-input input{ border:none; outline:none; background:transparent; font-size:13.5px; width:100%; color:var(--ink); }
+
+  /* ---------- Tables ---------- */
+  .table-scroll{ overflow-x:auto; }
+  .pagination{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px 22px; flex-wrap:wrap; border-top:1px solid var(--border); }
+  .pagination .pg-info{ font-size:13px; color:var(--ink-soft); }
+  .pagination .pg-controls{ display:flex; align-items:center; gap:10px; }
+  .pagination .pg-page{ font-size:13px; color:var(--ink-soft); min-width:92px; text-align:center; }
+  .pagination .btn-ghost:disabled{ opacity:.4; cursor:not-allowed; }
+  .pagination .btn-ghost:disabled:hover{ background:transparent; color:var(--ink-soft); }
+  table.data-table{ width:100%; border-collapse:collapse; min-width:760px; }
+  table.data-table thead tr{ background:linear-gradient(135deg,#f7941d,#f0691f); }
+  table.data-table thead th{ color:#fff; text-align:left; font-size:13px; font-weight:700; padding:14px 20px; white-space:nowrap; }
+  table.data-table tbody td{ padding:16px 20px; border-bottom:1px solid var(--border); font-size:13.8px; vertical-align:middle; }
+  table.data-table tbody tr:hover{ background:var(--orange-soft-2); }
+  table.data-table tbody tr:last-child td{ border-bottom:none; }
+  .cell-strong{ font-weight:700; color:var(--ink); }
+  .cell-soft{ color:var(--ink-soft); }
+  .row-menu-wrap{ position:relative; display:inline-block; }
+  .row-menu{
+    position:absolute; right:0; top:44px; min-width:220px; background:var(--bg-elevated); border:1px solid var(--border);
+    border-radius:12px; box-shadow:var(--shadow-md); z-index:30; overflow:hidden; display:none; padding:6px;
+  }
+  .row-menu.open{ display:block; }
+  /* Flips above the trigger when there isn't room below - the Accounts menu carries five
+     items and was clipping at the bottom edge of the table. Applied by toggleRowMenu. */
+  .row-menu.flip-up{ top:auto; bottom:44px; }
+  /* Sortable column headers (Keys table) */
+  .th-sort{
+    all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:5px;
+    font:inherit; color:inherit; white-space:nowrap;
+  }
+  .th-sort:hover{ opacity:.82; }
+  .th-sort:focus-visible{ outline:2px solid #fff; outline-offset:2px; border-radius:4px; }
+  .th-sort .caret{ width:11px; height:11px; flex-shrink:0; opacity:.4; transition:transform .15s, opacity .15s; }
+  .th-sort[aria-sort="ascending"] .caret,
+  .th-sort[aria-sort="descending"] .caret{ opacity:1; }
+  .th-sort[aria-sort="descending"] .caret{ transform:rotate(180deg); }
+  .row-menu button{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px 12px; border:none; background:none;
+    font-size:13.5px; font-weight:600; color:var(--ink); border-radius:8px;
+  }
+  .row-menu button:hover{ background:var(--orange-soft-2); }
+  .row-menu button.danger{ color:var(--red); }
+  .empty-row td{ text-align:center; padding:40px 20px; color:var(--ink-faint); font-size:13.5px; }
+
+  /* ---------- Modals ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(20,14,8,.5); display:none; align-items:center; justify-content:center;
+    padding:24px; z-index:100; backdrop-filter:blur(2px);
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{
+    background:var(--bg-elevated); border-radius:20px; width:100%; max-width:520px; max-height:88vh; overflow-y:auto;
+    box-shadow:var(--shadow-lg); padding:30px 32px; animation:modalIn .18s ease;
+  }
+  .modal-box.wide{ max-width:640px; }
+  @keyframes modalIn{ from{ opacity:0; transform:scale(.96) translateY(8px);} to{ opacity:1; transform:scale(1) translateY(0);} }
+  .modal-head{ display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:22px; gap:16px; }
+  .modal-head h2{ margin:0 0 4px; color:var(--orange); font-size:21px; font-weight:800; }
+  .modal-head p{ margin:0; color:var(--ink-soft); font-size:13.5px; }
+  .modal-close{ width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:transparent; color:var(--ink-soft); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .modal-close:hover{ border-color:var(--red); color:var(--red); }
+  .modal-foot{ display:flex; justify-content:flex-end; gap:12px; margin-top:26px; }
+  .form-row2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:480px){ .form-row2{ grid-template-columns:1fr; } }
+
+  .detail-grid{ display:grid; grid-template-columns:1fr 1fr; gap:16px 24px; margin-bottom:6px; }
+  .detail-item .dl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:700; margin-bottom:4px; }
+  .detail-item .dv{ font-size:14.5px; font-weight:600; color:var(--ink); }
+  .divider{ height:1px; background:var(--border); margin:20px 0; }
+  .note-box{ background:var(--orange-soft-2); border:1px solid var(--orange-soft); border-radius:12px; padding:14px 16px; font-size:13px; color:var(--ink-soft); line-height:1.55; }
+  .note-box b{ color:var(--ink); }
+  .flag-box{ background:var(--amber-bg); border:1.5px dashed var(--amber); border-radius:12px; padding:12px 16px; font-size:12.8px; color:var(--ink); line-height:1.55; }
+  .flag-box b{ color:var(--amber); }
+  .confirm-box{ background:var(--green-bg); border:1.5px solid var(--green); border-radius:12px; padding:12px 16px; font-size:12.8px; color:var(--ink); line-height:1.55; }
+  .confirm-box b{ color:var(--green); }
+
+  .code-reveal{ text-align:center; padding:22px; background:var(--orange-soft-2); border:1.5px dashed var(--orange); border-radius:14px; margin:6px 0 18px; }
+  .code-reveal .code-str{ font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; letter-spacing:.06em; color:var(--orange-deep); }
+  .code-reveal .code-meta{ margin-top:8px; font-size:12.5px; color:var(--ink-soft); }
+  .code-actions{ display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+  .issued-list{ display:flex; flex-direction:column; gap:12px; margin:6px 0 18px; }
+  .issued-item{ text-align:center; padding:16px; background:var(--orange-soft-2); border:1.5px dashed var(--orange); border-radius:14px; }
+  .issued-item .it-label{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); margin-bottom:6px; }
+  .issued-item .code-str{ font-family:'IBM Plex Mono',monospace; font-size:19px; font-weight:600; letter-spacing:.05em; color:var(--orange-deep); }
+
+  /* Stepper (lead status / hardware lifecycle) */
+  .stepper{ display:flex; align-items:center; margin:6px 0 22px; }
+  .stepper .step{ display:flex; flex-direction:column; align-items:center; flex:1; position:relative; }
+  .stepper .step .sdot{ width:30px; height:30px; border-radius:50%; background:var(--gray-bg); color:var(--ink-faint); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12.5px; border:2px solid var(--border); z-index:2; }
+  .stepper .step.done .sdot{ background:var(--orange); color:#fff; border-color:var(--orange); }
+  .stepper .step.current .sdot{ background:#fff; color:var(--orange-deep); border-color:var(--orange); box-shadow:0 0 0 4px var(--orange-soft); }
+  .stepper .step .slabel{ font-size:11.5px; margin-top:8px; font-weight:600; color:var(--ink-faint); text-align:center; }
+  .stepper .step.done .slabel, .stepper .step.current .slabel{ color:var(--ink); }
+  .stepper .step:not(:last-child)::after{ content:''; position:absolute; top:15px; left:calc(50% + 18px); width:calc(100% - 36px); height:2px; background:var(--border); z-index:1; }
+  .stepper .step.done:not(:last-child)::after{ background:var(--orange); }
+  .stepper .step button.sdot{ cursor:pointer; border:2px solid var(--border); }
+
+  /* progress bar (hours cap / seat allocation) */
+  .meter{ height:9px; border-radius:99px; background:var(--gray-bg); overflow:hidden; }
+  .meter > div{ height:100%; border-radius:99px; background:linear-gradient(90deg,#f7941d,#f26522); }
+  .meter.danger > div{ background:linear-gradient(90deg,#e0674a,#d1402f); }
+
+  /* ---------- Toasts ---------- */
+  .toast-container{ position:fixed; bottom:26px; right:26px; display:flex; flex-direction:column; gap:10px; z-index:500; max-width:340px; }
+  .toast{
+    background:var(--bg-elevated); border:1px solid var(--border); border-left:4px solid var(--orange); border-radius:12px;
+    padding:13px 16px; box-shadow:var(--shadow-md); font-size:13.5px; display:flex; gap:10px; align-items:flex-start;
+    animation:toastIn .18s ease;
+  }
+  .toast.success{ border-left-color:var(--green); }
+  .toast.error{ border-left-color:var(--red); }
+  .toast.fade{ animation:toastOut .25s ease forwards; }
+  @keyframes toastIn{ from{opacity:0; transform:translateX(20px);} to{opacity:1; transform:translateX(0);} }
+  @keyframes toastOut{ to{opacity:0; transform:translateX(20px);} }
+  .toast svg{ flex-shrink:0; margin-top:1px; color:var(--orange); }
+  .toast.success svg{ color:var(--green); }
+  .toast.error svg{ color:var(--red); }
+
+  .checkbox-row{ display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid var(--border); }
+  .checkbox-row:last-child{ border-bottom:none; }
+  .checkbox-row .cr-label{ font-size:14px; font-weight:600; }
+  .checkbox-row .cr-sub{ font-size:12px; color:var(--ink-faint); margin-top:2px; }
+  .switch{ position:relative; width:42px; height:24px; flex-shrink:0; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch .track{ position:absolute; inset:0; background:var(--border); border-radius:999px; transition:.15s; cursor:pointer; }
+  .switch .track::before{ content:''; position:absolute; width:18px; height:18px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.15s; box-shadow:var(--shadow-sm); }
+  .switch input:checked + .track{ background:var(--orange); }
+  .switch input:checked + .track::before{ transform:translateX(18px); }
+
+  .empty-note{ text-align:center; padding:50px 20px; color:var(--ink-faint); }
+  .empty-note svg{ width:38px; height:38px; margin-bottom:10px; opacity:.6; }
+
+  .entitlement-toggle-row{ display:flex; align-items:flex-start; gap:12px; border:1.5px solid var(--border); border-radius:14px; padding:14px 16px; margin-bottom:14px; }
+  .entitlement-toggle-row input[type="checkbox"]{ width:19px; height:19px; margin-top:2px; accent-color:var(--orange); flex-shrink:0; }
+  .entitlement-toggle-row .etr-body{ flex:1; }
+  .entitlement-toggle-row .etr-title{ font-weight:700; font-size:14.5px; margin-bottom:2px; }
+  .entitlement-toggle-row .etr-sub{ font-size:12.3px; color:var(--ink-faint); margin-bottom:10px; }
+  .entitlement-fields{ display:none; }
+  .entitlement-fields.show{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  /* ---------- Mark Shipped emphasis (required step) ---------- */
+  .btn-highlight{
+    background:linear-gradient(135deg,#fff2df,#ffe2b8); border:1.5px solid var(--orange); color:var(--orange-deep);
+    font-weight:700; box-shadow:0 0 0 3px rgba(245,130,31,.16); animation:pulseShip 2.2s ease-in-out infinite;
+  }
+  .btn-highlight:hover{ background:linear-gradient(135deg,#ffe8c9,#ffd79a); box-shadow:0 0 0 4px rgba(245,130,31,.24); }
+  @keyframes pulseShip{ 0%,100%{ box-shadow:0 0 0 3px rgba(245,130,31,.16); } 50%{ box-shadow:0 0 0 6px rgba(245,130,31,.3); } }
+
+  /* ---------- Small inline info tooltip icon ---------- */
+  .info-ico{
+    display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:50%;
+    background:var(--gray-bg); color:var(--ink-soft); font-size:10px; font-weight:800; font-style:normal;
+    cursor:help; margin-left:5px; vertical-align:middle; flex-shrink:0; user-select:none;
+  }
+
+  /* ---------- Add Keys to Account page ---------- */
+  .gcp-searchRow{ display:flex; gap:10px; align-items:flex-start; }
+  .gcp-searchRow input{ flex:1; }
+  .gcp-existingSummary{ display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; background:var(--gray-bg); border-radius:12px; padding:16px 18px; margin:14px 0 18px; }
+  .gcp-existingSummary .dl{ font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); font-weight:700; margin-bottom:4px; }
+  .gcp-existingSummary .dv{ font-size:14.5px; font-weight:600; color:var(--ink); }
+  .chip-list{ display:flex; flex-wrap:wrap; gap:8px; }
+  .chip{ display:inline-flex; align-items:center; gap:6px; background:var(--gray-bg); border:1px solid var(--border); border-radius:999px; padding:5px 8px 5px 12px; font-size:12.5px; font-weight:600; color:var(--ink); }
+  .chip .chip-x{ display:flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:50%; background:rgba(0,0,0,.08); cursor:pointer; border:none; padding:0; color:var(--ink-soft); }
+  .chip .chip-x:hover{ background:rgba(0,0,0,.16); }
+  .chip.chip-primary{ background:var(--orange-soft); color:var(--orange-deep); }
+</style>
+</head>
+<body>
+
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="screen-login">
+  <div class="login-brand">
+    <div class="brand-row">
+      <svg class="logo-mark" viewBox="0 0 48 48" fill="none"><g id="brandmarkA"></g></svg>
+      <span style="font-weight:800;font-size:19px;">Realityworks <span style="color:#ffe2c2;">AI</span></span>
+    </div>
+    <h1>One login for Sales and Support.</h1>
+    <p class="sub">This console covers Access Keys — the seats and hardware set up on a district's account — only. District sign-ups, sales pipeline, and billing all live in NetSuite — once a deal is ready, Support's job here is simply to issue the right keys.</p>
+    <ul class="brand-points">
+      <li><span class="dot"><svg class="icon" viewBox="0 0 24 24" stroke="white"><polyline points="20 6 9 17 4 12"/></svg></span>Set up <b style="font-weight:800;">Access Keys</b> on a district's account, granting <b style="font-weight:800;">Access Keys</b> — AI seats for online, pooled simulations and Hardware Keys for online, device-based simulations on hardware devices (Chromebooks/laptops/tablets) — together, in a single action</li>
+      <li><span class="dot"><svg class="icon" viewBox="0 0 24 24" stroke="white"><polyline points="20 6 9 17 4 12"/></svg></span>AI seats are one pooled quantity the District Admin can split across their schools; each Hardware Key maps to exactly one hardware device — a Chromebook, laptop, or tablet, not the physical manikin/task trainer, which has no software connection of its own — installed before it ships so it works on arrival, and still emailed to the district to associate for tracking. Every hardware-keyed device needs internet — at install, at pre-shipment test, and at every session</li>
+      <li><span class="dot"><svg class="icon" viewBox="0 0 24 24" stroke="white"><polyline points="20 6 9 17 4 12"/></svg></span>A brand-new district's first order gets a fresh account setup; an existing account needing more is topped up directly by Support, with no new code issued</li>
+      <li><span class="dot"><svg class="icon" viewBox="0 0 24 24" stroke="white"><polyline points="20 6 9 17 4 12"/></svg></span>Replace a wrongly-consumed seat, or replace a damaged Hardware Key — unused-seat returns now flow through the district's Educator Portal</li>
+    </ul>
+  </div>
+  <div class="login-form-wrap">
+    <div class="login-card">
+      <div class="logo-row">
+        <svg class="logo-mark" viewBox="0 0 48 48" fill="none"><g id="brandmarkB"></g></svg>
+        <span style="font-weight:800;font-size:17px;">Realityworks <span style="color:var(--orange);">AI</span></span>
+      </div>
+      <div id="loginSignInView">
+        <h2>Sign in</h2>
+        <p class="login-sub">Support Console &middot; Sales + Support (merged role)</p>
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-input" id="loginEmail" value="realityworks@rwthrive.ai">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <div class="pw-field-wrap">
+            <input class="form-input" id="loginPassword" type="password" value="realityworks2709">
+            <button type="button" class="pw-eye-btn" onclick="togglePwVisibility('loginPassword','pwEyeIcon')" title="Show/hide password">
+              <svg class="icon" id="pwEyeIcon" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="loginError" style="display:none;margin:2px 0 10px;padding:9px 12px;border-radius:8px;background:#fdecea;color:#b43232;font-size:13px;font-weight:600;"></div>
+        <div class="login-forgot-link"><a href="#" onclick="showForgotPassword(); return false;">Forgot password?</a></div>
+        <button class="btn btn-primary btn-block" id="btnSignIn" style="padding:13px;">Sign In</button>
+        <p class="login-hint">Prototype build for internal &amp; client walkthrough. Credentials are pre-filled — click <b>Sign In</b> to explore with sample data.</p>
+      </div>
+      <div id="loginForgotView" style="display:none;">
+        <h2>Reset your password</h2>
+        <p class="login-sub">Enter the email on this account and we'll send a password reset link.</p>
+        <div class="form-group">
+          <label>Email</label>
+          <input class="form-input" id="forgotEmail" placeholder="support@realityworksai.com">
+        </div>
+        <button class="btn btn-primary btn-block" id="btnSendReset" style="padding:13px;" onclick="submitForgotPassword()">Send Reset Link</button>
+        <div id="forgotConfirm" class="confirm-box" style="display:none;margin-top:16px;"></div>
+        <p class="login-hint"><a href="#" onclick="backToSignIn(); return false;">&larr; Back to Sign In</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="app" style="display:none;">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="logo">
+        <svg class="logo-mark" viewBox="0 0 48 48" fill="none"><g id="brandmarkC"></g></svg>
+        <span class="logo-text">Realityworks <span class="hl">AI</span></span>
+      </div>
+      <button class="collapse-btn" id="collapseBtn"><svg class="icon" style="width:14px;height:14px;" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+    </div>
+    <div class="sidebar-role">Support / Sales</div>
+    <nav class="sidebar-nav" id="sidebarNav">
+      <button class="nav-item active" data-page="entitlements" title="Keys">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.6a1.5 1.5 0 0 0 0 3V15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1.4a1.5 1.5 0 0 0 0-3V9z"/><line x1="9" y1="7.5" x2="9" y2="16.5" stroke-dasharray="2.5 2.5"/></svg>
+        <span class="label">Keys</span>
+      </button>
+      <button class="nav-item" data-page="toship" title="To Ship">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
+        <span class="label">To Ship</span>
+        <span class="nav-badge" id="toShipBadge" style="display:none;">0</span>
+      </button>
+      <button class="nav-item" data-page="account" title="Profile">
+        <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5"/></svg>
+        <span class="label">Profile</span>
+      </button>
+    </nav>
+    <div class="sidebar-foot">RW Thrive &middot; Support Console<br>Prototype build &middot; Aug 2026</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="topbar-left">Support Console / <b id="topbarTitle">Keys</b></div>
+      <div class="topbar-right">
+        <button class="icon-btn" id="btnSignOut" title="Sign out">
+          <svg class="icon" viewBox="0 0 24 24"><path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 16l4-4-4-4"/><line x1="19" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ================= ACCESS KEYS ================= -->
+      <section class="page active" id="page-entitlements">
+        <div class="page-head">
+          <div>
+            <h1>Keys</h1>
+          </div>
+          <button class="btn btn-primary" id="btnIssueStandalone"><svg class="icon" style="width:16px;height:16px;" viewBox="0 0 24 24" stroke="white"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add Keys to Account</button>
+        </div>
+        <div class="panel">
+          <div class="toolbar" style="justify-content:space-between;flex-wrap:wrap;">
+
+            <div class="search-wrap">
+              <div class="search-input"><svg class="icon" style="width:15px;height:15px;" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="entSearch" placeholder="Search account ID, district, email, or access key..."></div>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr id="entHead"></tr></thead>
+              <tbody id="entBody"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="entPagination"></div>
+        </div>
+      </section>
+
+      <!-- ================= TO SHIP ================= -->
+      <!-- ================= DISTRICT ADMIN ================= -->
+      <!-- ================= CREATE DISTRICT (full page, action-triggered) ================= -->
+      <section class="page" id="page-createDistrict">
+        <div class="page-head">
+          <div>
+            <h1>Create District Admin</h1>
+            <p>Registers a new district on file. No seats or hardware are issued here — once created, add its keys from the Keys page.</p>
+          </div>
+          <button class="btn btn-secondary" onclick="cancelCreateDistrict()">Cancel</button>
+        </div>
+        <div class="panel" style="max-width:640px;">
+          <div class="panel-body">
+            <div id="cdi-fromSearchNote" class="note-box" style="margin-bottom:16px;display:none;"></div>
+            <div class="form-group"><label>NetSuite Account ID <span class="req">*</span> <span class="hint" style="display:inline;">— manually entered, not validated against a live NetSuite record</span></label><input class="form-input" id="cdi-netsuiteId" placeholder="e.g. 4521789"></div>
+            <div class="form-group"><label>District Name <span class="req">*</span></label><input class="form-input" id="cdi-district" placeholder="e.g. Fairview Unified"></div>
+            <div class="form-group"><label>District Email <span class="req">*</span></label><input class="form-input" id="cdi-email" placeholder="admin@district.edu"></div>
+            
+            <div class="hint" style="margin:-6px 0 16px;">AI seats and hardware units aren't part of district creation — those are added to the account from Add Keys to Account.</div>
+            <div class="modal-foot">
+              <button class="btn btn-secondary" onclick="cancelCreateDistrict()">Cancel</button>
+              <button class="btn btn-primary" onclick="submitCreateDistrict()">Create District</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= DISTRICT DETAIL (full page, action-triggered) ================= -->
+      <section class="page" id="page-toship">
+        <div class="page-head">
+          <div>
+            <h1>To Ship</h1>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="toolbar" style="justify-content:flex-end;">
+            <div class="search-wrap">
+              <div class="search-input"><svg class="icon" style="width:15px;height:15px;" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input id="toShipSearch" placeholder="Search district or hardware key..."></div>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead><tr>
+                <th>Hardware Key</th><th>District</th><th></th>
+              </tr></thead>
+              <tbody id="toShipBody"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="toShipPagination"></div>
+        </div>
+      </section>
+
+      <!-- ================= PROFILE (ACCOUNT) ================= -->
+      <section class="page" id="page-account">
+        <div class="page-head">
+          <div><h1>Profile</h1><p>Manage your profile.</p></div>
+        </div>
+        <div class="panel" style="max-width:640px;">
+          <div class="panel-head"><div><h3>Profile Information</h3><p>Sales &amp; Support share this single login</p></div>
+            <button class="btn btn-primary btn-sm" onclick="openChangePassword()">Change Password</button>
+          </div>
+          <div class="panel-body">
+            <div style="display:flex; align-items:center; gap:16px; margin-bottom:22px;">
+              <div class="avatar" style="width:56px;height:56px;font-size:20px;">A</div>
+              <div>
+                <div style="font-weight:700; font-size:16px;">Alex Rivera</div>
+                <a href="#" style="font-size:12.5px;" onclick="toastGeneric('Photo upload is out of scope for this prototype.'); return false;">Add Photo</a>
+              </div>
+            </div>
+            <div class="form-row2">
+              <div class="form-group"><label>Full Name</label><input class="form-input" value="Alex Rivera" disabled></div>
+              <div class="form-group"><label>Email</label><input class="form-input" value="support@realityworksai.com" disabled></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= GENERATE ACTIVATION CODE (full page — replaces the old popup) ================= -->
+      <section class="page" id="page-genCode">
+        <div class="page-head">
+          <div>
+            <h1 id="gcp-title">Add Keys to Account</h1>
+            <p id="gcp-sub">Pick the account and add the seats and/or hardware this order needs. No district information is re-entered. If the district isn't on file yet, create it first.</p>
+          </div>
+          <button class="btn btn-secondary" id="gcp-cancelBtn" onclick="cancelGenCodePage()">Cancel</button>
+        </div>
+
+        <div class="panel" style="max-width:760px;">
+          <div class="panel-body">
+
+            <!-- Step 1: search by NetSuite Account ID -->
+            <div id="gcp-searchStep">
+              <div class="form-group">
+                <label>District <span class="req">*</span> <span class="hint" style="display:inline;">— every district on file; pick one to continue</span></label>
+                <select class="form-input" id="gcp-districtPick" onchange="pickGenCodeDistrict(this.value)">
+                  <option value="">Select a district...</option>
+                </select>
+              </div>
+              <div class="hint" style="margin:-8px 0 14px;">Not on file yet? <button class="btn btn-ghost btn-sm" style="padding:1px 8px;font-size:12px;" onclick="openCreateDistrict('gencode')">Create a new district</button></div>
+              <!-- Optional NetSuite Account ID lookup, always visible. It is a convenience
+                   shortcut alongside the district picker above, not a required gate. -->
+              <div class="form-group" style="margin-bottom:4px;">
+                <label>Find by NetSuite Account ID <span class="hint" style="display:inline;">— optional shortcut; the district picker above does the same job</span></label>
+                <div class="gcp-searchRow">
+                  <input class="form-input" id="gcp-searchNetsuiteId" placeholder="e.g. 4521789">
+                  <button class="btn btn-outline" onclick="searchNetsuiteId()">Search</button>
+                </div>
+                <div id="gcp-searchResult"></div>
+              </div>
+            </div>
+
+            <!-- Step 2A: existing district found -> top-up only -->
+            <div id="gcp-existingBranch" style="display:none;">
+              <div class="note-box" style="margin-bottom:6px;"><b>Adding to an existing account —</b> district name, email and NetSuite ID are already on file and unchanged here. Just add what this order needs below.</div>
+              <div class="gcp-existingSummary">
+                <div><div class="dl">NetSuite Account ID</div><div class="dv" id="gcp-existingNetsuiteDisplay">-</div></div>
+                <div><div class="dl">District</div><div class="dv" id="gcp-existingDistrictDisplay">-</div></div>
+                <div><div class="dl">District Email</div><div class="dv" id="gcp-existingEmailDisplay">-</div></div>
+                <div><div class="dl">Current AI Seats</div><div class="dv" id="gcp-existingCurrentSeats">-</div></div>
+                <div><div class="dl">Current Hardware Units</div><div class="dv" id="gcp-existingCurrentHw">-</div></div>
+              </div>
+              <div class="form-row2">
+                <div class="form-group"><label>AI Seats to add</label><input class="form-input" id="gcp-addSeats" type="number" min="0" placeholder="e.g. 20"></div>
+                <div class="form-group"><label>Hardware Units to add <span class="info-ico" title="Each Hardware Key is used once and tied to exactly one device.">i</span></label><input class="form-input" id="gcp-addHwUnits" type="number" min="0" placeholder="e.g. 1"></div>
+              </div>
+              <div class="form-group"><label>Audience <span class="hint" style="display:inline;">— applies to the hardware units added above; ignored if 0</span></label><select class="form-input" id="gcp-addHwAudience"><option>Secondary</option><option>Post-Secondary</option></select></div>
+              <div class="form-row2">
+                <div class="form-group"><label>AI Seat Active Date <span class="hint" style="display:inline;">— when the seats added above start</span></label><input class="form-input" id="gcp-addSeatActive" type="date" min=""></div>
+                <div class="form-group"><label>Hardware Active Date <span class="hint" style="display:inline;">— when the hardware keys added above start; ignored if 0</span></label><input class="form-input" id="gcp-addHwActive" type="date" min=""></div>
+              </div>
+              <div class="form-row2">
+                <div class="form-row2">
+                <div class="form-group"><label>AI Seat Active Date <span class="hint" style="display:inline;">— when these seats start</span></label><input class="form-input" id="gc-seatActive" type="date" min=""></div>
+                <div class="form-group"><label>Hardware Active Date <span class="hint" style="display:inline;">— when these hardware keys start; ignored if 0</span></label><input class="form-input" id="gc-hwActive" type="date" min=""></div>
+              </div>
+              <div class="form-group"><label>AI Seat Expiration Date <span class="hint" style="display:inline;">— applies to the seats added above; each also carries its own hours cap</span></label><input class="form-input" id="gcp-addSeatExpiry" type="date" min=""></div>
+                <div class="form-group"><label>Hardware Expiration Date <span class="hint" style="display:inline;">— applies to the hardware keys added above; ignored if 0</span></label><input class="form-input" id="gcp-addHwExpiry" type="date" min=""></div>
+              </div>
+              <div class="hint" style="margin:-6px 0 16px;">This adds directly to the existing account and is logged as a <b>Renewed</b> entry. The dates above apply only to the seats and keys added now; anything already on the account keeps its own expiry.</div>
+              <div class="modal-foot" style="margin-top:10px;">
+                <button class="btn btn-secondary" onclick="resetGenCodeSearch()">Back to Search</button>
+                <button class="btn btn-primary" onclick="submitExistingTopup()">Add to Account</button>
+              </div>
+            </div>
+
+            <!-- Step 2B: district on file with no keys set up yet -> first order -->
+            <div id="gcp-newBranch" style="display:none;">
+              <div class="note-box" style="margin-bottom:6px;"><b>First keys for this district —</b> district information is already on file below; this sets up its first seats and/or hardware.</div>
+              <div class="gcp-existingSummary">
+                <div><div class="dl">NetSuite Account ID</div><div class="dv" id="gcp-firstNetsuiteDisplay">-</div></div>
+                <div><div class="dl">District</div><div class="dv" id="gcp-firstDistrictDisplay">-</div></div>
+                <div><div class="dl">District Email</div><div class="dv" id="gcp-firstEmailDisplay">-</div></div>
+              </div>
+              <div class="hint" style="margin:-6px 0 16px;">One code covers both seats and hardware — enter 0 for whichever this district isn't getting.</div>
+              <div class="form-row2">
+                <div class="form-group"><label>AI Seats</label><input class="form-input" id="gc-aiseats" type="number" min="0" placeholder="e.g. 60"></div>
+                <div class="form-group"><label>Hardware Units <span class="info-ico" title="Each Hardware Key is used once and tied to exactly one device.">i</span></label><input class="form-input" id="gc-hwunits" type="number" min="0" placeholder="e.g. 2"></div>
+              </div>
+              <div class="form-group"><label>Audience <span class="hint" style="display:inline;">— applies to all Hardware Units on this code; ignored if Hardware Units is 0</span></label><select class="form-input" id="gc-hwaudience"><option>Secondary</option><option>Post-Secondary</option></select></div>
+              <div class="form-group"><label>AI Seat Expiration Date <span class="hint" style="display:inline;">— 40 hours of use per seat also applies, whichever is reached first; the clock on this date starts today (issuance), not on redemption</span></label><input class="form-input" id="gc-seatExpiry" type="date" min=""></div>
+              <div class="form-group"><label>Hardware Expiration Date <span class="hint" style="display:inline;">— separate from the AI Seat date above; can be edited per-code later, and per-key in rare cases where one device needs a different date. Ignored if Hardware Units is 0. Each Hardware Key also carries its own hours-usage limit regardless of this date.</span></label><input class="form-input" id="gc-hwExpiry" type="date" min=""></div>
+              <div class="note-box" style="margin-bottom:16px;"><b>Worth knowing —</b> issuing this code creates the AI seats and the individual Hardware Keys together, right now, in one action — each Hardware Key is generated immediately and just needs to be marked Shipped once its physical device goes out. Deal/payment details (PO number, amount, etc.) are tracked in NetSuite, not here.</div>
+              <div class="modal-foot">
+                <button class="btn btn-secondary" onclick="resetGenCodeSearch()">Back to Search</button>
+                <button class="btn btn-primary" id="gc-submitBtn" onclick="submitFirstIssuance()">Add Keys to Account</button>
+              </div>
+            </div>
+
+            <!-- Result -->
+            <div id="gcp-result" style="display:none;">
+              <div id="gc-resultNote" class="note-box" style="margin-bottom:16px;"></div>
+              <div class="issued-list" id="gc-issuedList"></div>
+              <div id="gc-hwKeysWrap" style="display:none;margin-bottom:16px;">
+                <div class="dl" style="margin-bottom:10px;">Hardware Keys created — ready to install <span class="info-ico" title="Each Hardware Key is used once and tied to exactly one device — once shipped, it can't move to a different device.">i</span></div>
+                <div id="gc-hwKeysList" style="display:flex; flex-direction:column; gap:8px;"></div>
+              </div>
+              <div class="note-box" id="gc-resultNote2">These keys are live on the account now — the district does not enter or activate anything. The Hardware Keys above just need to be marked Shipped once each physical device goes out.</div>
+              <!-- Copy All / Send Email to District Admin removed with the Activation Code -->
+
+              <div class="modal-foot">
+                <button class="btn btn-primary btn-block" onclick="cancelGenCodePage()">Done</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= ACTIVATION CODE DETAIL (full page — replaces the old popup) ================= -->
+      <section class="page" id="page-codeDetail">
+        <div class="page-head">
+          <div><h1 id="cd-title">Account</h1><p>Account detail — the keys set up on this account</p></div>
+          <button class="btn btn-secondary" onclick="closeCodeDetailPage()">&larr; Back</button>
+        </div>
+        <div class="panel" style="max-width:900px;">
+          <div class="panel-body">
+            <div class="detail-grid">
+              <div class="detail-item"><div class="dl">District</div><div class="dv" id="cd-district">-</div></div>
+              <div class="detail-item">
+                <div class="dl">NetSuite Account ID <span class="hint" style="display:inline;">— manually entered for cross-reference; not validated, since there's no live NetSuite connection</span></div>
+                <div class="dv" id="cd-netsuiteId">-</div>
+              </div>
+              
+              <div class="detail-item"><div class="dl">AI Seats</div><div class="dv" id="cd-aiseats">-</div></div>
+              <div class="detail-item"><div class="dl">Hardware Units</div><div class="dv" id="cd-hwunits">-</div></div>
+              <div class="detail-item"><div class="dl">Issued</div><div class="dv" id="cd-issued">-</div></div>
+              <div class="detail-item"><div class="dl">Replacements issued</div><div class="dv" id="cd-replacements">-</div></div>
+            </div>
+            <!-- No single "Expires" value here: every seat key and hardware key carries its
+                 own date, listed in the two sections below. What remains is the bulk action
+                 to set them all at once, so a 200-seat account is still one click. -->
+            <div class="note-box" style="margin-top:14px;">
+              <b>Expiry lives on the individual keys.</b> Each seat key and hardware key has its own expiry date and hours cap — see the two sections below. A bulk change targets a <b>pool</b>: either every key on this code, or just the keys currently sharing one expiry date — useful when an account has been topped up and its keys sit on different dates.
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+                <span id="cd-expiryView" style="display:flex;align-items:center;gap:6px;">
+                  <button class="btn btn-outline btn-sm" onclick="openEditExpiry()">Change seat key expiry</button>
+                  <span id="cd-expiry" style="font-size:12px;color:var(--ink-soft,#6b7280);"></span>
+                </span>
+                <span id="cd-expiryEdit" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <label class="dl" style="margin:0;font-size:10.5px;">Pool</label>
+                  <select class="form-input" id="cd-expiryScope" style="padding:5px 9px;font-size:12.5px;width:auto;max-width:260px;"></select>
+                  <label class="dl" style="margin:0;font-size:10.5px;">New expiry</label>
+                  <input class="form-input" type="date" min="" id="cd-expiryInput" style="padding:5px 9px;font-size:12.5px;width:auto;">
+                  <button class="btn btn-primary btn-sm" onclick="saveEditExpiry()">Apply</button>
+                  <button class="btn btn-ghost btn-sm" onclick="cancelEditExpiry()">Cancel</button>
+                </span>
+                <span id="cd-hwExpiryWrap" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span id="cd-hwExpiryView" style="display:flex;align-items:center;gap:6px;">
+                    <button class="btn btn-outline btn-sm" onclick="openEditHwGroupExpiry()">Change hardware key expiry</button>
+                    <span id="cd-hwExpiry" style="font-size:12px;color:var(--ink-soft,#6b7280);"></span>
+                  </span>
+                  <span id="cd-hwExpiryEdit" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;">
+                    <label class="dl" style="margin:0;font-size:10.5px;">Pool</label>
+                    <select class="form-input" id="cd-hwExpiryScope" style="padding:5px 9px;font-size:12.5px;width:auto;max-width:260px;"></select>
+                    <label class="dl" style="margin:0;font-size:10.5px;">New expiry</label>
+                    <input class="form-input" type="date" min="" id="cd-hwExpiryInput" style="padding:5px 9px;font-size:12.5px;width:auto;">
+                    <button class="btn btn-primary btn-sm" onclick="saveEditHwGroupExpiry()">Apply</button>
+                    <button class="btn btn-ghost btn-sm" onclick="cancelEditHwGroupExpiry()">Cancel</button>
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div id="cd-historyWrap" style="display:none;margin-top:18px;">
+              <div class="divider"></div>
+              <button type="button" onclick="toggleCdSection('history')" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:10px;width:100%;">
+                <svg id="cd-historyChevron" class="icon" style="width:15px;height:15px;transform:rotate(-90deg);transition:transform .15s;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                <span class="dl" style="margin:0;">Account Activity <span class="info-ico" title="Seats or hardware added to this account after it was first set up. These additions go straight onto the account, so this is the only record that the order happened.">i</span></span>
+                <span class="badge badge-gray" id="cd-historyCount" style="margin-left:auto;">0</span>
+              </button>
+              <div id="cd-historyList" style="display:none; flex-direction:column; gap:8px;"></div>
+            </div>
+            <div id="cd-allocWrap" style="display:none;margin-top:18px;">
+              <div class="divider"></div>
+              <button type="button" onclick="toggleCdSection('alloc')" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:10px;width:100%;">
+                <svg id="cd-allocChevron" class="icon" style="width:15px;height:15px;transform:rotate(-90deg);transition:transform .15s;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                <span class="dl" style="margin:0;">Seats allocated to educators <span class="info-ico" title="How many of this account's AI seats the District Admin has handed out to their educators.">i</span></span>
+                <span class="badge badge-gray" id="cd-allocCount" style="margin-left:auto;">0</span>
+              </button>
+              <div id="cd-allocList" style="display:none; flex-direction:column; gap:8px;">
+                <div class="detail-item">
+                  <div class="dv" id="cd-allocText" style="margin-bottom:8px;">-</div>
+                  <div class="meter"><div id="cd-allocBar" style="width:0%;"></div></div>
+                </div>
+              </div>
+            </div>
+            <div id="cd-seatListWrap" style="display:none;margin-top:18px;">
+              <div class="divider"></div>
+              <button type="button" onclick="toggleCdSection('seat')" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:10px;width:100%;">
+                <svg id="cd-seatChevron" class="icon" style="width:15px;height:15px;transform:rotate(-90deg);transition:transform .15s;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                <span class="dl" style="margin:0;">AI Seat Keys <span class="info-ico" title="One key per AI seat. Each carries its own expiry date and its own hours cap — whichever is reached first ends that seat.">i</span></span>
+                <span class="badge badge-gray" id="cd-seatCount" style="margin-left:auto;">0</span>
+              </button>
+              <div id="cd-seatList" style="display:none; flex-direction:column; gap:8px;"></div>
+            </div>
+            <div id="cd-hwListWrap" style="display:none;margin-top:18px;">
+              <div class="divider"></div>
+              <button type="button" onclick="toggleCdSection('hw')" style="all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:10px;width:100%;">
+                <svg id="cd-hwChevron" class="icon" style="width:15px;height:15px;transform:rotate(-90deg);transition:transform .15s;" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+                <span class="dl" style="margin:0;">Hardware Keys <span class="info-ico" title="Each Hardware Key is used once and tied to exactly one device — once shipped, it can't move to a different device.">i</span></span>
+                <span class="badge badge-gray" id="cd-hwCount" style="margin-left:auto;">0</span>
+              </button>
+              <div id="cd-hwList" style="display:none; flex-direction:column; gap:8px;"></div>
+            </div>
+            <div class="modal-foot" style="justify-content:space-between; flex-wrap:wrap;">
+              <div style="display:flex; gap:10px; flex-wrap:wrap;" id="cd-actionButtons"></div>
+              <button class="btn btn-secondary" onclick="closeCodeDetailPage()">&larr; Back</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============ MODAL: Hardware Detail ============ -->
+<div class="modal-overlay" id="modal-hwDetail">
+  <div class="modal-box wide">
+    <div class="modal-head">
+      <div><h2 style="display:flex;align-items:center;gap:10px;"><span id="hd-title" class="mono">HWK-••••</span><button type="button" class="icon-btn" style="width:32px;height:32px;" onclick="toggleHwDetailKey()" title="Show/hide key"><svg class="icon" style="width:15px;height:15px;" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button></h2><p>Hardware Key lifecycle <span class="info-ico" title="Each Hardware Key is used only once and assigned to exactly one device — once shipped, it can't move to a different device. Use Report Damaged / Replace to issue a new key for a new device.">i</span></p></div>
+      <button class="modal-close" onclick="closeModal('modal-hwDetail')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="stepper" id="hd-stepper"></div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="dl">Audience</div><div class="dv" id="hd-audience">-</div></div>
+      <div class="detail-item"><div class="dl">District</div><div class="dv" id="hd-district">-</div></div>
+      <div class="detail-item"><div class="dl">Registered</div><div class="dv" id="hd-registered">-</div></div>
+      <div class="detail-item"><div class="dl">Shipped</div><div class="dv" id="hd-shipped">-</div></div>
+      <div class="detail-item"><div class="dl">Device Serial Number <span class="hint" style="display:inline;">— captured at Mark Shipped, from manufacturing; this key only works on this device</span></div><div class="dv mono" id="hd-serial">-</div></div>
+      <div class="detail-item"><div class="dl">Hours Allowance</div><div class="dv" id="hd-hoursAllowance">-</div></div>
+      <div class="detail-item"><div class="dl">Hours used (of current allowance)</div><div class="dv" id="hd-hours">-</div></div>
+      <div class="detail-item">
+        <div class="dl">Expires <span class="hint" style="display:inline;">— separate from the hours allowance above; whichever is reached first applies</span></div>
+        <div class="dv" id="hd-expiryView" style="display:flex;align-items:center;gap:8px;">
+          <span id="hd-expiry">-</span>
+          <button class="btn-edit-inline" title="Edit this hardware key's expiry" onclick="openEditHwKeyExpiry()"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit</button>
+        </div>
+        <div id="hd-expiryEdit" style="display:none;align-items:center;gap:8px;margin-top:6px;">
+          <input class="form-input" type="date" min="" id="hd-expiryInput" style="padding:6px 10px;font-size:13px;width:auto;">
+          <button class="btn btn-primary btn-sm" onclick="saveEditHwKeyExpiry()">Save</button>
+          <button class="btn btn-ghost btn-sm" onclick="cancelEditHwKeyExpiry()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div class="meter" id="hd-hoursMeterWrap" style="margin-bottom:16px;"><div id="hd-hoursMeter" style="width:0%;"></div></div>
+    <div class="divider"></div>
+    <div id="hd-noteBox" class="note-box" style="margin-bottom:12px;"></div>
+    <div id="hd-regNoteBox" class="note-box" style="margin-bottom:12px;display:none;"></div>
+    <div id="hd-renewHistoryWrap" style="display:none;margin-bottom:16px;">
+      <div class="dl" style="margin-bottom:10px;">Renewal History</div>
+      <div id="hd-renewHistoryList" style="display:flex; flex-direction:column; gap:8px;"></div>
+    </div>
+    <div id="hd-flagBox" class="note-box" style="display:none;margin-bottom:16px;"></div>
+    <div class="modal-foot" style="justify-content:space-between; flex-wrap:wrap;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap;" id="hd-actionButtons"></div>
+      <button class="btn btn-primary" onclick="closeModal('modal-hwDetail')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Replace Seat ============ -->
+<div class="modal-overlay" id="modal-replaceSeat">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h2>Issue a Replacement Seat</h2><p>For a seat that was wrongly or accidentally consumed.</p></div>
+      <button class="modal-close" onclick="closeModal('modal-replaceSeat')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="form-group"><label>Key</label><input class="form-input mono" id="rp-key" disabled></div>
+    <div class="form-group"><label>Reason <span class="req">*</span></label><textarea class="form-input" id="rp-reason" placeholder="e.g. Student's session was cut off by a network drop after the seat was already marked used."></textarea></div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('modal-replaceSeat')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitReplaceSeat()">Issue Replacement</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Change Password ============ -->
+<div class="modal-overlay" id="modal-changePassword">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h2>Change Password</h2><p>Update the password for this shared Sales &amp; Support login.</p></div>
+      <button class="modal-close" onclick="closeModal('modal-changePassword')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="form-group">
+      <label>Current Password <span class="req">*</span></label>
+      <div class="pw-field-wrap">
+        <input class="form-input" type="password" id="cp-current" placeholder="Enter current password">
+        <button type="button" class="pw-eye-btn" onclick="togglePwVisibility('cp-current','cp-current-eye')" title="Show/hide password">
+          <svg class="icon" id="cp-current-eye" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>New Password <span class="req">*</span></label>
+      <div class="pw-field-wrap">
+        <input class="form-input" type="password" id="cp-new" placeholder="At least 8 characters">
+        <button type="button" class="pw-eye-btn" onclick="togglePwVisibility('cp-new','cp-new-eye')" title="Show/hide password">
+          <svg class="icon" id="cp-new-eye" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <div class="hint">Must be at least 8 characters.</div>
+    </div>
+    <div class="form-group">
+      <label>Confirm New Password <span class="req">*</span></label>
+      <div class="pw-field-wrap">
+        <input class="form-input" type="password" id="cp-confirm" placeholder="Re-enter new password">
+        <button type="button" class="pw-eye-btn" onclick="togglePwVisibility('cp-confirm','cp-confirm-eye')" title="Show/hide password">
+          <svg class="icon" id="cp-confirm-eye" style="width:16px;height:16px;" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('modal-changePassword')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitChangePassword()">Update Password</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Replace Hardware Key (damaged) ============ -->
+<div class="modal-overlay" id="modal-replaceHw">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h2>Report Damaged / Replace Key</h2><p>This device's Hardware Key is being retired — a new physical device and key will be shipped.</p></div>
+      <button class="modal-close" onclick="closeModal('modal-replaceHw')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="form-group"><label>Key being replaced</label><input class="form-input mono" id="rhw-key" disabled></div>
+    <div class="form-group"><label>Reason <span class="req">*</span></label><textarea class="form-input" id="rhw-reason" placeholder="e.g. Device screen was cracked in shipping; district reported it won't power on."></textarea></div>
+    <div class="hint" style="margin:0 0 16px;">This marks the old key as Replaced and automatically generates a new Hardware Key for the replacement device, linked to the same account — keeping its remaining hours allowance and the same expiration date rather than resetting the clock. Mark the new key Shipped once the device goes out, which is where its own Device Serial Number gets captured.</div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('modal-replaceHw')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitReplaceHw()">Mark as Replaced</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Renew Hardware Key Hours ============ -->
+<div class="modal-overlay" id="modal-renewHw">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h2>Renew Hardware Key Hours</h2><p>Grant extra hours on top of the normal allowance — for a device that's paused, or a district that needs more before the allowance grows on its own.</p></div>
+      <button class="modal-close" onclick="closeModal('modal-renewHw')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="form-group"><label>Key</label><input class="form-input mono" id="rnw-key" disabled></div>
+    <div class="form-group"><label>Current allowance</label><input class="form-input" id="rnw-current" disabled></div>
+    <div class="form-group">
+      <label>Hours to grant <span class="req">*</span></label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <button type="button" class="btn btn-outline btn-sm" onclick="rnwQuickPick(50)">+50 hrs</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="rnwQuickPick(100)">+100 hrs</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="rnwQuickPick(250)">+250 hrs</button>
+      </div>
+      <input class="form-input" type="number" min="1" step="1" id="rnw-hours" placeholder="e.g. 100">
+    </div>
+    <div class="form-group"><label>Reason <span class="req">*</span></label><textarea class="form-input" id="rnw-reason" placeholder="e.g. District purchased additional hours ahead of finals week; approved by Sales."></textarea></div>
+    <div class="hint" style="margin:0 0 16px;">This is separate from the key's calendar Expiry date (edited above) — whichever limit is reached first still applies. Granted hours are added immediately and are logged below for reference; if the key was paused, it becomes usable again right away.</div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('modal-renewHw')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitRenewHw()">Grant Hours</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Change District Email ============ -->
+<div class="modal-overlay" id="modal-changeEmail">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h2>Change District Email</h2><p>This is the address Access Keys are sent to. Changing it updates every key on the account.</p></div>
+      <button class="modal-close" onclick="closeModal('modal-changeEmail')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="detail-grid" style="margin-bottom:14px;">
+      <div class="detail-item"><div class="dl">District</div><div class="dv" id="ce-district">-</div></div>
+      <div class="detail-item"><div class="dl">Current email</div><div class="dv" id="ce-current">-</div></div>
+    </div>
+    <div class="form-group"><label>New district email <span class="req">*</span></label><input class="form-input" id="ce-newEmail" type="email" placeholder="e.g. tech@district.k12.us"></div>
+    <div class="hint" style="margin:0 0 16px;">The change is logged on the district's history, and the new address is applied to its Access Key and every Hardware Key straight away.</div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('modal-changeEmail')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitChangeDistrictEmail()">Save Email</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: Mark Shipped (capture Device Serial Number) ============ -->
+<div class="modal-overlay" id="modal-shipHw">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h2>Mark Shipped</h2><p>Capture the Device Serial Number that comes back from manufacturing once this key is programmed onto the physical device.</p></div>
+      <button class="modal-close" onclick="closeModal('modal-shipHw')"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="form-group"><label>Key being shipped</label><input class="form-input mono" id="shw-key" disabled></div>
+    <div class="form-group"><label>Device Serial Number <span class="req">*</span></label><input class="form-input mono" id="shw-serial" placeholder="e.g. SN-88214-CB"></div>
+    <div class="hint" style="margin:0 0 16px;">This key is now tied to this one physical device — the Hardware Key and Device Serial Number together are what actually gets used at login, so the key won't work on any other device. No separate district-side activation step; it works on arrival.</div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('modal-shipHw')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitShipHw()">Mark as Shipped</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var BRAND_SVG_INNER = '<circle cx="24" cy="24" r="24" fill="#f5821f"/>' +
+    '<g fill="#ffffff" fill-opacity=".95">' +
+    '<circle cx="24" cy="14" r="4.2"/><circle cx="24" cy="34" r="4.2"/>' +
+    '<circle cx="14" cy="24" r="4.2"/><circle cx="34" cy="24" r="4.2"/>' +
+    '<circle cx="17.3" cy="17.3" r="3.6"/><circle cx="30.7" cy="30.7" r="3.6"/>' +
+    '<circle cx="30.7" cy="17.3" r="3.6"/><circle cx="17.3" cy="30.7" r="3.6"/>' +
+    '<circle cx="24" cy="24" r="4" fill="#fff"/>' +
+    '</g>';
+  ['brandmarkA','brandmarkB','brandmarkC'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el) el.innerHTML = BRAND_SVG_INNER;
+  });
+
+  var TODAY = new Date('2026-08-25T12:00:00');
+  var DISTRICTS = ['Lincoln County School District','Riverside College','Bright Path Nursing Academy',
+    'Maple Grove Unified','Coastal Health Sciences Institute','Summit Regional High Schools',
+    'Fairview Unified','Northgate College','Cedar Ridge District'];
+
+  function fmt(d){ if(!d) return '—'; return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+  function addDays(d,n){ var r = new Date(d); r.setDate(r.getDate()+n); return r; }
+  function daysBetween(a,b){ return Math.round((a-b)/86400000); }
+  function rand(n){ return Math.floor(Math.random()*n); }
+  function pick(arr){ return arr[rand(arr.length)]; }
+  function genRedemptionCode(){ return 'RWC-' + (1000+rand(9000)); }
+  function esc(s){ return (s===undefined||s===null) ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function isoDate(d){ return d.toISOString().slice(0,10); }
+  // No expiry may be set in the past. `min` blocks the picker; the save handlers also
+  // re-check, since a typed value can bypass `min` in some browsers.
+  function todayIso(){ return isoDate(TODAY); }
+  function applyDateMins(){
+    ['gcp-addSeatExpiry','gcp-addHwExpiry','gc-seatExpiry','gc-hwExpiry',
+     'cd-expiryInput','cd-hwExpiryInput','hd-expiryInput',
+     'gcp-addSeatActive','gcp-addHwActive','gc-seatActive','gc-hwActive'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.min = todayIso();
+    });
+  }
+  function isPastDate(dt){ return dt < new Date(isoDate(TODAY)+'T00:00:00'); }
+  function maskKey(k){ if(!k) return '—'; var tail = k.slice(-4); return '•••• •••• '+tail; }
+  // Existing-district lookup is now keyed off NetSuite Account ID (per the Generate Activation
+  // Code page redesign) rather than typed district name — Support searches by NetSuite ID first,
+  // and only creates a new district when no account on file matches it.
+  function findDistrictByNetsuiteId(id){
+    if(!id) return null;
+    var n = String(id).trim().toLowerCase();
+    if(!n) return null;
+    return state.districts.find(function(d){ return d.netsuiteId && String(d.netsuiteId).trim().toLowerCase()===n; }) || null;
+  }
+  // Hardware Key regulation (per Timm, 2 Sep chat + Timm/Vinit call, 2 Sep): BOTH an hours
+  // throttle AND a calendar expiry date apply — whichever is hit first. Hours: allowedHours =
+  // Math.max(1, elapsedYears) * 400 + 100 — i.e. 500 flat hours in year 1, then continuously
+  // growing after (~1.1 hrs/day). Expiry: a calendar date, set per Hardware Key (defaults from
+  // the code's Hardware Expiration Date, but can differ key-to-key — confirmed possible, if
+  // rare). Hours clock approximated here from "Shipped" date since this prototype has no real
+  // simulation-start event.
+  // Device binding (call, 2 Sep — supersedes the earlier "no device binding" answer): the key
+  // is now tied to the physical device it ships on. The Device Serial Number is captured at
+  // "Mark Shipped" (it comes back from manufacturing once the key is programmed onto the
+  // device) and combined with the hardware key to form the real, unique identifier — so the
+  // key only works on that one serial-numbered device. Support can still manually stop a key
+  // from the server at any time (e.g. suspected misuse) — see "Stop Key" — independent of the
+  // device tie and both regulators above. If a key needs to move to a new/replacement device
+  // (see "Report Damaged / Replace"), the new key carries over the remaining hours allowance
+  // and the same expiry date rather than resetting — it is issued and used once, the same way
+  // an OTP would be.
+  function hwAllowedHours(h){
+    // Support can set an absolute cap on an individual key, which replaces the
+    // year-based formula below (added so keys can be managed one at a time).
+    if(h.hoursCapOverride != null) return h.hoursCapOverride;
+    if(!h.shipped) return 0;
+    var elapsedYears = Math.max(0,(TODAY - h.shipped)) / (365*86400000);
+    var base = Math.round(Math.max(1, elapsedYears) * 400 + 100);
+    // Renew Hardware Key Hours (added per Timm's 1 Sep Slack reply — "change the logic as you
+    // like," delegating the throttle/renewal design to Simform rather than a client-confirmed
+    // spec): bonusHours is extra allowance Support can manually grant on top of the normal
+    // year-based formula, e.g. so a district isn't stuck waiting for the ~1.1 hrs/day natural
+    // growth once the current allowance is used up. See openRenewHw/submitRenewHw below.
+    return base + (h.bonusHours||0);
+  }
+  function hwIsThrottled(h){
+    if(h.status!=='shipped') return false;
+    return h.hoursUsed >= hwAllowedHours(h);
+  }
+  function hwThrottleReason(h){
+    return 'it has used all '+hwAllowedHours(h)+' hours currently allowed — this grows over time (about 1.1 hrs/day after the first year), so it isn\'t stuck forever, and Support can also Renew it now to grant extra hours right away';
+  }
+  function hwIsExpired(h){
+    return h.expiry && h.expiry < TODAY && h.status==='shipped';
+  }
+
+  var uidCounters = {rc:5, hw:7, d:5};
+  function nextId(kind){ uidCounters[kind]++; return kind+uidCounters[kind]; }
+
+  // District Admin module (added this round, per Yash's request): district identity — NetSuite
+  // Account ID, District Name, District Email + change history — is now owned by
+  // its own state.districts collection instead of being entered/edited inline on an Activation
+  // Code. Each redemptionCodes (Activation Code) record still carries denormalized copies of
+  // these same fields (district/email/netsuiteId/adminHistory) so every existing
+  // table/render function that already reads them off the code record keeps working with zero
+  // changes — cascadeDistrictSync() (defined below, right after this state block) is what keeps
+  // those copies in sync whenever a district is edited in the District Admin module.
+  var state = {
+    districts: [
+      {id:'d1', netsuiteId:'4471182', district:'Coastal Health Sciences Institute', email:'j.park@coastalhsi.edu', adminHistory:[], created:new Date('2026-08-11')},
+      {id:'d2', netsuiteId:'4488021', district:'Fairview Unified', email:'admin@fairview.edu', adminHistory:[], created:new Date('2026-08-02')},
+      {id:'d3', netsuiteId:'4499310', district:'Northgate College', email:'admin@northgate.edu', adminHistory:[], created:new Date('2026-08-19')},
+      {id:'d4', netsuiteId:'4460077', district:'Cedar Ridge District', email:'tech@cedarridge.k12.us', adminHistory:[], created:new Date('2025-08-01')},
+      {id:'d5', netsuiteId:'4502937', district:'Riverside College', email:'admissions@riverside.edu', adminHistory:[], created:new Date('2026-07-15')}
+    ],
+    redemptionCodes: [
+      {id:'rc1', districtId:'d1', key:'RWC-8841', district:'Coastal Health Sciences Institute', email:'j.park@coastalhsi.edu', netsuiteId:'4471182', aiSeats:25, hwUnits:1, status:'active', issued:new Date('2026-08-11'), redeemed:new Date('2026-08-13'), expiry:new Date('2027-08-11'), hwExpiry:new Date('2027-08-11'), allocated:18, returned:2, replacements:1, flagNote:null, history:[], adminHistory:[], activationType:'new'},
+      {id:'rc2', districtId:'d2', key:'RWC-7790', district:'Fairview Unified', email:'admin@fairview.edu', netsuiteId:'4488021', aiSeats:60, hwUnits:2, status:'renewed', issued:new Date('2026-08-02'), redeemed:new Date('2026-08-05'), expiry:new Date('2027-08-02'), hwExpiry:new Date('2027-08-02'), allocated:40, returned:0, replacements:0, flagNote:null,
+        history:[{date:new Date('2026-08-21'), aiSeatsAdded:20, hwUnitsAdded:0, type:'renewed'}], adminHistory:[], activationType:'renewed'},
+      {id:'rc3', districtId:'d3', key:'RWC-9012', district:'Northgate College', email:'admin@northgate.edu', netsuiteId:'4499310', aiSeats:15, hwUnits:2, status:'active', issued:new Date('2026-08-19'), redeemed:null, expiry:new Date('2027-08-19'), hwExpiry:new Date('2027-08-19'), allocated:0, returned:0, replacements:0, flagNote:null, history:[], adminHistory:[], activationType:'new'},
+      {id:'rc4', districtId:'d4', key:'RWC-6650', district:'Cedar Ridge District', email:'tech@cedarridge.k12.us', netsuiteId:'4460077', aiSeats:200, hwUnits:0, status:'active', issued:new Date('2025-08-01'), redeemed:null, expiry:new Date('2026-08-01'), hwExpiry:null, allocated:0, returned:0, replacements:0, history:[], adminHistory:[], activationType:'new',
+        flagNote:'Seat-only order — this district took no hardware. Individual seat expiry dates are managed per key below.'},
+      {id:'rc5', districtId:'d5', key:'RWC-5528', district:'Riverside College', email:'admissions@riverside.edu', netsuiteId:'4502937', aiSeats:0, hwUnits:2, status:'active', issued:new Date('2026-07-15'), redeemed:new Date('2026-07-18'), expiry:new Date('2027-07-15'), hwExpiry:new Date('2027-07-15'), allocated:0, returned:0, replacements:0, flagNote:'Hardware-only order — this district took 0 AI seats.', history:[], adminHistory:[], activationType:'new'}
+    ],
+    hardware: [
+      {id:'hw1', key:'HWK-7X2G-91QF-88TP', serial:'SN-88214-CB', audience:'Post-Secondary', district:'Riverside College', email:'admissions@riverside.edu', codeId:'rc5', status:'shipped', activeFrom:new Date('2026-07-20'), created:new Date('2026-07-20'), shipped:new Date('2026-07-25'), hoursUsed:62, expiry:new Date('2027-07-15'), customExpiry:false, replacedAt:null, replaceReason:null, bonusHours:0, renewHistory:[]},
+      {id:'hw2', key:'HWK-3B0D-77LK-12ZM', serial:'SN-88215-CB', audience:'Post-Secondary', district:'Riverside College', email:'admissions@riverside.edu', codeId:'rc5', status:'shipped', activeFrom:new Date('2026-08-05'), created:new Date('2026-08-05'), shipped:new Date('2026-08-08'), hoursUsed:0, expiry:new Date('2027-07-15'), customExpiry:false, replacedAt:null, replaceReason:null, bonusHours:0, renewHistory:[]},
+      {id:'hw3', key:'HWK-9Q4R-55VX-30AS', serial:'SN-77042-CB', audience:'Secondary', district:'Fairview Unified', email:'admin@fairview.edu', codeId:'rc2', status:'shipped', activeFrom:new Date('2026-08-01'), created:new Date('2026-08-01'), shipped:new Date('2026-08-04'), hoursUsed:14, expiry:new Date('2027-08-02'), customExpiry:false, replacedAt:null, replaceReason:null, bonusHours:0, renewHistory:[]},
+      {id:'hw4', key:'HWK-1L8N-64WY-02CF', serial:null, audience:'Post-Secondary', district:'', email:'', codeId:'rc3', status:'created', activeFrom:new Date('2026-08-19'), created:new Date('2026-08-19'), shipped:null, hoursUsed:0, expiry:new Date('2027-08-19'), customExpiry:false, replacedAt:null, replaceReason:null, bonusHours:0, renewHistory:[]},
+      {id:'hw5', key:'HWK-5T6P-28JU-71DK', serial:null, audience:'Secondary', district:'', email:'', codeId:'rc3', status:'created', activeFrom:new Date('2026-08-21'), created:new Date('2026-08-21'), shipped:null, hoursUsed:0, expiry:new Date('2028-01-15'), customExpiry:true, replacedAt:null, replaceReason:null, bonusHours:0, renewHistory:[]},
+      {id:'hw6', key:'HWK-0Z9M-46RE-83GH', serial:'SN-65310-CB', audience:'Post-Secondary', district:'Coastal Health Sciences Institute', email:'j.park@coastalhsi.edu', codeId:'rc1', status:'shipped', activeFrom:new Date('2026-06-01'), created:new Date('2026-06-01'), shipped:new Date('2026-06-05'), hoursUsed:500, expiry:new Date('2027-08-11'), customExpiry:false, replacedAt:null, replaceReason:null, bonusHours:0, renewHistory:[]},
+      {id:'hw7', key:'HWK-4H2K-90BN-55QW', serial:'SN-51188-CB', audience:'Secondary', district:'Fairview Unified', email:'admin@fairview.edu', codeId:'rc2', status:'replaced', activeFrom:new Date('2026-05-01'), created:new Date('2026-05-01'), shipped:new Date('2026-05-04'), hoursUsed:210, expiry:new Date('2027-08-02'), customExpiry:false, replacedAt:new Date('2026-08-14'), replaceReason:'District reported the device screen cracked during a classroom move.', bonusHours:0, renewHistory:[]}
+    ]
+  };
+
+  // ---------------------------------------------------------------- SEAT KEYS
+  // The console previously tracked AI seats only as aggregate counts on the Activation
+  // Code (aiSeats / allocated / returned). Support needs to manage individual seats -
+  // per-seat expiry, hours used and hours cap - so each seat is now its own record,
+  // generated from its code. 40 hours is the default cap per the seat expiry rule.
+  var SEAT_DEFAULT_CAP = 40;
+  function genSeatKey(){
+    var A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789', p='';
+    for(var i=0;i<8;i++){ p += A.charAt(Math.floor(Math.random()*A.length)); if(i===3) p+='-'; }
+    return 'RWS-'+p;
+  }
+  // Deterministic pseudo-usage so the prototype looks alive but stays stable across renders.
+  function seatSeedHours(n, cap){ return (n*37) % (cap+1); }
+  state.seats = [];
+  (function seedSeats(){
+    var n = 0;
+    state.redemptionCodes.forEach(function(rc){
+      for(var i=0;i<(rc.aiSeats||0);i++){
+        n++;
+        var assigned = i < (rc.allocated||0);
+        var used = assigned ? seatSeedHours(n, SEAT_DEFAULT_CAP) : 0;
+        state.seats.push({
+          id:'st'+n,
+          key:genSeatKey(),
+          codeId:rc.id,
+          districtId:rc.districtId,
+          assignedTo: assigned ? ('School '+(1+(i%3))) : null,
+          status: assigned ? 'active' : 'unassigned',
+          activeFrom: rc.issued,
+          expiry: rc.expiry,
+          customExpiry:false,
+          hoursUsed:used,
+          hoursCap:SEAT_DEFAULT_CAP,
+          created: rc.issued
+        });
+      }
+    });
+    uidCounters.st = n;
+  })();
+  uidCounters.st = uidCounters.st || 0;
+  function seatsForCode(codeId){ return state.seats.filter(function(x){ return x.codeId===codeId; }); }
+  function getSeat(id){ return state.seats.find(function(x){ return x.id===id; }) || null; }
+  var SEAT_STATUS_LABEL = {active:'In use', unassigned:'Unassigned', expired:'Expired', stopped:'Stopped'};
+  var SEAT_STATUS_BADGE = {active:'badge-green', unassigned:'badge-gray', expired:'badge-red', stopped:'badge-red'};
+  function seatIsCapped(st){ return st.hoursUsed >= st.hoursCap; }
+
+  function getDistrict(id){ return state.districts.find(function(d){ return d.id===id; }) || null; }
+  function findCodeForDistrict(districtId){ return state.redemptionCodes.find(function(rc){ return rc.districtId===districtId; }) || null; }
+  // Keeps every Activation Code (and its hardware) belonging to a district in sync whenever that
+  // district's info is edited in the District Admin module — Access Keys, To Ship, Activation
+  // Code detail, and Hardware Detail all read the denormalized copies directly off the code/
+  // hardware record, so this is what stops them drifting from the district record itself.
+  function cascadeDistrictSync(d){
+    var codeIds = {};
+    state.redemptionCodes.forEach(function(rc){
+      if(rc.districtId===d.id){
+        rc.district = d.district; rc.email = d.email; rc.netsuiteId = d.netsuiteId; rc.adminHistory = d.adminHistory;
+        codeIds[rc.id] = true;
+      }
+    });
+    state.hardware.forEach(function(h){
+      if(codeIds[h.codeId]){ h.district = d.district; h.email = d.email; }
+    });
+  }
+
+  // There is no "redeemed" state: the district does nothing, because Support controls
+  // what access an account gets. An account is either Active (access in force) or
+  // Renewed (access in force, and topped up since it was first set up). Expiry is no
+  // longer a code-level state either — it lives on the individual seat and hardware
+  // keys, which each carry their own date and hours cap.
+  // RC_STATUS_* retired: Active vs Renewed carried no operational meaning once the
+  // Activation Code went — an account either has keys on it or it doesn't.
+  // RC_TYPE_* retired with the Type column and the Activation Code concept.
+  var HW_STATUS_LABEL = {created:'Registered', shipped:'Shipped — In Use', replaced:'Replaced', stopped:'Stopped'};
+  var HW_STATUS_BADGE = {created:'badge-gray', shipped:'badge-green', replaced:'badge-red', stopped:'badge-red'};
+  var HW_STATUS_TOOLTIP = {
+    created:'Generated and linked to this code, but not yet installed on a device or shipped to the district.',
+    shipped:'Installed on its device and shipped to the district — actively in use.',
+    replaced:'This key was retired after a damage/loss report and swapped for a new device and key.',
+    stopped:'Manually deactivated by Support directly on the server (e.g. suspected misuse) — the device no longer works on this key.'
+  };
+  var HW_THROTTLED_TOOLTIP = 'This device has used up its current hour allowance and is paused until the allowance grows further — not permanently disabled.';
+  var HW_EXPIRED_TOOLTIP = 'This key\'s expiration date has passed — the device no longer works on this key, independent of its hours allowance.';
+
+  var currentGeneratedItems=null, currentHwId=null, currentSeatActionId=null, currentGenCodeId=null;
+  var revealedHw = {};
+  var hwRevealed = false;
+  function maskKeyRow(h){
+    var shown = revealedHw[h.id] ? esc(h.key) : maskKey(h.key);
+    return '<span class="mono" style="vertical-align:middle;">'+shown+'</span> '+
+      '<button class="icon-btn" style="width:26px;height:26px;vertical-align:middle;" onclick="toggleHwRowReveal(\''+h.id+'\')" title="Show/hide key">'+
+      '<svg class="icon" style="width:13px;height:13px;" viewBox="0 0 24 24"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg></button>';
+  }
+  window.toggleHwRowReveal = function(id){
+    revealedHw[id] = !revealedHw[id];
+    if(currentSeatActionId) renderCdHwList(currentSeatActionId);
+    if(currentGenCodeId) renderGcHwKeys(currentGenCodeId);
+    renderToShip();
+  };
+  window.toggleHwDetailKey = function(){
+    var h = state.hardware.find(function(x){return x.id===currentHwId;});
+    if(!h) return;
+    hwRevealed = !hwRevealed;
+    document.getElementById('hd-title').textContent = hwRevealed ? h.key : maskKey(h.key);
+  };
+
+  function showToast(msg, type){
+    type = type || 'info';
+    var box = document.getElementById('toastContainer');
+    var t = document.createElement('div');
+    t.className = 'toast ' + type;
+    var iconPath = type==='success' ? '<polyline points="20 6 9 17 4 12"/>' :
+                   type==='error' ? '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>' :
+                   '<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><circle cx="12" cy="16" r=".4" fill="currentColor" stroke="none"/>';
+    t.innerHTML = '<svg class="icon" style="width:17px;height:17px;" viewBox="0 0 24 24">'+iconPath+'</svg><span>'+esc(msg)+'</span>';
+    box.appendChild(t);
+    setTimeout(function(){ t.classList.add('fade'); setTimeout(function(){ t.remove(); }, 260); }, 3400);
+  }
+  window.toastGeneric = function(msg){ showToast(msg,'info'); };
+  window.toastExportStub = function(){ showToast('Exports run inside the production app — this prototype only demonstrates the workflow.','info'); };
+
+  window.closeModal = function(id){ document.getElementById(id).classList.remove('open'); };
+  function openModal(id){ document.getElementById(id).classList.add('open'); }
+  document.querySelectorAll('.modal-overlay').forEach(function(ov){
+    ov.addEventListener('click', function(e){ if(e.target === ov) ov.classList.remove('open'); });
+  });
+
+  function closeAllRowMenus(){ document.querySelectorAll('.row-menu.open').forEach(function(m){ m.classList.remove('open'); m.classList.remove('flip-up'); }); }
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('.row-menu-wrap')) closeAllRowMenus();
+  });
+  window.toggleRowMenu = function(btn, id){
+    var menu = document.getElementById(id);
+    var wasOpen = menu.classList.contains('open');
+    closeAllRowMenus();
+    if(wasOpen) return;
+    menu.classList.remove('flip-up');
+    menu.classList.add('open');
+    // Open upward when the menu would run past the bottom of the viewport.
+    var r = menu.getBoundingClientRect();
+    if(r.bottom > window.innerHeight - 8) menu.classList.add('flip-up');
+  };
+
+  /* ================= ACCESS KEYS (ACTIVATION CODES) ================= */
+  var entPage = 1;
+  var ENT_PAGE_SIZE = 3;
+  // Type/status pills removed with the Active/Renewed status.
+  // Accounts = the merged District Admin + Access Keys view. One row per district, joined to
+  // the Activation Code set up on that account (keys are set up per account, and later orders
+  // are added to the same code rather than issuing a new one). A district with no code yet
+  // still appears, with blank key columns, so newly created districts aren't invisible.
+  function accountRows(){
+    return state.districts.map(function(d){
+      return { d: d, rc: findCodeForDistrict(d.id) };
+    }).sort(function(a,b){ return (a.d.district||'').localeCompare(b.d.district||''); });
+  }
+  // Sortable columns on the Keys table. Comparable value per column, so a district with no
+  // Activation Code sorts predictably (blank strings last, -1 for the numeric columns).
+  var ENT_COLS = [
+    {key:'accountId', label:'Account ID'},
+    {key:'district',  label:'District'},
+    {key:'email',     label:'District Email'},
+    {key:'seats',     label:'AI Seats'},
+    {key:'hw',        label:'HW Units'},
+    {key:'issued',    label:'Issued'}
+  ];
+  var entSort = {key:'district', dir:1};
+  function entSortVal(r, key){
+    var d = r.d, rc = r.rc;
+    switch(key){
+      case 'accountId': return d.netsuiteId || '';
+      case 'district':  return (d.district||'').toLowerCase();
+      case 'email':     return (d.email||'').toLowerCase();
+      case 'seats':     return rc ? rc.aiSeats : -1;
+      case 'hw':        return rc ? rc.hwUnits : -1;
+      case 'issued':    return rc && rc.issued ? rc.issued.getTime() : 0;
+      default:          return '';
+    }
+  }
+  window.setEntSort = function(key){
+    if(entSort.key===key) entSort.dir = -entSort.dir;
+    else entSort = {key:key, dir:1};
+    entPage = 1;
+    renderEntitlements();
+  };
+  function renderEntHead(){
+    var head = document.getElementById('entHead');
+    if(!head) return;
+    var caret = '<svg class="caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 15 12 9 18 15"/></svg>';
+    head.innerHTML = ENT_COLS.map(function(c){
+      var active = entSort.key===c.key;
+      var aria = active ? (entSort.dir===1 ? 'ascending' : 'descending') : 'none';
+      return '<th aria-sort="'+aria+'"><button class="th-sort" aria-sort="'+aria+'" '+
+        'title="Sort by '+esc(c.label)+'" onclick="setEntSort(\''+c.key+'\')">'+esc(c.label)+caret+'</button></th>';
+    }).join('') + '<th></th>';
+  }
+  function renderEntitlements(){
+    renderEntHead();
+    var q = (document.getElementById('entSearch').value||'').toLowerCase();
+    var searchRows = accountRows().filter(function(r){
+      if(!q) return true;
+      return (r.d.netsuiteId||'').toLowerCase().indexOf(q)>-1
+          || (r.d.district||'').toLowerCase().indexOf(q)>-1
+          || (r.d.email||'').toLowerCase().indexOf(q)>-1
+          || (r.rc && (r.rc.key||'').toLowerCase().indexOf(q)>-1);
+    });
+    var rows = searchRows.slice().sort(function(x, y){
+      var a = entSortVal(x, entSort.key), b = entSortVal(y, entSort.key);
+      if(typeof a === 'string' || typeof b === 'string'){
+        // blanks last regardless of direction, so no-key rows don't jump to the top
+        if(a === '' && b !== '') return 1;
+        if(b === '' && a !== '') return -1;
+        return String(a).localeCompare(String(b)) * entSort.dir;
+      }
+      return (a - b) * entSort.dir;
+    });
+    var totalRows = rows.length;
+    var totalPages = Math.max(1, Math.ceil(totalRows/ENT_PAGE_SIZE));
+    if(entPage>totalPages) entPage = totalPages;
+    if(entPage<1) entPage = 1;
+    var startIdx = (entPage-1)*ENT_PAGE_SIZE;
+    var pageRows = rows.slice(startIdx, startIdx+ENT_PAGE_SIZE);
+    var body = document.getElementById('entBody');
+    if(!pageRows.length){ body.innerHTML = '<tr class="empty-row"><td colspan="7">No accounts match this filter.</td></tr>'; }
+    else{
+      body.innerHTML = pageRows.map(function(r){
+        var d = r.d, rc = r.rc;
+        var menuId = 'rm-ent-'+d.id;
+        var ic = 'class=\"icon\" style=\"width:15px;height:15px;\" viewBox=\"0 0 24 24\"';
+        var menuItems = '';
+        if(rc){
+          menuItems += '<button onclick="openCodeDetail(\''+rc.id+'\')"><svg '+ic+'><path d=\"M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg> View Details</button>';
+        } else {
+          menuItems += '<button onclick="goGenerateForDistrict(\''+d.id+'\')"><svg '+ic+'><line x1=\"12\" y1=\"5\" x2=\"12\" y2=\"19\"/><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg> Add Keys to Account</button>';
+        }
+        menuItems += '<button onclick="openChangeDistrictEmail(\''+d.id+'\')"><svg '+ic+'><path d=\"M4 4h16v16H4z\"/><polyline points=\"4 6 12 13 20 6\"/></svg> Change District Email</button>';
+        return '<tr>'+
+          '<td class="cell-strong mono">'+esc(d.netsuiteId||'—')+'</td>'+
+          '<td class="cell-strong">'+esc(d.district||'— not set —')+'</td>'+
+          '<td class="cell-soft">'+esc(d.email||'—')+'</td>'+
+          '<td>'+(rc ? rc.aiSeats : '<span class="cell-soft">—</span>')+'</td>'+
+          '<td>'+(rc ? rc.hwUnits : '<span class="cell-soft">—</span>')+'</td>'+
+          '<td class="cell-soft">'+(rc ? fmt(rc.issued) : '—')+'</td>'+
+          '<td><div class="row-menu-wrap"><button class="icon-btn" onclick="toggleRowMenu(this,\''+menuId+'\')"><svg class="icon" style="width:15px;height:15px;" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></button><div class="row-menu" id="'+menuId+'">'+menuItems+'</div></div></td>'+
+        '</tr>';
+      }).join('');
+    }
+    var pgEl = document.getElementById('entPagination');
+    if(pgEl){
+      if(!totalRows){ pgEl.innerHTML=''; }
+      else{
+        var startShown = startIdx+1, endShown = Math.min(startIdx+ENT_PAGE_SIZE, totalRows);
+        pgEl.innerHTML = '<span class="pg-info">Showing '+startShown+'–'+endShown+' of '+totalRows+'</span>'+
+          '<div class="pg-controls">'+
+            '<button class="btn btn-ghost btn-sm" '+(entPage<=1?'disabled':'')+' onclick="goEntPage(-1)">‹ Prev</button>'+
+            '<span class="pg-page">Page '+entPage+' of '+totalPages+'</span>'+
+            '<button class="btn btn-ghost btn-sm" '+(entPage>=totalPages?'disabled':'')+' onclick="goEntPage(1)">Next ›</button>'+
+          '</div>';
+      }
+    }
+  }
+  window.goEntPage = function(delta){
+    entPage += delta;
+    renderEntitlements();
+  };
+  // "Copy Key" was removed from the Keys row menu; copyCode/copyCodeDetail had no other
+  // callers, so both went with it. Hardware keys still have their own Copy (copyHwKey).
+  // "Resend to District" was removed from both the Accounts row menu and the Activation Code
+  // detail actions — the district doesn't enter or activate anything, so re-sending them the
+  // code isn't a support action. Sending a code to a district happens once, at generation,
+  // via the Send Activation Code step. Handler dropped with the last caller.
+  var codeDetailReturnPage = 'entitlements';
+  window.openCodeDetail = function(id, returnPage){
+    closeAllRowMenus();
+    var s = state.redemptionCodes.find(function(x){return x.id===id;});
+    if(!s) return;
+    currentSeatActionId = id;
+    codeDetailReturnPage = returnPage || 'entitlements';
+    document.getElementById('cd-title').textContent = s.district || 'Account';
+    document.getElementById('cd-district').textContent = s.district;
+    // Type row removed: Status now carries Active vs Renewed, so it was duplicative.
+    document.getElementById('cd-netsuiteId').textContent = s.netsuiteId || '— not set —';
+    document.getElementById('cd-aiseats').textContent = s.aiSeats+' seats';
+    document.getElementById('cd-hwunits').textContent = s.hwUnits+' unit'+(s.hwUnits===1?'':'s')+' — see Hardware Keys below';
+    document.getElementById('cd-issued').textContent = fmt(s.issued);
+    document.getElementById('cd-expiry').textContent = seatExpirySummary(s.id);
+    document.getElementById('cd-expiryEdit').style.display = 'none';
+    document.getElementById('cd-expiryView').style.display = 'flex';
+    var hwExpiryWrap = document.getElementById('cd-hwExpiryWrap');
+    if(s.hwUnits>0){
+      hwExpiryWrap.style.display = 'inline-flex';
+      document.getElementById('cd-hwExpiry').textContent = hwExpirySummary(s.id);
+      document.getElementById('cd-hwExpiryEdit').style.display = 'none';
+      document.getElementById('cd-hwExpiryView').style.display = 'flex';
+    } else {
+      hwExpiryWrap.style.display = 'none';
+    }
+    document.getElementById('cd-replacements').textContent = s.replacements;
+    var historyWrap = document.getElementById('cd-historyWrap');
+    if(s.history && s.history.length){
+      historyWrap.style.display='block';
+      var hCount = document.getElementById('cd-historyCount');
+      if(hCount) hCount.textContent = s.history.length+(s.history.length===1?' addition':' additions');
+      var hList = document.getElementById('cd-historyList');
+      hList.style.display = cdOpenSections.history ? 'flex' : 'none';
+      hList.innerHTML = s.history.map(function(h){
+        return '<div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 12px;background:var(--gray-bg);border-radius:8px;">'+
+          '<span>+'+h.aiSeatsAdded+' AI seats, +'+h.hwUnitsAdded+' hardware unit'+(h.hwUnitsAdded===1?'':'s')+'</span>'+
+          '<span class="cell-soft">'+fmt(h.date)+'</span></div>';
+      }).join('');
+    } else { historyWrap.style.display='none'; }
+    var allocWrap = document.getElementById('cd-allocWrap');
+    var actionButtons = document.getElementById('cd-actionButtons');
+    var btns = '';
+    if(s.aiSeats > 0){
+      allocWrap.style.display='block';
+      var pct = s.aiSeats ? Math.round((s.allocated/s.aiSeats)*100) : 0;
+      var aCount = document.getElementById('cd-allocCount');
+      if(aCount) aCount.textContent = s.allocated+' of '+s.aiSeats;
+      var aList = document.getElementById('cd-allocList');
+      if(aList) aList.style.display = cdOpenSections.alloc ? 'flex' : 'none';
+      document.getElementById('cd-allocText').textContent = s.allocated+' of '+s.aiSeats+' seats allocated to educators · '+s.returned+' returned to the pool';
+      document.getElementById('cd-allocBar').style.width = pct+'%';
+      btns += '<button class="btn btn-outline btn-sm" onclick="openReplaceSeat(\''+s.id+'\')">Issue Replacement Seat</button>';
+    } else {
+      allocWrap.style.display='none';
+    }
+    actionButtons.innerHTML = btns;
+    document.getElementById('page-codeDetail').dataset.rcid = s.id;
+    cdResetSections();
+    cdSeatShown[s.id] = CD_SEAT_PAGE;
+    renderCdSeatList(s.id);
+    renderCdHwList(s.id);
+    showCodeDetailPage();
+  };
+  // Generic show for any action-triggered full page (not reached via a permanent sidebar nav
+  // item) — Activation Code detail, Generate Activation Code, Create District, District Detail,
+  // Send Email all use this so none of them highlight a nav item while open.
+  function showActionPage(pageId, title){
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+    document.getElementById(pageId).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+    document.getElementById('topbarTitle').textContent = title;
+    window.scrollTo(0,0);
+  }
+  function showCodeDetailPage(){
+    showActionPage('page-codeDetail', 'Account Detail');
+  }
+  window.closeCodeDetailPage = function(){
+    showPage(codeDetailReturnPage);
+  };
+
+  /* ================= DISTRICT ADMIN ================= */
+  var currentDistrictActionId = null;
+  var createDistrictReturnTo = 'entitlements';
+  // District Admin merged into Accounts: the districts table is gone, so its render and
+  // inline email editor went with it. Changing a district email is now a row-menu action
+  // (openChangeDistrictEmail) that opens a small modal.
+  var changeEmailId = null;
+  window.openChangeDistrictEmail = function(id){
+    closeAllRowMenus();
+    var d = getDistrict(id); if(!d) return;
+    changeEmailId = id;
+    document.getElementById('ce-district').textContent = d.district || '—';
+    document.getElementById('ce-current').textContent = d.email || '— none on file —';
+    document.getElementById('ce-newEmail').value = '';
+    openModal('modal-changeEmail');
+  };
+  window.submitChangeDistrictEmail = function(){
+    var d = getDistrict(changeEmailId); if(!d) return;
+    var next = (document.getElementById('ce-newEmail').value||'').trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(next)){
+      showToast('Enter a valid email address.','error'); return;
+    }
+    if(next.toLowerCase() === (d.email||'').toLowerCase()){
+      showToast('That is already the email on file.','error'); return;
+    }
+    var prev = d.email;
+    d.email = next;
+    d.adminHistory = d.adminHistory || [];
+    d.adminHistory.unshift({date:TODAY, fromEmail:prev, toEmail:next, reason:'District email changed.'});
+    cascadeDistrictSync(d);   // keeps every Activation Code / Hardware Key copy in step
+    closeModal('modal-changeEmail');
+    renderEntitlements();
+    renderToShip();
+    showToast('District email changed to '+next+' — the keys on this account were updated too.','success');
+  };
+  window.openCreateDistrict = function(returnTo, prefillNetsuiteId){
+    closeAllRowMenus();
+    createDistrictReturnTo = returnTo || 'entitlements';
+    document.getElementById('cdi-netsuiteId').value = prefillNetsuiteId || '';
+    document.getElementById('cdi-district').value = '';
+    document.getElementById('cdi-email').value = '';
+    var note = document.getElementById('cdi-fromSearchNote');
+    if(createDistrictReturnTo==='gencode'){
+      note.style.display = 'block';
+      note.innerHTML = '<b>No match —</b> once this district is created, you\'ll return to Add Keys to Account to search this NetSuite Account ID again and proceed.';
+    } else { note.style.display = 'none'; }
+    showActionPage('page-createDistrict', 'Create District Admin');
+  };
+  window.cancelCreateDistrict = function(){
+    if(createDistrictReturnTo==='gencode'){ showGenCodePage(); }
+    else { renderEntitlements(); showPage('entitlements'); }
+  };
+  window.submitCreateDistrict = function(){
+    var netsuiteId = document.getElementById('cdi-netsuiteId').value.trim();
+    var district = document.getElementById('cdi-district').value.trim();
+    var email = document.getElementById('cdi-email').value.trim();
+    if(!netsuiteId){ showToast('Enter the NetSuite Account ID first.','error'); return; }
+    if(!district || !email){ showToast('District Name and District Email are required.','error'); return; }
+    var dupe = findDistrictByNetsuiteId(netsuiteId);
+    if(dupe){ showToast('NetSuite Account ID '+netsuiteId+' is already on file for '+dupe.district+' — use that district instead of creating a new one.','error'); return; }
+    var d = {id:nextId('d'), netsuiteId:netsuiteId, district:district, email:email, adminHistory:[], created:TODAY};
+    state.districts.push(d);
+    if(DISTRICTS.indexOf(district)===-1) DISTRICTS.push(district);
+    showToast('District '+district+' created. '+(createDistrictReturnTo==='gencode' ? 'Add its keys from Add Keys to Account when ready.' : 'Generate its Activation Code whenever you\'re ready.'), 'success');
+    if(createDistrictReturnTo==='gencode'){
+      resetGenCodeSearch();
+      showGenCodePage();
+      document.getElementById('gcp-searchNetsuiteId').value = netsuiteId;
+    } else {
+      renderEntitlements();
+      showPage('entitlements');
+    }
+  };
+  window.openEditDistrictInfo = function(){
+    var d = getDistrict(currentDistrictActionId);
+    if(!d) return;
+    document.getElementById('dd-infoView').style.display = 'none';
+    document.getElementById('dd-infoEdit').style.display = 'block';
+    document.getElementById('dd-netsuiteIdInput').value = d.netsuiteId || '';
+    document.getElementById('dd-districtInput').value = d.district || '';
+    document.getElementById('dd-emailInput').value = d.email || '';
+  };
+  window.cancelEditDistrictInfo = function(){
+    document.getElementById('dd-infoEdit').style.display = 'none';
+    document.getElementById('dd-infoView').style.display = 'block';
+  };
+  window.saveEditDistrictInfo = function(){
+    var d = getDistrict(currentDistrictActionId);
+    if(!d) return;
+    var netsuiteId = document.getElementById('dd-netsuiteIdInput').value.trim();
+    var district = document.getElementById('dd-districtInput').value.trim();
+    var email = document.getElementById('dd-emailInput').value.trim();
+    if(!netsuiteId || !district || !email){ showToast('NetSuite Account ID, District Name, and District Email are all required.','error'); return; }
+    var dupe = findDistrictByNetsuiteId(netsuiteId);
+    if(dupe && dupe.id!==d.id){ showToast('NetSuite Account ID '+netsuiteId+' is already on file for '+dupe.district+'.','error'); return; }
+    d.netsuiteId = netsuiteId; d.district = district; d.email = email;
+    cascadeDistrictSync(d);
+    renderDistrictDetail(d);
+    renderEntitlements();
+    renderToShip();
+    showToast('District info updated for '+district+'.', 'success');
+  };
+  window.goGenerateForDistrict = function(districtId){
+    closeAllRowMenus();
+    var d = getDistrict(districtId);
+    if(!d) return;
+    resetGenCodeSearch();
+    showGenCodePage();
+    selectExistingDistrict(districtId);
+  };
+  function groupHwByExpiry(items){
+    var map = {};
+    items.forEach(function(h){
+      var k = h.expiry ? isoDate(h.expiry) : 'none';
+      (map[k] = map[k] || []).push(h);
+    });
+    return Object.keys(map).sort().map(function(k){ return {expiry: map[k][0].expiry, items: map[k]}; });
+  }
+  function hwStatusBadge(h){
+    if(h.status==='shipped' && hwIsExpired(h)) return '<span class="badge badge-red" title="'+esc(HW_EXPIRED_TOOLTIP)+'">Expired</span>';
+    if(hwIsThrottled(h)) return '<span class="badge badge-red" title="'+esc(HW_THROTTLED_TOOLTIP)+'">Throttled</span>';
+    return '<span class="badge '+HW_STATUS_BADGE[h.status]+'" title="'+esc(HW_STATUS_TOOLTIP[h.status])+'">'+HW_STATUS_LABEL[h.status]+'</span>';
+  }
+  function hwRowActions(h, codeId, refreshFn){
+    return '<button class="btn btn-ghost btn-sm" onclick="openHwDetail(\''+h.id+'\')">View</button>'+
+      '<button class="btn btn-ghost btn-sm" onclick="copyHwKey(\''+h.id+'\')">Copy</button>'+
+      (h.status==='created' ? '<button class="btn btn-highlight btn-sm" title="Required — mark this key shipped once its device goes out" onclick="openShipHw(\''+h.id+'\', \''+refreshFn+'\', \''+codeId+'\')">Mark Shipped</button>' : '')+
+      (h.status==='shipped' && !hwIsExpired(h) ? '<button class="btn btn-ghost btn-sm'+(hwIsThrottled(h)?' btn-highlight':'')+'" title="Grant extra hours on top of the normal allowance" onclick="openRenewHw(\''+h.id+'\', \''+refreshFn+'\', \''+codeId+'\')">Renew'+(hwIsThrottled(h)?' Hours':'')+'</button>' : '')+
+      ((h.status==='shipped'||h.status==='stopped') ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="openReplaceHw(\''+h.id+'\')">Replace</button>' : '')+
+      (h.status==='shipped' ? '<button class="btn btn-ghost btn-sm" style="color:var(--red);" onclick="stopHwKey(\''+h.id+'\'); '+refreshFn+'(\''+codeId+'\');">Stop Key</button>' : '')+
+      (h.status==='stopped' ? '<button class="btn btn-ghost btn-sm" onclick="resumeHwKey(\''+h.id+'\'); '+refreshFn+'(\''+codeId+'\');">Resume</button>' : '');
+  }
+  function renderHwGroupedRows(items, codeId, refreshFn){
+    return groupHwByExpiry(items).map(function(g){
+      var header = '<div style="font-size:11px;font-weight:700;color:var(--ink-soft,#6b7280);text-transform:uppercase;letter-spacing:.03em;margin:10px 0 6px;">Expires '+fmt(g.expiry)+' — '+g.items.length+' key'+(g.items.length===1?'':'s')+'</div>';
+      var rows = g.items.map(function(h){
+        var customTag = h.customExpiry ? ' <span class="badge badge-amber" style="margin-left:4px;" title="This key\'s expiry was set individually and won\'t change if the code\'s Hardware Expiration Date is edited.">Custom expiry</span>' : '';
+        var cap = hwAllowedHours(h);
+        var hwActiveField = editableField('hw', h, 'active', 'Active',
+          '<span style="font-size:12px;">'+fmt(h.activeFrom)+'</span>',
+          '<input class="form-input" id="kf-hw-active-'+h.id+'-input" type="date" value="'+isoDate(h.activeFrom)+'" style="padding:3px 6px;font-size:11.5px;width:132px;">');
+        var hwExpiryField = editableField('hw', h, 'expiry', 'Expires',
+          '<span style="font-size:12px;">'+fmt(h.expiry)+'</span>',
+          '<input class="form-input" id="kf-hw-expiry-'+h.id+'-input" type="date" min="'+todayIso()+'" value="'+isoDate(h.expiry)+'" style="padding:3px 6px;font-size:11.5px;width:132px;">');
+        var hwCapField = editableField('hw', h, 'cap', 'Cap',
+          '<span style="font-size:12px;">'+cap+' hrs'+(h.hoursCapOverride!=null?' (set)':'')+'</span>',
+          '<input class="form-input" id="kf-hw-cap-'+h.id+'-input" type="number" min="0" value="'+cap+'" style="padding:3px 6px;font-size:11.5px;width:70px;">');
+        return '<div style="padding:10px 12px;background:var(--gray-bg);border-radius:8px;display:flex;flex-direction:column;gap:7px;">'+
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">'+
+            '<span class="mono" style="font-size:12.8px;">'+maskKeyRow(h)+customTag+'</span>'+
+            '<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+hwStatusBadge(h)+hwRowActions(h,codeId,refreshFn)+'</span>'+
+          '</div>'+
+          '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'+
+            '<span style="display:inline-flex;align-items:center;gap:6px;">'+
+              '<span class="dl" style="margin:0;font-size:10.5px;">Used</span>'+
+              meterBar(h.hoursUsed, cap)+
+              '<span style="font-size:12px;">'+h.hoursUsed+' / '+cap+' hrs</span>'+
+            '</span>'+
+            hwActiveField+hwExpiryField+hwCapField+
+          '</div>'+
+        '</div>';
+      }).join('');
+      return header+rows;
+    }).join('');
+  }
+  /* ============ CODE DETAIL: per-key drill-down ============
+     Support manages assets at the individual-key level, not just in aggregate: every seat
+     and hardware key on a code is listed, and each key's expiry and hours cap can be
+     edited in place. Both sections start collapsed - a code can carry hundreds of seats. */
+  // Every collapsible section on the Activation Code detail behaves identically:
+  // chevron + label + count badge, collapsed by default, same toggle.
+  var CD_SECTIONS = ['seat', 'hw', 'history', 'alloc'];
+  var cdOpenSections = {seat:false, hw:false, history:false, alloc:false};
+  var CD_SEAT_PAGE = 50;
+  var cdSeatShown = {};
+
+  function cdSectionEl(which, suffix){
+    var map = {seat:'cd-seat', hw:'cd-hw', history:'cd-history', alloc:'cd-alloc'};
+    return document.getElementById(map[which] + suffix);
+  }
+  window.toggleCdSection = function(which){
+    cdOpenSections[which] = !cdOpenSections[which];
+    var list = cdSectionEl(which, 'List');
+    var chev = cdSectionEl(which, 'Chevron');
+    if(list) list.style.display = cdOpenSections[which] ? 'flex' : 'none';
+    if(chev) chev.style.transform = cdOpenSections[which] ? 'rotate(0deg)' : 'rotate(-90deg)';
+  };
+  function cdResetSections(){
+    CD_SECTIONS.forEach(function(k){ cdOpenSections[k] = false; });
+  }
+
+  function meterBar(used, cap){
+    var pct = cap>0 ? Math.min(100, Math.round(used/cap*100)) : 0;
+    var col = pct>=100 ? '#b43232' : (pct>=80 ? '#c98a1a' : '#1b7f4b');
+    return '<span style="display:inline-block;width:88px;height:6px;background:#e9e9e9;border-radius:99px;overflow:hidden;vertical-align:middle;">'+
+             '<span style="display:block;height:100%;width:'+pct+'%;background:'+col+';"></span>'+
+           '</span>';
+  }
+
+  // One editable field on one key. kind is 'seat' or 'hw'; field is 'expiry' or 'cap'.
+  function editableField(kind, rec, field, label, displayHtml, inputHtml){
+    var eid = 'kf-'+kind+'-'+field+'-'+rec.id;
+    return '<span style="display:inline-flex;align-items:center;gap:5px;">'+
+      '<span class="dl" style="margin:0;font-size:10.5px;">'+label+'</span>'+
+      '<span id="'+eid+'-view" style="display:inline-flex;align-items:center;gap:4px;">'+
+        displayHtml+
+        '<button class="btn-edit-inline btn-edit-xs" title="Change this key\'s '+label.toLowerCase()+'" onclick="openKeyFieldEdit(\''+kind+'\',\''+rec.id+'\',\''+field+'\')"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Edit</button>'+
+      '</span>'+
+      '<span id="'+eid+'-edit" style="display:none;align-items:center;gap:4px;">'+
+        inputHtml+
+        '<button class="btn btn-primary btn-sm" style="padding:1px 8px;font-size:11px;" onclick="saveKeyField(\''+kind+'\',\''+rec.id+'\',\''+field+'\')">Save</button>'+
+        '<button class="btn btn-ghost btn-sm" style="padding:1px 6px;font-size:11px;" onclick="closeKeyFieldEdit(\''+kind+'\',\''+rec.id+'\',\''+field+'\')">Cancel</button>'+
+      '</span>'+
+    '</span>';
+  }
+
+  // Cancel just puts the row back — no re-render, so it works wherever the row is rendered
+  // (Account Detail and the Add Keys result page both use renderHwGroupedRows).
+  window.closeKeyFieldEdit = function(kind, id, field){
+    var eid = 'kf-'+kind+'-'+field+'-'+id;
+    var v = document.getElementById(eid+'-view'), e = document.getElementById(eid+'-edit');
+    if(v) v.style.display = 'inline-flex';
+    if(e) e.style.display = 'none';
+  };
+  window.openKeyFieldEdit = function(kind, id, field){
+    var eid = 'kf-'+kind+'-'+field+'-'+id;
+    var v = document.getElementById(eid+'-view'), e = document.getElementById(eid+'-edit');
+    if(!v||!e) return;
+    v.style.display='none'; e.style.display='inline-flex';
+    var inp = document.getElementById(eid+'-input');
+    if(inp){ inp.focus(); if(inp.select) inp.select(); }
+  };
+
+  window.saveKeyField = function(kind, id, field){
+    var eid = 'kf-'+kind+'-'+field+'-'+id;
+    var inp = document.getElementById(eid+'-input');
+    if(!inp) return;
+    var rec = kind==='seat' ? getSeat(id) : state.hardware.find(function(h){ return h.id===id; });
+    if(!rec) return;
+    if(field==='active'){
+      if(!inp.value){ showToast('Pick a date.','error'); return; }
+      var ad = new Date(inp.value+'T00:00:00');
+      if(isNaN(ad.getTime())){ showToast('That date is not valid.','error'); return; }
+      if(rec.expiry && ad > rec.expiry){ showToast('Active date cannot be after the expiry date.','error'); return; }
+      rec.activeFrom = ad;
+      showToast((kind==='seat'?'Seat':'Hardware')+' key active from '+fmt(ad)+'.','success');
+    } else if(field==='expiry'){
+      if(!inp.value){ showToast('Pick a date.','error'); return; }
+      var d = new Date(inp.value+'T00:00:00');
+      if(isNaN(d.getTime())){ showToast('That date is not valid.','error'); return; }
+      if(isPastDate(d)){ showToast('Expiry cannot be in the past.','error'); return; }
+      if(rec.activeFrom && d < rec.activeFrom){ showToast('Expiry cannot be before the active date.','error'); return; }
+      rec.expiry = d;
+      rec.customExpiry = true;   // individually set - a code-level expiry edit leaves it alone
+      if(kind==='seat' && rec.status==='expired' && d > TODAY) rec.status = rec.assignedTo ? 'active' : 'unassigned';
+      showToast((kind==='seat'?'Seat':'Hardware')+' key expiry set to '+fmt(d)+' - flagged as a custom expiry.','success');
+    } else {
+      var n = parseInt(inp.value,10);
+      if(isNaN(n) || n < 0){ showToast('Enter an hours cap of 0 or more.','error'); return; }
+      if(n < rec.hoursUsed){ showToast('Cap cannot be below the '+rec.hoursUsed+' hours already used on this key.','error'); return; }
+      if(kind==='seat') rec.hoursCap = n; else rec.hoursCapOverride = n;
+      showToast('Hours cap set to '+n+' hrs.','success');
+    }
+    refreshKeyLists();
+  };
+
+  window.refreshKeyLists = function(){
+    var el = document.getElementById('page-codeDetail');
+    var rcid = el ? (el.dataset.rcid||'') : '';
+    var rc = state.redemptionCodes.find(function(x){ return x.id===rcid; });
+    // Fall back to the order just placed, so saves also refresh on the Add Keys result page.
+    if(!rc && currentGenCodeId) rc = state.redemptionCodes.find(function(x){ return x.id===currentGenCodeId; });
+    if(!rc) return;
+    if(document.getElementById('cd-seatList')) renderCdSeatList(rc.id);
+    if(document.getElementById('cd-hwList')) renderCdHwList(rc.id);
+    if(document.getElementById('gc-hwKeysList')) renderGcHwKeys(rc.id);
+  };
+
+  window.showAllCdSeats = function(codeId){
+    cdSeatShown[codeId] = 1e9;
+    renderCdSeatList(codeId);
+  };
+
+  window.renderCdSeatList = function(codeId){
+    var wrap = document.getElementById('cd-seatListWrap');
+    var list = document.getElementById('cd-seatList');
+    if(!wrap || !list) return;
+    var items = seatsForCode(codeId);
+    var countEl = document.getElementById('cd-seatCount');
+    if(countEl) countEl.textContent = items.length ? (items.length+' key'+(items.length===1?'':'s')) : '0';
+    if(!items.length){ wrap.style.display='none'; list.innerHTML=''; return; }
+    wrap.style.display='block';
+    list.style.display = cdOpenSections.seat ? 'flex' : 'none';
+    var limit = cdSeatShown[codeId] || CD_SEAT_PAGE;
+    var shown = items.slice(0, limit);
+    // Grouped by expiry date, the same way hardware keys are — an account topped up over
+    // time has seats on several dates and the batches are what Support reasons about.
+    var groups = {};
+    shown.forEach(function(st){
+      var k = st.expiry ? isoDate(st.expiry) : 'none';
+      (groups[k] = groups[k] || []).push(st);
+    });
+    var html = Object.keys(groups).sort().map(function(k){
+      var g = groups[k];
+      var head = '<div style="font-size:11px;font-weight:700;color:var(--ink-soft,#6b7280);text-transform:uppercase;letter-spacing:.03em;margin:10px 0 6px;">'+
+        (k==='none' ? 'No expiry set' : 'Expires '+fmt(g[0].expiry))+' — '+g.length+' key'+(g.length===1?'':'s')+'</div>';
+      return head + g.map(function(st){
+      var badge = '<span class="badge '+(SEAT_STATUS_BADGE[st.status]||'badge-gray')+'">'+(SEAT_STATUS_LABEL[st.status]||st.status)+'</span>';
+      var capped = seatIsCapped(st) ? ' <span class="badge badge-red" title="This seat has used its full hours cap.">Cap reached</span>' : '';
+      var custom = st.customExpiry ? ' <span class="badge badge-amber" title="Expiry set individually - a code-level expiry edit leaves this key alone.">Custom expiry</span>' : '';
+      var activeField = editableField('seat', st, 'active', 'Active',
+        '<span style="font-size:12px;">'+fmt(st.activeFrom)+'</span>',
+        '<input class="form-input" id="kf-seat-active-'+st.id+'-input" type="date" value="'+isoDate(st.activeFrom)+'" style="padding:3px 6px;font-size:11.5px;width:132px;">');
+      var expiryField = editableField('seat', st, 'expiry', 'Expires',
+        '<span style="font-size:12px;">'+fmt(st.expiry)+'</span>',
+        '<input class="form-input" id="kf-seat-expiry-'+st.id+'-input" type="date" min="'+todayIso()+'" value="'+isoDate(st.expiry)+'" style="padding:3px 6px;font-size:11.5px;width:132px;">');
+      var capField = editableField('seat', st, 'cap', 'Cap',
+        '<span style="font-size:12px;">'+st.hoursCap+' hrs</span>',
+        '<input class="form-input" id="kf-seat-cap-'+st.id+'-input" type="number" min="0" value="'+st.hoursCap+'" style="padding:3px 6px;font-size:11.5px;width:70px;">');
+      return '<div style="padding:10px 12px;background:var(--gray-bg);border-radius:8px;display:flex;flex-direction:column;gap:7px;">'+
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">'+
+          '<span class="mono" style="font-size:12.8px;">'+esc(st.key)+custom+capped+'</span>'+
+          '<span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'+
+            '<span class="cell-soft" style="font-size:12px;">'+(st.assignedTo ? esc(st.assignedTo) : 'not assigned')+'</span>'+badge+
+          '</span>'+
+        '</div>'+
+        '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'+
+          '<span style="display:inline-flex;align-items:center;gap:6px;">'+
+            '<span class="dl" style="margin:0;font-size:10.5px;">Used</span>'+
+            meterBar(st.hoursUsed, st.hoursCap)+
+            '<span style="font-size:12px;">'+st.hoursUsed+' / '+st.hoursCap+' hrs</span>'+
+          '</span>'+
+          activeField+expiryField+capField+
+        '</div>'+
+      '</div>';
+      }).join('');
+    }).join('');
+    if(items.length > shown.length){
+      html += '<div style="text-align:center;padding:6px;"><button class="btn btn-ghost btn-sm" onclick="showAllCdSeats(\''+codeId+'\')">Showing '+shown.length+' of '+items.length+' - show all</button></div>';
+    }
+    list.innerHTML = html;
+  };
+
+  window.renderCdHwList = function(codeId){
+    var wrap = document.getElementById('cd-hwListWrap');
+    var items = state.hardware.filter(function(h){ return h.codeId===codeId; });
+    if(!items.length){ wrap.style.display='none'; document.getElementById('cd-hwList').innerHTML=''; return; }
+    wrap.style.display='block';
+    var hwCount = document.getElementById('cd-hwCount');
+    if(hwCount) hwCount.textContent = items.length+' key'+(items.length===1?'':'s');
+    var hwList = document.getElementById('cd-hwList');
+    hwList.style.display = cdOpenSections.hw ? 'flex' : 'none';
+    hwList.innerHTML = renderHwGroupedRows(items, codeId, 'renderCdHwList');
+  }
+  window.renderGcHwKeys = function(codeId){
+    var wrap = document.getElementById('gc-hwKeysWrap');
+    var items = codeId ? state.hardware.filter(function(h){ return h.codeId===codeId; }) : [];
+    if(!items.length){ wrap.style.display='none'; document.getElementById('gc-hwKeysList').innerHTML=''; return; }
+    wrap.style.display='block';
+    document.getElementById('gc-hwKeysList').innerHTML = renderHwGroupedRows(items, codeId, 'renderGcHwKeys');
+  }
+  // With expiry living on individual keys, the code-level hint summarises them rather
+  // than claiming a single date.
+  function expirySummary(list){
+    if(!list.length) return '';
+    var dates = list.map(function(x){ return x.expiry ? x.expiry.getTime() : 0; }).filter(Boolean);
+    if(!dates.length) return list.length+' key'+(list.length===1?'':'s');
+    var min = new Date(Math.min.apply(null,dates)), max = new Date(Math.max.apply(null,dates));
+    var custom = list.filter(function(x){ return x.customExpiry; }).length;
+    var txt = list.length+' key'+(list.length===1?'':'s')+' · ';
+    txt += (min.getTime()===max.getTime()) ? ('all expire '+fmt(min)) : (fmt(min)+' to '+fmt(max));
+    if(custom) txt += ' · '+custom+' custom';
+    return txt;
+  }
+  function seatExpirySummary(codeId){ return expirySummary(seatsForCode(codeId)); }
+  function hwExpirySummary(codeId){ return expirySummary(state.hardware.filter(function(h){ return h.codeId===codeId; })); }
+
+  // A bulk expiry change targets a POOL: every key, or just the keys currently sharing one
+  // expiry date. Accounts topped up over time have keys on several dates, and you usually
+  // want to move one batch, not all of them.
+  //   'all'  -> every key EXCEPT ones with an individually-set expiry (protects one-offs)
+  //   <iso>  -> exactly the keys on that date, custom ones included (you targeted their date)
+  function expiryPools(list){
+    var m = {};
+    list.forEach(function(x){
+      if(!x.expiry) return;
+      var k = isoDate(x.expiry);
+      if(!m[k]) m[k] = {iso:k, date:x.expiry, count:0, custom:0};
+      m[k].count++;
+      if(x.customExpiry) m[k].custom++;
+    });
+    return Object.keys(m).sort().map(function(k){ return m[k]; });
+  }
+  function populateExpiryScope(selectId, list){
+    var sel = document.getElementById(selectId);
+    if(!sel) return;
+    var pools = expiryPools(list);
+    var movable = list.filter(function(x){ return !x.customExpiry; }).length;
+    var html = '<option value="all">All keys not individually set ('+movable+')</option>';
+    pools.forEach(function(p){
+      html += '<option value="'+p.iso+'">Expiring '+fmt(p.date)+' — '+p.count+' key'+(p.count===1?'':'s')+
+              (p.custom ? ' (incl. '+p.custom+' custom)' : '')+'</option>';
+    });
+    sel.innerHTML = html;
+    // Default to the single pool when there is only one, so the common case is one click.
+    if(pools.length===1) sel.value = pools[0].iso;
+  }
+  function keysInScope(list, scope){
+    if(scope==='all') return list.filter(function(x){ return !x.customExpiry; });
+    return list.filter(function(x){ return x.expiry && isoDate(x.expiry)===scope; });
+  }
+  window.openEditExpiry = function(){
+    var s = state.redemptionCodes.find(function(x){return x.id===currentSeatActionId;});
+    if(!s) return;
+    document.getElementById('cd-expiryView').style.display = 'none';
+    var editWrap = document.getElementById('cd-expiryEdit');
+    editWrap.style.display = 'flex';
+    populateExpiryScope('cd-expiryScope', seatsForCode(s.id));
+    document.getElementById('cd-expiryInput').value = s.expiry ? isoDate(s.expiry) : '';
+  };
+  window.cancelEditExpiry = function(){
+    document.getElementById('cd-expiryEdit').style.display = 'none';
+    document.getElementById('cd-expiryView').style.display = 'flex';
+  };
+  window.saveEditExpiry = function(){
+    var s = state.redemptionCodes.find(function(x){return x.id===currentSeatActionId;});
+    if(!s) return;
+    var val = document.getElementById('cd-expiryInput').value;
+    if(!val){ showToast('Pick a date first.','error'); return; }
+    if(isPastDate(new Date(val+'T12:00:00'))){ showToast('Expiry cannot be in the past.','error'); return; }
+    s.expiry = new Date(val+'T12:00:00');
+    // Cascade to the individual seat keys, leaving any individually-set expiry alone.
+    // Without this the bulk action would only move the code record and the per-key
+    // list underneath would silently disagree with it.
+    var scope = (document.getElementById('cd-expiryScope')||{}).value || 'all';
+    var all = seatsForCode(s.id);
+    var linked = keysInScope(all, scope);
+    if(!linked.length){ showToast('No seat keys in that pool.','error'); return; }
+    linked.forEach(function(st){
+      st.expiry = s.expiry;
+      // Targeting a specific date pool is explicit, so those keys stop being "custom".
+      if(scope!=='all') st.customExpiry = false;
+      if(st.status==='expired' && s.expiry > TODAY) st.status = st.assignedTo ? 'active' : 'unassigned';
+    });
+    var customCount = scope==='all' ? all.filter(function(st){ return st.customExpiry; }).length : 0;
+    document.getElementById('cd-expiry').textContent = seatExpirySummary(s.id);
+    document.getElementById('cd-expiryEdit').style.display = 'none';
+    document.getElementById('cd-expiryView').style.display = 'flex';
+    showToast('Seat expiry set to '+fmt(s.expiry)+' — applied to '+linked.length+' seat key'+(linked.length===1?'':'s')+
+      (scope==='all' ? '' : ' in the '+scope+' pool')+'.'+
+      (customCount ? ' '+customCount+' key'+(customCount===1?'':'s')+' with an individually-set expiry left unchanged.' : ''), 'success');
+    renderCdSeatList(s.id);
+    renderEntitlements();
+  };
+
+  window.openEditHwGroupExpiry = function(){
+    var s = state.redemptionCodes.find(function(x){return x.id===currentSeatActionId;});
+    if(!s) return;
+    document.getElementById('cd-hwExpiryView').style.display = 'none';
+    document.getElementById('cd-hwExpiryEdit').style.display = 'flex';
+    populateExpiryScope('cd-hwExpiryScope', state.hardware.filter(function(h){ return h.codeId===s.id; }));
+    document.getElementById('cd-hwExpiryInput').value = s.hwExpiry ? isoDate(s.hwExpiry) : '';
+  };
+  window.cancelEditHwGroupExpiry = function(){
+    document.getElementById('cd-hwExpiryEdit').style.display = 'none';
+    document.getElementById('cd-hwExpiryView').style.display = 'flex';
+  };
+  window.saveEditHwGroupExpiry = function(){
+    var s = state.redemptionCodes.find(function(x){return x.id===currentSeatActionId;});
+    if(!s) return;
+    var val = document.getElementById('cd-hwExpiryInput').value;
+    if(!val){ showToast('Pick a date first.','error'); return; }
+    if(isPastDate(new Date(val+'T12:00:00'))){ showToast('Expiry cannot be in the past.','error'); return; }
+    s.hwExpiry = new Date(val+'T12:00:00');
+    var hscope = (document.getElementById('cd-hwExpiryScope')||{}).value || 'all';
+    var hall = state.hardware.filter(function(h){ return h.codeId===s.id; });
+    var linked = keysInScope(hall, hscope);
+    if(!linked.length){ showToast('No hardware keys in that pool.','error'); return; }
+    linked.forEach(function(h){
+      h.expiry = s.hwExpiry;
+      if(hscope!=='all') h.customExpiry = false;
+    });
+    var customCount = hscope==='all' ? hall.filter(function(h){ return h.customExpiry; }).length : 0;
+    document.getElementById('cd-hwExpiry').textContent = hwExpirySummary(s.id);
+    document.getElementById('cd-hwExpiryEdit').style.display = 'none';
+    document.getElementById('cd-hwExpiryView').style.display = 'flex';
+    showToast('Hardware expiry updated to '+fmt(s.hwExpiry)+' — applied to '+linked.length+' hardware key'+(linked.length===1?'':'s')+' on this code.'+(customCount ? ' '+customCount+' key'+(customCount===1?'':'s')+' with its own individually-set expiry were left unchanged.' : ''), 'success');
+    renderCdHwList(s.id);
+    renderGcHwKeys(currentGenCodeId===s.id ? s.id : currentGenCodeId);
+    renderEntitlements();
+    renderToShip();
+  };
+
+  window.openReplaceSeat = function(rcId){
+    closeAllRowMenus();
+    currentSeatActionId = rcId;
+    var s = state.redemptionCodes.find(function(x){return x.id===rcId;});
+    document.getElementById('rp-key').value = s ? s.key : '';
+    document.getElementById('rp-reason').value = '';
+    openModal('modal-replaceSeat');
+  };
+  window.submitReplaceSeat = function(){
+    var s = state.redemptionCodes.find(function(x){return x.id===currentSeatActionId;});
+    var reason = document.getElementById('rp-reason').value.trim();
+    if(!s || !reason){ showToast('Please describe why this seat needs replacing.','error'); return; }
+    s.replacements += 1;
+    closeModal('modal-replaceSeat');
+    renderEntitlements();
+    showToast('Replacement seat issued for '+s.district+'.', 'success');
+  };
+
+  /* ================= GENERATE ACTIVATION CODE (full page: search NetSuite ID first, then branch) ================= */
+  // Redesigned per Timm's/Yash's latest round: the popup became a full page, and the entry
+  // point is now always a NetSuite Account ID search rather than typing a district name.
+  // Found -> Existing District branch (top-up only, tagged "renewed"). Not found -> New
+  // District branch (full form, tagged "new"). This replaces the old auto-detect-by-typed-name
+  // behavior entirely.
+  var gcpMatchedAccount = null;
+  window.openIssueEntitlement = function(){
+    closeAllRowMenus();
+    currentGenCodeId = null;
+    gcpMatchedAccount = null;
+    renderGcHwKeys(null);
+    resetGenCodeSearch();
+    showGenCodePage();
+  };
+  // kept for any legacy reference
+  window.openGenerateCode = window.openIssueEntitlement;
+
+  function showGenCodePage(){
+    setGenCodeCancelVisible(true);
+    populateGenCodeDistricts();
+    showActionPage('page-genCode', 'Add Keys to Account');
+  }
+  function populateGenCodeDistricts(){
+    var sel = document.getElementById('gcp-districtPick');
+    if(!sel) return;
+    var opts = state.districts.slice().sort(function(a,b){ return (a.district||'').localeCompare(b.district||''); });
+    sel.innerHTML = '<option value="">Select a district...</option>' + opts.map(function(d){
+      var code = findCodeForDistrict(d.id);
+      var tail = code ? ' - on file, add to account' : ' - no code yet';
+      return '<option value="'+d.id+'">'+esc(d.district)+' ('+esc(d.netsuiteId||'no NetSuite ID')+')'+tail+'</option>';
+    }).join('');
+  }
+  // Once keys are on the account there is nothing to cancel, so the header Cancel is
+  // hidden on the result step and "Done" becomes the only way out.
+  function setGenCodeCancelVisible(v){
+    var b = document.getElementById('gcp-cancelBtn');
+    if(b) b.style.display = v ? '' : 'none';
+  }
+  window.pickGenCodeDistrict = function(id){
+    if(!id) return;
+    selectExistingDistrict(id);
+  };
+  window.cancelGenCodePage = function(){
+    showPage('entitlements');
+  };
+  window.resetGenCodeSearch = function(){
+    setGenCodeCancelVisible(true);
+    gcpMatchedAccount = null;
+    document.getElementById('gcp-searchStep').style.display = 'block';
+    document.getElementById('gcp-searchResult').innerHTML = '';
+    document.getElementById('gcp-existingBranch').style.display = 'none';
+    document.getElementById('gcp-newBranch').style.display = 'none';
+    document.getElementById('gcp-result').style.display = 'none';
+    document.getElementById('gcp-searchNetsuiteId').value = '';
+    document.getElementById('gc-aiseats').value = '';
+    document.getElementById('gc-hwunits').value = '';
+    document.getElementById('gc-hwaudience').value = 'Secondary';
+    document.getElementById('gc-seatActive').value = todayIso();
+    document.getElementById('gc-hwActive').value = todayIso();
+    document.getElementById('gc-seatExpiry').value = isoDate(addDays(TODAY,365));
+    document.getElementById('gc-hwExpiry').value = isoDate(addDays(TODAY,365));
+    document.getElementById('gcp-addSeats').value = '';
+    document.getElementById('gcp-addHwUnits').value = '';
+    document.getElementById('gcp-addHwAudience').value = 'Secondary';
+    document.getElementById('gcp-addSeatActive').value = todayIso();
+    document.getElementById('gcp-addHwActive').value = todayIso();
+    document.getElementById('gcp-addSeatExpiry').value = isoDate(addDays(TODAY,365));
+    document.getElementById('gcp-addHwExpiry').value = isoDate(addDays(TODAY,365));
+  };
+  window.searchNetsuiteId = function(){
+    var id = document.getElementById('gcp-searchNetsuiteId').value.trim();
+    if(!id){ showToast('Enter a NetSuite Account ID to search first.','error'); return; }
+    var found = findDistrictByNetsuiteId(id);
+    var resultBox = document.getElementById('gcp-searchResult');
+    if(found){
+      resultBox.innerHTML = '<div class="confirm-box" style="margin-top:12px;"><b>Found —</b> '+esc(found.district)+' is already on file under NetSuite Account ID <span class="mono">'+esc(found.netsuiteId)+'</span>. Select it to proceed directly to seats/hardware — no district information is re-entered.</div>'+
+        '<div style="margin-top:10px;"><button class="btn btn-primary" onclick="selectExistingDistrict(\''+found.id+'\')">Select This District</button></div>';
+    } else {
+      resultBox.innerHTML = '<div class="flag-box" style="margin-top:12px;"><b>No match —</b> No district on file uses NetSuite Account ID "'+esc(id)+'". Create the district in District Admin first, then come back and search again.</div>'+
+        '<div style="margin-top:10px;"><button class="btn btn-primary" onclick="openCreateDistrict(\'gencode\', \''+esc(id)+'\')">Create New District Admin</button></div>';
+    }
+  };
+  // Selects a district (found via search, or jumped to directly from District Admin) and shows
+  // the right next step: top-up if it already has an Activation Code, first-issuance if not.
+  window.selectExistingDistrict = function(districtId){
+    var d = getDistrict(districtId);
+    if(!d) return;
+    gcpMatchedAccount = d;
+    document.getElementById('gcp-searchStep').style.display = 'none';
+    var code = findCodeForDistrict(d.id);
+    if(code){
+      document.getElementById('gcp-newBranch').style.display = 'none';
+      document.getElementById('gcp-existingBranch').style.display = 'block';
+      document.getElementById('gcp-existingNetsuiteDisplay').textContent = d.netsuiteId || '— not set —';
+      document.getElementById('gcp-existingDistrictDisplay').textContent = d.district;
+      document.getElementById('gcp-existingEmailDisplay').textContent = d.email;
+      document.getElementById('gcp-existingCurrentSeats').textContent = code.aiSeats+' AI seat'+(code.aiSeats===1?'':'s')+' currently';
+      document.getElementById('gcp-existingCurrentHw').textContent = code.hwUnits+' hardware unit'+(code.hwUnits===1?'':'s')+' currently';
+      document.getElementById('gcp-addSeats').value = '';
+      document.getElementById('gcp-addHwUnits').value = '';
+      document.getElementById('gcp-addHwAudience').value = 'Secondary';
+      document.getElementById('gcp-addSeatActive').value = todayIso();
+      document.getElementById('gcp-addHwActive').value = todayIso();
+      document.getElementById('gcp-addSeatExpiry').value = isoDate(addDays(TODAY,365));
+      document.getElementById('gcp-addHwExpiry').value = isoDate(addDays(TODAY,365));
+    } else {
+      document.getElementById('gcp-existingBranch').style.display = 'none';
+      document.getElementById('gcp-newBranch').style.display = 'block';
+      document.getElementById('gcp-firstNetsuiteDisplay').textContent = d.netsuiteId || '— not set —';
+      document.getElementById('gcp-firstDistrictDisplay').textContent = d.district;
+      document.getElementById('gcp-firstEmailDisplay').textContent = d.email;
+    }
+  };
+  // Generates the individual seat keys behind an order. Without this, issuing or topping up
+  // only moved the aiSeats counter, so a code could claim 80 seats while the AI Seat Keys
+  // list showed 60 — the count and the keys have to be created together.
+  function createSeatRecords(count, codeId, districtId, expiry, cap, activeFrom){
+    for(var i=0;i<count;i++){
+      uidCounters.st = (uidCounters.st||0) + 1;
+      state.seats.push({
+        id:'st'+uidCounters.st,
+        key:genSeatKey(),
+        codeId:codeId,
+        districtId:districtId,
+        assignedTo:null,
+        status:'unassigned',
+        activeFrom:activeFrom || TODAY,
+        expiry:expiry,
+        customExpiry:false,
+        hoursUsed:0,
+        hoursCap:cap || SEAT_DEFAULT_CAP,
+        created:TODAY
+      });
+    }
+  }
+  function createHardwareRecords(count, codeId, audience, district, email, expiry, activeFrom){
+    for(var i=0;i<count;i++){
+      state.hardware.unshift({
+        id:nextId('hw'), key:genHardwareKey(), serial:null, audience:audience, district:district||'', email:email||'',
+        codeId:codeId, status:'created', created:TODAY, activeFrom:activeFrom || TODAY, shipped:null, hoursUsed:0, expiry:expiry, customExpiry:false, replacedAt:null, replaceReason:null,
+        bonusHours:0, renewHistory:[]
+      });
+    }
+  }
+  window.submitExistingTopup = function(){
+    var d = gcpMatchedAccount;
+    if(!d) return;
+    var rc = findCodeForDistrict(d.id);
+    if(!rc) return;
+    var addSeats = parseInt(document.getElementById('gcp-addSeats').value)||0;
+    var addHw = parseInt(document.getElementById('gcp-addHwUnits').value)||0;
+    var hwAudience = document.getElementById('gcp-addHwAudience').value;
+    if(addSeats<1 && addHw<1){ showToast('Enter at least 1 AI seat or 1 hardware unit to add.','error'); return; }
+    // Expiry is captured per order: the seats and keys added now get these dates, while
+    // anything already on the account keeps whatever expiry it already had.
+    var addSeatExpiryVal = document.getElementById('gcp-addSeatExpiry').value;
+    var addHwExpiryVal = document.getElementById('gcp-addHwExpiry').value;
+    if(addSeats>0 && !addSeatExpiryVal){ showToast('Set an AI Seat Expiration Date for the seats being added.','error'); return; }
+    if(addHw>0 && !addHwExpiryVal){ showToast('Set a Hardware Expiration Date for the hardware keys being added.','error'); return; }
+    var addSeatExpiry = addSeatExpiryVal ? new Date(addSeatExpiryVal+'T12:00:00') : addDays(TODAY,365);
+    var addHwExpiry = addHwExpiryVal ? new Date(addHwExpiryVal+'T12:00:00') : addDays(TODAY,365);
+    if(addSeats>0 && isPastDate(addSeatExpiry)){ showToast('AI Seat Expiration Date cannot be in the past.','error'); return; }
+    if(addHw>0 && isPastDate(addHwExpiry)){ showToast('Hardware Expiration Date cannot be in the past.','error'); return; }
+    rc.aiSeats += addSeats;
+    rc.hwUnits += addHw;
+    rc.history = rc.history || [];
+    rc.history.push({date:TODAY, aiSeatsAdded:addSeats, hwUnitsAdded:addHw, type:'renewed', seatExpiry:addSeats>0?addSeatExpiry:null, hwExpiry:addHw>0?addHwExpiry:null});
+    rc.status = 'renewed';
+    rc.activationType = 'renewed';
+    var addSeatActive = document.getElementById('gcp-addSeatActive').value;
+    var addHwActive = document.getElementById('gcp-addHwActive').value;
+    var sActive = addSeatActive ? new Date(addSeatActive+'T12:00:00') : TODAY;
+    var hActive = addHwActive ? new Date(addHwActive+'T12:00:00') : TODAY;
+    if(addSeats>0 && sActive > addSeatExpiry){ showToast('AI Seat Active Date cannot be after its expiry.','error'); return; }
+    if(addHw>0 && hActive > addHwExpiry){ showToast('Hardware Active Date cannot be after its expiry.','error'); return; }
+    if(addSeats>0) createSeatRecords(addSeats, rc.id, rc.districtId, addSeatExpiry, null, sActive);
+    if(addHw>0){
+      createHardwareRecords(addHw, rc.id, hwAudience, rc.district, rc.email, addHwExpiry, hActive);
+      if(!rc.hwExpiry) rc.hwExpiry = addHwExpiry;
+    }
+    currentGeneratedItems = [{label:'Keys added to account', key:rc.key, meta:'+'+addSeats+' AI seats, +'+addHw+' hardware unit'+(addHw===1?'':'s')+' added to this account'}];
+    currentGenCodeId = rc.id;
+    document.getElementById('gcp-searchStep').style.display = 'none';
+    document.getElementById('gcp-existingBranch').style.display = 'none';
+    document.getElementById('gcp-newBranch').style.display = 'none';
+    // Nothing about a code is relevant here: the keys are added straight onto the account,
+    // so the result reports what was added and when it expires, not a code that didn't change.
+    document.getElementById('gc-resultNote').innerHTML = '<b>Added to '+esc(d.district)+'\'s account.</b> These keys are live on the account now — nothing is sent to the district to enter or activate.';
+    var addedBits = [];
+    if(addSeats>0) addedBits.push('<div class="issued-item"><div class="it-label">AI seat keys added</div><div class="code-str">+'+addSeats+'</div><div class="code-meta" style="margin-top:4px;">Expiring '+fmt(addSeatExpiry)+' · '+SEAT_DEFAULT_CAP+' hrs cap each</div></div>');
+    if(addHw>0) addedBits.push('<div class="issued-item"><div class="it-label">Hardware keys added</div><div class="code-str">+'+addHw+'</div><div class="code-meta" style="margin-top:4px;">Expiring '+fmt(addHwExpiry)+' · mark each Shipped once its device goes out</div></div>');
+    document.getElementById('gc-issuedList').innerHTML = addedBits.join('');
+    document.getElementById('gc-resultNote2').style.display = 'none';
+    document.getElementById('gcp-result').style.display = 'block';
+    setGenCodeCancelVisible(false);
+    entPage = 1;
+    renderEntitlements();
+    renderGcHwKeys(rc.id);
+    renderToShip();
+    showToast('Added to '+d.district+'\'s account — '+(addSeats>0 ? '+'+addSeats+' seat key'+(addSeats===1?'':'s') : '')+(addSeats>0&&addHw>0?', ':'')+(addHw>0 ? '+'+addHw+' hardware key'+(addHw===1?'':'s') : '')+', live now.', 'success');
+  };
+  // First Activation Code for a district that's already on file in District Admin but has never
+  // had one issued yet — district identity comes from gcpMatchedAccount (the selected district),
+  // this form only collects seat/hardware quantities and expiry dates.
+  window.submitFirstIssuance = function(){
+    var d = gcpMatchedAccount;
+    if(!d){ showToast('Select a district first.','error'); return; }
+    var aiSeats = parseInt(document.getElementById('gc-aiseats').value)||0;
+    var hwUnits = parseInt(document.getElementById('gc-hwunits').value)||0;
+    var hwAudience = document.getElementById('gc-hwaudience').value;
+    if(aiSeats<1 && hwUnits<1){ showToast('Enter at least 1 AI seat or 1 hardware unit.','error'); return; }
+    var expiryVal = document.getElementById('gc-seatExpiry').value;
+    var expiry = expiryVal ? new Date(expiryVal+'T12:00:00') : addDays(TODAY,365);
+    var hwExpiryVal = document.getElementById('gc-hwExpiry').value;
+    var hwExpiry = hwExpiryVal ? new Date(hwExpiryVal+'T12:00:00') : addDays(TODAY,365);
+    if(aiSeats>0 && isPastDate(expiry)){ showToast('AI Seat Expiration Date cannot be in the past.','error'); return; }
+    if(hwUnits>0 && isPastDate(hwExpiry)){ showToast('Hardware Expiration Date cannot be in the past.','error'); return; }
+    var rc = {id:nextId('rc'), districtId:d.id, key:genRedemptionCode(), district:d.district, email:d.email, netsuiteId:d.netsuiteId, adminHistory:d.adminHistory, aiSeats:aiSeats, hwUnits:hwUnits, status:'active', issued:TODAY, redeemed:null, expiry:expiry, hwExpiry:hwUnits>0?hwExpiry:null, allocated:0, returned:0, replacements:0, flagNote:null, history:[], activationType:'new'};
+    state.redemptionCodes.unshift(rc);
+    var fsActive = document.getElementById('gc-seatActive').value;
+    var fhActive = document.getElementById('gc-hwActive').value;
+    var fs = fsActive ? new Date(fsActive+'T12:00:00') : TODAY;
+    var fh = fhActive ? new Date(fhActive+'T12:00:00') : TODAY;
+    if(aiSeats>0 && fs > expiry){ showToast('AI Seat Active Date cannot be after its expiry.','error'); return; }
+    if(hwUnits>0 && fh > hwExpiry){ showToast('Hardware Active Date cannot be after its expiry.','error'); return; }
+    if(aiSeats>0) createSeatRecords(aiSeats, rc.id, d.id, expiry, null, fs);
+    if(hwUnits>0) createHardwareRecords(hwUnits, rc.id, hwAudience, d.district, d.email, hwExpiry, fh);
+    currentGenCodeId = rc.id;
+    document.getElementById('gcp-searchStep').style.display = 'none';
+    document.getElementById('gcp-existingBranch').style.display = 'none';
+    document.getElementById('gcp-newBranch').style.display = 'none';
+    // Same result shape as a top-up: what was added and when it expires. There is no code.
+    document.getElementById('gc-resultNote').innerHTML = '<b>Keys set up on '+esc(d.district)+'\'s account.</b> These are live now — nothing is sent to the district to enter or activate.';
+    var firstBits = [];
+    if(aiSeats>0) firstBits.push('<div class="issued-item"><div class="it-label">AI seat keys added</div><div class="code-str">+'+aiSeats+'</div><div class="code-meta" style="margin-top:4px;">Expiring '+fmt(expiry)+' · '+SEAT_DEFAULT_CAP+' hrs cap each</div></div>');
+    if(hwUnits>0) firstBits.push('<div class="issued-item"><div class="it-label">Hardware keys added</div><div class="code-str">+'+hwUnits+'</div><div class="code-meta" style="margin-top:4px;">Expiring '+fmt(hwExpiry)+' · mark each Shipped once its device goes out</div></div>');
+    document.getElementById('gc-issuedList').innerHTML = firstBits.join('');
+    document.getElementById('gc-resultNote2').style.display = 'block';
+    document.getElementById('gcp-result').style.display = 'block';
+    setGenCodeCancelVisible(false);
+    entPage = 1;
+    renderEntitlements();
+    renderGcHwKeys(rc.id);
+    renderToShip();
+    showToast('Keys set up on '+d.district+'\'s account — '+(aiSeats>0 ? '+'+aiSeats+' seat key'+(aiSeats===1?'':'s') : '')+(aiSeats>0&&hwUnits>0?', ':'')+(hwUnits>0 ? '+'+hwUnits+' hardware key'+(hwUnits===1?'':'s') : '')+', live now.', 'success');
+  };
+
+  /* ================= HARDWARE KEY ================= */
+  function genHardwareKey(){
+    function seg(){ return Math.random().toString(36).slice(2,6).toUpperCase(); }
+    return 'HWK-'+seg()+'-'+seg()+'-'+seg();
+  }
+  window.openHwDetail = function(id){
+    closeAllRowMenus();
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h) return;
+    currentHwId = id;
+    hwRevealed = false;
+    var throttled = hwIsThrottled(h);
+    var allowed = hwAllowedHours(h);
+    document.getElementById('hd-title').textContent = maskKey(h.key);
+    document.getElementById('hd-audience').textContent = h.audience;
+    document.getElementById('hd-district').textContent = h.district || '— not shipped yet —';
+    document.getElementById('hd-registered').textContent = fmt(h.created);
+    document.getElementById('hd-shipped').textContent = fmt(h.shipped);
+    document.getElementById('hd-serial').textContent = h.serial || (h.shipped ? '—' : '— captured when marked Shipped —');
+    document.getElementById('hd-hoursAllowance').textContent = h.shipped ? (allowed+' hrs currently allowed'+(h.bonusHours>0?' (incl. +'+h.bonusHours+' hrs granted by Support)':'')+(throttled?' (fully used — paused)':'')+', growing ~1.1 hrs/day after year 1') : '— starts once shipped —';
+    document.getElementById('hd-hours').textContent = h.shipped ? (h.hoursUsed+' of '+allowed+' hours currently allowed') : '0 hours (not shipped yet)';
+    var isExpired = hwIsExpired(h);
+    document.getElementById('hd-expiry').textContent = fmt(h.expiry) + (isExpired ? ' (expired)' : '') + (h.customExpiry ? ' — set individually for this key' : '');
+    document.getElementById('hd-expiryEdit').style.display = 'none';
+    document.getElementById('hd-expiryView').style.display = 'flex';
+    var pct = h.shipped ? Math.min(100, Math.round((h.hoursUsed/allowed)*100)) : 0;
+    var meter = document.getElementById('hd-hoursMeter');
+    meter.style.width = pct+'%';
+    document.getElementById('hd-hoursMeterWrap').className = 'meter' + (pct>=90 ? ' danger' : '');
+    var stages = ['created','shipped'];
+    var stageLabels = {created:'Registered by Support', shipped:'Shipped — already in use, no activation step'};
+    var curIdx = h.status==='created' ? 0 : 1;
+    if(h.status==='replaced') curIdx = 1;
+    document.getElementById('hd-stepper').innerHTML = stages.map(function(s,i){
+      var cls = i<curIdx ? 'done' : (i===curIdx?'current':'');
+      return '<div class="step '+cls+'"><div class="sdot">'+(i+1)+'</div><div class="slabel">'+stageLabels[s]+'</div></div>';
+    }).join('');
+    var noteBox = document.getElementById('hd-noteBox');
+    var regNoteBox = document.getElementById('hd-regNoteBox');
+    var actionButtons = document.getElementById('hd-actionButtons');
+    var btns = '';
+    regNoteBox.style.display = 'none';
+    if(h.status==='created'){
+      noteBox.innerHTML = '<b>Registered, not shipped yet.</b> Support applies this system-generated key to the physical device before it ships. Marking it Shipped captures the Device Serial Number that comes back from manufacturing — the key and that serial together are what actually gets used, so once shipped the device works immediately with no district-side activation step.';
+      btns += '<button class="btn btn-highlight" title="Required — mark this key shipped once its device goes out" onclick="openShipHw(\''+h.id+'\')">Mark as Shipped</button>';
+    } else if(h.status==='replaced'){
+      noteBox.innerHTML = '<b>Replaced'+(h.replacedAt?(' on '+fmt(h.replacedAt)):'')+'.</b> '+esc(h.replaceReason||'')+' A replacement key was auto-generated on the same account — mark it Shipped once the new device goes out.';
+    } else if(h.status==='stopped'){
+      noteBox.innerHTML = '<b>Stopped.</b> Support manually deactivated this key directly on the server — the device no longer works on it. Resume it once the issue is resolved (same key, same device, nothing to re-ship), or Replace if the physical device itself needs swapping.';
+      btns += '<button class="btn btn-outline" onclick="resumeHwKey(\''+h.id+'\'); openHwDetail(\''+h.id+'\');">Resume Key</button>';
+      btns += '<button class="btn btn-outline" style="color:var(--red);" onclick="openReplaceHw(\''+h.id+'\')">Report Damaged / Replace</button>';
+    } else { // shipped
+      if(isExpired){
+        noteBox.innerHTML = '<b>Expired.</b> This key\'s expiration date ('+fmt(h.expiry)+') has passed, independent of its hours allowance — the device no longer works on it. Edit the Expiry date above to extend it; Renew (below) only grants extra hours and won\'t bring back an expired key on its own.';
+      } else if(throttled){
+        noteBox.innerHTML = '<b>Paused, not dead.</b> This key is throttled because '+hwThrottleReason(h)+'.';
+        btns += '<button class="btn btn-highlight" title="Grant extra hours so this device can be used again right away" onclick="openRenewHw(\''+h.id+'\')">Renew Hours</button>';
+      } else {
+        noteBox.innerHTML = '<b>'+esc(h.district||'District')+'</b> — shipped '+fmt(h.shipped)+', already in use. Currently allowed '+allowed+' hours (500 flat in year 1, then growing daily), and expires '+fmt(h.expiry)+' — whichever is reached first.';
+        btns += '<button class="btn btn-outline" onclick="simulateHwUsage(\''+h.id+'\'); openHwDetail(\''+h.id+'\');">Simulate 50 Hours of Use</button>';
+        btns += '<button class="btn btn-outline" onclick="openRenewHw(\''+h.id+'\')">Renew Hours</button>';
+      }
+      btns += '<button class="btn btn-outline" style="color:var(--red);" onclick="openReplaceHw(\''+h.id+'\')">Report Damaged / Replace</button>';
+      btns += '<button class="btn btn-outline" style="color:var(--red);" onclick="stopHwKey(\''+h.id+'\'); openHwDetail(\''+h.id+'\');">Stop Key</button>';
+      regNoteBox.style.display = 'block';
+      regNoteBox.innerHTML = '<b>Not managed here —</b> a student identifies themselves before running a simulation, which is what ties results back to them. This console only tracks the key itself.';
+    }
+    actionButtons.innerHTML = btns;
+    var renewWrap = document.getElementById('hd-renewHistoryWrap');
+    if(h.renewHistory && h.renewHistory.length){
+      renewWrap.style.display = 'block';
+      document.getElementById('hd-renewHistoryList').innerHTML = h.renewHistory.slice().reverse().map(function(r){
+        return '<div style="font-size:13px;padding:8px 12px;background:var(--gray-bg);border-radius:8px;">'+
+          '<div>Granted <b>+'+r.hoursGranted+' hrs</b> — allowance became '+r.allowanceAfter+' hrs</div>'+
+          '<div class="cell-soft" style="margin-top:2px;">'+fmt(r.date)+' — '+esc(r.reason)+'</div></div>';
+      }).join('');
+    } else { renewWrap.style.display = 'none'; document.getElementById('hd-renewHistoryList').innerHTML=''; }
+    document.getElementById('hd-flagBox').style.display = 'block';
+    document.getElementById('hd-flagBox').innerHTML = 'This key is also emailed to the district separately; the District Admin must associate it to their account, and an unassociated device shows a prompt until they do. Once shipped, this key is tied to its Device Serial Number and won\'t work on a different physical device — if the device changes (damaged, upgraded, swapped), use Report Damaged / Replace to issue a new key for the new device. "Audience" ('+esc(h.audience)+') is used for tracking and reporting.';
+    openModal('modal-hwDetail');
+  };
+  window.copyHwKey = function(id){
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h) return;
+    try{ navigator.clipboard && navigator.clipboard.writeText(h.key); }catch(e){}
+    showToast('Hardware key copied to clipboard (kept masked on screen).', 'success');
+    closeAllRowMenus();
+  };
+  var shipHwCtx = null;
+  window.openShipHw = function(id, refreshFn, codeId){
+    closeAllRowMenus();
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h) return;
+    shipHwCtx = {id:id, refreshFn:refreshFn||null, codeId:codeId||null};
+    document.getElementById('shw-key').value = h.key;   // shown in full - this is the key being programmed onto the device
+    document.getElementById('shw-serial').value = '';
+    openModal('modal-shipHw');
+  };
+  window.submitShipHw = function(){
+    if(!shipHwCtx) return;
+    var h = state.hardware.find(function(x){return x.id===shipHwCtx.id;});
+    var serial = document.getElementById('shw-serial').value.trim();
+    if(!h || !serial){ showToast('Enter the Device Serial Number from manufacturing first.','error'); return; }
+    h.status='shipped'; h.shipped=TODAY; h.serial=serial;
+    if(!h.district){ h.district = pick(DISTRICTS); h.email = h.email || 'admin@'+h.district.toLowerCase().replace(/[^a-z]+/g,'')+'.edu'; }
+    closeModal('modal-shipHw');
+    renderEntitlements();
+    renderToShip();
+    if(shipHwCtx.refreshFn && window[shipHwCtx.refreshFn]) window[shipHwCtx.refreshFn](shipHwCtx.codeId);
+    if(currentHwId===h.id) openHwDetail(h.id);
+    showToast('Key '+maskKey(h.key)+' marked shipped and tied to device '+esc(serial)+' — already working, no activation step needed. It also just got emailed to the district to associate. Usage allowance starts at 500 hours and grows from here; it also expires '+fmt(h.expiry)+' — whichever comes first.', 'success');
+    shipHwCtx = null;
+  };
+  // Renew Hardware Key Hours — Support-side manual grant of extra hours on top of the normal
+  // year-based formula (see hwAllowedHours above). Added per Timm's 1 Sep Slack answer ("change
+  // the logic as you like") delegating the exact throttle/renewal mechanics to Simform, rather
+  // than a client-specified rule — this is our own design, not something Timm asked for by name.
+  var renewHwCtx = null;
+  window.openRenewHw = function(id, refreshFn, codeId){
+    closeAllRowMenus();
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h) return;
+    renewHwCtx = {id:id, refreshFn:refreshFn||null, codeId:codeId||null};
+    document.getElementById('rnw-key').value = maskKey(h.key);
+    document.getElementById('rnw-current').value = h.hoursUsed+' of '+hwAllowedHours(h)+' hours used'+(hwIsThrottled(h)?' — currently paused':'');
+    document.getElementById('rnw-hours').value = '';
+    document.getElementById('rnw-reason').value = '';
+    closeModal('modal-hwDetail');
+    openModal('modal-renewHw');
+  };
+  window.rnwQuickPick = function(hours){
+    document.getElementById('rnw-hours').value = hours;
+  };
+  window.submitRenewHw = function(){
+    if(!renewHwCtx) return;
+    var h = state.hardware.find(function(x){return x.id===renewHwCtx.id;});
+    var hoursStr = document.getElementById('rnw-hours').value;
+    var hours = parseInt(hoursStr, 10);
+    var reason = document.getElementById('rnw-reason').value.trim();
+    if(!h) return;
+    if(!hoursStr || isNaN(hours) || hours<=0){ showToast('Enter how many hours to grant (a positive number).','error'); return; }
+    if(!reason){ showToast('Please note why these hours are being granted.','error'); return; }
+    var wasThrottled = hwIsThrottled(h);
+    h.bonusHours = (h.bonusHours||0) + hours;
+    h.renewHistory = h.renewHistory || [];
+    var newAllowance = hwAllowedHours(h);
+    h.renewHistory.push({date:TODAY, hoursGranted:hours, reason:reason, allowanceAfter:newAllowance});
+    closeModal('modal-renewHw');
+    renderEntitlements();
+    renderToShip();
+    if(renewHwCtx.refreshFn && window[renewHwCtx.refreshFn]) window[renewHwCtx.refreshFn](renewHwCtx.codeId);
+    if(currentHwId===h.id) openHwDetail(h.id);
+    showToast('Granted +'+hours+' hrs on '+maskKey(h.key)+' — allowance is now '+newAllowance+' hrs.'+(wasThrottled && !hwIsThrottled(h) ? ' The key was paused and is usable again right away.' : ''), 'success');
+    renewHwCtx = null;
+  };
+  window.stopHwKey = function(id){
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h) return;
+    h.status = 'stopped';
+    renderEntitlements();
+    renderToShip();
+    showToast('Key '+maskKey(h.key)+' stopped directly on the server — the device no longer works on it. Use Replace instead if the physical device itself needs swapping.', 'success');
+    closeAllRowMenus();
+  };
+  window.resumeHwKey = function(id){
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h) return;
+    h.status = 'shipped';
+    renderEntitlements();
+    renderToShip();
+    showToast('Key '+maskKey(h.key)+' resumed — back in use on the same device. No new key or Device Serial Number needed, since the physical device never changed.', 'success');
+    closeAllRowMenus();
+  };
+  window.openEditHwKeyExpiry = function(){
+    var h = state.hardware.find(function(x){return x.id===currentHwId;});
+    if(!h) return;
+    document.getElementById('hd-expiryView').style.display = 'none';
+    document.getElementById('hd-expiryEdit').style.display = 'flex';
+    document.getElementById('hd-expiryInput').value = h.expiry ? isoDate(h.expiry) : '';
+  };
+  window.cancelEditHwKeyExpiry = function(){
+    document.getElementById('hd-expiryEdit').style.display = 'none';
+    document.getElementById('hd-expiryView').style.display = 'flex';
+  };
+  window.saveEditHwKeyExpiry = function(){
+    var h = state.hardware.find(function(x){return x.id===currentHwId;});
+    if(!h) return;
+    var val = document.getElementById('hd-expiryInput').value;
+    if(!val){ showToast('Pick a date first.','error'); return; }
+    h.expiry = new Date(val+'T12:00:00');
+    h.customExpiry = true;
+    openHwDetail(h.id);
+    renderCdHwList(h.codeId);
+    renderGcHwKeys(currentGenCodeId===h.codeId ? h.codeId : currentGenCodeId);
+    renderToShip();
+    showToast('Expiry updated to '+fmt(h.expiry)+' for this key only — it\'s now set independently ("Custom expiry") and won\'t change if the code\'s Hardware Expiration Date is edited.', 'success');
+  };
+  window.simulateHwUsage = function(id){
+    var h = state.hardware.find(function(x){return x.id===id;});
+    if(!h || h.status!=='shipped') return;
+    var wasThrottled = hwIsThrottled(h);
+    var allowed = hwAllowedHours(h);
+    h.hoursUsed = Math.min(allowed, h.hoursUsed+50);
+    if(!wasThrottled && hwIsThrottled(h)){
+      showToast('(Demo) Key '+maskKey(h.key)+' just used up its current allowance — sessions pause until the allowance grows further.', 'error');
+    } else {
+      showToast('(Demo) Logged 50 hours of use on '+maskKey(h.key)+' — now at '+h.hoursUsed+' / '+allowed+'.', 'info');
+    }
+    closeAllRowMenus();
+  };
+  window.openReplaceHw = function(id){
+    closeAllRowMenus();
+    currentHwId = id;
+    var h = state.hardware.find(function(x){return x.id===id;});
+    document.getElementById('rhw-key').value = h ? maskKey(h.key) : '';
+    document.getElementById('rhw-reason').value = '';
+    closeModal('modal-hwDetail');
+    openModal('modal-replaceHw');
+  };
+  window.submitReplaceHw = function(){
+    var h = state.hardware.find(function(x){return x.id===currentHwId;});
+    var reason = document.getElementById('rhw-reason').value.trim();
+    if(!h || !reason){ showToast('Please describe why this key needs replacing.','error'); return; }
+    h.status='replaced'; h.replacedAt=TODAY; h.replaceReason=reason;
+    // Per the Timm/Vinit call (2 Sep): a replacement key is a new physical-device tie (new
+    // Device Serial Number, captured next time it's marked Shipped), but it is NOT a fresh
+    // usage clock — it carries over the remaining hours allowance and keeps the same
+    // expiration date, the same way the old key's "remaining time" would carry to an OTP-style
+    // reissue.
+    var newHw = {
+      id:nextId('hw'), key:genHardwareKey(), serial:null, audience:h.audience, district:h.district, email:h.email,
+      codeId:h.codeId, status:'created', created:TODAY, shipped:null, hoursUsed:h.hoursUsed,
+      expiry:h.expiry, customExpiry:h.customExpiry, replacedAt:null, replaceReason:null,
+      // Bonus hours (and their history) are part of "remaining hours allowance" for this key,
+      // per the same 2 Sep call answer that hours/expiry carry over rather than resetting —
+      // so a replacement device keeps whatever Support had already renewed on the old one.
+      bonusHours:h.bonusHours||0, renewHistory:(h.renewHistory||[]).slice()
+    };
+    state.hardware.unshift(newHw);
+    closeModal('modal-replaceHw');
+    renderEntitlements();
+    renderToShip();
+    // Refresh whichever hardware-key listing(s) this code appears in, keyed off the code the
+    // replaced key actually belongs to (newHw.codeId) rather than currentSeatActionId — that
+    // variable is only ever set by opening the Activation Code detail modal, so relying on it
+    // alone silently skipped this refresh (leaving a stale "no Mark Shipped button yet" row)
+    // whenever Replace was reached some other way, e.g. from the Issue Activation Code result
+    // screen's own key list.
+    renderCdHwList(newHw.codeId);
+    renderGcHwKeys(currentGenCodeId);
+    showToast('Key '+maskKey(h.key)+' marked Replaced. A new key ('+maskKey(newHw.key)+') was auto-generated for the replacement device, keeping its remaining hours allowance and '+fmt(newHw.expiry)+' expiry — mark it Shipped once it goes out to capture the new device\'s Serial Number.', 'success');
+    // Land straight on the new key's detail screen — its "Mark as Shipped" button (which
+    // captures the new device's Serial Number) is right there, no need to go hunting for the
+    // new key on the To Ship page or the code detail list.
+    openHwDetail(newHw.id);
+  };
+
+  /* ================= TO SHIP ================= */
+  var toShipPage = 1;
+  var TOSHIP_PAGE_SIZE = 5;
+  function renderToShip(){
+    var pendingAll = state.hardware.filter(function(h){ return h.status==='created'; });
+    var badge = document.getElementById('toShipBadge');
+    if(badge){
+      if(pendingAll.length>0){ badge.style.display='inline-block'; badge.textContent=pendingAll.length; }
+      else{ badge.style.display='none'; }
+    }
+    var body = document.getElementById('toShipBody');
+    if(!body) return;
+    // One row per individual hardware key waiting to ship. This is a picking list, so it
+    // deliberately carries nothing beyond the key, where it goes, and the ship action.
+    // (Previously grouped one line per district with audience/expiry/count/created columns.)
+    var q = (document.getElementById('toShipSearch').value||'').toLowerCase();
+    var rows = pendingAll.filter(function(h){
+      if(!q) return true;
+      var rc = state.redemptionCodes.find(function(x){ return x.id===h.codeId; });
+      var dist = ((rc && rc.district) || h.district || '').toLowerCase();
+      return dist.indexOf(q)>-1 || (h.key||'').toLowerCase().indexOf(q)>-1;
+    }).sort(function(a,b){ return a.created - b.created; });
+    var totalRows = rows.length;
+    var totalPages = Math.max(1, Math.ceil(totalRows/TOSHIP_PAGE_SIZE));
+    if(toShipPage>totalPages) toShipPage = totalPages;
+    if(toShipPage<1) toShipPage = 1;
+    var startIdx = (toShipPage-1)*TOSHIP_PAGE_SIZE;
+    var pageRows = rows.slice(startIdx, startIdx+TOSHIP_PAGE_SIZE);
+    if(!pageRows.length){ body.innerHTML = '<tr class="empty-row"><td colspan="3">Nothing waiting to ship — every generated key has already been installed and shipped.</td></tr>'; }
+    else{
+      body.innerHTML = pageRows.map(function(h){
+        var rc = state.redemptionCodes.find(function(x){ return x.id===h.codeId; });
+        var dist = (rc && rc.district) || h.district || '';
+        return '<tr>'+
+          '<td class="cell-strong mono">'+esc(h.key)+'</td>'+
+          '<td class="cell-soft">'+esc(dist || '— not yet assigned —')+'</td>'+
+          '<td><button class="btn btn-primary btn-sm" onclick="openShipHw(\''+h.id+'\', \'renderToShip\', \''+h.codeId+'\')">Mark Shipped</button></td>'+
+        '</tr>';
+      }).join('');
+    }
+    var pgEl = document.getElementById('toShipPagination');
+    if(pgEl){
+      if(!totalRows){ pgEl.innerHTML=''; }
+      else{
+        var startShown = startIdx+1, endShown = Math.min(startIdx+TOSHIP_PAGE_SIZE, totalRows);
+        pgEl.innerHTML = '<span class="pg-info">Showing '+startShown+'–'+endShown+' of '+totalRows+'</span>'+
+          '<div class="pg-controls">'+
+            '<button class="btn btn-ghost btn-sm" '+(toShipPage<=1?'disabled':'')+' onclick="goToShipPage(-1)">‹ Prev</button>'+
+            '<span class="pg-page">Page '+toShipPage+' of '+totalPages+'</span>'+
+            '<button class="btn btn-ghost btn-sm" '+(toShipPage>=totalPages?'disabled':'')+' onclick="goToShipPage(1)">Next ›</button>'+
+          '</div>';
+      }
+    }
+  }
+  window.goToShipPage = function(delta){
+    toShipPage += delta;
+    renderToShip();
+  };
+
+  /* ================= NAVIGATION ================= */
+  var PAGE_TITLES = {entitlements:'Keys', toship:'To Ship', account:'Profile'};
+  window.showPage = function(name){
+    document.querySelectorAll('.page').forEach(function(p){ p.classList.remove('active'); });
+    document.getElementById('page-'+name).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.toggle('active', n.dataset.page===name); });
+    document.getElementById('topbarTitle').textContent = PAGE_TITLES[name];
+    window.scrollTo(0,0);
+  };
+  document.querySelectorAll('.nav-item').forEach(function(item){
+    item.addEventListener('click', function(){ showPage(item.dataset.page); });
+  });
+
+  document.getElementById('collapseBtn').addEventListener('click', function(){
+    document.getElementById('sidebar').classList.toggle('collapsed');
+  });
+
+  /* ================= LOGIN / LOGOUT ================= */
+  // PROTOTYPE AUTH - browser-side only, so it keeps casual visitors out but is NOT a
+  // security boundary (the credentials are readable in this file). Replace with a real
+  // server-side session before exposing this to anyone outside the team.
+  var SUPPORT_USER = 'realityworks@rwthrive.ai';
+  var SUPPORT_PASS = 'realityworks2709';
+  var SUPPORT_SESSION_KEY = 'rwai_support_session_v1';
+
+  function supportSignIn(){
+    var email = (document.getElementById('loginEmail').value||'').trim().toLowerCase();
+    var pass  = (document.getElementById('loginPassword')||{}).value||'';
+    var errEl = document.getElementById('loginError');
+    if(email !== SUPPORT_USER.toLowerCase() || pass !== SUPPORT_PASS){
+      if(errEl){ errEl.style.display='block'; errEl.textContent='That email and password combination is not recognized.'; }
+      showToast('Sign-in failed - check the email and password.', 'error');
+      return;
+    }
+    if(errEl) errEl.style.display='none';
+    try{ sessionStorage.setItem(SUPPORT_SESSION_KEY,'1'); }catch(e){}
+    document.getElementById('screen-login').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+    showToast('Welcome back.', 'success');
+  }
+  document.getElementById('btnSignIn').addEventListener('click', supportSignIn);
+  var _loginPw = document.getElementById('loginPassword');
+  if(_loginPw){ _loginPw.addEventListener('keydown', function(e){ if(e.key==='Enter') supportSignIn(); }); }
+  // Restore a session across refreshes so a reload does not kick you out mid-task.
+  try{
+    if(sessionStorage.getItem(SUPPORT_SESSION_KEY)==='1'){
+      document.getElementById('screen-login').style.display='none';
+      document.getElementById('app').style.display='flex';
+    }
+  }catch(e){}
+  document.getElementById('btnSignOut').addEventListener('click', function(){
+    try{ sessionStorage.removeItem(SUPPORT_SESSION_KEY); }catch(e){}
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('screen-login').style.display = 'grid';
+    backToSignIn();
+  });
+
+  /* ================= FORGOT PASSWORD (login screen) ================= */
+  window.showForgotPassword = function(){
+    document.getElementById('forgotEmail').value = document.getElementById('loginEmail').value || '';
+    document.getElementById('forgotConfirm').style.display = 'none';
+    document.getElementById('forgotConfirm').innerHTML = '';
+    document.getElementById('btnSendReset').style.display = 'inline-flex';
+    document.getElementById('loginSignInView').style.display = 'none';
+    document.getElementById('loginForgotView').style.display = 'block';
+  };
+  window.backToSignIn = function(){
+    document.getElementById('loginForgotView').style.display = 'none';
+    document.getElementById('loginSignInView').style.display = 'block';
+  };
+  window.submitForgotPassword = function(){
+    var email = document.getElementById('forgotEmail').value.trim();
+    if(!email){ showToast('Enter your email first.','error'); return; }
+    var box = document.getElementById('forgotConfirm');
+    box.style.display = 'block';
+    box.innerHTML = '<b>Check your inbox —</b> if an account exists for <b>'+esc(email)+'</b>, a password reset link has been sent. It expires in 30 minutes.';
+    document.getElementById('btnSendReset').style.display = 'none';
+  };
+
+  /* ================= PASSWORD SHOW/HIDE (shared by login + change password) ================= */
+  var PW_EYE_OPEN = '<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/>';
+  var PW_EYE_CLOSED = '<path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.8 21.8 0 0 1 5.06-5.94"/><path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 7 11 7a21.77 21.77 0 0 1-2.16 3.19"/><path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  window.togglePwVisibility = function(inputId, iconId){
+    var inp = document.getElementById(inputId);
+    var icon = document.getElementById(iconId);
+    if(!inp || !icon) return;
+    var showing = inp.type === 'text';
+    inp.type = showing ? 'password' : 'text';
+    icon.innerHTML = showing ? PW_EYE_OPEN : PW_EYE_CLOSED;
+  };
+
+  /* ================= CHANGE PASSWORD (Sales & Support page) ================= */
+  var CURRENT_PASSWORD = document.getElementById('loginPassword').value || 'password123';
+  window.openChangePassword = function(){
+    document.getElementById('cp-current').value = '';
+    document.getElementById('cp-new').value = '';
+    document.getElementById('cp-confirm').value = '';
+    openModal('modal-changePassword');
+  };
+  window.submitChangePassword = function(){
+    var current = document.getElementById('cp-current').value;
+    var next = document.getElementById('cp-new').value;
+    var confirm = document.getElementById('cp-confirm').value;
+    if(!current || !next || !confirm){ showToast('All three fields are required.','error'); return; }
+    if(current !== CURRENT_PASSWORD){ showToast('Current password is incorrect.','error'); return; }
+    if(next.length < 8){ showToast('New password must be at least 8 characters.','error'); return; }
+    if(next !== confirm){ showToast('New password and confirmation do not match.','error'); return; }
+    CURRENT_PASSWORD = next;
+    document.getElementById('loginPassword').value = next;
+    closeModal('modal-changePassword');
+    showToast('Password updated successfully.', 'success');
+  };
+
+  /* ================= WIRE UP BUTTONS ================= */
+  document.getElementById('btnIssueStandalone').addEventListener('click', function(){ openIssueEntitlement(); });
+
+  document.getElementById('entSearch').addEventListener('input', function(){ entPage = 1; renderEntitlements(); });
+  document.getElementById('toShipSearch').addEventListener('input', function(){ toShipPage = 1; renderToShip(); });
+  // (District Admin search input removed - Accounts uses #entSearch)
+
+  /* ================= INITIAL RENDER ================= */
+  applyDateMins();
+  renderEntitlements();
+  renderToShip();
+
+  /* Debug handle for this prototype: lets the state be inspected from the browser
+     console (and by the automated smoke test) without loosening anything else.
+     Remove this line if the console is ever promoted to a real, hardened build. */
+  window.__rwaiSupport = {
+    state: state,
+    getSeat: getSeat,
+    seatsForCode: seatsForCode,
+    hwAllowedHours: hwAllowedHours,
+    SEAT_DEFAULT_CAP: SEAT_DEFAULT_CAP
+  };
+
+})();
+</script>
+</body>
+</html>

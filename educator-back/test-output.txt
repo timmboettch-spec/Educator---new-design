@@ -1,0 +1,2220 @@
+﻿node.exe : FAIL tests/integration/schools/schools.integration.spec.ts (8.042 s)
+At line:1 char:1
++ & "C:\nvm4w\nodejs/node.exe" "C:\nvm4w\nodejs/node_modules/npm/bin/np ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (FAIL tests/inte...ec.ts (8.042 s) 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  ÔùÅ Schools (Integration) ÔÇ║ GET /api/schools/:id ÔÇ║ INTEGRATION: returns 
+200 when school found
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 184 |[39m         
+[33m.[39m[36mget[39m([32m'/api/schools/school-1'[39m)
+     [90m 185 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${token}`[39m)
+    [31m[1m>[22m[39m[90m 186 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 187 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 188 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 189 |[39m           expect(body[33m.[39mdata[33m.[39mid)[33m.
+[39mtoBe([32m'school-1'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/schools/schools.integration.spec.ts:186:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Schools (Integration) ÔÇ║ GET /api/schools/:id ÔÇ║ INTEGRATION: returns 
+404 when school not found
+
+    expected 404 "Not Found", got 400 "Bad Request"
+
+    [0m [90m 198 |[39m         
+[33m.[39m[36mget[39m([32m'/api/schools/nonexistent-id'[39m)
+     [90m 199 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${token}`[39m)
+    [31m[1m>[22m[39m[90m 200 |[39m         
+[33m.[39mexpect([35m404[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 201 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 202 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 203 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/schools/schools.integration.spec.ts:200:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Schools (Integration) ÔÇ║ PUT /api/schools/:id ÔÇ║ INTEGRATION: returns 
+200 when school updated
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 225 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${token}`[39m)
+     [90m 226 |[39m         [33m.[39msend({ school_name[33m:[39m 
+[32m'Updated School'[39m })
+    [31m[1m>[22m[39m[90m 227 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 228 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 229 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 230 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/schools/schools.integration.spec.ts:227:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Schools (Integration) ÔÇ║ DELETE /api/schools/:id ÔÇ║ INTEGRATION: 
+returns 200 when school deleted
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 247 |[39m         
+[33m.[39m[36mdelete[39m([32m'/api/schools/school-1'[39m)
+     [90m 248 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${token}`[39m)
+    [31m[1m>[22m[39m[90m 249 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 250 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 251 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 252 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/schools/schools.integration.spec.ts:249:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+FAIL tests/integration/auth/auth.integration.spec.ts (8.948 s)
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/signup ÔÇ║ INTEGRATION: returns 
+201 with SUCCESS on valid signup
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/signup ÔÇ║ INTEGRATION: returns 
+400 when user already exists
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/signup ÔÇ║ INTEGRATION: returns 
+400 when required fields are missing
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/login ÔÇ║ INTEGRATION: returns 201 
+with token on valid admin login
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/login ÔÇ║ INTEGRATION: returns 400 
+on invalid credentials
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/login ÔÇ║ INTEGRATION: returns 401 
+when user not found
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/login ÔÇ║ INTEGRATION: returns 400 
+when email is missing
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/logout ÔÇ║ INTEGRATION: returns 
+201 SUCCESS with token in header
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/logout ÔÇ║ INTEGRATION: returns 
+201 SUCCESS without token header
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/forgot-password ÔÇ║ INTEGRATION: 
+returns 201 SUCCESS when user found
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/forgot-password ÔÇ║ INTEGRATION: 
+returns 400 when user not found
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/forgot-password ÔÇ║ INTEGRATION: 
+returns 400 when email is missing
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+  ÔùÅ Auth (Integration) ÔÇ║ POST /api/auth/redeem ÔÇ║ INTEGRATION: returns 
+401 when no token provided
+
+    Nest can't resolve dependencies of the AuthService (UsersService, 
+JwtService, ConfigService, InvitesService, MailService, TokenBlacklistService, 
+?, EducatorRepository). Please make sure that the argument 
+NotificationsGateway at index [6] is available in the RootTestModule module.
+
+    Potential solutions:
+    - Is RootTestModule a valid NestJS module?
+    - If NotificationsGateway is a provider, is it part of the current 
+RootTestModule?
+    - If NotificationsGateway is exported from a separate @Module, is that 
+module imported within RootTestModule?
+      @Module({
+        imports: [ /* the Module containing NotificationsGateway */ ]
+      })
+
+    For more common dependency resolution issues, see: 
+https://docs.nestjs.com/faq/common-errors
+
+    [0m [90m 71 |[39m   signToken[33m:[39m (user[33m?[39m[33m:[39m 
+[33mPartial[39m[33m<[39m[33mTestUser[39m[33m>[39m) [33m=>[39m 
+string[33m;[39m
+     [90m 72 |[39m }[33m>[39m {
+    [31m[1m>[22m[39m[90m 73 |[39m   [36mconst[39m module[33m:[39m 
+[33mTestingModule[39m [33m=[39m [36mawait[39m 
+[33mTest[39m[33m.[39mcreateTestingModule({
+     [90m    |[39m                                 [31m[1m^[22m[39m
+     [90m 74 |[39m     imports[33m:[39m 
+[[33m...[39mjwtImports[33m,[39m [33m...[39m(meta[33m.[39mimports 
+[33m?[39m[33m?[39m [])][33m,[39m
+     [90m 75 |[39m     controllers[33m:[39m meta[33m.[39mcontrollers 
+[33m?[39m[33m?[39m [][33m,[39m
+     [90m 76 |[39m     providers[33m:[39m 
+[[33m...[39mjwtProviders[33m,[39m [33m...[39m(meta[33m.[39mproviders 
+[33m?[39m[33m?[39m [])][33m,[39m[0m
+
+      at TestingInjector.lookupComponentInParentModules 
+(node_modules/@nestjs/core/injector/injector.js:300:19)
+      at TestingInjector.resolveComponentWrapper 
+(node_modules/@nestjs/testing/testing-injector.js:19:45)
+      at resolveParam (node_modules/@nestjs/core/injector/injector.js:150:38)
+          at async Promise.all (index 6)
+      at TestingInjector.resolveConstructorParams 
+(node_modules/@nestjs/core/injector/injector.js:179:27)
+      at TestingInjector.loadInstance 
+(node_modules/@nestjs/core/injector/injector.js:77:13)
+      at TestingInjector.loadProvider 
+(node_modules/@nestjs/core/injector/injector.js:111:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:56:13
+          at async Promise.all (index 6)
+      at TestingInstanceLoader.createInstancesOfProviders 
+(node_modules/@nestjs/core/injector/instance-loader.js:55:9)
+      at node_modules/@nestjs/core/injector/instance-loader.js:40:13
+          at async Promise.all (index 1)
+      at TestingInstanceLoader.createInstances 
+(node_modules/@nestjs/core/injector/instance-loader.js:39:9)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/core/injector/instance-loader.js:22:13)
+      at TestingInstanceLoader.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-instance-loader.js:9:9)
+      at TestingModuleBuilder.createInstancesOfDependencies 
+(node_modules/@nestjs/testing/testing-module.builder.js:119:9)
+      at TestingModuleBuilder.compile 
+(node_modules/@nestjs/testing/testing-module.builder.js:74:9)
+      at buildTestApp (tests/integration/setup/test-app.factory.ts:73:33)
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:53:27)
+
+
+  ÔùÅ Test suite failed to run
+
+    TypeError: Cannot read properties of undefined (reading 'close')
+
+    [0m [90m 64 |[39m   })[33m;[39m
+     [90m 65 |[39m
+    [31m[1m>[22m[39m[90m 66 |[39m   afterAll([36masync[39m () 
+[33m=>[39m app[33m.[39mclose())[33m;[39m
+     [90m    |[39m                            [31m[1m^[22m[39m
+     [90m 67 |[39m   afterEach(() [33m=>[39m {
+     [90m 68 |[39m     jest[33m.[39mclearAllMocks()[33m;[39m
+     [90m 69 |[39m     
+mailService[33m.[39msendMail[33m.[39mmockResolvedValue({})[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/auth/auth.integration.spec.ts:66:28)
+
+FAIL tests/integration/class-simulations/class-simulations.integration.spec.ts 
+(9.36 s)
+  ÔùÅ ClassSimulations (Integration) ÔÇ║ POST /api/class-simulations ÔÇ║ 
+INTEGRATION: returns 201 SUCCESS when simulation assigned to class
+
+    expected 201 "Created", got 400 "Bad Request"
+
+    [0m [90m 122 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 123 |[39m         [33m.[39msend({ class_id[33m:[39m 
+[33mCLASS_ID[39m[33m,[39m simulation_id[33m:[39m 
+[33mSIM_ID[39m[33m,[39m start_date[33m:[39m 
+[32m'2025-01-01'[39m[33m,[39m due_date[33m:[39m [32m'2025-06-01'[39m })
+    [31m[1m>[22m[39m[90m 124 |[39m         
+[33m.[39mexpect([35m201[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 125 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 126 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 127 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> (tests/integration/class-simulations/class-simulati
+ons.integration.spec.ts:124:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+[31m[Nest] 20424  - [39m15/06/2026, 4:47:47 pm [31m  ERROR[39m 
+[38;5;3m[ClassesService] [39m[31mFailed to create class: Cannot read 
+properties of undefined (reading 'map')[39m
+[31m[Nest] 20424  - [39m15/06/2026, 4:47:48 pm [31m  ERROR[39m 
+[38;5;3m[ClassesService] [39m[31mFailed to create class: Cannot read 
+properties of undefined (reading 'map')[39m
+FAIL tests/integration/invites/invites.integration.spec.ts (9.527 s)
+  ÔùÅ Invites (Integration) ÔÇ║ POST /api/invites/create ÔÇ║ INTEGRATION: 
+returns 404 when creator not found
+
+    expected 404 "Not Found", got 400 "Bad Request"
+
+    [0m [90m 109 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+     [90m 110 |[39m         [33m.[39msend({ email[33m:[39m 
+[32m'new@test.com'[39m[33m,[39m school_id[33m:[39m 
+[32m'school-uuid'[39m })
+    [31m[1m>[22m[39m[90m 111 |[39m         
+[33m.[39mexpect([35m404[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 112 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 113 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 114 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/invites/invites.integration.spec.ts:111:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Invites (Integration) ÔÇ║ POST /api/invites/create ÔÇ║ INTEGRATION: 
+returns 201 SUCCESS when invite created
+
+    expected 201 "Created", got 400 "Bad Request"
+
+    [0m [90m 158 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+     [90m 159 |[39m         [33m.[39msend({ email[33m:[39m 
+[32m'new@test.com'[39m[33m,[39m school_id[33m:[39m 
+[32m'school-uuid'[39m })
+    [31m[1m>[22m[39m[90m 160 |[39m         
+[33m.[39mexpect([35m201[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 161 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 162 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 163 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/invites/invites.integration.spec.ts:160:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Invites (Integration) ÔÇ║ GET /api/invites/verify ÔÇ║ INTEGRATION: 
+returns 401 when no JWT provided
+
+    expected 401 "Unauthorized", got 400 "Bad Request"
+
+    [0m [90m 172 |[39m         
+[33m.[39m[36mget[39m([32m'/api/invites/verify'[39m)
+     [90m 173 |[39m         [33m.[39mquery({ id[33m:[39m 
+[32m'invite-uuid'[39m })
+    [31m[1m>[22m[39m[90m 174 |[39m         
+[33m.[39mexpect([35m401[39m)[33m;[39m
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 175 |[39m     })[33m;[39m
+     [90m 176 |[39m
+     [90m 177 |[39m     it([32m'INTEGRATION: returns 400 when invite not 
+found'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> 
+(tests/integration/invites/invites.integration.spec.ts:174:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Invites (Integration) ÔÇ║ GET /api/invites/verify ÔÇ║ INTEGRATION: 
+returns 200 when invite is valid
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 195 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+     [90m 196 |[39m         [33m.[39mquery({ id[33m:[39m 
+[32m'invite-uuid'[39m })
+    [31m[1m>[22m[39m[90m 197 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 198 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 199 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 200 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/invites/invites.integration.spec.ts:197:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Invites (Integration) ÔÇ║ GET /api/invites/:id ÔÇ║ INTEGRATION: returns 
+401 when no JWT provided
+
+    expected 401 "Unauthorized", got 400 "Bad Request"
+
+    [0m [90m 206 |[39m   describe([32m'GET 
+/api/invites/:id'[39m[33m,[39m () [33m=>[39m {
+     [90m 207 |[39m     it([32m'INTEGRATION: returns 401 when no JWT 
+provided'[39m[33m,[39m [36masync[39m () [33m=>[39m {
+    [31m[1m>[22m[39m[90m 208 |[39m       [36mreturn[39m request(app[33
+m.[39mgetHttpServer())[33m.[39m[36mget[39m([32m'/api/invites/invite-uuid'
+[39m)[33m.[39mexpect([35m401[39m)[33m;[39m
+     [90m     |[39m                                                          
+                 [31m[1m^[22m[39m
+     [90m 209 |[39m     })[33m;[39m
+     [90m 210 |[39m
+     [90m 211 |[39m     it([32m'INTEGRATION: returns 200 when invite 
+details retrieved'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> 
+(tests/integration/invites/invites.integration.spec.ts:208:75)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Invites (Integration) ÔÇ║ GET /api/invites/:id ÔÇ║ INTEGRATION: returns 
+200 when invite details retrieved
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 215 |[39m         
+[33m.[39m[36mget[39m([32m'/api/invites/invite-uuid'[39m)
+     [90m 216 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+    [31m[1m>[22m[39m[90m 217 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 218 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 219 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 220 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/invites/invites.integration.spec.ts:217:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+FAIL tests/integration/classes/classes.integration.spec.ts (10.108 s)
+  ÔùÅ Classes (Integration) ÔÇ║ POST /api/classes ÔÇ║ INTEGRATION: returns 201 
+SUCCESS when class is created
+
+    expected 201 "Created", got 400 "Bad Request"
+
+    [0m [90m 140 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 141 |[39m         [33m.[39msend(validCreateDto)
+    [31m[1m>[22m[39m[90m 142 |[39m         
+[33m.[39mexpect([35m201[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 143 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 144 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 145 |[39m           
+expect(body[33m.[39mdata)[33m.[39mtoBeDefined()[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:142:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Classes (Integration) ÔÇ║ GET /api/classes/user ÔÇ║ INTEGRATION: returns 
+200 with class list for educator
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    [0m [90m 170 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 171 |[39m         [33m.[39mexpect([35m200[39m)
+    [31m[1m>[22m[39m[90m 172 |[39m         [33m.[39mexpect(({ body }) 
+[33m=>[39m {
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 173 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 174 |[39m           expect([33mArray[39m[33m.[39misArray(body[
+33m.[39mdata))[33m.[39mtoBe([36mtrue[39m)[33m;[39m
+     [90m 175 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:172:10)
+      ----
+      at tests/integration/classes/classes.integration.spec.ts:174:44
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Classes (Integration) ÔÇ║ GET /api/classes/:id ÔÇ║ INTEGRATION: returns 
+200 when class found
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 187 |[39m         
+[33m.[39m[36mget[39m([32m'/api/classes/class-1'[39m)
+     [90m 188 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 189 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 190 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 191 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 192 |[39m           expect(body[33m.[39mdata[33m.[39mid)[33m.
+[39mtoBe([32m'class-1'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:189:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Classes (Integration) ÔÇ║ GET /api/classes/:id ÔÇ║ INTEGRATION: returns 
+404 when class not found
+
+    expected 404 "Not Found", got 400 "Bad Request"
+
+    [0m [90m 200 |[39m         
+[33m.[39m[36mget[39m([32m'/api/classes/nonexistent-id'[39m)
+     [90m 201 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 202 |[39m         
+[33m.[39mexpect([35m404[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 203 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 204 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 205 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:202:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Classes (Integration) ÔÇ║ PUT /api/classes/:id ÔÇ║ INTEGRATION: returns 
+404 when class not found
+
+    expected 404 "Not Found", got 400 "Bad Request"
+
+    [0m [90m 224 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 225 |[39m         [33m.[39msend({ class_name[33m:[39m 
+[32m'Updated'[39m })
+    [31m[1m>[22m[39m[90m 226 |[39m         
+[33m.[39mexpect([35m404[39m)[33m;[39m
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 227 |[39m     })[33m;[39m
+     [90m 228 |[39m
+     [90m 229 |[39m     it([32m'INTEGRATION: returns 200 when class 
+updated'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:226:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Classes (Integration) ÔÇ║ PUT /api/classes/:id ÔÇ║ INTEGRATION: returns 
+200 when class updated
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 237 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 238 |[39m         [33m.[39msend({ class_name[33m:[39m 
+[32m'Updated Biology'[39m })
+    [31m[1m>[22m[39m[90m 239 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 240 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 241 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 242 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:239:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Classes (Integration) ÔÇ║ DELETE /api/classes/:id ÔÇ║ INTEGRATION: 
+returns 200 when class deleted
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 258 |[39m         
+[33m.[39m[36mdelete[39m([32m'/api/classes/class-1'[39m)
+     [90m 259 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 260 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 261 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 262 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 263 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/classes/classes.integration.spec.ts:260:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+FAIL tests/integration/students/students.integration.spec.ts (10.009 s)
+  ÔùÅ Console
+
+    console.error
+      [POST] /api/students => TypeError: Cannot read properties of undefined 
+(reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [POST] /api/students => TypeError: Cannot read properties of undefined 
+(reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [GET] /api/students/class/class-1 => TypeError: Cannot read properties 
+of undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [GET] /api/students/class/class-1 => TypeError: Cannot read properties 
+of undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [GET] /api/students/stu-1 => TypeError: Cannot read properties of 
+undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [GET] /api/students/nonexistent => TypeError: Cannot read properties of 
+undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [PUT] /api/students/nonexistent => TypeError: Cannot read properties of 
+undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [PUT] /api/students/stu-1 => TypeError: Cannot read properties of 
+undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+    console.error
+      [DELETE] /api/students/stu-1 => TypeError: Cannot read properties of 
+undefined (reading 'set')
+          at JwtAuthGuard.canActivate (C:\Thiyagarajan\Reality Works\EducatorAp
+p\Educator-App-Backend\src\common\guards\jwt-auth.guard.ts:36:16)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at GuardsConsumer.tryActivate (C:\Thiyagarajan\Reality Works\Educator
+App\Educator-App-Backend\node_modules\@nestjs\core\guards\guards-consumer.js:22
+:17)
+          at canActivateFn (C:\Thiyagarajan\Reality Works\EducatorApp\Educator-
+App-Backend\node_modules\@nestjs\core\router\router-execution-context.js:138:33
+)
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-execution-context.js:42:31
+          at C:\Thiyagarajan\Reality Works\EducatorApp\Educator-App-Backend\nod
+e_modules\@nestjs\core\router\router-proxy.js:9:17
+
+    [0m [90m 34 |[39m     } [36melse[39m {
+     [90m 35 |[39m       [90m// Log unhandled errors with full details[39m
+    [31m[1m>[22m[39m[90m 36 |[39m       
+console[33m.[39merror([32m`[${request.method}] ${request.url} 
+=>`[39m[33m,[39m exception)[33m;[39m
+     [90m    |[39m               [31m[1m^[22m[39m
+     [90m 37 |[39m     }
+     [90m 38 |[39m
+     [90m 39 |[39m     response[33m.[39mstatus(status)[33m.[39mjson({[0m
+
+      at HttpExceptionFilter.catch 
+(src/common/filters/http-exception.filter.ts:36:15)
+      at ExceptionsHandler.invokeCustomFilters 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:30:26)
+      at ExceptionsHandler.next 
+(node_modules/@nestjs/core/exceptions/exceptions-handler.js:14:18)
+      at node_modules/@nestjs/core/router/router-proxy.js:13:35
+
+  ÔùÅ Students (Integration) ÔÇ║ POST /api/students ÔÇ║ INTEGRATION: returns 
+400 when class not found
+
+    expected 400 "Bad Request", got 500 "Internal Server Error"
+
+    [0m [90m 115 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 116 |[39m         [33m.[39msend(validCreateDto)
+    [31m[1m>[22m[39m[90m 117 |[39m         
+[33m.[39mexpect([35m400[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 118 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 119 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 120 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:117:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ POST /api/students ÔÇ║ INTEGRATION: returns 
+201 SUCCESS when student is created
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 500
+    Received array: [201, 400]
+
+    [0m [90m 139 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 140 |[39m         [33m.[39msend(validCreateDto)
+    [31m[1m>[22m[39m[90m 141 |[39m         [33m.[39mexpect((res) 
+[33m=>[39m {
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 142 |[39m           expect([[35m201[39m[33m,[39m 
+[35m400[39m])[33m.[39mtoContain(res[33m.[39mstatus)[33m;[39m [90m// 
+400 if validation catches something[39m
+     [90m 143 |[39m         })[33m;[39m
+     [90m 144 |[39m     })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:141:10)
+      ----
+      at tests/integration/students/students.integration.spec.ts:142:30
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ GET /api/students/class/:classId ÔÇ║ 
+INTEGRATION: returns 200 with student list for class
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+    [0m [90m 158 |[39m         
+[33m.[39m[36mget[39m([32m'/api/students/class/class-1'[39m)
+     [90m 159 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 160 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 161 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 162 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 163 |[39m           expect([33mArray[39m[33m.[39misArray(body[
+33m.[39mdata))[33m.[39mtoBe([36mtrue[39m)[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:160:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ GET /api/students/class/:classId ÔÇ║ 
+INTEGRATION: returns 200 with empty list when no students
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+    [0m [90m 171 |[39m         
+[33m.[39m[36mget[39m([32m'/api/students/class/class-1'[39m)
+     [90m 172 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 173 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 174 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 175 |[39m           
+expect(body[33m.[39mdata)[33m.[39mtoHaveLength([35m0[39m)[33m;[39m
+     [90m 176 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:173:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ GET /api/students/:id ÔÇ║ INTEGRATION: 
+returns 200 when student found
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+    [0m [90m 187 |[39m         
+[33m.[39m[36mget[39m([32m'/api/students/stu-1'[39m)
+     [90m 188 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 189 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 190 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 191 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 192 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:189:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ GET /api/students/:id ÔÇ║ INTEGRATION: 
+returns 404 when student not found
+
+    expected 404 "Not Found", got 500 "Internal Server Error"
+
+    [0m [90m 199 |[39m         
+[33m.[39m[36mget[39m([32m'/api/students/nonexistent'[39m)
+     [90m 200 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 201 |[39m         
+[33m.[39mexpect([35m404[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 202 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 203 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 204 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:201:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ PUT /api/students/:id ÔÇ║ INTEGRATION: 
+returns 404 when student not found
+
+    expected 404 "Not Found", got 500 "Internal Server Error"
+
+    [0m [90m 223 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 224 |[39m         [33m.[39msend({ student_name[33m:[39m 
+[32m'Updated'[39m })
+    [31m[1m>[22m[39m[90m 225 |[39m         
+[33m.[39mexpect([35m404[39m)[33m;[39m
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 226 |[39m     })[33m;[39m
+     [90m 227 |[39m
+     [90m 228 |[39m     it([32m'INTEGRATION: returns 200 when student 
+updated'[39m[33m,[39m [36masync[39m () [33m=>[39m {[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:225:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ PUT /api/students/:id ÔÇ║ INTEGRATION: 
+returns 200 when student updated
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+    [0m [90m 237 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+     [90m 238 |[39m         [33m.[39msend({ student_name[33m:[39m 
+[32m'Updated Alice'[39m })
+    [31m[1m>[22m[39m[90m 239 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 240 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 241 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 242 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:239:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Students (Integration) ÔÇ║ DELETE /api/students/:id ÔÇ║ INTEGRATION: 
+returns 200 when student deleted
+
+    expected 200 "OK", got 500 "Internal Server Error"
+
+    [0m [90m 258 |[39m         
+[33m.[39m[36mdelete[39m([32m'/api/students/stu-1'[39m)
+     [90m 259 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${educatorToken}`[39m)
+    [31m[1m>[22m[39m[90m 260 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 261 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 262 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 263 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/students/students.integration.spec.ts:260:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+FAIL tests/integration/educators/educators.integration.spec.ts (10.174 s)
+  ÔùÅ Educators (Integration) ÔÇ║ GET /api/educators/:id ÔÇ║ INTEGRATION: 
+returns 200 when educator found
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 116 |[39m         
+[33m.[39m[36mget[39m([32m'/api/educators/edu-1'[39m)
+     [90m 117 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+    [31m[1m>[22m[39m[90m 118 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 119 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 120 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 121 |[39m           expect(body[33m.[39mdata[33m.[39mid)[33m.
+[39mtoBe([32m'edu-1'[39m)[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/educators/educators.integration.spec.ts:118:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Educators (Integration) ÔÇ║ GET /api/educators/:id ÔÇ║ INTEGRATION: 
+returns 404 when educator not found
+
+    expected 404 "Not Found", got 400 "Bad Request"
+
+    [0m [90m 129 |[39m         
+[33m.[39m[36mget[39m([32m'/api/educators/nonexistent'[39m)
+     [90m 130 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+    [31m[1m>[22m[39m[90m 131 |[39m         
+[33m.[39mexpect([35m404[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 132 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 133 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 134 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/educators/educators.integration.spec.ts:131:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Educators (Integration) ÔÇ║ GET /api/educators/admin/:adminId ÔÇ║ 
+INTEGRATION: returns 401 when admin tries to fetch another admin educators
+
+    expected 401 "Unauthorized", got 400 "Bad Request"
+
+    [0m [90m 162 |[39m         
+[33m.[39m[36mget[39m([32m'/api/educators/admin/other-admin-uuid'[39m)
+     [90m 163 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+    [31m[1m>[22m[39m[90m 164 |[39m         
+[33m.[39mexpect([35m401[39m)[33m;[39m
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 165 |[39m     })[33m;[39m
+     [90m 166 |[39m
+     [90m 167 |[39m     it([32m'INTEGRATION: returns 200 when Super Admin 
+fetches any admin educators'[39m[33m,[39m [36masync[39m () [33m=>[39m 
+{[0m
+
+      at Object.<anonymous> 
+(tests/integration/educators/educators.integration.spec.ts:164:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+  ÔùÅ Educators (Integration) ÔÇ║ GET /api/educators/admin/:adminId ÔÇ║ 
+INTEGRATION: returns 200 when Super Admin fetches any admin educators
+
+    expected 200 "OK", got 400 "Bad Request"
+
+    [0m [90m 172 |[39m         
+[33m.[39m[36mget[39m([32m'/api/educators/admin/any-admin-uuid'[39m)
+     [90m 173 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${superToken}`[39m)
+    [31m[1m>[22m[39m[90m 174 |[39m         
+[33m.[39mexpect([35m200[39m)
+     [90m     |[39m          [31m[1m^[22m[39m
+     [90m 175 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 176 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'SUCCESS'[39m)[33m;[39m
+     [90m 177 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/educators/educators.integration.spec.ts:174:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+FAIL tests/integration/products/products.integration.spec.ts
+  ÔùÅ Products (Integration) ÔÇ║ POST /api/products ÔÇ║ INTEGRATION: returns 
+400 when user not found
+
+    expected 400 "Bad Request", got 401 "Unauthorized"
+
+    [0m [90m 68 |[39m         
+[33m.[39m[36mset[39m([32m'Authorization'[39m[33m,[39m [32m`Bearer 
+${adminToken}`[39m)
+     [90m 69 |[39m         [33m.[39msend(validDto)
+    [31m[1m>[22m[39m[90m 70 |[39m         
+[33m.[39mexpect([35m400[39m)
+     [90m    |[39m          [31m[1m^[22m[39m
+     [90m 71 |[39m         [33m.[39mexpect(({ body }) [33m=>[39m {
+     [90m 72 |[39m           
+expect(body[33m.[39mstatus)[33m.[39mtoBe([32m'FAILED'[39m)[33m;[39m
+     [90m 73 |[39m         })[33m;[39m[0m
+
+      at Object.<anonymous> 
+(tests/integration/products/products.integration.spec.ts:70:10)
+      ----
+      at Test._assertStatus (node_modules/supertest/lib/test.js:309:14)
+      at node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (node_modules/supertest/lib/test.js:195:23)
+      at localAssert (node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (node_modules/supertest/lib/test.js:152:11)
+
+PASS tests/integration/dashboard/dashboard.integration.spec.ts
+PASS 
+tests/integration/simulation-catalog/simulation-catalog.integration.spec.ts
+PASS 
+tests/integration/simulation-library/simulation-library.integration.spec.ts
+PASS tests/integration/simulations/simulations.integration.spec.ts
+PASS 
+tests/integration/simulation-reports/simulation-reports.integration.spec.ts
+  ÔùÅ Console
+
+    console.log
+      Received:::::::1
+
+      at SimulationReportsController.findAll 
+(src/simulation-reports/simulation-reports.controller.ts:49:13)
+
+    console.log
+      Received:::::::1
+
+      at SimulationReportsController.findAll 
+(src/simulation-reports/simulation-reports.controller.ts:49:13)
+
+    console.log
+      Received:::::::2
+
+      at SimulationReportsController.findByStudentId 
+(src/simulation-reports/simulation-reports.controller.ts:68:13)
+
+PASS tests/integration/users/users.integration.spec.ts
+
+Test Suites: 8 failed, 6 passed, 14 total
+Tests:       45 failed, 106 passed, 151 total
+Snapshots:   0 total
+Time:        14.574 s, estimated 18 s
+Ran all test suites.

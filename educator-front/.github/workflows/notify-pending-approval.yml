@@ -1,0 +1,72 @@
+name: Notify pending deployment approval
+
+# Posts a Teams card whenever a deployment is waiting for environment
+# reviewer approval (e.g. the gated `prod` environment). Fires for any
+# workflow that targets a GitHub Environment with required reviewers,
+# so adding new deploy workflows requires no changes here.
+#
+# Gated on `vars.TEAMS_NOTIFICATIONS_ENABLED == 'true'`, same as the
+# other notify jobs.
+
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  notify:
+    if: ${{ github.event.deployment_status.state == 'waiting' && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine style + facts
+        id: payload
+        run: |
+          ENV='${{ github.event.deployment.environment }}'
+          case "$ENV" in
+            prod) STYLE="warning" ;;
+            qa)   STYLE="accent" ;;
+            *)    STYLE="default" ;;
+          esac
+          SHORT_SHA=$(echo '${{ github.event.deployment.sha }}' | cut -c1-7)
+
+          FACTS=$(jq -cn \
+            --arg env "$ENV" \
+            --arg repo "${{ github.repository }}" \
+            --arg sha "$SHORT_SHA" \
+            --arg actor "${{ github.event.deployment.creator.login }}" \
+            '[
+              {title:"Environment", value:$env},
+              {title:"Repository", value:$repo},
+              {title:"SHA", value:$sha},
+              {title:"Triggered by", value:$actor}
+            ]')
+          ACTIONS=$(jq -cn --arg url '${{ github.event.deployment_status.target_url }}' \
+            '[{type:"Action.OpenUrl", title:"Review & approve", url:$url}]')
+
+          {
+            echo "style=$STYLE"
+            echo "title=🟡 Educator Frontend deploy awaiting approval — $ENV"
+            echo "facts<<PAYLOAD_EOF"
+            echo "$FACTS"
+            echo "PAYLOAD_EOF"
+            echo "actions<<PAYLOAD_EOF"
+            echo "$ACTIONS"
+            echo "PAYLOAD_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post Teams card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login:   ${{ github.event.deployment.creator.login }}
+          headline:       ${{ steps.payload.outputs.title }}
+          style:          ${{ steps.payload.outputs.style }}
+          mention-prefix: 'Submitted by '
+          mention-suffix: ' — please review.'
+          facts-json:     ${{ steps.payload.outputs.facts }}
+          actions-json:   ${{ steps.payload.outputs.actions }}

@@ -1,0 +1,242 @@
+name: Rollback Backend
+
+# =============================================================================
+# Standalone workflow (same shape as the frontend's rollback.yml; no
+# workflow_call/reusable-workflow indirection).
+# -----------------------------------------------------------------------------
+# Rolls back the Container App to the previous revision or a specific image
+# SHA that already exists in ACR — does NOT rebuild the image.
+#
+# Production rollbacks are gated by the GitHub Environment 'prod'.
+# Configure required reviewers under repo Settings → Environments → prod.
+# =============================================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to roll back'
+        required: true
+        type: choice
+        options: [dev, qa, prod]
+      target:
+        description: 'previous = auto-resolve prior revision, specific-sha = use SHA below'
+        required: true
+        default: 'previous'
+        type: choice
+        options: [previous, specific-sha]
+      sha:
+        description: 'Image SHA (only used when target = specific-sha)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Dry run — log actions, do not change the container app'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+concurrency:
+  group: deploy-aca-${{ inputs.environment }}-edu
+  cancel-in-progress: false
+
+env:
+  AZ_PREFIX:       rwai
+  APP_CODE:        edu
+  AZ_VER:          '1'
+  SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+  ACR_NAME:        acrall1rwai
+  ACR_RG:          ARG-all1-rwai
+  IMAGE_NAME:      educator-backend
+  SMOKE_TEST_PATH: /health
+
+jobs:
+  rollback:
+    name: Rollback → ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      rolled_back_to: ${{ steps.apply.outputs.rolled_back_to }}
+      container_app:  ${{ steps.names.outputs.container_app }}
+      resource_group: ${{ steps.names.outputs.resource_group }}
+
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Resolve environment names
+        id: names
+        run: |
+          ENV="${{ inputs.environment }}"
+          VER="${{ env.AZ_VER }}"
+          PREFIX="${{ env.AZ_PREFIX }}"
+          APP="${{ env.APP_CODE }}"
+          echo "resource_group=ARG-${ENV}${VER}-${PREFIX}"               >> "$GITHUB_OUTPUT"
+          echo "container_app=aca-${ENV}${VER}-${PREFIX}-${APP}back"     >> "$GITHUB_OUTPUT"
+
+      - name: Resolve ACR login server
+        id: acr
+        run: |
+          LS=$(az acr show --name "${{ env.ACR_NAME }}" --resource-group "${{ env.ACR_RG }}" --query loginServer -o tsv)
+          echo "login-server=$LS" >> "$GITHUB_OUTPUT"
+
+      - name: Get current active image
+        id: current
+        run: |
+          RG="${{ steps.names.outputs.resource_group }}"
+          ACA="${{ steps.names.outputs.container_app }}"
+          CURRENT_IMAGE=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.template.containers[0].image" -o tsv)
+          CURRENT_SHA=$(echo "$CURRENT_IMAGE" | sed 's/.*://')
+          CURRENT_REVISION=$(az containerapp revision list -n "$ACA" -g "$RG" \
+            --query "sort_by([?properties.active && properties.trafficWeight > \`0\`], &properties.createdTime)[-1].name" -o tsv)
+          echo "image=$CURRENT_IMAGE"       >> "$GITHUB_OUTPUT"
+          echo "sha=$CURRENT_SHA"           >> "$GITHUB_OUTPUT"
+          echo "revision=$CURRENT_REVISION" >> "$GITHUB_OUTPUT"
+          echo "Current image: $CURRENT_IMAGE (revision: ${CURRENT_REVISION:-<none>})"
+
+      - name: Resolve target SHA
+        id: resolve
+        env:
+          SHA_INPUT: ${{ inputs.sha }}
+        run: |
+          TARGET="${{ inputs.target }}"
+          if [ "$TARGET" = "specific-sha" ]; then
+            RESOLVED_SHA="$SHA_INPUT"
+            if [ -z "$RESOLVED_SHA" ]; then
+              echo "::error::target=specific-sha but sha input is empty."
+              exit 1
+            fi
+          else
+            # 'previous' — walk THIS environment's own Container App revision
+            # history, not the shared ACR repo. The ACR repo also holds
+            # dev/qa/main and preview-branch (prev-*) tags with no
+            # environment scoping, so "most recently pushed tag" can resolve
+            # to another environment's or a preview build's image. Each
+            # environment has its own Container App resource, so its revision
+            # history is inherently scoped to what THIS environment actually
+            # ran.
+            RG="${{ steps.names.outputs.resource_group }}"
+            ACA="${{ steps.names.outputs.container_app }}"
+            CURRENT_REVISION="${{ steps.current.outputs.revision }}"
+            PREV_IMAGE=$(az containerapp revision list -n "$ACA" -g "$RG" \
+              --query "sort_by([?name != '${CURRENT_REVISION}'], &properties.createdTime)[-1].properties.template.containers[0].image" \
+              -o tsv)
+            if [ -z "$PREV_IMAGE" ]; then
+              echo "::error::Could not find a previous revision of $ACA to roll back to."
+              exit 1
+            fi
+            RESOLVED_SHA=$(echo "$PREV_IMAGE" | sed 's/.*://')
+          fi
+          echo "sha=$RESOLVED_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved rollback target: ${RESOLVED_SHA}"
+
+      - name: Apply rollback
+        id: apply
+        run: |
+          RG="${{ steps.names.outputs.resource_group }}"
+          ACA="${{ steps.names.outputs.container_app }}"
+          ACR="${{ steps.acr.outputs.login-server }}"
+          SHA="${{ steps.resolve.outputs.sha }}"
+          IMAGE="${ACR}/${{ env.IMAGE_NAME }}:${SHA}"
+          DRY_RUN="${{ inputs.dry_run }}"
+
+          echo "Rolling back $ACA to: $IMAGE"
+
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "[DRY RUN] az containerapp update --name $ACA --resource-group $RG --image $IMAGE"
+          else
+            az containerapp update \
+              --name           "$ACA" \
+              --resource-group "$RG" \
+              --image          "$IMAGE"
+          fi
+          echo "rolled_back_to=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for revision health
+        if: ${{ !inputs.dry_run }}
+        run: |
+          ACA="${{ steps.names.outputs.container_app }}"; RG="${{ steps.names.outputs.resource_group }}"
+          for i in $(seq 1 30); do
+            STATE=$(az containerapp revision list --name "$ACA" --resource-group "$RG" \
+              --query "sort_by([], &properties.createdTime)[-1].properties.healthState" -o tsv 2>/dev/null || echo Unknown)
+            echo "attempt $i: healthState=$STATE"
+            [ "$STATE" = "Healthy" ] && exit 0
+            [ "$STATE" = "Unhealthy" ] && { echo "::error::Revision Unhealthy"; exit 1; }
+            sleep 10
+          done
+          echo "::error::Timed out waiting for healthy revision"; exit 1
+
+      - name: Post-rollback smoke test
+        if: ${{ !inputs.dry_run }}
+        run: |
+          ACA="${{ steps.names.outputs.container_app }}"; RG="${{ steps.names.outputs.resource_group }}"
+          FQDN=$(az containerapp show -n "$ACA" -g "$RG" --query "properties.configuration.ingress.fqdn" -o tsv)
+          curl --fail --retry 5 --retry-delay 5 "https://${FQDN}${{ env.SMOKE_TEST_PATH }}"
+
+      - name: Write summary
+        if: always()
+        run: |
+          DRY="${{ inputs.dry_run }}"
+          echo "## Rollback ${{ env.APP_CODE }} → ${{ inputs.environment }}"             >> "$GITHUB_STEP_SUMMARY"
+          echo ""                                                                           >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |"                                                         >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|"                                                         >> "$GITHUB_STEP_SUMMARY"
+          echo "| Container App | ${{ steps.names.outputs.container_app }} |"             >> "$GITHUB_STEP_SUMMARY"
+          echo "| Was running   | ${{ steps.current.outputs.sha }} |"                     >> "$GITHUB_STEP_SUMMARY"
+          echo "| Rolled back to | ${{ steps.resolve.outputs.sha }} |"                    >> "$GITHUB_STEP_SUMMARY"
+          echo "| Mode | $([ "$DRY" = "true" ] && echo 'Dry run' || echo 'Live') |"      >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Teams notification ──────────────────────────────────────────────────────
+  notify-teams:
+    name: Notify Teams
+    if: always() && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true'
+    needs: [rollback]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build notification content
+        id: content
+        run: |
+          case "${{ needs.rollback.result }}" in
+            success)   HEADLINE="↩️ Educator Backend rollback succeeded — ${{ inputs.environment }}$([ "${{ inputs.dry_run }}" = "true" ] && echo ' [DRY RUN]')" ; STYLE="warning"    ; SUFFIX="" ;;
+            failure)   HEADLINE="❌ Educator Backend rollback FAILED — ${{ inputs.environment }}" ; STYLE="attention" ; SUFFIX=" — please investigate." ;;
+            *)         HEADLINE="⚪ Educator Backend rollback cancelled — ${{ inputs.environment }}" ; STYLE="default"   ; SUFFIX="" ;;
+          esac
+          echo "headline=$HEADLINE" >> "$GITHUB_OUTPUT"
+          echo "style=$STYLE"       >> "$GITHUB_OUTPUT"
+          echo "mention_suffix=$SUFFIX" >> "$GITHUB_OUTPUT"
+
+          FACTS=$(jq -n --arg sha "${{ needs.rollback.outputs.rolled_back_to }}" '
+            [
+              {title:"Repository",     value:"${{ github.repository }}"},
+              {title:"Environment",    value:"${{ inputs.environment }}"},
+              {title:"Rolled back to", value:$sha},
+              {title:"Triggered by",   value:"${{ github.actor }}"}
+            ]')
+          {
+            echo 'facts<<EOF'
+            echo "$FACTS"
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Post Teams card
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login:   ${{ github.actor }}
+          headline:       ${{ steps.content.outputs.headline }}
+          style:          ${{ steps.content.outputs.style }}
+          mention-suffix: ${{ steps.content.outputs.mention_suffix }}
+          facts-json:     ${{ steps.content.outputs.facts }}
+          actions-json: |
+            [{"type":"Action.OpenUrl","title":"View run","url":"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}]

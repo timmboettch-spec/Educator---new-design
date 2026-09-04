@@ -1,0 +1,18 @@
+{
+  "login": {
+    "valid": {
+      "email": "student@example.com",
+      "password": "password123"
+    },
+    "invalidPassword": {
+      "email": "student@example.com",
+      "password": "wrongpassword"
+    },
+    "missingEmail": {
+      "password": "password123"
+    },
+    "missingPassword": {
+      "email": "student@example.com"
+    }
+  }
+}

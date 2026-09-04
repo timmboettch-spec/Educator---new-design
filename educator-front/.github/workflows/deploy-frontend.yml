@@ -1,0 +1,835 @@
+name: Deploy Frontend to SWA
+
+on:
+  push:
+    branches: [dev, qa, main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'scripts/**'
+  pull_request:
+    branches: [main, qa, dev]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/**'
+      - 'package*.json'
+      - 'tsconfig*.json'
+      - 'vite.config.*'
+      - 'playwright.config.ts'
+      - '.github/workflows/deploy-frontend.yml'
+      - '.github/lint-baseline.json'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options: [dev, qa, main]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: deploy-frontend-${{ github.event.inputs.environment || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Lint: ratcheted ESLint counts compared to .github/lint-baseline.json.
+  # Shared with preview-deploy.yml via lint-ratchet-against-baseline so a
+  # preview can't deploy code that would fail this pipeline's lint gate.
+  # ─────────────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint (React)
+    runs-on: ubuntu-latest
+    outputs:
+      errors:            ${{ steps.lint.outputs.errors }}
+      warnings:          ${{ steps.lint.outputs.warnings }}
+      baseline_errors:   ${{ steps.lint.outputs.baseline-errors }}
+      baseline_warnings: ${{ steps.lint.outputs.baseline-warnings }}
+      verdict:           ${{ steps.lint.outputs.verdict }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ratchet lint against baseline
+        id: lint
+        uses: ./.github/actions/lint-ratchet-against-baseline
+        with:
+          node-version:    ${{ env.NODE_VERSION }}
+          install-command: npm ci
+          working-directory: .
+          lint-command:  'npx eslint . --format json --output-file eslint-report.json'
+          report-file:   eslint-report.json
+          baseline-file: .github/lint-baseline.json
+          baseline-key:  frontend
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-eslint-report
+          path: eslint-report.json
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PR lint comment: sticky lint delta report on pull requests.
+  # ─────────────────────────────────────────────────────────────────────────────
+  pr-lint-comment:
+    name: PR lint delta comment
+    if: |
+      github.event_name == 'pull_request'
+      && !cancelled()
+      && github.event.pull_request.head.repo.full_name == github.repository
+    needs: [lint]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Needed so ./.github/actions/pr-sticky-comment (a local composite
+      # action) resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build comment body
+        id: body
+        env:
+          FE_E:  ${{ needs.lint.outputs.errors }}
+          FE_W:  ${{ needs.lint.outputs.warnings }}
+          FE_BE: ${{ needs.lint.outputs.baseline_errors }}
+          FE_BW: ${{ needs.lint.outputs.baseline_warnings }}
+          FE_V:  ${{ needs.lint.outputs.verdict }}
+        run: |
+          set -euo pipefail
+          fmt_delta() {
+            local cur="${1:-0}" base="${2:-0}"
+            local d=$((cur - base))
+            if [ "$d" -gt 0 ]; then echo "**+${d}**"
+            elif [ "$d" -lt 0 ]; then echo "${d}"
+            else echo "0"; fi
+          }
+          icon() {
+            case "${1:-unknown}" in
+              fail)     echo ":x: regressed";;
+              improved) echo ":green_heart: improved";;
+              flat)     echo ":white_check_mark: flat";;
+              *)        echo ":grey_question: unknown";;
+            esac
+          }
+
+          {
+            echo "body<<BODY_EOF"
+            echo "## Lint report"
+            echo ""
+            echo "| Project | Errors (cur / base) | Warnings (cur / base) | Delta errors | Delta warnings | Status |"
+            echo "|---|---:|---:|:---:|:---:|:---|"
+            echo "| Frontend | $FE_E / $FE_BE | $FE_W / $FE_BW | $(fmt_delta $FE_E $FE_BE) | $(fmt_delta $FE_W $FE_BW) | $(icon $FE_V) |"
+            echo ""
+            echo "Baselines: [.github/lint-baseline.json](.github/lint-baseline.json). If lint improved, lower the baseline in this PR."
+            echo ""
+            echo "<sub>lint-ratchet | run [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})</sub>"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky PR comment
+        uses: ./.github/actions/pr-sticky-comment
+        with:
+          header: lint-ratchet
+          body:   ${{ steps.body.outputs.body }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Type Check: `vite build` uses esbuild, which strips types without
+  # checking them, and the ESLint config here is syntax-only (no
+  # parserOptions.project), so nothing else in this pipeline catches a real
+  # TypeScript error. Non-blocking for now (continue-on-error on the tsc
+  # step) — the repo currently has ~64 pre-existing type errors (mostly
+  # test-file mock typings) that were never caught before this job existed.
+  # Flip continue-on-error to false once that backlog is cleaned up.
+  # ─────────────────────────────────────────────────────────────────────────────
+  type-check:
+    name: Type Check (TypeScript)
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run TypeScript type-check
+        continue-on-error: true
+        run: npx tsc --noEmit -p tsconfig.json
+
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    outputs:
+      total: ${{ steps.summary.outputs.total }}
+      passed: ${{ steps.summary.outputs.passed }}
+      failed: ${{ steps.summary.outputs.failed }}
+      summary: ${{ steps.summary.outputs.summary }}
+      failed_names: ${{ steps.summary.outputs.failed_names }}
+      lint_errors: ${{ needs.lint.outputs.errors }}
+      lint_warnings: ${{ needs.lint.outputs.warnings }}
+      lint_verdict: ${{ needs.lint.outputs.verdict }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run unit test suite
+        id: summary
+        uses: ./.github/actions/run-test-suite
+        with:
+          test-command:    npm run report:unit:generate
+          report-json:     tests/unit/reports/test-results.json
+          report-html:     tests/unit/reports/index.html
+          node-version:    ${{ env.NODE_VERSION }}
+          artifact-prefix: unit
+          name-prefix:     'unit: '
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [lint]
+    outputs:
+      total: ${{ steps.summary.outputs.total }}
+      passed: ${{ steps.summary.outputs.passed }}
+      failed: ${{ steps.summary.outputs.failed }}
+      summary: ${{ steps.summary.outputs.summary }}
+      failed_names: ${{ steps.summary.outputs.failed_names }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run integration test suite
+        id: summary
+        uses: ./.github/actions/run-test-suite
+        with:
+          test-command:    npm run report:integration:generate
+          report-json:     tests/integration/reports/test-results.json
+          report-html:     tests/integration/reports/index.html
+          node-version:    ${{ env.NODE_VERSION }}
+          artifact-prefix: integration
+          name-prefix:     'integration: '
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Test Report: combined unit + integration summary on the Actions run page.
+  # ─────────────────────────────────────────────────────────────────────────────
+  test-report:
+    name: Test report
+    needs: [unit-tests, integration-tests, type-check]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    outputs:
+      unit_summary: ${{ needs.unit-tests.outputs.summary }}
+      unit_failed_names: ${{ needs.unit-tests.outputs.failed_names }}
+      integration_summary: ${{ needs.integration-tests.outputs.summary }}
+      integration_failed_names: ${{ needs.integration-tests.outputs.failed_names }}
+      lint_errors: ${{ needs.unit-tests.outputs.lint_errors }}
+      lint_warnings: ${{ needs.unit-tests.outputs.lint_warnings }}
+      lint_verdict: ${{ needs.unit-tests.outputs.lint_verdict }}
+    permissions:
+      checks: write
+      pull-requests: write
+    steps:
+      - name: Download unit test results
+        uses: actions/download-artifact@v4
+        with:
+          name: unit-test-results
+          path: unit
+        continue-on-error: true
+
+      - name: Download integration test results
+        uses: actions/download-artifact@v4
+        with:
+          name: integration-test-results
+          path: integration
+        continue-on-error: true
+
+      - name: Generate test summary
+        if: always()
+        run: |
+          echo "## Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          write_suite() {
+            local SUITE="$1" FILE="$2"
+            echo "### $SUITE" >> "$GITHUB_STEP_SUMMARY"
+            if [ ! -f "$FILE" ]; then
+              echo "⚠️ No test results found" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              return
+            fi
+
+            local TOTAL PASSED FAILED
+            TOTAL=$(jq '.numTotalTests // 0' "$FILE" 2>/dev/null || echo 0)
+            PASSED=$(jq '.numPassedTests // 0' "$FILE" 2>/dev/null || echo 0)
+            FAILED=$(jq '.numFailedTests // 0' "$FILE" 2>/dev/null || echo 0)
+            echo "| Total | Passed | Failed |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|---:|---:|---:|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| $TOTAL | $PASSED | $FAILED |" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          write_suite "Unit Tests" "unit/test-results.json"
+          write_suite "Integration Tests" "integration/test-results.json"
+          echo "[View HTML test report artifacts](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce test results
+        if: ${{ needs.unit-tests.result != 'success' || needs.integration-tests.result != 'success' }}
+        run: |
+          echo "::error::Unit or integration tests failed. Deployment will not continue."
+          exit 1
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Resolve the target environment once for approval and deployment jobs.
+  # ─────────────────────────────────────────────────────────────────────────────
+  set-environment:
+    name: Set Environment
+    runs-on: ubuntu-latest
+    needs: [test-report]
+    if: ${{ github.event_name != 'pull_request' }}
+    # Binds this job to the matching GitHub Environment (dev/qa/main) so
+    # `vars.*` below resolves to that environment's configured variables
+    # instead of hardcoding per-branch URLs/names here.
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}
+    outputs:
+      environment:  ${{ steps.env.outputs.environment }}
+      api_url:      ${{ vars.API_URL }}
+      swa_name:     ${{ vars.SWA_NAME }}
+      frontend_url: ${{ vars.FRONTEND_URL }}
+      unit_summary: ${{ needs.test-report.outputs.unit_summary }}
+      unit_failed_names: ${{ needs.test-report.outputs.unit_failed_names }}
+      integration_summary: ${{ needs.test-report.outputs.integration_summary }}
+      integration_failed_names: ${{ needs.test-report.outputs.integration_failed_names }}
+      lint_errors: ${{ needs.test-report.outputs.lint_errors }}
+      lint_warnings: ${{ needs.test-report.outputs.lint_warnings }}
+      lint_verdict: ${{ needs.test-report.outputs.lint_verdict }}
+    steps:
+      - name: Resolve environment
+        id: env
+        run: |
+          echo "environment=${{ github.event_name == 'workflow_dispatch' && inputs.environment || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Approval gate for QA and main deployments.
+  # ─────────────────────────────────────────────────────────────────────────────
+  await-approval:
+    name: Await Approval
+    needs: [set-environment]
+    if: ${{ needs.set-environment.outputs.environment != 'dev' }}
+    runs-on: ubuntu-latest
+    environment: ${{ needs.set-environment.outputs.environment }}
+    steps:
+      - name: Approval recorded
+        run: |
+          echo "${{ needs.set-environment.outputs.environment }} deploy approved by ${{ github.actor }} for SHA ${{ github.sha }}"
+
+  build:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: [set-environment, await-approval]
+    if: >-
+      ${{
+        always() &&
+        needs.set-environment.result == 'success' &&
+        (
+          needs.set-environment.outputs.environment == 'dev' ||
+          needs.await-approval.result == 'success'
+        )
+      }}
+    outputs:
+      build_env: ${{ steps.metadata.outputs.build_env }}
+      api_url: ${{ steps.metadata.outputs.api_url }}
+      swa_name: ${{ steps.metadata.outputs.swa_name }}
+      frontend_url: ${{ steps.metadata.outputs.frontend_url }}
+      unit_summary: ${{ steps.metadata.outputs.unit_summary }}
+      unit_failed_names: ${{ steps.metadata.outputs.unit_failed_names }}
+      integration_summary: ${{ steps.metadata.outputs.integration_summary }}
+      integration_failed_names: ${{ steps.metadata.outputs.integration_failed_names }}
+      lint_errors: ${{ steps.metadata.outputs.lint_errors }}
+      lint_warnings: ${{ steps.metadata.outputs.lint_warnings }}
+      lint_verdict: ${{ steps.metadata.outputs.lint_verdict }}
+
+    steps:
+      - name: Capture deployment metadata
+        id: metadata
+        run: |
+          echo "build_env=${{ needs.set-environment.outputs.environment }}" >> "$GITHUB_OUTPUT"
+          echo "api_url=${{ needs.set-environment.outputs.api_url }}" >> "$GITHUB_OUTPUT"
+          echo "swa_name=${{ needs.set-environment.outputs.swa_name }}" >> "$GITHUB_OUTPUT"
+          echo "frontend_url=${{ needs.set-environment.outputs.frontend_url }}" >> "$GITHUB_OUTPUT"
+          echo "unit_summary=${{ needs.set-environment.outputs.unit_summary }}" >> "$GITHUB_OUTPUT"
+          echo "unit_failed_names=${{ needs.set-environment.outputs.unit_failed_names }}" >> "$GITHUB_OUTPUT"
+          echo "integration_summary=${{ needs.set-environment.outputs.integration_summary }}" >> "$GITHUB_OUTPUT"
+          echo "integration_failed_names=${{ needs.set-environment.outputs.integration_failed_names }}" >> "$GITHUB_OUTPUT"
+          echo "lint_errors=${{ needs.set-environment.outputs.lint_errors }}" >> "$GITHUB_OUTPUT"
+          echo "lint_warnings=${{ needs.set-environment.outputs.lint_warnings }}" >> "$GITHUB_OUTPUT"
+          echo "lint_verdict=${{ needs.set-environment.outputs.lint_verdict }}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build frontend
+        uses: ./.github/actions/build-frontend
+        with:
+          api-url:      ${{ needs.set-environment.outputs.api_url }}
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: dist/
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to Azure SWA
+    if: ${{ always() && github.event_name != 'pull_request' && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    needs: [build]
+    # Bound to the same GH Environment set-environment/await-approval already
+    # resolved, so secrets.AZURE_STATIC_WEB_APPS_API_TOKEN resolves to that
+    # environment's own value — dev/qa/main each define a secret with this
+    # SAME name, scoped per-environment (populated from each SWA's own
+    # deployment token via `az staticwebapp secrets list`). GitHub only asks
+    # for approval on a protected environment once per workflow run, so this
+    # doesn't add a second approval prompt beyond the one await-approval
+    # already gates on.
+    environment: ${{ needs.build.outputs.build_env }}
+    outputs:
+      build_env: ${{ steps.metadata.outputs.build_env }}
+      api_url: ${{ steps.metadata.outputs.api_url }}
+      swa_name: ${{ steps.metadata.outputs.swa_name }}
+      frontend_url: ${{ steps.metadata.outputs.frontend_url }}
+      unit_summary: ${{ steps.metadata.outputs.unit_summary }}
+      unit_failed_names: ${{ steps.metadata.outputs.unit_failed_names }}
+      integration_summary: ${{ steps.metadata.outputs.integration_summary }}
+      integration_failed_names: ${{ steps.metadata.outputs.integration_failed_names }}
+      lint_errors: ${{ steps.metadata.outputs.lint_errors }}
+      lint_warnings: ${{ steps.metadata.outputs.lint_warnings }}
+      lint_verdict: ${{ steps.metadata.outputs.lint_verdict }}
+
+    steps:
+      - name: Capture deployment metadata
+        id: metadata
+        run: |
+          echo "build_env=${{ needs.build.outputs.build_env }}" >> "$GITHUB_OUTPUT"
+          echo "api_url=${{ needs.build.outputs.api_url }}" >> "$GITHUB_OUTPUT"
+          echo "swa_name=${{ needs.build.outputs.swa_name }}" >> "$GITHUB_OUTPUT"
+          echo "frontend_url=${{ needs.build.outputs.frontend_url }}" >> "$GITHUB_OUTPUT"
+          echo "unit_summary=${{ needs.build.outputs.unit_summary }}" >> "$GITHUB_OUTPUT"
+          echo "unit_failed_names=${{ needs.build.outputs.unit_failed_names }}" >> "$GITHUB_OUTPUT"
+          echo "integration_summary=${{ needs.build.outputs.integration_summary }}" >> "$GITHUB_OUTPUT"
+          echo "integration_failed_names=${{ needs.build.outputs.integration_failed_names }}" >> "$GITHUB_OUTPUT"
+          echo "lint_errors=${{ needs.build.outputs.lint_errors }}" >> "$GITHUB_OUTPUT"
+          echo "lint_warnings=${{ needs.build.outputs.lint_warnings }}" >> "$GITHUB_OUTPUT"
+          echo "lint_verdict=${{ needs.build.outputs.lint_verdict }}" >> "$GITHUB_OUTPUT"
+
+      # Needed so ./.github/actions/deploy-swa (a local composite action)
+      # resolves — download-artifact alone doesn't check out repo content.
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: dist/
+
+      # Same composite action preview-deploy.yml uses for its named preview
+      # environments — pins Azure/static-web-apps-deploy to a commit SHA so
+      # prod deploys can't drift onto a different action version than the
+      # already-validated preview path. secrets.AZURE_STATIC_WEB_APPS_API_TOKEN
+      # resolves per-environment via the job-level `environment:` binding
+      # above — no need to fan out into one if-conditioned step per env.
+      - name: Deploy to Azure SWA
+        uses: ./.github/actions/deploy-swa
+        with:
+          api-token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+
+      - name: Deployment Summary
+        if: success()
+        run: |
+          echo "✅ Deployment completed"
+          echo "Environment: ${{ needs.build.outputs.build_env }}"
+          echo "SWA: ${{ needs.build.outputs.swa_name }}"
+          echo "API URL: ${{ needs.build.outputs.api_url }}"
+
+  smoke-tests:
+    name: Smoke Tests
+    needs: [deploy]
+    if: ${{ always() && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-22.04
+    outputs:
+      total: ${{ steps.summary.outputs.total }}
+      passed: ${{ steps.summary.outputs.passed }}
+      failed: ${{ steps.summary.outputs.failed }}
+      summary: ${{ steps.summary.outputs.summary }}
+      failed_names: ${{ steps.summary.outputs.failed_names }}
+      health_summary: ${{ steps.health.outputs.summary }}
+      environment: ${{ needs.deploy.outputs.build_env }}
+      api_url: ${{ needs.deploy.outputs.api_url }}
+      swa_name: ${{ needs.deploy.outputs.swa_name }}
+      frontend_url: ${{ needs.deploy.outputs.frontend_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Same composite action preview-deploy.yml's smoke test uses, so the
+      # two suites can't drift. continue-on-error lives on this step (not
+      # inside the action) since a real-environment smoke failure should
+      # notify but not fail the pipeline — same non-blocking behavior the
+      # preview's smoke test now uses too.
+      - name: Run Playwright smoke suite
+        id: smoke
+        continue-on-error: true
+        uses: ./.github/actions/run-smoke-suite
+        with:
+          base-url:      ${{ needs.deploy.outputs.frontend_url }}
+          api-url:       ${{ needs.deploy.outputs.api_url }}/api
+          node-version:  ${{ env.NODE_VERSION }}
+          artifact-name: frontend-smoke-test-reports
+
+      - name: Parse Test Summary
+        id: summary
+        if: always()
+        run: |
+          TOTAL=0
+          PASSED=0
+          FAILED=0
+          FAILED_NAMES=""
+
+          if [ -f tests/e2e/reports/smoke-output.log ]; then
+            TOTAL=$(grep -Eo '[0-9]+ (passed|failed|skipped)' tests/e2e/reports/smoke-output.log | awk '{sum += $1} END {print sum + 0}')
+            PASSED=$(grep -Eo '[0-9]+ passed' tests/e2e/reports/smoke-output.log | awk '{sum += $1} END {print sum + 0}')
+            FAILED=$(grep -Eo '[0-9]+ failed' tests/e2e/reports/smoke-output.log | awk '{sum += $1} END {print sum + 0}')
+
+            FAILED_NAMES=$(grep -E '^[[:space:]]*[0-9]+\)' tests/e2e/reports/smoke-output.log \
+              | head -5 \
+              | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]*/smoke: /' \
+              | paste -sd '; ' - || true)
+          fi
+
+          if [ "$TOTAL" -eq 0 ]; then
+            SUMMARY="⚠️ No smoke tests were detected"
+          elif [ "$FAILED" -gt 0 ]; then
+            SUMMARY="❌ $PASSED/$TOTAL passed ($FAILED failed)"
+          else
+            SUMMARY="✅ $PASSED/$TOTAL passed"
+          fi
+
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "failed_names=$FAILED_NAMES" >> $GITHUB_OUTPUT
+
+      - name: Record Smoke Health Check
+        id: health
+        if: always()
+        run: |
+          FRONTEND_URL="${{ needs.deploy.outputs.frontend_url }}"
+          FRONTEND_STATUS=$(curl -L -s -o /dev/null -w "%{http_code}" --retry 5 --retry-delay 10 "$FRONTEND_URL" || echo "000")
+
+          if [ "$FRONTEND_STATUS" -ge 200 ] && [ "$FRONTEND_STATUS" -lt 400 ]; then
+            echo "summary=✅ Frontend returned HTTP $FRONTEND_STATUS" >> "$GITHUB_OUTPUT"
+          else
+            echo "summary=❌ Frontend returned HTTP $FRONTEND_STATUS" >> "$GITHUB_OUTPUT"
+          fi
+
+  regression-tests:
+    name: Regression Tests
+    needs: [deploy]
+    if: ${{ always() && needs.deploy.result == 'success' }}
+    runs-on: ubuntu-22.04
+    outputs:
+      total: ${{ steps.summary.outputs.total }}
+      passed: ${{ steps.summary.outputs.passed }}
+      failed: ${{ steps.summary.outputs.failed }}
+      summary: ${{ steps.summary.outputs.summary }}
+      failed_names: ${{ steps.summary.outputs.failed_names }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Same non-blocking pattern as smoke-tests: continue-on-error lives on
+      # this step (not inside the action) so a regression failure notifies
+      # but doesn't fail the pipeline.
+      - name: Run Playwright regression suite
+        id: regression
+        continue-on-error: true
+        uses: ./.github/actions/run-regression-suite
+        with:
+          base-url:      ${{ needs.deploy.outputs.frontend_url }}
+          api-url:       ${{ needs.deploy.outputs.api_url }}/api
+          node-version:  ${{ env.NODE_VERSION }}
+          artifact-name: frontend-regression-test-reports
+
+      - name: Parse Test Summary
+        id: summary
+        if: always()
+        run: |
+          TOTAL=0
+          PASSED=0
+          FAILED=0
+          FAILED_NAMES=""
+
+          if [ -f tests/e2e/reports/regression-output.log ]; then
+            TOTAL=$(grep -Eo '[0-9]+ (passed|failed|skipped)' tests/e2e/reports/regression-output.log | awk '{sum += $1} END {print sum + 0}')
+            PASSED=$(grep -Eo '[0-9]+ passed' tests/e2e/reports/regression-output.log | awk '{sum += $1} END {print sum + 0}')
+            FAILED=$(grep -Eo '[0-9]+ failed' tests/e2e/reports/regression-output.log | awk '{sum += $1} END {print sum + 0}')
+
+            FAILED_NAMES=$(grep -E '^[[:space:]]*[0-9]+\)' tests/e2e/reports/regression-output.log \
+              | head -5 \
+              | sed -E 's/^[[:space:]]*[0-9]+\)[[:space:]]*/regression: /' \
+              | paste -sd '; ' - || true)
+          fi
+
+          if [ "$TOTAL" -eq 0 ]; then
+            SUMMARY="⚠️ No regression tests were detected"
+          elif [ "$FAILED" -gt 0 ]; then
+            SUMMARY="❌ $PASSED/$TOTAL passed ($FAILED failed)"
+          else
+            SUMMARY="✅ $PASSED/$TOTAL passed"
+          fi
+
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          echo "summary=$SUMMARY" >> $GITHUB_OUTPUT
+          echo "failed_names=$FAILED_NAMES" >> $GITHUB_OUTPUT
+
+  # ================================================================
+  # Notify Teams of deploy outcome (success or failure)
+  # ================================================================
+  # Posts an Adaptive Card to the configured Teams channel via the
+  # TEAMS_WEBHOOK_URL secret. Card border color reflects the environment
+  # (dev = default, qa = accent/blue, main = warning/orange) and switches
+  # to "attention" (red) on any failure.
+  notify-teams:
+    name: Notify Teams
+    if: ${{ always() && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true' && github.event_name != 'pull_request' }}
+    needs: [test-report, set-environment, build, deploy, smoke-tests, regression-tests]
+    runs-on: ubuntu-latest
+    steps:
+      # Needed so ./.github/actions/teams-notify (a local composite action)
+      # resolves.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine status, color, and per-step icons
+        id: status
+        run: |
+          BUILD="${{ needs.build.result }}"
+          DEPLOY="${{ needs.deploy.result }}"
+          SMOKE="${{ needs.smoke-tests.result }}"
+          FE_LINT="${{ needs.test-report.outputs.lint_verdict }}"
+          ENV="${{ needs.set-environment.outputs.environment }}"
+          icon() {
+            case "$1" in
+              success)   echo "✅" ;;
+              cancelled) echo "⚪" ;;
+              skipped)   echo "⏭️" ;;
+              *)         echo "❌" ;;
+            esac
+          }
+
+          BUILD_ICON=$(icon "$BUILD")
+          DEPLOY_ICON=$(icon "$DEPLOY")
+
+          LINT_FAILED=false
+          if [ "$FE_LINT" = "fail" ]; then
+            LINT_FAILED=true
+          fi
+
+          if [ "$BUILD" = "success" ] && [ "$DEPLOY" = "success" ] && [ "$SMOKE" = "success" ] && [ "$LINT_FAILED" = "false" ]; then
+            OVERALL="success"
+            TITLE="Educator Frontend Deploy succeeded"
+            case "$ENV" in
+              main) STYLE="warning" ;;
+              qa)   STYLE="accent" ;;
+              *)    STYLE="default" ;;
+            esac
+          elif [ "$BUILD" = "cancelled" ] || [ "$DEPLOY" = "cancelled" ] || [ "$SMOKE" = "cancelled" ]; then
+            OVERALL="cancelled"
+            TITLE="Educator Frontend Deploy cancelled"
+            STYLE="default"
+          else
+            OVERALL="failed"
+            TITLE="Educator Frontend Deploy failed"
+            STYLE="attention"
+          fi
+
+          ENV_NAME="${{ needs.set-environment.outputs.environment }}"
+          if [ -n "$ENV_NAME" ]; then
+            TITLE="$TITLE — $ENV_NAME"
+          else
+            TITLE="$TITLE — (deploy not started)"
+          fi
+
+          {
+            echo "overall=$OVERALL"
+            echo "title=$TITLE"
+            echo "style=$STYLE"
+            echo "build_icon=$BUILD_ICON"
+            echo "deploy_icon=$DEPLOY_ICON"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Get commit info
+        id: commit
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          MSG="${COMMIT_MSG:-}"
+          if [ -z "$MSG" ]; then
+            MSG="($EVENT_NAME)"
+          fi
+          MSG=$(printf '%s' "$MSG" | head -1 | sed 's/"/\\"/g')
+          {
+            echo "short_sha=$SHORT_SHA"
+            echo "message=$MSG"
+          } >> "$GITHUB_OUTPUT"
+
+      # Builds the FactSet + actions arrays that feed the shared teams-notify
+      # action below. Kept separate from mention/card assembly so lint,
+      # test, build, deploy, and smoke facts can't drift between this
+      # pipeline and any future caller of teams-notify.
+      - name: Build facts + actions JSON
+        id: payload
+        env:
+          ENV_NAME: ${{ needs.set-environment.outputs.environment }}
+          FRONTEND_URL: ${{ needs.set-environment.outputs.frontend_url }}
+          BACKEND_URL: ${{ needs.set-environment.outputs.api_url }}
+          UNIT_SUMMARY: ${{ needs.test-report.outputs.unit_summary }}
+          INTEGRATION_SUMMARY: ${{ needs.test-report.outputs.integration_summary }}
+          FE_LINT_E: ${{ needs.test-report.outputs.lint_errors }}
+          FE_LINT_W: ${{ needs.test-report.outputs.lint_warnings }}
+          FE_LINT_V: ${{ needs.test-report.outputs.lint_verdict }}
+          BUILD_ICON: ${{ steps.status.outputs.build_icon }}
+          DEPLOY_ICON: ${{ steps.status.outputs.deploy_icon }}
+          SMOKE_SUMMARY: ${{ needs.smoke-tests.outputs.summary }}
+          SMOKE_HEALTH: ${{ needs.smoke-tests.outputs.health_summary }}
+          REGRESSION_SUMMARY: ${{ needs.regression-tests.outputs.summary }}
+          U_FAILS: ${{ needs.test-report.outputs.unit_failed_names }}
+          I_FAILS: ${{ needs.test-report.outputs.integration_failed_names }}
+          S_FAILS: ${{ needs.smoke-tests.outputs.failed_names }}
+          R_FAILS: ${{ needs.regression-tests.outputs.failed_names }}
+          REPORT_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          BRANCH: ${{ github.ref_name }}
+          SHORT_SHA: ${{ steps.commit.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          lint_icon() {
+            case "${1:-}" in
+              fail)     echo "❌" ;;
+              improved) echo "💚" ;;
+              flat)     echo "✅" ;;
+              *)        echo "⏭️" ;;
+            esac
+          }
+          FE_LINT_ICON=$(lint_icon "$FE_LINT_V")
+
+          COMBINED=""
+          for x in "$U_FAILS" "$I_FAILS" "$S_FAILS" "$R_FAILS"; do
+            if [ -n "$x" ]; then
+              if [ -n "$COMBINED" ]; then COMBINED="$COMBINED; $x"; else COMBINED="$x"; fi
+            fi
+          done
+
+          FACTS=$(jq -cn \
+            --arg repo "$REPO" \
+            --arg env "$ENV_NAME" \
+            --arg author "$ACTOR" \
+            --arg branch "$BRANCH" \
+            --arg sha "$SHORT_SHA" \
+            --arg unit "${UNIT_SUMMARY:-⏭️ skipped}" \
+            --arg integration "${INTEGRATION_SUMMARY:-⏭️ skipped}" \
+            --arg lint "$FE_LINT_ICON $FE_LINT_E err / $FE_LINT_W warn" \
+            --arg build_icon "$BUILD_ICON" \
+            --arg deploy_icon "$DEPLOY_ICON" \
+            --arg smoke "${SMOKE_SUMMARY:-⏭️ skipped}" \
+            --arg smoke_health "${SMOKE_HEALTH:-⏭️ skipped}" \
+            --arg regression "${REGRESSION_SUMMARY:-⏭️ skipped}" \
+            --arg backend "$BACKEND_URL" \
+            --arg frontend "$FRONTEND_URL" \
+            --arg failing "$COMBINED" \
+            --arg report_url "$REPORT_URL" \
+            '[{title:"Repository", value:$repo}]
+            + (if $env != "" then [{title:"Environment", value:$env}] else [] end)
+            + [
+              {title:"Author", value:$author},
+              {title:"Branch", value:$branch},
+              {title:"Commit", value:$sha},
+              {title:"Unit tests", value:$unit},
+              {title:"Integration tests", value:$integration},
+              {title:"Lint (frontend)", value:$lint},
+              {title:"Build", value:$build_icon},
+              {title:"Deploy", value:$deploy_icon},
+              {title:"Smoke tests", value:$smoke},
+              {title:"Smoke health", value:$smoke_health},
+              {title:"Regression tests", value:$regression}
+            ]
+            + (if $backend != "" then [{title:"Backend API URL", value:("[" + $backend + "](" + $backend + ")")}] else [] end)
+            + (if $frontend != "" then [{title:"Frontend URL", value:("[" + $frontend + "](" + $frontend + ")")}] else [] end)
+            + (if $failing != "" then [{title:"Failing tests", value:$failing}] else [] end)
+            + [{title:"Test reports", value:("[View HTML test reports](" + $report_url + ")")}]
+            ')
+
+          ACTIONS=$(jq -cn \
+            --arg run_url "$RUN_URL" \
+            --arg commit_url "$COMMIT_URL" \
+            '[
+              {type:"Action.OpenUrl", title:"View workflow run", url:$run_url},
+              {type:"Action.OpenUrl", title:"View commit", url:$commit_url}
+            ]')
+
+          {
+            echo "facts<<PAYLOAD_EOF"
+            echo "$FACTS"
+            echo "PAYLOAD_EOF"
+            echo "actions<<PAYLOAD_EOF"
+            echo "$ACTIONS"
+            echo "PAYLOAD_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Mentions only fire on non-success, matching the original behaviour —
+      # tagging is still resolved/rendered through the same shared action
+      # preview-deploy.yml's notification uses, so mention formatting can't
+      # drift between the two pipelines.
+      - name: Notify Teams
+        continue-on-error: true
+        uses: ./.github/actions/teams-notify
+        with:
+          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login:   ${{ github.actor }}
+          headline:       ${{ steps.status.outputs.title }}
+          style:          ${{ steps.status.outputs.style }}
+          subtitle:       ${{ steps.commit.outputs.message }}
+          mention-suffix: ${{ steps.status.outputs.overall != 'success' && ' — please investigate.' || '' }}
+          facts-json:     ${{ steps.payload.outputs.facts }}
+          actions-json:   ${{ steps.payload.outputs.actions }}

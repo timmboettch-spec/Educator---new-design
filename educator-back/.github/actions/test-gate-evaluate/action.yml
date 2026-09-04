@@ -1,0 +1,60 @@
+name: "test-gate-evaluate"
+description: >-
+  Decides whether test failures should block the build: always-blocking on
+  protected branches, otherwise gated by a strict-mode repo variable, else a
+  non-blocking warning. Extracted from HS-online-AI-app's deploy-app.yml,
+  which hand-rolled this branch/strict-mode conditional inline after every
+  Jest run.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Example usage (after jest-test-summary has run):
+#
+#   - name: Gate on test failures
+#     uses: ./.github/actions/test-gate-evaluate
+#     with:
+#       failed-count:            ${{ steps.summary.outputs.failed }}
+#       strict-mode:             ${{ vars.TESTS_STRICT_MODE }}
+#       current-branch:          ${{ github.ref_name }}
+#       always-strict-branches:  'main qa'
+#
+# Cross-repo note: reusable workflows in this repo reference this action by
+# full path (not "./"), since local paths resolve against the calling repo:
+#   uses: Realityworks-AI/Global-Standards-Policy/.github/actions/test-gate-evaluate@main
+# ─────────────────────────────────────────────────────────────────────────────
+
+inputs:
+  failed-count:
+    description: 'Number of failed tests, as a string integer, e.g. from jest-test-summary outputs.failed'
+    required: true
+  strict-mode:
+    description: "'true' or 'false' — whether test failures should block the build, e.g. from a repo variable"
+    required: true
+  current-branch:
+    description: 'Current branch name, e.g. github.ref_name'
+    required: true
+  always-strict-branches:
+    description: 'Space-separated list of branches that are always strict regardless of strict-mode'
+    required: false
+    default: 'main'
+
+runs:
+  using: composite
+  steps:
+    - name: Evaluate test gate (bash)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        FAILED_COUNT: ${{ inputs.failed-count }}
+        STRICT_MODE: ${{ inputs.strict-mode }}
+        CURRENT_BRANCH: ${{ inputs.current-branch }}
+        ALWAYS_STRICT_BRANCHES: ${{ inputs.always-strict-branches }}
+      run: ${{ github.action_path }}/scripts/test-gate-evaluate.sh
+    - name: Evaluate test gate (pwsh)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        FAILED_COUNT: ${{ inputs.failed-count }}
+        STRICT_MODE: ${{ inputs.strict-mode }}
+        CURRENT_BRANCH: ${{ inputs.current-branch }}
+        ALWAYS_STRICT_BRANCHES: ${{ inputs.always-strict-branches }}
+      run: ${{ github.action_path }}/scripts/test-gate-evaluate.ps1

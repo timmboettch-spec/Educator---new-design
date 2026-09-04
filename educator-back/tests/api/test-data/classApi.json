@@ -1,0 +1,19 @@
+{
+    "valid": {
+        "class_name": "Grade 10",
+        "term": "i",
+        "year": "2026",
+        "start_date": "2026-04-01",
+        "end_date": "2026-12-01",
+        "total_no_of_students": 5
+    },
+    "invalid": {
+        "class_name": "Grade 10",
+        "term": "i",
+        "year": "2026",
+        "start_date": "2026-04-01",
+        "end_date": "2026-12-01",
+        "total_no_of_students": 5
+    }
+    
+}

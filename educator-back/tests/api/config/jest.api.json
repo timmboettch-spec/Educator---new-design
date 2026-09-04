@@ -1,0 +1,36 @@
+{
+  "preset": "ts-jest",
+  "testEnvironment": "node",
+  "rootDir": "../../..",
+  "testMatch": ["**/tests/api/modules/**/*.spec.ts"],
+  "moduleNameMapper": {
+    "^@/(.*)$": "<rootDir>/src/$1"
+  },
+  "transform": {
+    "^.+\\.tsx?$": ["ts-jest", {
+      "tsconfig": {
+        "esModuleInterop": true,
+        "allowSyntheticDefaultImports": true,
+        "target": "ES2020",
+        "module": "commonjs",
+        "types": ["jest", "node"],
+        "resolveJsonModule": true
+      }
+    }]
+  },
+  "setupFilesAfterEnv": ["<rootDir>/tests/api/config/jest.setup.ts"],
+  "reporters": [
+    "default",
+    ["<rootDir>/tests/api/config/friendly-html-reporter.js", {
+      "outputPath": "<rootDir>/tests/api/reports/html/api-predeployment-report.html",
+      "pageTitle": "API Pre-Deployment Test Report"
+    }]
+  ],
+  "collectCoverage": true,
+  "collectCoverageFrom": ["tests/api/modules/**/*.spec.ts"],
+  "coverageDirectory": "<rootDir>/tests/api/reports/coverage",
+  "coverageReporters": ["html", "lcov", "text-summary"],
+  "testTimeout": 60000,
+  "maxWorkers": 1,
+  "bail": false
+}

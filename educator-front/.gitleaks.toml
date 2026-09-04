@@ -1,0 +1,22 @@
+# Gitleaks configuration for Educator-App-Realityworks
+# https://github.com/gitleaks/gitleaks#configuration
+
+[allowlist]
+  description = "Known false positives: mock tokens and test fixtures"
+
+  # tests/unit/otpverify/OtpVerify.test.tsx
+  # Mock OTP verification token 'verified-tok123' used in unit tests.
+  # NOT a real API key — only used in Jest mocks for testing OTP flow.
+  #
+  # src/data/mockUsers.ts
+  # Mock activation key 'ABCD1234EFGH5678' in test fixture.
+  # NOT a real key — obviously placeholder pattern for local dev/testing.
+  #
+  # Reviewed by: DevOps (James Clapper)
+  # Date: 2026-07-08
+  commits = [
+    "dbb3f049428f1ba4abbc78243c70ccb024a8e791",
+    "122cc85bfe4c8a6d17ee94803d33d521d47cbd40",
+    "d0cd49840b7cd10ab917c1472c0438ca83db2574",
+    "7dde8eb6bc32807c3ee81a5528d314c28dc7e299",
+  ]

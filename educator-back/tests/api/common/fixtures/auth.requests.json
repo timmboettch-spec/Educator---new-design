@@ -1,0 +1,31 @@
+{
+  "validLogin": {
+    "email": "preseeded-admin@predeployment.test",
+    "password": "NewPassword@123"
+  },
+  "invalidPassword": {
+    "email": "preseeded-admin@predeployment.test",
+    "password": "WrongPassword@123"
+  },
+  "emptyEmail": {
+    "email": "",
+    "password": "Test@1234"
+  },
+  "emptyPassword": {
+    "email": "preseeded-admin@predeployment.test",
+    "password": ""
+  },
+  "nonExistentEmail": {
+    "email": "nobody@nowhere.invalid",
+    "password": "Test@1234"
+  },
+  "forgotPassword": {
+    "email": "preseeded-admin@predeployment.test"
+  },
+  "redeemValid": {
+    "code": "RWMASTER20250617"
+  },
+  "redeemInvalid": {
+    "code": "BADCODE999"
+  }
+}
