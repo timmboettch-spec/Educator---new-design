@@ -1,6 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: false,
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
@@ -35,6 +34,8 @@ export default {
           600: 'rgba(82, 82, 82, <alpha-value>)',
           700: 'rgba(64, 64, 64, <alpha-value>)',
           800: 'rgba(23, 25, 28, <alpha-value>)',
+          active: 'rgba(233, 233, 233, <alpha-value>)',
+          strong: 'rgba(95, 96, 96, <alpha-value>)', // #5f6060 — design grey for control text/fills
         },
         text: {
           primary: 'rgba(34, 34, 34, <alpha-value>)',
@@ -55,20 +56,35 @@ export default {
           white: '#FFFFFF',
           hero: '#F9FAFB',
         },
+        // Simulation details page (approved design, healthcare palette).
+        sim: {
+          navy: 'rgba(50, 52, 100, <alpha-value>)', // #323464
+          page: 'rgba(247, 248, 250, <alpha-value>)', // #f7f8fa
+          callout: 'rgba(245, 246, 248, <alpha-value>)', // #f5f6f8
+          state: 'rgba(245, 244, 239, <alpha-value>)', // #f5f4ef — loading/error backdrop
+        },
         border: {
           table: 'rgba(222, 223, 227, 1)',
           light: 'rgba(242, 244, 247, 1)',
         },
       },
       backgroundImage: {
-        // Realityworks AI brand gradient — golden (#E0942F) → brand (#DB8833) → burnt (#C4692A),
-        // sampled from the logo lockup. `gradient-brand` is the canonical token.
-        'gradient-brand': 'linear-gradient(135deg, #E0942F 0%, #DB8833 45%, #C4692A 100%)',
+        'gradient-brand':
+          'linear-gradient(135deg, #E0942F 0%, #DB8833 45%, #C4692A 100%)',
         'gradient-btn': 'linear-gradient(90deg, #E0942F 0%, #C4692A 100%)',
+        // Simulation catalogue group tiles (approved design).
+        'gradient-sim-pack':
+          'linear-gradient(135deg, #6cbfab 0%, #4f9b98 100%)',
+        'gradient-sim-unit':
+          'linear-gradient(135deg, #db8833 0%, #ED621F 100%)',
         'gradient-dashboard':
           'linear-gradient(0deg, rgba(224, 148, 47, 0.4) 0%, rgba(196, 105, 42, 0.4) 100%)',
         'gradient-avatar':
           'linear-gradient(135deg, rgba(var(--color-primary-400-rgb), 1), rgba(var(--color-primary-600-rgb), 1))',
+        // Simulation details hero — healthcare product-family palette
+        // (marketing-approved), intentionally not the orange brand scheme.
+        'gradient-sim-hero':
+          'linear-gradient(135deg, #7dc7b7 0%, #4f9096 45%, #323464 100%)',
       },
       fontSize: {
         'display-1': ['64px', { lineHeight: '1.1', fontWeight: '700' }],
@@ -86,10 +102,20 @@ export default {
         xs: ['10px', { lineHeight: '1.5', fontWeight: '400' }],
       },
       fontFamily: {
-        // Realityworks AI brand type. Neulis Sans (brand) → Apotos (approved
-        // alternate) → Montserrat (loaded fallback) → system. Add the Neulis
-        // Sans / Apotos font files via @font-face for these to render.
         sans: ["'Neulis Sans'", "'Apotos'", "'Montserrat'", 'sans-serif'],
+        // Setup guide banner: the approved design falls back to the system UI
+        // face (not Montserrat) until the brand fonts are bundled.
+        guide: [
+          "'Neulis Sans'",
+          "'Apotos'",
+          '-apple-system',
+          'BlinkMacSystemFont',
+          "'Segoe UI'",
+          'Roboto',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
       },
       boxShadow: {
         card: '0 4px 16px rgba(0,0,0,0.06)',

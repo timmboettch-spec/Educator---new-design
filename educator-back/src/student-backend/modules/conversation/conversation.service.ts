@@ -1,7 +1,11 @@
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
-import { JsonDataService, type Scenario } from '../../data/json-data.service';
+import { LoggerService } from '../../../common/services';
+import { SimulationV2Repository } from '../../../database/repositories/simulation-v2.repository';
+import { SIMULATION_V2_REPOSITORY } from '../../../database/tokens';
+import { type Scenario } from 'src/common/interfaces/student-scenario.interface';
 
 // --- Keyword scoring weight constants --------------------------------------
 /** Score multiplier per word for an exact phrase match (highest priority). */
@@ -13,12 +17,8 @@ const KEYWORD_SCORE_INDIVIDUAL_WORD = 2;
 /** Maximum character length of text classified as a short acknowledgment. */
 const SHORT_ACKNOWLEDGMENT_MAX_LENGTH = 10;
 
-import {
-  type ConversationProvider,
-  type PatientContext,
-} from './providers/conversation-provider.interface';
-import { ConversationProviderFactory } from './providers/provider.factory';
-import { StaticResponseProvider } from './providers/static.provider';
+import { AIResponseProvider } from './providers/ai.provider';
+import { type PatientContext } from '../../../common/interfaces/patient-context.interface';
 
 type ScenarioPhase = NonNullable<Scenario['phases']>[number];
 type ScenarioTask = NonNullable<ScenarioPhase['tasks']>[number];
@@ -43,27 +43,30 @@ interface CommonConversation {
 
 @Injectable()
 export class ConversationService {
-  private readonly logger = new Logger(ConversationService.name);
   private commonResponses!: CommonConversation;
   private scenarioResponses: Map<string, ScenarioConversation> = new Map();
-  private provider: ConversationProvider;
-  private fallbackProvider: StaticResponseProvider;
 
-  private readonly azureConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING ?? '';
-  private readonly blobContainerName =
-    process.env.AZURE_BLOB_CONTAINER_NAME ??
-    process.env.AZURE_STORAGE_CONTAINER_NAME ??
-    'json-data';
-  private readonly blobPrefix = process.env.AZURE_BLOB_PREFIX ?? '';
-  private readonly azureEnabled = this.azureConnectionString.trim().length > 0;
+  private readonly azureConnectionString: string;
+  private readonly blobContainerName: string;
+  private readonly blobPrefix: string;
+  private readonly azureEnabled: boolean;
 
   private containerClient?: ContainerClient;
   private commonResponsesLoadPromise: Promise<void>;
 
   constructor(
-    private jsonDataService: JsonDataService,
-    private providerFactory: ConversationProviderFactory,
+    @Inject(SIMULATION_V2_REPOSITORY)
+    private readonly simulationV2Repository: SimulationV2Repository,
+    private readonly aiProvider: AIResponseProvider,
+    private readonly configService: ConfigService,
+    private readonly logger: LoggerService,
   ) {
+    this.azureConnectionString = this.configService.get<string>('azureBlob.connectionString') ?? '';
+    this.blobContainerName =
+      this.configService.get<string>('azureBlob.jsonCatalogContainer') ?? 'json-data';
+    this.azureEnabled = this.azureConnectionString.trim().length > 0;
+    this.blobPrefix = this.configService.get<string>('azureBlob.prefix') ?? '';
+
     if (this.azureEnabled) {
       const blobServiceClient = BlobServiceClient.fromConnectionString(this.azureConnectionString);
       this.containerClient = blobServiceClient.getContainerClient(this.blobContainerName);
@@ -72,13 +75,7 @@ export class ConversationService {
     // Load common responses asynchronously; awaited on first request.
     this.commonResponsesLoadPromise = this.loadCommonResponses();
 
-    // Create primary provider from factory (environment-driven)
-    this.provider = this.providerFactory.createProvider();
-
-    // Always have static provider as fallback
-    this.fallbackProvider = new StaticResponseProvider();
-
-    this.logger.log('ConversationService initialized with provider pattern');
+    this.logger.log('ConversationService initialized');
   }
 
   private async loadCommonResponses(): Promise<void> {
@@ -112,13 +109,14 @@ export class ConversationService {
     await this.commonResponsesLoadPromise;
 
     // Build patient context from scenario
-    const scenario = this.jsonDataService.getScenarioById(scenarioId);
-    if (!scenario) {
+    const simulation = await this.simulationV2Repository.findByBusinessId(scenarioId);
+    if (!simulation) {
       return {
         text: "I'm sorry, I couldn't find the scenario information.",
         category: 'error',
       };
     }
+    const scenario = simulation as unknown as Scenario;
 
     const patientData = scenario.patientData;
     const phases: ScenarioPhase[] = scenario.phases ?? [];
@@ -267,12 +265,12 @@ export class ConversationService {
       patientContext.currentMedications = patientData.currentMedications.join(', ');
     }
 
-    // Try primary provider (AI, Speech Engine, etc. - configured via env)
+    // Try the AI provider
     // AI uses scenario context from JSON to understand and respond naturally
     try {
-      const response = await this.provider.generateResponse(studentText, patientContext);
+      const response = await this.aiProvider.generateResponse(studentText, patientContext);
       if (response && response.trim().length > 0) {
-        this.logger.log(`AI generated natural response: "${response.trim().substring(0, 80)}..."`);
+        this.logger.log(`AI generated natural response (${response.trim().length} chars)`);
         return { text: response.trim(), category: 'ai-generated' };
       } else {
         // AI provider returned null (likely no API key) - will use static fallback
@@ -287,11 +285,11 @@ export class ConversationService {
     // Only reached if AI is not configured or fails
     const lowerText = studentText.toLowerCase().trim();
 
-    this.logger.log(`Using static keyword matching for: "${studentText}"`);
+    this.logger.log(`Using static keyword matching (${studentText.length} chars of input)`);
     this.logger.debug(`Enable AI for natural responses: Add AI_API_KEY to .env`);
 
     // Try scenario-specific responses first (higher priority, more contextual)
-    const scenarioResponse = this.findScenarioResponse(lowerText, scenarioId);
+    const scenarioResponse = await this.findScenarioResponse(lowerText, scenarioId);
     if (scenarioResponse) {
       this.logger.log(`Matched scenario response: ${scenarioResponse.category}`);
       return scenarioResponse;
@@ -320,15 +318,15 @@ export class ConversationService {
   // or when CONVERSATION_PROVIDER=static
   // All AI logic has been moved to providers/ directory
 
-  private findScenarioResponse(
+  private async findScenarioResponse(
     text: string,
     scenarioId: string,
-  ): { text: string; category?: string } | null {
+  ): Promise<{ text: string; category?: string } | null> {
     let scenario = this.scenarioResponses.get(scenarioId);
     if (!scenario) {
-      // Lazy-load per-scenario conversation responses from the cached scenario JSON.
-      const scenarioObj = this.jsonDataService.getScenarioById(scenarioId);
-      scenario = scenarioObj?.conversationResponses;
+      // Lazy-load and cache per-scenario conversation responses from the database.
+      const simulation = await this.simulationV2Repository.findByBusinessId(scenarioId);
+      scenario = simulation?.conversationResponses as ScenarioConversation | undefined;
       if (scenario) {
         this.scenarioResponses.set(scenarioId, scenario);
       } else {

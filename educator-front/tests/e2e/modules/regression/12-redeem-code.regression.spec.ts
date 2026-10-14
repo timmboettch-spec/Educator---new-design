@@ -27,7 +27,7 @@
  *    a real unused code is available in the environment.
  */
 
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
   BASE_URL,
   injectAdminSessionStorage,
@@ -49,15 +49,21 @@ async function gotoAccount(page: Page): Promise<void> {
 /** Open the "Add Subscription" / redeem modal. Returns false if button absent (non-admin). */
 async function openRedeemModal(page: Page): Promise<boolean> {
   const btn = page.locator('button:has-text("Add Subscription")').first();
-  if (!await btn.isVisible({ timeout: 8000 }).catch(() => false)) return false;
+  if (!(await btn.isVisible({ timeout: 8000 }).catch(() => false)))
+    return false;
   await btn.click();
-  await page.locator('input[placeholder="XXXX"]').first()
+  await page
+    .locator('input[placeholder="XXXX"]')
+    .first()
     .waitFor({ state: 'visible', timeout: 15000 });
   return true;
 }
 
 /** Fill the four XXXX segmented inputs. */
-async function fillRedeemCode(page: Page, segments: [string, string, string, string]): Promise<void> {
+async function fillRedeemCode(
+  page: Page,
+  segments: [string, string, string, string]
+): Promise<void> {
   const inputs = page.locator('input[placeholder="XXXX"]');
   for (let i = 0; i < 4; i++) {
     await inputs.nth(i).fill(segments[i]);
@@ -66,35 +72,51 @@ async function fillRedeemCode(page: Page, segments: [string, string, string, str
 
 /** Close the modal using the × button or Escape. */
 async function closeRedeemModal(page: Page): Promise<void> {
-  const xBtn = page.locator('[role="dialog"] button[aria-label*="close" i], [role="dialog"] button svg.lucide-x').first();
+  const xBtn = page
+    .locator(
+      '[role="dialog"] button[aria-label*="close" i], [role="dialog"] button svg.lucide-x'
+    )
+    .first();
   if (await xBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
     await xBtn.click();
   } else {
     await page.keyboard.press('Escape');
   }
-  await page.locator('input[placeholder="XXXX"]').first()
-    .waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  await page
+    .locator('input[placeholder="XXXX"]')
+    .first()
+    .waitFor({ state: 'hidden', timeout: 5000 })
+    .catch(() => {});
 }
 
 // ── Suite ─────────────────────────────────────────────────────────────────────
 
 test.describe('Code Redemption Regression', () => {
-
   // ── 1. Screen + controls load ─────────────────────────────────────────────
 
-  test('Positive - Redemption screen controls load correctly for District Admin', async ({ page }) => {
+  test('Positive - Redemption screen controls load correctly for District Admin', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await page.goto(`${BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
     await injectAdminSessionStorage(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.goto(`${BASE_URL}/account`, { waitUntil: 'domcontentloaded' });
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
 
     const opened = await openRedeemModal(page);
     if (!opened) {
       // Not a District Admin — note and pass; role restriction is tested elsewhere.
-      test.info().annotations.push({ type: 'note', description: 'Add Subscription not visible — account is not District Admin role' });
+      test.info().annotations.push({
+        type: 'note',
+        description:
+          'Add Subscription not visible — account is not District Admin role',
+      });
       return;
     }
 
@@ -103,8 +125,12 @@ test.describe('Code Redemption Regression', () => {
     await expect(inputs).toHaveCount(4);
 
     // Submit + trial buttons
-    await expect(page.getByRole('button', { name: /active license/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /start trial/i })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /active license/i })
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /start trial/i })
+    ).toBeVisible();
 
     await closeRedeemModal(page);
     await expect(page).not.toHaveURL(/error/i);
@@ -112,7 +138,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 2. Successful redemption E2E (route-intercepted) ─────────────────────
 
-  test('Positive - Successful redemption shows license-activated state', async ({ page }) => {
+  test('Positive - Successful redemption shows license-activated state', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -137,7 +165,11 @@ test.describe('Code Redemption Regression', () => {
 
     // Post-redemption: success indicator visible
     await expect(
-      page.locator('text=/license activated/i, [data-testid*="success"], .text-green-500, .text-success').first(),
+      page
+        .locator(
+          'text=/license activated/i, [data-testid*="success"], .text-green-500, .text-success'
+        )
+        .first()
     ).toBeVisible({ timeout: 15000 });
 
     await expect(page).not.toHaveURL(/error/i);
@@ -145,11 +177,17 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 3. Live successful redemption (env-code path) ─────────────────────────
 
-  test('Positive - Valid env REDEEM_CODE submits and activates license', async ({ page }) => {
+  test('Positive - Valid env REDEEM_CODE submits and activates license', async ({
+    page,
+  }) => {
     test.setTimeout(90_000);
     const liveCode = process.env.REDEEM_CODE ?? '';
     if (!liveCode || liveCode.replace(/-/g, '').length !== 16) {
-      test.info().annotations.push({ type: 'note', description: 'REDEEM_CODE env var not set or not 16 chars — skipping live redemption test' });
+      test.info().annotations.push({
+        type: 'note',
+        description:
+          'REDEEM_CODE env var not set or not 16 chars — skipping live redemption test',
+      });
       return;
     }
 
@@ -159,20 +197,27 @@ test.describe('Code Redemption Regression', () => {
 
     // Split the 16-char code into four 4-char segments (with or without dashes)
     const clean = liveCode.replace(/-/g, '');
-    const segs = [clean.slice(0, 4), clean.slice(4, 8), clean.slice(8, 12), clean.slice(12, 16)] as [string, string, string, string];
+    const segs = [
+      clean.slice(0, 4),
+      clean.slice(4, 8),
+      clean.slice(8, 12),
+      clean.slice(12, 16),
+    ] as [string, string, string, string];
     await fillRedeemCode(page, segs);
     await page.getByRole('button', { name: /active license/i }).click();
 
-    await expect(
-      page.locator('text=/license activated/i').first(),
-    ).toBeVisible({ timeout: 30000 });
+    await expect(page.locator('text=/license activated/i').first()).toBeVisible(
+      { timeout: 30000 }
+    );
 
     await expect(page).not.toHaveURL(/error/i);
   });
 
   // ── 4. Empty code validation ──────────────────────────────────────────────
 
-  test('Negative - Empty code shows validation error without API call', async ({ page }) => {
+  test('Negative - Empty code shows validation error without API call', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -188,20 +233,24 @@ test.describe('Code Redemption Regression', () => {
     await page.getByRole('button', { name: /active license/i }).click();
 
     await expect(
-      page.locator('text=/redeem code is required/i, text=/required/i').first(),
+      page.locator('text=/redeem code is required/i, text=/required/i').first()
     ).toBeVisible({ timeout: 10000 });
 
     expect(apiCalled).toBe(false);
 
     // Form stays open
-    await expect(page.locator('input[placeholder="XXXX"]').first()).toBeVisible();
+    await expect(
+      page.locator('input[placeholder="XXXX"]').first()
+    ).toBeVisible();
     await closeRedeemModal(page);
     await expect(page).not.toHaveURL(/error/i);
   });
 
   // ── 5. Short / malformed code validation ─────────────────────────────────
 
-  test('Negative - Short code shows length validation error without API call', async ({ page }) => {
+  test('Negative - Short code shows length validation error without API call', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -219,7 +268,7 @@ test.describe('Code Redemption Regression', () => {
     await page.getByRole('button', { name: /active license/i }).click();
 
     await expect(
-      page.locator('text=/16 characters|redeem code must/i').first(),
+      page.locator('text=/16 characters|redeem code must/i').first()
     ).toBeVisible({ timeout: 10000 });
 
     expect(apiCalled).toBe(false);
@@ -229,7 +278,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 6. Invalid / unknown code ─────────────────────────────────────────────
 
-  test('Negative - Invalid code shows server error and keeps form open', async ({ page }) => {
+  test('Negative - Invalid code shows server error and keeps form open', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -237,7 +288,10 @@ test.describe('Code Redemption Regression', () => {
       await route.fulfill({
         status: 400,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 400, message: 'Invalid redemption code' }),
+        body: JSON.stringify({
+          status: 400,
+          message: 'Invalid redemption code',
+        }),
       });
     });
 
@@ -248,18 +302,22 @@ test.describe('Code Redemption Regression', () => {
     await page.getByRole('button', { name: /active license/i }).click();
 
     await expect(
-      page.locator('text=/invalid redemption code/i').first(),
+      page.locator('text=/invalid redemption code/i').first()
     ).toBeVisible({ timeout: 10000 });
 
     // Form must remain open
-    await expect(page.locator('input[placeholder="XXXX"]').first()).toBeVisible();
+    await expect(
+      page.locator('input[placeholder="XXXX"]').first()
+    ).toBeVisible();
     await closeRedeemModal(page);
     await expect(page).not.toHaveURL(/error/i);
   });
 
   // ── 7. Already-used code ──────────────────────────────────────────────────
 
-  test('Negative - Already-used code shows error and keeps form open', async ({ page }) => {
+  test('Negative - Already-used code shows error and keeps form open', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -267,7 +325,10 @@ test.describe('Code Redemption Regression', () => {
       await route.fulfill({
         status: 400,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 400, message: 'Code has already been used' }),
+        body: JSON.stringify({
+          status: 400,
+          message: 'Code has already been used',
+        }),
       });
     });
 
@@ -278,17 +339,21 @@ test.describe('Code Redemption Regression', () => {
     await page.getByRole('button', { name: /active license/i }).click();
 
     await expect(
-      page.locator('text=/already been used|already used/i').first(),
+      page.locator('text=/already been used|already used/i').first()
     ).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('input[placeholder="XXXX"]').first()).toBeVisible();
+    await expect(
+      page.locator('input[placeholder="XXXX"]').first()
+    ).toBeVisible();
     await closeRedeemModal(page);
     await expect(page).not.toHaveURL(/error/i);
   });
 
   // ── 8. Expired code ───────────────────────────────────────────────────────
 
-  test('Negative - Expired code shows expiry error and keeps form open', async ({ page }) => {
+  test('Negative - Expired code shows expiry error and keeps form open', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -296,7 +361,10 @@ test.describe('Code Redemption Regression', () => {
       await route.fulfill({
         status: 410,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 410, message: 'Redemption code has expired' }),
+        body: JSON.stringify({
+          status: 410,
+          message: 'Redemption code has expired',
+        }),
       });
     });
 
@@ -306,18 +374,22 @@ test.describe('Code Redemption Regression', () => {
     await fillRedeemCode(page, ['EXPD', 'CODE', 'TEST', '0002']);
     await page.getByRole('button', { name: /active license/i }).click();
 
-    await expect(
-      page.locator('text=/expired/i').first(),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=/expired/i').first()).toBeVisible({
+      timeout: 10000,
+    });
 
-    await expect(page.locator('input[placeholder="XXXX"]').first()).toBeVisible();
+    await expect(
+      page.locator('input[placeholder="XXXX"]').first()
+    ).toBeVisible();
     await closeRedeemModal(page);
     await expect(page).not.toHaveURL(/error/i);
   });
 
   // ── 9. Post-redemption state ──────────────────────────────────────────────
 
-  test('Positive - Post-redemption state reflects activated license in UI', async ({ page }) => {
+  test('Positive - Post-redemption state reflects activated license in UI', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -325,7 +397,11 @@ test.describe('Code Redemption Regression', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 200, message: 'License activated', data: { isLicenseActive: true } }),
+        body: JSON.stringify({
+          status: 200,
+          message: 'License activated',
+          data: { isLicenseActive: true },
+        }),
       });
     });
     // Also stub getCurrentUser so the account reflects the updated state
@@ -333,7 +409,9 @@ test.describe('Code Redemption Regression', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ data: { is_license_active: true, subscriptions: [] } }),
+        body: JSON.stringify({
+          data: { is_license_active: true, subscriptions: [] },
+        }),
       });
     });
 
@@ -345,7 +423,11 @@ test.describe('Code Redemption Regression', () => {
 
     // Success indicator inside the modal
     await expect(
-      page.locator('[role="dialog"] text=/license activated/i, [role="dialog"] .text-green, [role="dialog"] svg.lucide-check-circle').first(),
+      page
+        .locator(
+          '[role="dialog"] text=/license activated/i, [role="dialog"] .text-green, [role="dialog"] svg.lucide-check-circle'
+        )
+        .first()
     ).toBeVisible({ timeout: 15000 });
 
     await expect(page).not.toHaveURL(/error/i);
@@ -353,7 +435,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 10. Duplicate / concurrent submit prevention ──────────────────────────
 
-  test('Negative - Second submit while in-flight does not send duplicate request', async ({ page }) => {
+  test('Negative - Second submit while in-flight does not send duplicate request', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -365,7 +449,11 @@ test.describe('Code Redemption Regression', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ status: 200, message: 'License activated', data: {} }),
+        body: JSON.stringify({
+          status: 200,
+          message: 'License activated',
+          data: {},
+        }),
       });
     });
 
@@ -374,7 +462,9 @@ test.describe('Code Redemption Regression', () => {
 
     await fillRedeemCode(page, ['ABCD', '1234', 'EFGH', '5678']);
 
-    const submitBtn = page.getByRole('button', { name: /active license|redeeming/i }).first();
+    const submitBtn = page
+      .getByRole('button', { name: /active license|redeeming/i })
+      .first();
     await submitBtn.click();
     // Immediately click again — should be ignored (button disabled during flight)
     await submitBtn.click({ force: true });
@@ -387,7 +477,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 11. Cancel / Back behaviour ───────────────────────────────────────────
 
-  test('Positive - Closing the modal returns to account page cleanly', async ({ page }) => {
+  test('Positive - Closing the modal returns to account page cleanly', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -400,12 +492,16 @@ test.describe('Code Redemption Regression', () => {
     await closeRedeemModal(page);
 
     // Back on account page, modal is gone
-    await expect(page.locator('input[placeholder="XXXX"]').first()).not.toBeVisible({ timeout: 5000 });
+    await expect(
+      page.locator('input[placeholder="XXXX"]').first()
+    ).not.toBeVisible({ timeout: 5000 });
     await expect(page).toHaveURL(/account/i);
     await expect(page).not.toHaveURL(/error/i);
   });
 
-  test('Positive - Modal inputs are cleared when reopened after close', async ({ page }) => {
+  test('Positive - Modal inputs are cleared when reopened after close', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -417,9 +513,15 @@ test.describe('Code Redemption Regression', () => {
 
     // Reopen
     await page.locator('button:has-text("Add Subscription")').first().click();
-    await page.locator('input[placeholder="XXXX"]').first().waitFor({ state: 'visible', timeout: 10000 });
+    await page
+      .locator('input[placeholder="XXXX"]')
+      .first()
+      .waitFor({ state: 'visible', timeout: 10000 });
 
-    const val = await page.locator('input[placeholder="XXXX"]').first().inputValue();
+    const val = await page
+      .locator('input[placeholder="XXXX"]')
+      .first()
+      .inputValue();
     expect(val).toBe('');
 
     await closeRedeemModal(page);
@@ -428,7 +530,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 12. API E2E: Unauthorized (no token) ─────────────────────────────────
 
-  test('API - Returns 401 when called without authorization token', async ({ request }) => {
+  test('API - Returns 401 when called without authorization token', async ({
+    request,
+  }) => {
     const res = await request.post(`${BASE_URL}/api/auth/redeem`, {
       data: { code: 'ABCD1234EFGH5678' },
       // Deliberately omit Authorization header
@@ -440,7 +544,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 13. API E2E: 400 invalid code ─────────────────────────────────────────
 
-  test('API - Returns 4xx for a clearly invalid redemption code', async ({ request }) => {
+  test('API - Returns 4xx for a clearly invalid redemption code', async ({
+    request,
+  }) => {
     const res = await request.post(`${BASE_URL}/api/auth/redeem`, {
       data: { code: 'INVALIDCODE1234X' },
       headers: {
@@ -462,7 +568,9 @@ test.describe('Code Redemption Regression', () => {
 
   // ── 14. Keyboard / focus accessibility ───────────────────────────────────
 
-  test('Accessibility - Tab navigation reaches all four inputs and submit button', async ({ page }) => {
+  test('Accessibility - Tab navigation reaches all four inputs and submit button', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -471,7 +579,9 @@ test.describe('Code Redemption Regression', () => {
 
     // Focus the first input and tab through the form
     await page.locator('input[placeholder="XXXX"]').first().focus();
-    const focusedTag = await page.evaluate(() => document.activeElement?.tagName.toLowerCase());
+    const focusedTag = await page.evaluate(() =>
+      document.activeElement?.tagName.toLowerCase()
+    );
     expect(focusedTag).toBe('input');
 
     // Tab through all four inputs + buttons — none should trap focus
@@ -489,7 +599,9 @@ test.describe('Code Redemption Regression', () => {
     await expect(page).not.toHaveURL(/error/i);
   });
 
-  test('Accessibility - Enter key on submit button triggers validation', async ({ page }) => {
+  test('Accessibility - Enter key on submit button triggers validation', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -507,7 +619,7 @@ test.describe('Code Redemption Regression', () => {
     await page.keyboard.press('Enter');
 
     await expect(
-      page.locator('text=/required|redeem code/i').first(),
+      page.locator('text=/required|redeem code/i').first()
     ).toBeVisible({ timeout: 10000 });
 
     expect(apiCalled).toBe(false);
@@ -515,7 +627,9 @@ test.describe('Code Redemption Regression', () => {
     await expect(page).not.toHaveURL(/error/i);
   });
 
-  test('Accessibility - Input labels and placeholder text are accessible', async ({ page }) => {
+  test('Accessibility - Input labels and placeholder text are accessible', async ({
+    page,
+  }) => {
     test.setTimeout(60_000);
     await gotoAccount(page);
 
@@ -527,10 +641,11 @@ test.describe('Code Redemption Regression', () => {
     await expect(inputs).toHaveCount(4);
 
     // Active License button is accessible by role + name
-    await expect(page.getByRole('button', { name: /active license/i })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /active license/i })
+    ).toBeVisible();
 
     await closeRedeemModal(page);
     await expect(page).not.toHaveURL(/error/i);
   });
-
 });

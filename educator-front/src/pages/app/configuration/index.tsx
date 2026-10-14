@@ -11,7 +11,7 @@ export default function Configurations() {
   return (
     <div className="min-h-screen p-4 sm:p-6 overflow-y-auto no-scrollbar">
       <PageHeader title={'District Configuration'} actionButton={<></>} />
-      <p className="text-sm sm:text-base md:text-lg bg-[#F0F6FB] px-4 py-3 font-semibold text-primary-500 rounded-lg overflow-hidden break-words">
+      <p className="text-sm sm:text-base md:text-lg bg-[#F0F6FB] px-4 py-3 font-semibold text-[#F97316] rounded-lg overflow-hidden break-words">
         DB Connection String
       </p>
 
@@ -41,7 +41,7 @@ export default function Configurations() {
 
         <button
           onClick={handleSave}
-          className="px-5 sm:px-8 md:px-12 py-2 rounded-full text-sm font-medium text-white bg-[#db8833]"
+          className="px-5 sm:px-8 md:px-12 py-2 rounded-full text-sm font-medium text-white bg-[#ED621F]"
         >
           Save
         </button>

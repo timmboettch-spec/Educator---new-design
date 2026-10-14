@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 
 import type { RootState } from '../../store';
@@ -6,18 +10,17 @@ import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 
 export interface VerifyOTPPayload {
+  email: string;
   otp: string;
-  reset_token: string;
 }
 
-export interface VerifyOTPResponse {
-  verified_token: string;
-}
+/** The endpoint now always responds with an empty `data`. */
+export type VerifyOTPResponse = Record<string, unknown>;
 
 export interface ResponseVerifyOTP {
   data: VerifyOTPResponse;
   message: string;
-  status: string;
+  status?: string;
 }
 
 export interface VerifyOTPState {
@@ -27,7 +30,9 @@ export interface VerifyOTPState {
   rememberedEmail: string;
 }
 const savedEmail =
-  typeof window !== 'undefined' ? localStorage.getItem('remembered_email') || '' : '';
+  typeof window !== 'undefined'
+    ? localStorage.getItem('remembered_email') || ''
+    : '';
 
 const initialState: VerifyOTPState = {
   responseVerifyOTP: null,
@@ -90,9 +95,15 @@ const selectState = (state: RootState) => state.VerifyOTP;
 
 export const selectVerifyOTPResponse = createSelector(
   selectState,
-  (state) => state.responseVerifyOTP,
+  (state) => state.responseVerifyOTP
 );
 
-export const selectVerifyOTPStatus = createSelector(selectState, (state) => state.status);
+export const selectVerifyOTPStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
 
-export const selectVerifyOTPError = createSelector(selectState, (state) => state.error);
+export const selectVerifyOTPError = createSelector(
+  selectState,
+  (state) => state.error
+);

@@ -16,6 +16,7 @@
  *     (soft-delete cascade — service deactivates educators and removes their
  *     association, so the delete itself must still succeed; the test asserts
  *     that the cascade completed cleanly)
+ *  10. Deleted school is no longer retrievable via GET /schools/:id
  */
 
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
@@ -23,6 +24,7 @@ import { SuperTest, Test } from 'supertest';
 import { createAgent, signupAndLogin } from '../../common/setup/supertest.setup';
 import { ENDPOINTS } from '../../common/constants/endpoints';
 import { STATUS } from '../../common/constants/status-codes';
+import { testEmail } from '../../utils/env';
 
 async function createSchool(
   agent: SuperTest<Test>,
@@ -36,6 +38,7 @@ async function createSchool(
   return (res.body?.data?.id as string) ?? '';
 }
 
+
 // ── suite ─────────────────────────────────────────────────────────────────────
 
 describe('@school-delete DELETE /schools/:id', () => {
@@ -43,7 +46,7 @@ describe('@school-delete DELETE /schools/:id', () => {
   let adminToken: string;
   let otherAdminToken: string;
 
-  // IDs managed within this suite
+  // IDs managed within this suite realated
   let deletableSchoolId: string;
   let otherAdminSchoolId: string;
   let cascadeSchoolId: string;
@@ -52,12 +55,12 @@ describe('@school-delete DELETE /schools/:id', () => {
     agent = createAgent();
     adminToken = await signupAndLogin(agent, {
       full_name: 'SD User admin',
-      email: `sd-admin-${Date.now()}@test.realityworks`,
+      email: testEmail('sd-admin'),
       password: 'SchoolDel@1234',
     });
     otherAdminToken = await signupAndLogin(agent, {
       full_name: 'SD User other',
-      email: `sd-other-${Date.now()}@test.realityworks`,
+      email: testEmail('sd-other'),
       password: 'SchoolDel@1234',
     });
 
@@ -80,7 +83,9 @@ describe('@school-delete DELETE /schools/:id', () => {
       await agent
         .delete(ENDPOINTS.SCHOOLS.BY_ID(id))
         .set('Authorization', `Bearer ${token}`)
-        .catch(() => {/* ignore */});
+        .catch(() => {
+          /* ignore */
+        });
     }
   });
 
@@ -97,9 +102,9 @@ describe('@school-delete DELETE /schools/:id', () => {
 
     if (res.status === STATUS.OK) {
       // ── Schema assertions ──────────────────────────────────────────────────
-      expect(res.body).toHaveProperty('status', 'SUCCESS');
       expect(res.body).toHaveProperty('message');
       expect(typeof res.body.message).toBe('string');
+      expect(res.body.error).toBeNull();
       // data may be null for a delete operation
       expect(Object.keys(res.body)).toContain('data');
     }
@@ -107,7 +112,7 @@ describe('@school-delete DELETE /schools/:id', () => {
 
   // ── 2. Response shape for success ─────────────────────────────────────────
 
-  it('success response contains exactly { status, message, data } keys', async () => {
+  it('success response contains the unified { message, data, meta, error } keys', async () => {
     // Create a fresh school purely for schema validation
     const schoolId = await createSchool(agent, adminToken, 'Schema');
     if (!schoolId) return;
@@ -118,10 +123,11 @@ describe('@school-delete DELETE /schools/:id', () => {
 
     if (res.status === STATUS.OK) {
       const keys = Object.keys(res.body);
-      expect(keys).toContain('status');
       expect(keys).toContain('message');
       expect(keys).toContain('data');
-      expect(res.body.status).toBe('SUCCESS');
+      expect(keys).toContain('meta');
+      expect(keys).toContain('error');
+      expect(res.body.error).toBeNull();
       expect(res.body.message).toMatch(/deleted/i);
     } else {
       expect([STATUS.NO_CONTENT]).toContain(res.status);
@@ -215,10 +221,12 @@ describe('@school-delete DELETE /schools/:id', () => {
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        email: `cascade-edu-${Date.now()}@test.realityworks`,
+        email: testEmail('cascade-edu'),
         school_id: cascadeSchoolId,
       })
-      .catch(() => {/* non-critical setup step */});
+      .catch(() => {
+        /* non-critical setup step */
+      });
 
     const res = await agent
       .delete(ENDPOINTS.SCHOOLS.BY_ID(cascadeSchoolId))
@@ -229,7 +237,7 @@ describe('@school-delete DELETE /schools/:id', () => {
     expect([STATUS.OK, STATUS.NO_CONTENT]).toContain(res.status);
 
     if (res.status === STATUS.OK) {
-      expect(res.body.status).toBe('SUCCESS');
+      expect(res.body.error).toBeNull();
     }
 
     // Mark as cleaned up so afterAll does not attempt a redundant delete
@@ -242,14 +250,15 @@ describe('@school-delete DELETE /schools/:id', () => {
     const schoolId = await createSchool(agent, adminToken, 'Gone');
     if (!schoolId) return;
 
-    await agent
+    const deleteRes = await agent
       .delete(ENDPOINTS.SCHOOLS.BY_ID(schoolId))
       .set('Authorization', `Bearer ${adminToken}`);
+    expect([STATUS.OK, STATUS.NO_CONTENT]).toContain(deleteRes.status);
 
     const res = await agent
       .get(ENDPOINTS.SCHOOLS.BY_ID(schoolId))
       .set('Authorization', `Bearer ${adminToken}`);
 
-    expect([STATUS.NOT_FOUND]).toContain(res.status);
+    expect(res.status).toBe(STATUS.NOT_FOUND);
   });
 });

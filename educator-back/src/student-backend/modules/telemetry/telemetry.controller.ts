@@ -1,6 +1,8 @@
-import { Controller, Post, Body, Get, Query, Logger, Res, HttpCode } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Res, HttpCode } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { type Response } from 'express';
+
+import { LoggerService } from '../../../common/services';
 
 import { type AnalyticsResponseDto } from './dto/analytics.dto';
 import { SubsystemLifecycleEventDto } from './dto/lifecycle-events.dto';
@@ -14,17 +16,21 @@ import {
 import { LifecycleTelemetryService } from './lifecycle-telemetry.service';
 import { TelemetryAnalyticsService } from './telemetry-analytics.service';
 import { TelemetryService, SessionEndReason, CompletionStatus } from './telemetry.service';
+import { Public } from '../../../common/decorators/public.decorator';
 
 @ApiTags('Student-backend: Telemetry')
+// Telemetry, analytics and export routes are intentionally public — an ADR-0005 carve-out that
+// was re-reviewed and retained under ADR-0006 (docs/adr/0006-selected-role-rbac.md) and recorded
+// as a settled decision in docs/rbac-role-matrix.md's student-backend telemetry row.
+@Public()
 @Controller('telemetry')
 export class TelemetryController {
-  private readonly logger = new Logger(TelemetryController.name);
-
   constructor(
     private readonly telemetryService: TelemetryService,
     private readonly lifecycleTelemetryService: LifecycleTelemetryService,
     private readonly analyticsService: TelemetryAnalyticsService,
-  ) {}
+    private readonly logger: LoggerService,
+  ) { }
 
   @Post('login-session-started')
   @ApiOperation({ summary: 'Track login session started event' })

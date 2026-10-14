@@ -1,22 +1,33 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { SchoolsController } from '../../../src/schools/schools.controller';
 import { SchoolsService } from '../../../src/schools/schools.service';
 import { EducatorSessionService } from '../../../src/session/educator-session.service';
 import { NotificationsGateway } from '../../../src/notifications/notifications.gateway';
-import { Schools } from '../../../src/schools/entity/schools.entity';
-import { User } from '../../../src/users/entity/user.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
-import { Invite } from '../../../src/invites/entity/invite.entity';
+
 import { MailService } from '../../../src/mail/mail.service';
+import { InviteTokenService } from '../../../src/invites/invite-token.service';
 import { CommonStatus } from '../../../src/common/enums/status.enum';
 import { buildTestApp, TEST_USERS } from '../setup/test-app.factory';
+import {
+  expectErrorEnvelope,
+  expectLegacySuccessBody,
+  expectSuccessEnvelope,
+} from '../setup/error-envelope.util';
+import { Schools, User } from 'src/database/entities';
+import {
+  CLASS_SIMULATION_REPOSITORY,
+  INVITE_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  USER_REPOSITORY,
+} from 'src/database/tokens';
+import { DatabaseService } from 'src/database/services/database.service';
 
 type TestBody = {
   status?: string;
   data?: unknown;
+  error?: unknown;
 };
 
 const parseBody = (res: request.Response): TestBody => {
@@ -32,11 +43,6 @@ const asRecord = (value: unknown): Record<string, unknown> => {
     return value as Record<string, unknown>;
   }
   throw new Error('Expected value to be an object');
-};
-
-const expectStatus = (res: request.Response, expected: string): void => {
-  const body = parseBody(res);
-  expect(body.status).toBe(expected);
 };
 
 const makeUser = (o: Partial<User> = {}): User =>
@@ -73,9 +79,21 @@ describe('Schools (Integration)', () => {
     save: jest.fn(),
     remove: jest.fn(),
     create: jest.fn(),
-    createQueryBuilder: jest.fn(),
+    findAllForAdmin: jest.fn(),
   };
-  const userRepo = { findOne: jest.fn() };
+  // Base default satisfies `JwtStrategy.validate()`'s own account-existence check for any
+  // `TEST_USERS` token this suite signs (districtAdmin/educator) — individual tests still
+  // override `findOne` for their own business-lookup id (`SchoolsService.findUserById`), which
+  // goes through this same `USER_REPOSITORY` mock.
+  const userRepo = {
+    findOne: jest.fn().mockImplementation((options: { where?: { id?: string } }) => {
+      const id = options?.where?.id;
+      if (id === TEST_USERS.districtAdmin.sub || id === TEST_USERS.educator.sub) {
+        return Promise.resolve(makeUser({ id }));
+      }
+      return Promise.resolve(null);
+    }),
+  };
   const classSimulationRepo = { update: jest.fn() };
   const inviteRepo = {
     find: jest.fn().mockResolvedValue([]),
@@ -84,6 +102,7 @@ describe('Schools (Integration)', () => {
     update: jest.fn(),
     create: jest.fn(),
     delete: jest.fn(),
+    deleteByEmail: jest.fn(),
   };
   const mailService = {
     sendInviteEmail: jest.fn().mockResolvedValue(undefined),
@@ -101,34 +120,47 @@ describe('Schools (Integration)', () => {
     execute: jest.fn().mockResolvedValue({}),
     getRawMany: jest.fn().mockResolvedValue([]),
   };
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {
-      update: jest.fn(),
-      find: jest.fn().mockResolvedValue([]),
-      query: jest.fn(),
-      createQueryBuilder: jest.fn().mockReturnValue(managerQb),
-    },
+  const manager = {
+    update: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
+    query: jest.fn(),
+    save: jest.fn(),
+    createQueryBuilder: jest.fn().mockReturnValue(managerQb),
   };
-  const dataSource = { query: jest.fn().mockResolvedValue([]), createQueryRunner: jest.fn() };
+  const dataSource = { query: jest.fn().mockResolvedValue([]) };
+  const databaseService = {
+    pingCheck: jest.fn(),
+    connection: dataSource,
+    runInTransaction: jest.fn((work: (manager: EntityManager) => unknown) =>
+      work(manager as unknown as EntityManager),
+    ),
+  };
 
   beforeAll(async () => {
-    dataSource.createQueryRunner.mockReturnValue(queryRunner);
-
     ({ app, signToken } = await buildTestApp({
       controllers: [SchoolsController],
       providers: [
         SchoolsService,
-        { provide: getRepositoryToken(Schools), useValue: schoolRepo },
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(ClassSimulation), useValue: classSimulationRepo },
-        { provide: getRepositoryToken(Invite), useValue: inviteRepo },
+        {
+          provide: InviteTokenService,
+          useValue: {
+            issue: jest.fn().mockReturnValue('mock-invite-token'),
+            buildInviteUrl: jest
+              .fn()
+              .mockReturnValue('http://localhost:5173/signup/mock-invite-token'),
+            resolve: jest.fn(),
+          },
+        },
+        { provide: SCHOOLS_REPOSITORY, useValue: schoolRepo },
+        { provide: USER_REPOSITORY, useValue: userRepo },
+        { provide: CLASS_SIMULATION_REPOSITORY, useValue: classSimulationRepo },
+        { provide: INVITE_REPOSITORY, useValue: inviteRepo },
         { provide: DataSource, useValue: dataSource },
-        { provide: EducatorSessionService, useValue: { isTokenInvalidated: jest.fn().mockResolvedValue(false) } },
+        { provide: DatabaseService, useValue: databaseService },
+        {
+          provide: EducatorSessionService,
+          useValue: { isTokenInvalidated: jest.fn().mockResolvedValue(false) },
+        },
         { provide: NotificationsGateway, useValue: { notifyEducatorSchoolDeactivated: jest.fn() } },
         { provide: MailService, useValue: mailService },
       ],
@@ -155,11 +187,15 @@ describe('Schools (Integration)', () => {
         .send({ school_name: 'Test School' })
         .expect(403)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
     });
 
-    it('INTEGRATION: returns 403 when District Admin user not found', async () => {
+    it('INTEGRATION: returns 401 when the District Admin account no longer exists', async () => {
+      // `SchoolsController.create`'s `findUserById(targetUserId)` check defaults `targetUserId`
+      // to `req.user.userId` — the exact same id `JwtStrategy.validate()` already re-validated
+      // via this same `USER_REPOSITORY` for this request. Once that account is gone, auth now
+      // rejects with 401 before this controller-level check can ever run.
       userRepo.findOne.mockResolvedValue(null);
       const token = signToken(TEST_USERS.districtAdmin);
 
@@ -167,7 +203,7 @@ describe('Schools (Integration)', () => {
         .post('/api/schools')
         .set('Authorization', `Bearer ${token}`)
         .send({ school_name: 'Test School' })
-        .expect(403);
+        .expect(401);
     });
 
     it('INTEGRATION: returns 400 when school already exists', async () => {
@@ -181,7 +217,7 @@ describe('Schools (Integration)', () => {
         .send({ school_name: 'Test School' })
         .expect(400)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
     });
 
@@ -199,7 +235,7 @@ describe('Schools (Integration)', () => {
         .expect(201)
         .expect((res) => {
           const body = parseBody(res);
-          expect(body.status).toBe('SUCCESS');
+          expectLegacySuccessBody(res);
           expect(body.data).toBeDefined();
         });
     });
@@ -213,6 +249,29 @@ describe('Schools (Integration)', () => {
         .send({})
         .expect(400);
     });
+
+    it('INTEGRATION: reports only the first violation per field when multiple fields are invalid', async () => {
+      // `schools` never carried the per-controller `createValidationPipe()` opt-in — this
+      // exercises the global cutover in `main.ts` (via `buildTestApp`'s matching global pipe).
+      // `school_name` fails only `MinLength` (too short, but non-empty) and `status` fails only
+      // `IsEnum`, so each field has exactly one violation despite two fields being invalid at once.
+      const token = signToken(TEST_USERS.districtAdmin);
+
+      const res = await request(httpServer())
+        .post('/api/schools')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ school_name: 'ab', status: 'bogus' })
+        .expect(400);
+
+      expectErrorEnvelope(res);
+      const body = parseBody(res);
+      const error = asRecord(body.error);
+      const messages = Object.values(error);
+
+      expect(messages).toHaveLength(2);
+      expect(messages).toContain('School name is too short (min 3 characters)');
+      expect(messages).toContain('Status must be ACTIVE or INACTIVE');
+    });
   });
 
   describe('GET /api/schools/user', () => {
@@ -221,13 +280,7 @@ describe('Schools (Integration)', () => {
     });
 
     it('INTEGRATION: returns 200 with school list', async () => {
-      const qb = {
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([makeSchool()]),
-      };
-      schoolRepo.createQueryBuilder.mockReturnValue(qb);
+      schoolRepo.findAllForAdmin.mockResolvedValue([makeSchool()]);
       const token = signToken(TEST_USERS.districtAdmin);
 
       return request(httpServer())
@@ -236,7 +289,7 @@ describe('Schools (Integration)', () => {
         .expect(200)
         .expect((res) => {
           const body = parseBody(res);
-          expect(body.status).toBe('SUCCESS');
+          expectLegacySuccessBody(res);
           expect(Array.isArray(body.data)).toBe(true);
         });
     });
@@ -254,7 +307,7 @@ describe('Schools (Integration)', () => {
         .expect((res) => {
           const body = parseBody(res);
           const data = asRecord(body.data);
-          expect(body.status).toBe('SUCCESS');
+          expectLegacySuccessBody(res);
           expect(data.id).toBe(SCHOOL_ID);
         });
     });
@@ -268,7 +321,7 @@ describe('Schools (Integration)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(404)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
     });
   });
@@ -293,7 +346,7 @@ describe('Schools (Integration)', () => {
         .send({ school_name: 'Updated School' })
         .expect(200)
         .expect((res) => {
-          expectStatus(res, 'SUCCESS');
+          expectLegacySuccessBody(res);
         });
     });
   });
@@ -305,7 +358,7 @@ describe('Schools (Integration)', () => {
 
     it('INTEGRATION: returns 200 when school deleted', async () => {
       schoolRepo.findOne.mockResolvedValue(makeSchool());
-      queryRunner.manager.find.mockResolvedValue([]);
+      manager.find.mockResolvedValue([]);
       const token = signToken(TEST_USERS.districtAdmin);
 
       return request(httpServer())
@@ -313,7 +366,7 @@ describe('Schools (Integration)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(200)
         .expect((res) => {
-          expectStatus(res, 'SUCCESS');
+          expectSuccessEnvelope(res);
         });
     });
 
@@ -327,11 +380,8 @@ describe('Schools (Integration)', () => {
         .set('Authorization', `Bearer ${token}`)
         .expect(403)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
     });
   });
 });
-
-
-

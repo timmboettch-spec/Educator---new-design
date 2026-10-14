@@ -45,18 +45,22 @@ describe('ConfirmModal', () => {
         {...defaultProps}
         title="Delete Item"
         message="Are you sure you want to delete this item?"
-      />,
+      />
     );
 
     expect(screen.getByText('Delete Item')).toBeInTheDocument();
-    expect(screen.getByText('Are you sure you want to delete this item?')).toBeInTheDocument();
+    expect(
+      screen.getByText('Are you sure you want to delete this item?')
+    ).toBeInTheDocument();
   });
 
   it('renders default title and message', () => {
     render(<ConfirmModal {...defaultProps} />);
 
     expect(screen.getByText('Confirmation')).toBeInTheDocument();
-    expect(screen.getByText('Are you sure you want to proceed?')).toBeInTheDocument();
+    expect(
+      screen.getByText('Are you sure you want to proceed?')
+    ).toBeInTheDocument();
   });
 
   it('renders confirm and cancel buttons', () => {

@@ -1,20 +1,16 @@
-﻿import type { PayloadAction } from "@reduxjs/toolkit";
-import {
+﻿import {
   createAsyncThunk,
   createSelector,
   createSlice,
-} from "@reduxjs/toolkit";
-import type { RootState } from "../../../store";
-import { FAILED, IDLE, LOADING, SUCCEEDED } from "../../../utils/constants";
-import config from "../../config";
-import { matchDurationFilter } from "@/utils/helpers/matchDurationFilter";
-import api from "@/redux/api";
+} from '@reduxjs/toolkit';
+import type { RootState } from '../../../store';
+import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
+import config from '../../config';
+import api from '@/redux/api';
 
-import { parseAvatarEnabled } from "../../../utils/simulationType";
-import { sanitizeCategory } from "../../../utils/normalizeSectionItem";
-
-export type FilterType = "All" | "Recently Used" | "Recently Added";
-export type ViewMode = "grid" | "list";
+import { parseAvatarEnabled } from '../../../utils/simulationType';
+import { sanitizeCategory } from '../../../utils/normalizeSectionItem';
+import { sanitizeDuration } from '../../../utils/sanitizeDuration';
 
 type GroupedUnit = {
   id: string;
@@ -25,40 +21,13 @@ type GroupedUnit = {
   simulations: Array<Record<string, unknown>>;
 };
 
-const sanitizeDuration = (value: unknown): string => {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-
-  // Keep concise duration values as-is.
-  if (raw.length <= 30 && /min|hour|hr/i.test(raw)) return raw;
-
-  // Extract ranges like "15-20 minutes" from sentence-like content.
-  const rangeMatch = raw.match(
-    /(\d+\s*(?:-|to)\s*\d+\s*(?:minutes?|mins?|hours?|hrs?))/i,
-  );
-  if (rangeMatch?.[1]) {
-    return rangeMatch[1]
-      .replace(/\s+to\s+/i, "-")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  // Extract single values like "20 minutes".
-  const singleMatch = raw.match(/(\d+\s*(?:minutes?|mins?|hours?|hrs?))/i);
-  if (singleMatch?.[1]) return singleMatch[1].replace(/\s+/g, " ").trim();
-
-  // If no clear duration token is present, suppress noisy sentence text.
-  return "";
+/** Reads a scenario's required product name, wherever the BE puts it. */
+export const readProductName = (sim: Record<string, unknown>): string => {
+  const setup = sim.productSetup as { title?: unknown } | undefined;
+  return String(
+    setup?.title ?? sim.productName ?? sim.product_name ?? ''
+  ).trim();
 };
-
-export interface FilterValues {
-  product: string;
-  topic: string;
-  unit: string;
-  learnerLevel: string;
-  difficulty: string;
-  duration: string;
-}
 
 export interface Simulation {
   simulation_id: string;
@@ -78,6 +47,8 @@ export interface Simulation {
   learningObjectives?: string[];
   topicsAddressed?: string;
   clinicalSetting?: string;
+  /** Required product, from the scenario's `productSetup.title`. */
+  productName?: string;
   fromBundle?: boolean;
   avatarEnabled?: boolean;
   end_date?: string;
@@ -92,43 +63,41 @@ export interface ResponseSimulationLibrary {
 
 export interface SimulationLibraryState {
   responseSimulationLibrary: ResponseSimulationLibrary | null;
-  status: "idle" | "loading" | "succeeded" | "failed";
+  /** False when the loaded library skipped the image lookup (see `skipImages`). */
+  hasImages: boolean;
+  status: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
-  viewMode: ViewMode;
-  activeFilter: FilterType;
-  panelFilteredSimulations: Simulation[] | null;
-  appliedFilters: FilterValues;
+  /** The load in flight; an answer to any other (e.g. from before a reset) is dropped. */
+  requestId?: string;
 }
 
 const initialState: SimulationLibraryState = {
   responseSimulationLibrary: null,
+  hasImages: false,
   status: IDLE,
   error: null,
-  viewMode: "grid",
-  activeFilter: "All",
-  panelFilteredSimulations: null,
-  appliedFilters: {
-    product: "",
-    topic: "",
-    unit: "",
-    learnerLevel: "",
-    difficulty: "",
-    duration: "",
-  },
 };
+
+export interface FetchMyLibraryOptions {
+  /**
+   * Skips filling missing images from the catalogue (two extra, large
+   * requests), for screens that don't show images.
+   */
+  skipImages?: boolean;
+}
 
 export const fetchMyLibrarySimulations = createAsyncThunk<
   ResponseSimulationLibrary,
-  void,
+  FetchMyLibraryOptions | void,
   { rejectValue: { message: string }; state: RootState }
->("dashboard/fetchMyLibrarySimulations", async (_, thunkAPI) => {
+>('dashboard/fetchMyLibrarySimulations', async (options, thunkAPI) => {
   try {
     const ls =
-      localStorage.getItem("app_language")?.toLowerCase() === "es"
-        ? "es"
-        : "en";
+      localStorage.getItem('app_language')?.toLowerCase() === 'es'
+        ? 'es'
+        : 'en';
     const res = await api.get(config.MyLibraryAPI, {
-      headers: { "ngrok-skip-browser-warning": "true" },
+      headers: { 'ngrok-skip-browser-warning': 'true' },
       params: { ls },
     });
     const rawData = res.data?.data ?? res.data ?? [];
@@ -138,13 +107,13 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
 
     let flat: Simulation[] = [];
 
-    if (raw.length > 0 && "educator_id" in (raw[0] as object)) {
+    if (raw.length > 0 && 'educator_id' in (raw[0] as object)) {
       const grouped = new Map<
         string,
         { unit: Record<string, unknown>; sims: Record<string, unknown>[] }
       >();
       for (const row of raw) {
-        const unitId = String(row.unit_id ?? "");
+        const unitId = String(row.unit_id ?? '');
         if (!grouped.has(unitId)) {
           grouped.set(unitId, {
             unit: (row.unit ?? {}) as Record<string, unknown>,
@@ -162,18 +131,18 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
               unknown
             >;
             const title = String(
-              sim.title ?? sim.name ?? row.title ?? row.name ?? "",
+              sim.title ?? sim.name ?? row.title ?? row.name ?? ''
             );
-            const difficulty = String(sim.difficulty ?? row.difficulty ?? "");
+            const difficulty = String(sim.difficulty ?? row.difficulty ?? '');
             const learnerLevel = String(
               sim.learnerLevel ??
                 sim.learner_level ??
                 row.learnerLevel ??
                 row.learner_level ??
-                "",
+                ''
             );
             const description = String(
-              sim.description ?? row.description ?? "",
+              sim.description ?? row.description ?? ''
             );
             const duration = sanitizeDuration(
               sim.duration ??
@@ -181,7 +150,7 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
                 sim.estimated_duration ??
                 (sim.studentBriefing as Record<string, unknown> | undefined)
                   ?.timeAllotment ??
-                "",
+                ''
             );
             const learningObjectivesRaw =
               (sim.learningObjectives as unknown) ??
@@ -190,9 +159,9 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
             const learningObjectives = Array.isArray(learningObjectivesRaw)
               ? learningObjectivesRaw.filter(
                   (v): v is string =>
-                    typeof v === "string" && v.trim().length > 0,
+                    typeof v === 'string' && v.trim().length > 0
                 )
-              : typeof learningObjectivesRaw === "string" &&
+              : typeof learningObjectivesRaw === 'string' &&
                   learningObjectivesRaw.trim().length > 0
                 ? learningObjectivesRaw
                     .split(/\n|\|\|/)
@@ -200,8 +169,8 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
                     .filter(Boolean)
                 : [];
             return {
-              id: String(row.scenario_id ?? row.id ?? ""),
-              simulation_id: String(row.scenario_id ?? row.id ?? ""),
+              id: String(row.scenario_id ?? row.id ?? ''),
+              simulation_id: String(row.scenario_id ?? row.id ?? ''),
               name: title,
               title,
               unit: unitId,
@@ -211,7 +180,7 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
                   unit.unitName ??
                   unit.unit_name ??
                   (row as Record<string, unknown>).unit_name ??
-                  "",
+                  ''
               ),
               duration,
               image: String(
@@ -233,7 +202,7 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
                   unit.imageURL ??
                   unit.image_url ??
                   unit.image ??
-                  "",
+                  ''
               ),
               description,
               assigned: false,
@@ -243,38 +212,39 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
               targetAudience: learnerLevel,
               learningObjectives,
               topicsAddressed: String(
-                sim.topicsAddressed ?? sim.topics_addressed ?? "",
+                sim.topicsAddressed ?? sim.topics_addressed ?? ''
               ),
               clinicalSetting: sanitizeCategory(
                 sim.department ??
                   sim.clinicalSetting ??
                   sim.clinical_location ??
-                  "",
+                  ''
               ),
               avatarEnabled: parseAvatarEnabled(sim.avatarEnabled),
+              productName: readProductName(sim),
             };
-          }),
+          })
       );
     } else {
       flat = (raw as unknown as GroupedUnit[]).flatMap((unit) =>
         (unit.simulations ?? [])
           .filter(
-            (sim) => sim.scenario_id != null && (sim.title ?? sim.name) != null,
+            (sim) => sim.scenario_id != null && (sim.title ?? sim.name) != null
           )
           .map((sim) => ({
-            id: String(sim.id ?? sim.scenario_id ?? ""),
-            simulation_id: String(sim.id ?? sim.scenario_id ?? ""),
-            name: String(sim.title ?? sim.name ?? ""),
-            title: String(sim.title ?? sim.name ?? ""),
-            unit: unit.unit_id ?? "",
-            unit_name: unit.name ?? "",
+            id: String(sim.id ?? sim.scenario_id ?? ''),
+            simulation_id: String(sim.id ?? sim.scenario_id ?? ''),
+            name: String(sim.title ?? sim.name ?? ''),
+            title: String(sim.title ?? sim.name ?? ''),
+            unit: unit.unit_id ?? '',
+            unit_name: unit.name ?? '',
             duration: sanitizeDuration(
               sim.duration ??
                 sim.estimatedDuration ??
                 sim.estimated_duration ??
                 (sim.studentBriefing as Record<string, unknown> | undefined)
                   ?.timeAllotment ??
-                "",
+                ''
             ),
             image: String(
               sim.scenarioImage ??
@@ -290,19 +260,19 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
                 unit.imageURL ??
                 (unit as unknown as Record<string, unknown>).image_url ??
                 (unit as unknown as Record<string, unknown>).image ??
-                "",
+                ''
             ),
-            description: String(sim.description ?? ""),
+            description: String(sim.description ?? ''),
             assigned: false,
             rating: 0,
-            difficulty: String(sim.difficulty ?? ""),
-            learnerLevel: String(sim.learnerLevel ?? sim.learner_level ?? ""),
-            targetAudience: String(sim.learnerLevel ?? sim.learner_level ?? ""),
+            difficulty: String(sim.difficulty ?? ''),
+            learnerLevel: String(sim.learnerLevel ?? sim.learner_level ?? ''),
+            targetAudience: String(sim.learnerLevel ?? sim.learner_level ?? ''),
             learningObjectives: Array.isArray(sim.learningObjectives)
               ? (sim.learningObjectives as string[]).filter(
-                  (v) => typeof v === "string" && v.trim().length > 0,
+                  (v) => typeof v === 'string' && v.trim().length > 0
                 )
-              : typeof sim.learningObjective === "string" &&
+              : typeof sim.learningObjective === 'string' &&
                   sim.learningObjective.trim().length > 0
                 ? sim.learningObjective
                     .split(/\n|\|\|/)
@@ -310,21 +280,22 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
                     .filter(Boolean)
                 : [],
             topicsAddressed: String(
-              sim.topicsAddressed ?? sim.topics_addressed ?? "",
+              sim.topicsAddressed ?? sim.topics_addressed ?? ''
             ),
             clinicalSetting: sanitizeCategory(
               sim.department ??
                 sim.clinicalSetting ??
                 sim.clinical_location ??
-                "",
+                ''
             ),
             avatarEnabled: parseAvatarEnabled(sim.avatarEnabled),
-          })),
+            productName: readProductName(sim),
+          }))
       );
     }
 
     const simsNeedingImage = flat.filter((s) => !s.image);
-    if (simsNeedingImage.length > 0) {
+    if (!options?.skipImages && simsNeedingImage.length > 0) {
       const titleToImage = new Map<string, string>();
 
       const rootState = thunkAPI.getState() as RootState;
@@ -341,7 +312,7 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
       }
 
       if (titleToImage.size === 0) {
-        const headers = { "ngrok-skip-browser-warning": "true" };
+        const headers = { 'ngrok-skip-browser-warning': 'true' };
         const extractImg = (item: Record<string, unknown>): string =>
           String(
             item.scenarioImage ??
@@ -356,7 +327,7 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
               item.blobUrl ??
               item.thumbnail ??
               item.unit_image ??
-              "",
+              ''
           );
 
         const [scenariosRes, detailRes] = await Promise.allSettled([
@@ -364,12 +335,12 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
           api.get(config.SimulationCatalogDetailAPI, { headers }),
         ]);
 
-        if (scenariosRes.status === "fulfilled") {
+        if (scenariosRes.status === 'fulfilled') {
           const arr = (scenariosRes.value.data?.data ??
             scenariosRes.value.data ??
             []) as Record<string, unknown>[];
           for (const item of arr) {
-            const t = String(item.title ?? item.name ?? "")
+            const t = String(item.title ?? item.name ?? '')
               .trim()
               .toLowerCase();
             const img = extractImg(item);
@@ -377,19 +348,19 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
           }
         }
 
-        if (detailRes.status === "fulfilled") {
+        if (detailRes.status === 'fulfilled') {
           const rawAll = detailRes.value.data?.data ?? detailRes.value.data;
           const addItem = (item: Record<string, unknown>, unitImg?: string) => {
-            const t = String(item.title ?? item.name ?? "")
+            const t = String(item.title ?? item.name ?? '')
               .trim()
               .toLowerCase();
-            const img = extractImg(item) || unitImg || "";
+            const img = extractImg(item) || unitImg || '';
             if (t && img && !titleToImage.has(t)) titleToImage.set(t, img);
           };
           if (Array.isArray(rawAll)) {
             for (const entry of rawAll as Record<string, unknown>[]) {
               const unitImg = String(
-                entry.imageUrl ?? entry.image_url ?? entry.image ?? "",
+                entry.imageUrl ?? entry.image_url ?? entry.image ?? ''
               );
               const nested = Array.isArray(entry.scenarios)
                 ? (entry.scenarios as Record<string, unknown>[])
@@ -408,170 +379,64 @@ export const fetchMyLibrarySimulations = createAsyncThunk<
 
       flat = flat.map((sim) => {
         if (sim.image) return sim;
-        const img = titleToImage.get(sim.title.trim().toLowerCase()) ?? "";
+        const img = titleToImage.get(sim.title.trim().toLowerCase()) ?? '';
         return img ? { ...sim, image: img } : sim;
       });
     }
 
-    return { status: "SUCCESS", message: "", data: flat };
+    return { status: 'SUCCESS', message: '', data: flat };
   } catch (err: unknown) {
     const error = err as {
       response?: { status: number; data?: { message?: string } };
     };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || "Failed to fetch library",
+      message: error.response?.data?.message || 'Failed to fetch library',
     });
   }
 });
 
 const SimulationLibrarySlice = createSlice({
-  name: "dashboard/simulationLibrary",
+  name: 'dashboard/simulationLibrary',
   initialState,
+  // Filtering, search, sort and view mode live on the page (URL + local
+  // state); this slice only holds the server response.
   reducers: {
-    setActiveFilter(state, action: PayloadAction<FilterType>) {
-      state.activeFilter = action.payload;
-    },
     clearSimulationLibraryState(state) {
       state.responseSimulationLibrary = null;
+      state.hasImages = false;
       state.status = IDLE;
       state.error = null;
-      state.panelFilteredSimulations = null;
-      state.appliedFilters = {
-        product: "",
-        topic: "",
-        unit: "",
-        learnerLevel: "",
-        difficulty: "",
-        duration: "",
-      };
-    },
-
-    applyPanelFilter(state, action: PayloadAction<FilterValues>) {
-      const { product, topic, unit, learnerLevel, difficulty, duration } =
-        action.payload;
-      const allSimulations = state.responseSimulationLibrary?.data ?? [];
-
-      const normalize = (v: string) => v.trim().toLowerCase();
-
-      const hasFilter =
-        product || topic || unit || learnerLevel || difficulty || duration;
-      if (!hasFilter) {
-        state.panelFilteredSimulations = null;
-        state.appliedFilters = {
-          product: "",
-          topic: "",
-          unit: "",
-          learnerLevel: "",
-          difficulty: "",
-          duration: "",
-        };
-        return;
-      }
-
-      // Store applied filters
-      state.appliedFilters = action.payload;
-
-      state.panelFilteredSimulations = allSimulations.filter((sim) => {
-        // Product and topic filters removed - category no longer sourced from units
-        const matchUnit = unit ? normalize(sim.unit) === normalize(unit) : true;
-        const matchLearnerLevel = learnerLevel
-          ? normalize(sim.learnerLevel) === normalize(learnerLevel)
-          : true;
-        const matchDifficulty = difficulty
-          ? normalize(sim.difficulty) === normalize(difficulty)
-          : true;
-        const matchDuration = duration
-          ? matchDurationFilter(sim.duration, duration)
-          : true;
-        return (
-          matchUnit &&
-          matchLearnerLevel &&
-          matchDifficulty &&
-          matchDuration
-        );
-      });
-    },
-
-    clearPanelFilter(state) {
-      state.panelFilteredSimulations = null;
-      state.appliedFilters = {
-        product: "",
-        topic: "",
-        unit: "",
-        learnerLevel: "",
-        difficulty: "",
-        duration: "",
-      };
-    },
-
-    removeFilter(state, action: PayloadAction<keyof FilterValues>) {
-      const filterKey = action.payload;
-      
-      // Update applied filters
-      state.appliedFilters = {
-        ...state.appliedFilters,
-        [filterKey]: "",
-      };
-
-      // Reapply filters with the updated values
-      const { product, topic, unit, learnerLevel, difficulty, duration } = state.appliedFilters;
-      const allSimulations = state.responseSimulationLibrary?.data ?? [];
-      const normalize = (v: string) => v.trim().toLowerCase();
-
-      const hasFilter =
-        product || topic || unit || learnerLevel || difficulty || duration;
-      
-      if (!hasFilter) {
-        state.panelFilteredSimulations = null;
-        return;
-      }
-
-      state.panelFilteredSimulations = allSimulations.filter((sim) => {
-        const matchUnit = unit ? normalize(sim.unit) === normalize(unit) : true;
-        const matchLearnerLevel = learnerLevel
-          ? normalize(sim.learnerLevel) === normalize(learnerLevel)
-          : true;
-        const matchDifficulty = difficulty
-          ? normalize(sim.difficulty) === normalize(difficulty)
-          : true;
-        const matchDuration = duration
-          ? matchDurationFilter(sim.duration, duration)
-          : true;
-        return (
-          matchUnit &&
-          matchLearnerLevel &&
-          matchDifficulty &&
-          matchDuration
-        );
-      });
+      state.requestId = undefined;
     },
   },
 
   extraReducers: (builder) => {
-    builder.addCase(fetchMyLibrarySimulations.pending, (state) => {
+    builder.addCase(fetchMyLibrarySimulations.pending, (state, action) => {
       state.status = LOADING;
       state.error = null;
+      state.requestId = action.meta.requestId;
     });
+    // Only the latest load's answer counts: one started before the library
+    // was cleared (a change, or a logout) holds data that no longer applies.
     builder.addCase(fetchMyLibrarySimulations.fulfilled, (state, action) => {
+      if (action.meta.requestId !== state.requestId) return;
+      state.requestId = undefined;
       state.status = SUCCEEDED;
       state.responseSimulationLibrary = action.payload;
+      state.hasImages = !action.meta.arg?.skipImages;
     });
     builder.addCase(fetchMyLibrarySimulations.rejected, (state, action) => {
+      if (action.meta.requestId !== state.requestId) return;
+      state.requestId = undefined;
       state.status = FAILED;
       state.error =
         (action.payload as { message?: string })?.message ||
-        "Failed to fetch library";
+        'Failed to fetch library';
     });
   },
 });
 
-export const {
-  setActiveFilter,
-  clearSimulationLibraryState,
-  applyPanelFilter,
-  clearPanelFilter,
-  removeFilter,
-} = SimulationLibrarySlice.actions;
+export const { clearSimulationLibraryState } = SimulationLibrarySlice.actions;
 
 export default SimulationLibrarySlice.reducer;
 
@@ -579,50 +444,25 @@ const selectState = (state: RootState) => state.SimulationLibrary;
 
 export const selectSimulationLibraryData = createSelector(
   selectState,
-  (state) => state.responseSimulationLibrary?.data ?? [],
+  (state) => state.responseSimulationLibrary?.data ?? []
+);
+
+export const selectSimulationLibraryHasImages = createSelector(
+  selectState,
+  (state) => state.hasImages
 );
 
 export const selectSimulationLoading = createSelector(
   selectState,
-  (state) => state.status === LOADING,
+  (state) => state.status === LOADING
 );
 
 export const selectSimulationError = createSelector(
   selectState,
-  (state) => state.error,
+  (state) => state.error
 );
 
-export const selectViewMode = createSelector(
+export const selectSimulationLibraryStatus = createSelector(
   selectState,
-  (state) => state.viewMode,
-);
-
-export const selectActiveFilter = createSelector(
-  selectState,
-  (state) => state.activeFilter,
-);
-
-export const selectAppliedFilters = createSelector(
-  selectState,
-  (state) => state.appliedFilters,
-);
-
-export const selectFilteredSimulations = createSelector(
-  [
-    selectSimulationLibraryData,
-    selectActiveFilter,
-    (state: RootState) => state.SimulationLibrary.panelFilteredSimulations,
-  ],
-  (simulations, filter, panelFiltered) => {
-    if (panelFiltered !== null) return panelFiltered;
-    if (!simulations) return [];
-    switch (filter) {
-      case "Recently Used":
-        return simulations.slice(0, 5);
-      case "Recently Added":
-        return [...simulations].reverse();
-      default:
-        return simulations;
-    }
-  },
+  (state) => state.status
 );

@@ -46,17 +46,29 @@ jobs:
       result:   ${{ steps.scan.outputs.result }}
       findings: ${{ steps.scan.outputs.findings }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
+      # Version-pinned so the cache key is stable — bump the version string
+      # in both steps below to upgrade.
+      - name: Cache Gitleaks binary
+        id: cache-gitleaks
+        uses: actions/cache@v6
+        with:
+          path: /usr/local/bin/gitleaks
+          key: gitleaks-${{ runner.os }}-8.30.1
+
       - name: Install Gitleaks
+        if: steps.cache-gitleaks.outputs.cache-hit != 'true'
         run: |
           curl -sSfL \
             "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz" \
             | tar -xz gitleaks
           sudo mv gitleaks /usr/local/bin/gitleaks
-          gitleaks version
+
+      - name: Verify Gitleaks
+        run: gitleaks version
 
       - name: Detect secrets (PR diff)
         id: scan
@@ -93,7 +105,7 @@ jobs:
 
       - name: Upload Gitleaks results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gitleaks-results-${{ github.run_id }}
           path: gitleaks-results.json
@@ -109,13 +121,29 @@ jobs:
       critical: ${{ steps.scan.outputs.critical }}
       high:     ${{ steps.scan.outputs.high }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      # Pinned (was unpinned "latest", which floats and can't be cached
+      # meaningfully) so the cache key below stays valid across runs.
+      # aquasecurity prunes GitHub Releases for old tags (v0.58.1 was
+      # removed), so this pin must track a tag that still has release assets
+      # — same fix already applied in the sibling Educator-App-Realityworks
+      # and HS-online-AI-app copies of this PR.
+      - name: Cache Trivy binary
+        id: cache-trivy
+        uses: actions/cache@v6
+        with:
+          path: /usr/local/bin/trivy
+          key: trivy-${{ runner.os }}-0.74.0
 
       - name: Install Trivy
+        if: steps.cache-trivy.outputs.cache-hit != 'true'
         run: |
           curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin
-          trivy --version
+            | sh -s -- -b /usr/local/bin v0.74.0
+
+      - name: Verify Trivy
+        run: trivy --version
 
       - name: Run Trivy filesystem scan
         id: scan
@@ -165,7 +193,7 @@ jobs:
 
       - name: Upload Trivy results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-results-${{ github.run_id }}
           path: trivy-results.json
@@ -190,7 +218,7 @@ jobs:
       result:   ${{ steps.gate.outputs.result }}
       findings: ${{ steps.gate.outputs.findings }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -244,10 +272,28 @@ jobs:
       result:   ${{ steps.scan.outputs.result }}
       findings: ${{ steps.scan.outputs.findings }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+
+      # Version-pinned (was unpinned "latest") so pipx's venv is cacheable —
+      # bump the version string in both steps below to upgrade. Cache both
+      # the venv AND its ~/.local/bin shim — pipx's install skip below only
+      # works if the `semgrep` binary GitHub_PATH resolves to is restored
+      # too, not just the venv directory.
+      - name: Cache Semgrep pipx install
+        id: cache-semgrep
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.local/pipx/venvs/semgrep
+            ~/.local/bin/semgrep
+          key: semgrep-${{ runner.os }}-1.99.0
+
+      - name: Ensure pipx bin dir is on PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install Semgrep
-        run: pipx install semgrep
+        if: steps.cache-semgrep.outputs.cache-hit != 'true'
+        run: pipx install semgrep==1.99.0
 
       - name: Run Semgrep
         id: scan
@@ -292,7 +338,7 @@ jobs:
 
       - name: Upload Semgrep results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: semgrep-results-${{ github.run_id }}
           path: semgrep-results.json
@@ -312,7 +358,7 @@ jobs:
       # Needed so ./.github/actions/pr-sticky-comment (a local composite
       # action) resolves.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build comment body
         id: body
@@ -422,7 +468,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Post Teams Adaptive Card
         uses: ./.github/actions/teams-notify

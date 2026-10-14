@@ -3,12 +3,13 @@ import {
   createSelector,
   createSlice,
   type PayloadAction,
-} from "@reduxjs/toolkit";
-import type { Class } from "../../types/Class_types";
-import type { RootState } from "../../store";
-import { FAILED, IDLE, LOADING, SUCCEEDED } from "../../utils/constants";
-import config from "../config";
-import api from "../api";
+} from '@reduxjs/toolkit';
+import type { Class } from '../../types/Class_types';
+import type { RootState } from '../../store';
+import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
+import config from '../config';
+import api from '../api';
+import { classesApi } from '../api/classes/classesApi';
 
 export interface ResponseClass {
   data: {
@@ -21,7 +22,7 @@ export interface ResponseClass {
 
 export interface ClassState {
   responseClass: ResponseClass | null;
-  status: "idle" | "loading" | "succeeded" | "failed";
+  status: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
   reportCountsById: Record<string, number>;
   needsAttentionById: Record<string, boolean>;
@@ -63,8 +64,8 @@ type ClassLike = Class & {
 };
 
 function toNumber(value: unknown): number {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  if (typeof value === "string") {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -72,18 +73,19 @@ function toNumber(value: unknown): number {
 }
 
 function toStringOrEmpty(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (typeof value === "number") return String(value);
-  return "";
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  return '';
 }
 
 export const FetchClassesRequest = createAsyncThunk<
   ResponseClass,
   { silent?: boolean } | void,
   { rejectValue: { message: string }; state: RootState }
->("/classes", async (_, thunkAPI) => {
+>('/classes', async (_, thunkAPI) => {
+  const isRefetch = thunkAPI.getState().GetClass.responseClass !== null;
   try {
-    const res = await api.get(config.ClassUserAPI,{
+    const res = await api.get(config.ClassUserAPI, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
       },
@@ -116,12 +118,20 @@ export const FetchClassesRequest = createAsyncThunk<
 
       return {
         ...cls,
-        school_name: (cls as unknown as Record<string, Record<string, string>>).school?.school_name ?? (cls as unknown as Record<string, string>).school_name,
+        school_name:
+          (cls as unknown as Record<string, Record<string, string>>).school
+            ?.school_name ??
+          (cls as unknown as Record<string, string>).school_name,
         reports: knownCount ?? apiCount,
         needsAttention: mergedNeedsAttention,
         unreadReportCount: mergedUnread,
       };
     });
+
+    // A refetch follows a class mutation, so the RTK Query attention counts are stale too.
+    if (isRefetch) {
+      thunkAPI.dispatch(classesApi.util.invalidateTags(['Classes']));
+    }
 
     return {
       ...res.data,
@@ -138,13 +148,13 @@ export const FetchClassesRequest = createAsyncThunk<
       };
     };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || "Class fetch failed",
+      message: error.response?.data?.message || 'Class fetch failed',
     });
   }
 });
 
 const ClassSlice = createSlice({
-  name: "GetClass",
+  name: 'GetClass',
   initialState,
   reducers: {
     resetClassListStatus(state) {
@@ -158,17 +168,21 @@ const ClassSlice = createSlice({
       state.needsAttentionById = {};
       state.unreadCountById = {};
       state.viewedReportIds = [];
-      try { localStorage.removeItem(VIEWED_REPORTS_KEY); } catch { /* ignore */ }
+      try {
+        localStorage.removeItem(VIEWED_REPORTS_KEY);
+      } catch {
+        /* ignore */
+      }
     },
     patchStudentInClass(
       state,
-      action: { payload: { id: string; student_id: string | null } },
+      action: { payload: { id: string; student_id: string | null } }
     ) {
       if (!state.responseClass) return;
       for (const cls of state.responseClass.data.classes) {
         const idx =
           cls.students?.findIndex(
-            (s) => String(s.id) === String(action.payload.id),
+            (s) => String(s.id) === String(action.payload.id)
           ) ?? -1;
         if (idx !== -1 && cls.students) {
           cls.students[idx] = {
@@ -181,14 +195,14 @@ const ClassSlice = createSlice({
     },
     setClassReportCount(
       state,
-      action: PayloadAction<{ classId: string; reports: number }>,
+      action: PayloadAction<{ classId: string; reports: number }>
     ) {
       const count = toNumber(action.payload.reports);
       const id = String(action.payload.classId);
       state.reportCountsById[id] = count;
       if (!state.responseClass) return;
       const target = state.responseClass.data.classes.find(
-        (cls) => String(cls.id) === id,
+        (cls) => String(cls.id) === id
       );
       if (target) {
         target.reportCount = count;
@@ -196,7 +210,11 @@ const ClassSlice = createSlice({
     },
     setClassNeedsAttention(
       state,
-      action: PayloadAction<{ classId: string; needsAttention: boolean; unreadCount?: number }>,
+      action: PayloadAction<{
+        classId: string;
+        needsAttention: boolean;
+        unreadCount?: number;
+      }>
     ) {
       const id = String(action.payload.classId);
       state.needsAttentionById[id] = action.payload.needsAttention;
@@ -204,7 +222,9 @@ const ClassSlice = createSlice({
         state.unreadCountById[id] = action.payload.unreadCount;
       }
       if (!state.responseClass) return;
-      const target = state.responseClass.data.classes.find((cls) => String(cls.id) === id);
+      const target = state.responseClass.data.classes.find(
+        (cls) => String(cls.id) === id
+      );
       if (target) {
         target.needsAttention = action.payload.needsAttention;
         if (action.payload.unreadCount !== undefined) {
@@ -212,10 +232,7 @@ const ClassSlice = createSlice({
         }
       }
     },
-    decrementUnreadCount(
-      state,
-      action: PayloadAction<{ classId: string }>,
-    ) {
+    decrementUnreadCount(state, action: PayloadAction<{ classId: string }>) {
       const id = String(action.payload.classId);
       if (!(id in state.unreadCountById)) return;
       const current = state.unreadCountById[id];
@@ -223,7 +240,9 @@ const ClassSlice = createSlice({
       state.unreadCountById[id] = next;
       state.needsAttentionById[id] = next > 0;
       if (!state.responseClass) return;
-      const target = state.responseClass.data.classes.find((cls) => String(cls.id) === id);
+      const target = state.responseClass.data.classes.find(
+        (cls) => String(cls.id) === id
+      );
       if (target) {
         target.unreadReportCount = next;
         target.needsAttention = next > 0;
@@ -237,7 +256,7 @@ const ClassSlice = createSlice({
     // multiple reports behind one table row).
     markReportViewed(
       state,
-      action: PayloadAction<{ reportId: string | string[]; classId: string }>,
+      action: PayloadAction<{ reportId: string | string[]; classId: string }>
     ) {
       const { reportId, classId } = action.payload;
       const ids = Array.isArray(reportId) ? reportId : [reportId];
@@ -249,8 +268,13 @@ const ClassSlice = createSlice({
       state.viewedReportIds.push(...newIds);
       // Persist so viewed state survives page reloads
       try {
-        localStorage.setItem(VIEWED_REPORTS_KEY, JSON.stringify(state.viewedReportIds));
-      } catch { /* ignore storage errors */ }
+        localStorage.setItem(
+          VIEWED_REPORTS_KEY,
+          JSON.stringify(state.viewedReportIds)
+        );
+      } catch {
+        /* ignore storage errors */
+      }
 
       const id = String(classId);
 
@@ -263,7 +287,7 @@ const ClassSlice = createSlice({
         state.needsAttentionById[id] = next > 0;
         if (state.responseClass) {
           const target = state.responseClass.data.classes.find(
-            (cls) => String(cls.id) === id,
+            (cls) => String(cls.id) === id
           );
           if (target) {
             target.unreadReportCount = next;
@@ -280,43 +304,42 @@ const ClassSlice = createSlice({
         // never set at all, we cannot infer anything safe here, so we do nothing.
       }
     },
-    // Inverse of markReportViewed: mark report(s) as unreviewed (removes them
-    // from the viewed set so they read as NEW again), and bump the unread count.
+    // Reverse of markReportViewed (bulk "mark unreviewed"): forgets the viewed IDs, persists,
+    // and raises the class's unread count so its NEW badges and "Need Attention" come back.
+    // Callers pass only reports that were read, so each one is counted exactly once.
     markReportUnviewed(
       state,
-      action: PayloadAction<{ reportId: string | string[]; classId: string }>,
+      action: PayloadAction<{ reportId: string | string[]; classId: string }>
     ) {
       const { reportId, classId } = action.payload;
-      const ids = Array.isArray(reportId) ? reportId : [reportId];
-      const removeSet = new Set(ids);
-      const before = state.viewedReportIds.length;
+      const ids = new Set(Array.isArray(reportId) ? reportId : [reportId]);
+      if (ids.size === 0) return;
       state.viewedReportIds = state.viewedReportIds.filter(
-        (id) => !removeSet.has(id),
+        (id) => !ids.has(id)
       );
-      const removed = before - state.viewedReportIds.length;
-      if (removed === 0) return;
       try {
         localStorage.setItem(
           VIEWED_REPORTS_KEY,
-          JSON.stringify(state.viewedReportIds),
+          JSON.stringify(state.viewedReportIds)
         );
       } catch {
         /* ignore storage errors */
       }
+
       const id = String(classId);
       if (id in state.unreadCountById) {
-        const next = state.unreadCountById[id] + removed;
+        const next = (state.unreadCountById[id] ?? 0) + ids.size;
         state.unreadCountById[id] = next;
-        state.needsAttentionById[id] = next > 0;
-        if (state.responseClass) {
-          const target = state.responseClass.data.classes.find(
-            (cls) => String(cls.id) === id,
-          );
-          if (target) {
-            target.unreadReportCount = next;
-            target.needsAttention = next > 0;
-          }
+        state.needsAttentionById[id] = true;
+        const target = state.responseClass?.data.classes.find(
+          (cls) => String(cls.id) === id
+        );
+        if (target) {
+          target.unreadReportCount = next;
+          target.needsAttention = true;
         }
+      } else {
+        state.needsAttentionById[id] = true;
       }
     },
     patchClassInStore(
@@ -329,12 +352,20 @@ const ClassSlice = createSlice({
         end_date: string;
         school_id?: string;
         school_name?: string;
-      }>,
+      }>
     ) {
       if (!state.responseClass) return;
-      const { id, class_name, status, start_date, end_date, school_id, school_name } = action.payload;
+      const {
+        id,
+        class_name,
+        status,
+        start_date,
+        end_date,
+        school_id,
+        school_name,
+      } = action.payload;
       const target = state.responseClass.data.classes.find(
-        (cls) => String(cls.id) === String(id),
+        (cls) => String(cls.id) === String(id)
       );
       if (target) {
         target.class_name = class_name;
@@ -359,66 +390,75 @@ const ClassSlice = createSlice({
 
     builder.addCase(FetchClassesRequest.rejected, (state, action) => {
       state.status = FAILED;
-      state.error = action.payload?.message || "Class fetch failed";
+      state.error = action.payload?.message || 'Class fetch failed';
     });
   },
 });
 
-export const { resetClassListStatus, resetClassState, patchStudentInClass, patchClassInStore, setClassReportCount, setClassNeedsAttention, decrementUnreadCount, markReportViewed, markReportUnviewed } =
-  ClassSlice.actions;
+export const {
+  resetClassListStatus,
+  resetClassState,
+  patchStudentInClass,
+  patchClassInStore,
+  setClassReportCount,
+  setClassNeedsAttention,
+  decrementUnreadCount,
+  markReportViewed,
+  markReportUnviewed,
+} = ClassSlice.actions;
 
 const selectState = (state: RootState) => state.GetClass;
 
 export const selectClassResponse = createSelector(
   selectState,
-  (state) => state.responseClass,
+  (state) => state.responseClass
 );
 
 export const selectClassStatus = createSelector(
   selectState,
-  (state) => state.status,
+  (state) => state.status
 );
 
 export const selectClassError = createSelector(
   selectState,
-  (state) => state.error,
+  (state) => state.error
 );
 
 const selectClassListState = (state: RootState) => state.GetClass;
 
 export const selectClasses = createSelector(
   selectClassListState,
-  (s) => s?.responseClass?.data.classes,
+  (s) => s?.responseClass?.data.classes
 );
 
 export const selectClassListLoading = createSelector(
   selectClassListState,
-  (s) => s?.status === LOADING,
+  (s) => s?.status === LOADING
 );
 
 export const selectClassListError = createSelector(
   selectClassListState,
-  (s) => s?.error,
+  (s) => s?.error
 );
 
 export const selectReportCountsById = createSelector(
   selectState,
-  (s) => s.reportCountsById,
+  (s) => s.reportCountsById
 );
 
 export const selectNeedsAttentionById = createSelector(
   selectState,
-  (s) => s.needsAttentionById,
+  (s) => s.needsAttentionById
 );
 
 export const selectUnreadCountById = createSelector(
   selectState,
-  (s) => s.unreadCountById,
+  (s) => s.unreadCountById
 );
 
 export const selectViewedReportIds = createSelector(
   selectState,
-  (s) => s.viewedReportIds,
+  (s) => s.viewedReportIds
 );
 
 /**
@@ -436,7 +476,7 @@ export const selectAllStudentCodes = createSelector(
       }
     }
     return codes;
-  },
+  }
 );
 
 /**
@@ -449,11 +489,15 @@ export const selectAllStudentCodes = createSelector(
  *  4. If isNew is absent (backend hasn't shipped the field yet), treat any
  *     unviewed report as new so badges work out-of-the-box today.
  */
-export function isReportNew(reportId: string, isNew: boolean | undefined, viewedIds: string[]): boolean {
-  if (isNew === false) return false;          // backend says explicitly: not new
+export function isReportNew(
+  reportId: string,
+  isNew: boolean | undefined,
+  viewedIds: string[]
+): boolean {
+  if (isNew === false) return false; // backend says explicitly: not new
   if (viewedIds.includes(reportId)) return false; // educator already opened it
-  if (isNew === true) return true;            // backend says explicitly: new
-  return true;                               // isNew absent → assume new until viewed
+  if (isNew === true) return true; // backend says explicitly: new
+  return true; // isNew absent → assume new until viewed
 }
 
 export const selectNewReportsByUserId = createSelector(
@@ -468,7 +512,7 @@ export const selectNewReportsByUserId = createSelector(
       }
     }
     return map;
-  },
+  }
 );
 
 /**
@@ -504,7 +548,7 @@ export const selectNeedAttentionByClassId = createSelector(
       unreadByClass[classId] = (unreadByClass[classId] ?? 0) + 1;
     }
     return unreadByClass;
-  },
+  }
 );
 
 /**
@@ -513,7 +557,7 @@ export const selectNeedAttentionByClassId = createSelector(
  */
 export const selectNeedAttentionCount = createSelector(
   selectNeedAttentionByClassId,
-  (byClass): number => Object.keys(byClass).length,
+  (byClass): number => Object.keys(byClass).length
 );
 
 export const FetchNeedAttentionClasses = createAsyncThunk<
@@ -521,7 +565,6 @@ export const FetchNeedAttentionClasses = createAsyncThunk<
   void,
   { rejectValue: { message: string }; state: RootState }
 >('/classes/needAttention', async (_, thunkAPI) => {
-
   try {
     const res = await api.get(config.ClassesNeedingAttentionAPI);
 
@@ -537,15 +580,17 @@ export const FetchNeedAttentionClasses = createAsyncThunk<
         entries = r['data'] as AttentionEntry[];
       } else if (r['data'] && typeof r['data'] === 'object') {
         const d = r['data'] as Record<string, unknown>;
-        if (Array.isArray(d['classes'])) entries = d['classes'] as AttentionEntry[];
-        else if (Array.isArray(d['data'])) entries = d['data'] as AttentionEntry[];
+        if (Array.isArray(d['classes']))
+          entries = d['classes'] as AttentionEntry[];
+        else if (Array.isArray(d['data']))
+          entries = d['data'] as AttentionEntry[];
       }
     }
 
     if (entries.length > 0) {
       for (const entry of entries) {
         const id = String(
-          entry['classId'] ?? entry['class_id'] ?? entry['id'] ?? '',
+          entry['classId'] ?? entry['class_id'] ?? entry['id'] ?? ''
         );
         if (!id) continue;
 
@@ -554,15 +599,16 @@ export const FetchNeedAttentionClasses = createAsyncThunk<
             entry['unread_count'] ??
             entry['unreadReportCount'] ??
             entry['unread_report_count'] ??
-            0,
+            0
         );
         const needsAttention =
-          typeof (entry['needsAttention'] ?? entry['needs_attention']) === 'boolean'
+          typeof (entry['needsAttention'] ?? entry['needs_attention']) ===
+          'boolean'
             ? Boolean(entry['needsAttention'] ?? entry['needs_attention'])
             : unreadCount > 0;
 
         thunkAPI.dispatch(
-          setClassNeedsAttention({ classId: id, needsAttention, unreadCount }),
+          setClassNeedsAttention({ classId: id, needsAttention, unreadCount })
         );
       }
       return;
@@ -590,7 +636,7 @@ export const FetchNeedAttentionClasses = createAsyncThunk<
           classId: id,
           needsAttention: unreadCount > 0,
           unreadCount,
-        }),
+        })
       );
     } else {
       // No unread count computed yet — derive from cls.unreadReportCount
@@ -604,7 +650,7 @@ export const FetchNeedAttentionClasses = createAsyncThunk<
           classId: id,
           needsAttention: apiUnread > 0 || cls.needsAttention === true,
           unreadCount: apiUnread,
-        }),
+        })
       );
     }
   }

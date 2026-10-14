@@ -1,42 +1,28 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Educator } from '../educators/entity/educator.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { EDUCATOR_REPOSITORY } from 'src/database/tokens';
+import { EducatorRepository } from 'src/database/repositories';
+import { LoggerService } from 'src/common/services';
 
 @Injectable()
 export class EducatorSessionService {
-  private readonly logger = new Logger(EducatorSessionService.name);
-
   private readonly invalidationCache = new Map<string, number>();
 
   constructor(
-    @InjectRepository(Educator)
-    private readonly educatorRepo: Repository<Educator>,
+    @Inject(EDUCATOR_REPOSITORY)
+    private readonly educatorRepo: EducatorRepository,
+    private readonly logger: LoggerService,
   ) {}
 
   async invalidateBySchool(schoolId: string): Promise<string[]> {
     const now = new Date();
 
-    const rows = await this.educatorRepo
-      .createQueryBuilder('e')
-      .innerJoin('educator_schools', 'es', 'es.educator_id = e.id')
-      .where('es.school_id = :schoolId', { schoolId })
-      .andWhere('e.is_active = true')
-      .select('e.id', 'id')
-      .getRawMany<{ id: string }>();
-
-    const ids = rows.map((r) => r.id).filter(Boolean);
+    const ids = await this.educatorRepo.findActiveIdsBySchool(schoolId);
     if (ids.length === 0) {
       this.logger.log(`[invalidateBySchool] No active educators found for school ${schoolId}`);
       return [];
     }
 
-    await this.educatorRepo
-      .createQueryBuilder()
-      .update(Educator)
-      .set({ token_invalidated_at: now })
-      .whereInIds(ids)
-      .execute();
+    await this.educatorRepo.updateTokenInvalidatedAt(ids, now);
 
     const nowMs = now.getTime();
     for (const id of ids) {

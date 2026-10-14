@@ -1,11 +1,32 @@
-import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
+// Initializes the real i18next singleton (side effect on import) so
+// useTranslation() inside ClassRowActions resolves real strings even
+// without wrapping in an I18nextProvider.
+import '../../../src/i18n';
 import ClassRowActions from '../../../src/components/class/Classrowactions';
 import type { ClassWithStudents } from '../../../src/types/Class_types';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
+
+const review = vi.fn();
+vi.mock('../../../src/hooks/useBulkReportReview', () => ({
+  useBulkReportReview: () => ({ review, isReviewing: false }),
+}));
+
+const exportStudentCodes = vi.fn();
+const printStudentCodes = vi.fn();
+const cancelExport = vi.fn();
+let isExporting = false;
+vi.mock('../../../src/hooks/useStudentCodesExport', () => ({
+  useStudentCodesExport: () => ({
+    exportStudentCodes,
+    printStudentCodes,
+    cancelExport,
+    isExporting,
+  }),
+}));
 
 // Provide a Redux store context so useAppSelector inside ClassRowActions works
 vi.mock('../../../src/store/hooks', () => ({
@@ -56,8 +77,18 @@ const mockRow: ClassWithStudents = {
   start_date: '2026-01-01T00:00:00',
   end_date: '2026-12-31T00:00:00',
   students: [
-    { student_id: 's1', student_name: 'Alice', email: 'alice@example.com', score: null },
-    { student_id: 's2', student_name: 'Bob', email: 'bob@example.com', score: null },
+    {
+      student_id: 's1',
+      student_name: 'Alice',
+      email: 'alice@example.com',
+      score: null,
+    },
+    {
+      student_id: 's2',
+      student_name: 'Bob',
+      email: 'bob@example.com',
+      score: null,
+    },
   ],
 };
 
@@ -70,7 +101,6 @@ const defaultProps = {
   onEdit: vi.fn(),
   onDelete: vi.fn(),
   onStatusChange: vi.fn(),
-  onPrint: vi.fn(),
   onAIInsights: vi.fn(),
 };
 
@@ -80,7 +110,7 @@ const renderWithMenu = (overrides: Record<string, unknown> = {}) =>
       {...defaultProps}
       openMenuId="class-1" // menu open
       {...overrides}
-    />,
+    />
   );
 
 const renderClosed = (overrides: Record<string, unknown> = {}) =>
@@ -89,7 +119,10 @@ const renderClosed = (overrides: Record<string, unknown> = {}) =>
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe('ClassRowActions', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isExporting = false;
+  });
 
   // ── Three-dot button ────────────────────────────────────────────────────────
 
@@ -107,8 +140,7 @@ describe('ClassRowActions', () => {
 
     it('calls onMenuToggle with null when menu is already open', () => {
       renderWithMenu();
-      // first button in DOM is the three-dot toggle
-      fireEvent.click(screen.getAllByRole('button')[0]);
+      fireEvent.click(screen.getByRole('button', { name: 'Class actions' }));
       expect(defaultProps.onMenuToggle).toHaveBeenCalledWith(null);
     });
 
@@ -126,20 +158,87 @@ describe('ClassRowActions', () => {
       expect(screen.getByText('Edit Class Details')).toBeInTheDocument();
       expect(screen.getByText('Email Student Code')).toBeInTheDocument();
       expect(screen.getByText('Print Student Code')).toBeInTheDocument();
-      expect(screen.getByText('View Report')).toBeInTheDocument();
-      expect(screen.getByText('Export Report')).toBeInTheDocument();
+      expect(
+        screen.getByText('View Reports / Transcripts')
+      ).toBeInTheDocument();
+      expect(screen.getByText('Export Reports')).toBeInTheDocument();
       expect(screen.getByText('Class Status')).toBeInTheDocument();
-      expect(screen.getByText('Delete')).toBeInTheDocument();
+      expect(screen.getByText('Delete Class')).toBeInTheDocument();
     });
 
-    it('"View Report" button is enabled', () => {
+    it('lists the actions in the design order', () => {
       renderWithMenu();
-      expect(screen.getByRole('button', { name: 'View Report' })).not.toBeDisabled();
+      const labels = screen
+        .getAllByRole('button')
+        .map((b) => b.textContent?.replace('◂', '').trim())
+        .filter(Boolean);
+      expect(labels.slice(labels.indexOf('Edit Class Details'))).toEqual([
+        'Edit Class Details',
+        'Email Student Code',
+        'Export Student Codes (CSV)',
+        'Print Student Code',
+        'View Reports / Transcripts',
+        'Export Reports',
+        'Export Transcripts',
+        'Mark All Reports Reviewed',
+        'Mark All Reports Unreviewed',
+        'Class Status',
+        'Delete Class',
+      ]);
     });
 
-    it('"Export Report" button is enabled', () => {
+    it.each([
+      ['Mark All Reports Reviewed', true],
+      ['Mark All Reports Unreviewed', false],
+    ])('"%s" bulk-reviews the whole class', (label, reviewed) => {
+      review.mockClear();
       renderWithMenu();
-      expect(screen.getByRole('button', { name: 'Export Report' })).not.toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: label }));
+      expect(review).toHaveBeenCalledWith({
+        type: 'class',
+        ids: ['class-1'],
+        reviewed,
+        classId: 'class-1',
+      });
+      expect(defaultProps.onMenuToggle).toHaveBeenCalledWith(null);
+    });
+
+    it('exports the student codes as CSV from the BE and closes the menu', () => {
+      renderWithMenu();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Export Student Codes (CSV)' })
+      );
+      expect(exportStudentCodes).toHaveBeenCalledWith({
+        classId: 'class-1',
+        className: 'Math 101',
+        format: 'csv',
+      });
+      expect(defaultProps.onMenuToggle).toHaveBeenCalledWith(null);
+    });
+
+    it('disables both student code actions while an export is running', () => {
+      isExporting = true;
+      renderWithMenu();
+      expect(
+        screen.getByRole('button', { name: 'Export Student Codes (CSV)' })
+      ).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: 'Print Student Code' })
+      ).toBeDisabled();
+    });
+
+    it('"View Reports / Transcripts" button is enabled', () => {
+      renderWithMenu();
+      expect(
+        screen.getByRole('button', { name: 'View Reports / Transcripts' })
+      ).not.toBeDisabled();
+    });
+
+    it('"Export Reports" button is enabled', () => {
+      renderWithMenu();
+      expect(
+        screen.getByRole('button', { name: 'Export Reports' })
+      ).not.toBeDisabled();
     });
   });
 
@@ -159,7 +258,7 @@ describe('ClassRowActions', () => {
   describe('Delete', () => {
     it('calls onDelete with row and closes menu', () => {
       renderWithMenu();
-      fireEvent.click(screen.getByText('Delete'));
+      fireEvent.click(screen.getByText('Delete Class'));
       expect(defaultProps.onDelete).toHaveBeenCalledWith(mockRow);
       expect(defaultProps.onMenuToggle).toHaveBeenCalledWith(null);
     });
@@ -168,59 +267,126 @@ describe('ClassRowActions', () => {
   // ── Print ───────────────────────────────────────────────────────────────────
 
   describe('Print Student Code', () => {
-    it('calls onPrint with row and closes menu', () => {
+    it('opens the print modal and closes the menu without fetching', () => {
       renderWithMenu();
       fireEvent.click(screen.getByText('Print Student Code'));
-      expect(defaultProps.onPrint).toHaveBeenCalledWith(mockRow);
       expect(defaultProps.onMenuToggle).toHaveBeenCalledWith(null);
+      expect(screen.getByText('All Students Code')).toBeInTheDocument();
+      expect(printStudentCodes).not.toHaveBeenCalled();
+      expect(exportStudentCodes).not.toHaveBeenCalled();
+    });
+
+    it('prints the class codes from the modal and keeps it open, as before', async () => {
+      printStudentCodes.mockResolvedValueOnce(true);
+      renderWithMenu();
+      fireEvent.click(screen.getByText('Print Student Code'));
+      fireEvent.click(screen.getByRole('button', { name: 'Print' }));
+
+      expect(printStudentCodes).toHaveBeenCalledWith({
+        classId: 'class-1',
+        className: 'Math 101',
+      });
+      await waitFor(() => expect(printStudentCodes).toHaveBeenCalledTimes(1));
+      expect(screen.getByText('All Students Code')).toBeInTheDocument();
+      expect(exportStudentCodes).not.toHaveBeenCalled();
+    });
+
+    it('closes the modal on Back without printing', () => {
+      renderWithMenu();
+      fireEvent.click(screen.getByText('Print Student Code'));
+      fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+      expect(screen.queryByText('All Students Code')).not.toBeInTheDocument();
+      expect(printStudentCodes).not.toHaveBeenCalled();
+    });
+
+    it('cancels a print that is still loading when the modal is closed', () => {
+      printStudentCodes.mockReturnValueOnce(new Promise(() => {}));
+      renderWithMenu();
+      fireEvent.click(screen.getByText('Print Student Code'));
+      fireEvent.click(screen.getByRole('button', { name: 'Print' }));
+      expect(printStudentCodes).toHaveBeenCalledTimes(1);
+
+      fireEvent.keyDown(document, { key: 'Escape' });
+
+      expect(cancelExport).toHaveBeenCalledTimes(1);
+      expect(screen.queryByText('All Students Code')).not.toBeInTheDocument();
+    });
+
+    it('stays disabled for an inactive class, while CSV export still works', () => {
+      renderWithMenu({ row: { ...mockRow, status: 'INACTIVE' } });
+      const print = screen.getByRole('button', { name: 'Print Student Code' });
+      expect(print).toBeDisabled();
+      fireEvent.click(print);
+      expect(screen.queryByText('All Students Code')).not.toBeInTheDocument();
+      expect(printStudentCodes).not.toHaveBeenCalled();
+      expect(exportStudentCodes).not.toHaveBeenCalled();
+
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Export Student Codes (CSV)' })
+      );
+      expect(exportStudentCodes).toHaveBeenCalledWith(
+        expect.objectContaining({ format: 'csv' })
+      );
     });
   });
 
   // ── Class Status submenu ────────────────────────────────────────────────────
 
   describe('Class Status submenu', () => {
-    const renderWithStatusSubmenu = (overrides: Record<string, unknown> = {}) => {
+    const renderWithStatusSubmenu = (
+      overrides: Record<string, unknown> = {}
+    ) => {
       renderWithMenu(overrides);
       fireEvent.mouseEnter(screen.getByText('Class Status'));
     };
 
-    it('renders all three status options', () => {
+    it('renders only the Active, Inactive and Archived status options', () => {
       renderWithStatusSubmenu();
       expect(screen.getByText('Active')).toBeInTheDocument();
-      expect(screen.getByText('Draft')).toBeInTheDocument();
+      expect(screen.getByText('Inactive')).toBeInTheDocument();
       expect(screen.getByText('Archived')).toBeInTheDocument();
+      expect(screen.queryByText('Draft')).not.toBeInTheDocument();
     });
 
     it('calls onStatusChange with correct value when Active is clicked', () => {
       renderWithStatusSubmenu();
       fireEvent.click(screen.getByText('Active'));
-      expect(defaultProps.onStatusChange).toHaveBeenCalledWith(mockRow, 'ACTIVE');
+      expect(defaultProps.onStatusChange).toHaveBeenCalledWith(
+        mockRow,
+        'ACTIVE'
+      );
       expect(defaultProps.onStatusToggle).toHaveBeenCalledWith(null);
       expect(defaultProps.onMenuToggle).toHaveBeenCalledWith(null);
     });
 
-    it('calls onStatusChange with DRAFT', () => {
+    it('calls onStatusChange with INACTIVE', () => {
       renderWithStatusSubmenu();
-      fireEvent.click(screen.getByText('Draft'));
-      expect(defaultProps.onStatusChange).toHaveBeenCalledWith(mockRow, 'DRAFT');
+      fireEvent.click(screen.getByText('Inactive'));
+      expect(defaultProps.onStatusChange).toHaveBeenCalledWith(
+        mockRow,
+        'INACTIVE'
+      );
     });
 
     it('calls onStatusChange with ARCHIVED', () => {
       renderWithStatusSubmenu();
       fireEvent.click(screen.getByText('Archived'));
-      expect(defaultProps.onStatusChange).toHaveBeenCalledWith(mockRow, 'ARCHIEVED');
+      expect(defaultProps.onStatusChange).toHaveBeenCalledWith(
+        mockRow,
+        'ARCHIEVED'
+      );
     });
 
     it('highlights current status with orange text', () => {
       renderWithStatusSubmenu();
       const activeBtn = screen.getByText('Active');
-      expect(activeBtn).toHaveClass('text-orange-500');
+      expect(activeBtn).toHaveClass('text-primary-500');
     });
 
     it('non-current status buttons do not have orange text', () => {
       renderWithStatusSubmenu();
-      expect(screen.getByText('Draft')).not.toHaveClass('text-orange-500');
-      expect(screen.getByText('Archived')).not.toHaveClass('text-orange-500');
+      expect(screen.getByText('Inactive')).not.toHaveClass('text-primary-500');
+      expect(screen.getByText('Archived')).not.toHaveClass('text-primary-500');
     });
   });
 
@@ -230,7 +396,9 @@ describe('ClassRowActions', () => {
     it('opens student code modal when "Email Student Code" is clicked', async () => {
       renderWithMenu();
       fireEvent.click(screen.getByText('Email Student Code'));
-      await waitFor(() => expect(screen.getByTestId('access-code-modal')).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByTestId('access-code-modal')).toBeInTheDocument()
+      );
     });
 
     it('closes student code modal on close callback', async () => {
@@ -239,7 +407,9 @@ describe('ClassRowActions', () => {
       await waitFor(() => screen.getByTestId('access-code-modal'));
       fireEvent.click(screen.getByText('Close Student Code'));
       await waitFor(() =>
-        expect(screen.queryByTestId('access-code-modal')).not.toBeInTheDocument(),
+        expect(
+          screen.queryByTestId('access-code-modal')
+        ).not.toBeInTheDocument()
       );
     });
 
@@ -257,7 +427,9 @@ describe('ClassRowActions', () => {
     // by verifying modal is NOT shown by default
     it('does not show export modal on initial render', () => {
       renderWithMenu();
-      expect(screen.queryByTestId('export-report-modal')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('export-report-modal')
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -289,8 +461,12 @@ describe('ClassRowActions', () => {
     it('shows no modals on initial render', () => {
       renderClosed();
       expect(screen.queryByTestId('access-code-modal')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('email-report-modal')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('export-report-modal')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('email-report-modal')
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('export-report-modal')
+      ).not.toBeInTheDocument();
     });
   });
 });

@@ -1,4 +1,4 @@
-name: "run-test-suite"
+name: 'run-test-suite'
 description: >-
   Aggregated JS test run: Node setup + npm ci + a test command that writes a
   Jest-shaped JSON report, then upload JSON/HTML report artifacts and parse a

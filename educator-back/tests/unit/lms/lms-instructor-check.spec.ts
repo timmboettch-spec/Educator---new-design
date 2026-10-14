@@ -5,8 +5,10 @@ import { ConfigService } from '@nestjs/config';
 import { LmsProvisionService } from '../../../src/lms/services/lms-provision.service';
 import { LmsRosterService } from '../../../src/lms/services/lms-roster.service';
 import { LmsAdapterFactory } from '../../../src/lms/factories/lms-adapter.factory';
-import { LmsSchoolConfig } from '../../../src/lms/entity/lms-school-config.entity';
+
 import { LmsConfigStatus, LmsType } from '../../../src/common/enums/lms.enum';
+import { LmsSchoolConfig } from 'src/database/entities';
+import { LoggerService } from '../../../src/common/services';
 
 describe('LmsProvisionService - Instructor Check', () => {
   let service: LmsProvisionService;
@@ -47,6 +49,17 @@ describe('LmsProvisionService - Instructor Check', () => {
         {
           provide: LmsAdapterFactory,
           useValue: {},
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
         },
       ],
     }).compile();

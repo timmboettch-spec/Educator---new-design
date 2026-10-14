@@ -5,12 +5,16 @@ import {
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable, Logger } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { Notification, NotificationType, RecipientType } from './entity/notification.entity';
+
 import { NotificationsConstants } from './notifications.constants';
+import { Notification, NotificationType, RecipientType } from 'src/database/entities';
+import { LoggerService } from 'src/common/services';
+import { extractAccessTokenForSocket } from 'src/common/utils/token-extractor.util';
+import { AuthService } from 'src/auth/auth.service';
+import { ICurrentUser, IClassesTransferredNotification } from 'src/common/interfaces';
+import { UserTokenType } from 'src/common/constants';
 
 @Injectable()
 @WebSocketGateway({
@@ -23,17 +27,60 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   @WebSocketServer()
   server!: Server;
 
-  private readonly logger = new Logger(NotificationsGateway.name);
-
-  private educatorSockets = new Map<string, Set<string>>();
-  private adminSockets = new Map<string, string>();
-  private studentSockets = new Map<string, string>();
-
   constructor(
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
     private readonly notificationsService: NotificationsService,
-  ) {}
+    private readonly logger: LoggerService,
+    @Inject(forwardRef(() => AuthService))
+    private readonly authService: AuthService,
+  ) { }
+
+  async handleConnection(client: Socket): Promise<void> {
+    try {
+      const token = extractAccessTokenForSocket(client);
+
+      // Same validation the HTTP `AuthGuard` runs: signature/expiry/blacklist plus a
+      // re-check that the account and role are still active.
+      const user = token ? await this.authService.validateUserToken(token) : null;
+      const room = user ? this.resolveRoom(user) : null;
+
+      if (!room) {
+        client.disconnect();
+        return;
+      }
+
+      await client.join(room);
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error(`WebSocket authentication failed — socketId: ${client.id} — ${errMsg}`);
+      client.disconnect();
+    }
+  }
+
+  handleDisconnect(): void {
+    // Socket.IO removes a disconnected socket from every room automatically.
+  }
+
+  /** Maps a validated user to their notification room, or null if they have no valid identity. */
+  private resolveRoom(user: ICurrentUser): string | null {
+    const { ROOMS } = NotificationsConstants;
+
+    switch (user.type) {
+      case UserTokenType.STUDENT: {
+        const studentCode = (user.student_id || user.studentId)?.toString();
+        return studentCode ? ROOMS.STUDENT(studentCode) : null;
+      }
+      case UserTokenType.EDUCATOR:
+        return user.educatorId ? ROOMS.EDUCATOR(user.educatorId) : null;
+      case UserTokenType.ADMIN:
+        return user.userId ? ROOMS.ADMIN(user.userId) : null;
+      default:
+        return null;
+    }
+  }
+
+  private emitToRoom(room: string, eventName: string, payload: Record<string, unknown>): void {
+    this.server.to(room).emit(eventName, payload);
+  }
 
   private buildSocketPayload(notification: Notification): Record<string, unknown> {
     const payload = {
@@ -64,10 +111,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     payload: Record<string, unknown>,
   ): void {
     if (recipientType === RecipientType.ADMIN) {
-      const socketId = this.adminSockets.get(recipientId);
-      if (socketId) {
-        this.server.to(socketId).emit(eventName, payload);
-      }
+      this.emitToRoom(NotificationsConstants.ROOMS.ADMIN(recipientId), eventName, payload);
       return;
     }
     this.emitToEducator(recipientId, eventName, payload);
@@ -78,19 +122,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     eventName: string,
     payload: Record<string, unknown>,
   ): void {
-    const socketIds = this.educatorSockets.get(educatorId);
-    if (!socketIds || socketIds.size === 0) {
-      this.logger.warn(
-        `[RCA][emitToEducator] NO SOCKETS registered for educator=${educatorId} event=${eventName} — event DROPPED`,
-      );
-      return;
-    }
-    this.logger.warn(
-      `[RCA][emitToEducator] educator=${educatorId} event=${eventName} → ${socketIds.size} socket(s): ${JSON.stringify(Array.from(socketIds))}`,
-    );
-    for (const socketId of socketIds) {
-      this.server.to(socketId).emit(eventName, payload);
-    }
+    this.emitToRoom(NotificationsConstants.ROOMS.EDUCATOR(educatorId), eventName, payload);
   }
 
   private async persist(
@@ -110,92 +142,17 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
         recipientType,
         metadata,
       });
+
     } catch (error) {
       this.logger.error(
-        `Failed to persist notification [${type}] for ${recipientId}: ${
-          error instanceof Error ? error.message : String(error)
+        `Failed to persist notification [${type}] for ${recipientId}: ${error instanceof Error ? error.message : String(error)
         }`,
       );
       return null;
     }
   }
 
-  handleConnection(client: Socket): void {
-    try {
-      const studentCode = client.handshake.auth?.studentCode as string | undefined;
-      if (studentCode) {
-        const sanitised = studentCode.trim();
-        if (!sanitised || sanitised.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(sanitised)) {
-          client.disconnect();
-          return;
-        }
-        this.studentSockets.set(sanitised, client.id);
-        this.logger.log(
-          `[handleConnection] Student socket registered — code: ${sanitised} socketId: ${client.id}`,
-        );
-        return;
-      }
 
-      const token =
-        (client.handshake.auth?.token as string) ||
-        (client.handshake.headers?.authorization as string)?.replace('Bearer ', '');
-
-      if (!token) {
-        client.disconnect();
-        return;
-      }
-
-      const secret = this.configService.get<string>('JWT_SECRET');
-      const payload = this.jwtService.verify<{ sub: string; type: string }>(token, {
-        secret,
-      });
-
-      if (payload.type === 'educator') {
-        const educatorId = payload.sub;
-        let set = this.educatorSockets.get(educatorId);
-        if (!set) {
-          set = new Set<string>();
-          this.educatorSockets.set(educatorId, set);
-        }
-        set.add(client.id);
-        this.logger.warn(
-          `[RCA][handleConnection] Educator socket REGISTERED — educator=${educatorId} socketId=${client.id} totalSocketsForEducator=${set.size}`,
-        );
-      } else if (payload.type === 'admin') {
-        const adminId = payload.sub;
-        this.adminSockets.set(adminId, client.id);
-      } else {
-        client.disconnect();
-      }
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      this.logger.error(`WebSocket authentication failed — socketId: ${client.id} — ${errMsg}`);
-      client.disconnect();
-    }
-  }
-
-  handleDisconnect(client: Socket): void {
-    for (const [studentCode, socketId] of this.studentSockets.entries()) {
-      if (socketId === client.id) {
-        this.studentSockets.delete(studentCode);
-        break;
-      }
-    }
-    for (const [educatorId, socketIds] of this.educatorSockets.entries()) {
-      if (socketIds.delete(client.id)) {
-        if (socketIds.size === 0) {
-          this.educatorSockets.delete(educatorId);
-        }
-        break;
-      }
-    }
-    for (const [adminId, socketId] of this.adminSockets.entries()) {
-      if (socketId === client.id) {
-        this.adminSockets.delete(adminId);
-        break;
-      }
-    }
-  }
   async notifyAdminEducatorStatusUpdated(
     adminId: string,
     educatorId: string,
@@ -269,6 +226,29 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     }
   }
 
+  async notifyEducatorTokensAllocated(
+    educatorId: string,
+    allocatedSeats: number,
+  ): Promise<void> {
+    const message = NotificationsConstants.MESSAGES.TOKENS_ALLOCATED(allocatedSeats);
+    const saved = await this.persist(
+      NotificationType.TOKENS_ALLOCATED,
+      NotificationsConstants.TITLES.TOKENS_ALLOCATED,
+      message,
+      educatorId,
+      RecipientType.EDUCATOR,
+      { allocatedSeats },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        NotificationsConstants.EVENTS.TOKENS_ALLOCATED,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
   async notifyAdminEducatorLowSeatWarning(
     adminId: string,
     educatorId: string,
@@ -301,7 +281,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     adminId: string,
     educatorId: string,
     educatorName: string,
-    educatorEmail: string,
+    educatorEmail: string | null,
     requestedSeats: number | null,
     remainingSeats: number,
     note?: string,
@@ -389,62 +369,14 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     }
   }
 
-  async notifySimulationAssigned(
-    educatorId: string,
-    classId: string,
-    className: string,
-    simulationId: string,
-    simulationTitle: string,
-  ): Promise<void> {
-    const message = NotificationsConstants.MESSAGES.SIMULATION_ASSIGNED(className, simulationTitle);
-    const saved = await this.persist(
-      NotificationType.SIMULATION_ASSIGNED,
-      NotificationsConstants.TITLES.SIMULATION_ASSIGNED,
-      message,
-      educatorId,
-      RecipientType.EDUCATOR,
-      { classId, className, simulationId, simulationTitle },
-    );
-    if (saved) {
-      this.emitToRecipient(
-        RecipientType.EDUCATOR,
-        educatorId,
-        NotificationsConstants.EVENTS.SIMULATION_ASSIGNED,
-        this.buildSocketPayload(saved),
-      );
-    }
+  /** @deprecated Simulation Assigned notifications have been removed per spec. */
+  notifySimulationAssigned(): void {
+    /* no-op */
   }
 
-  async notifyAdminSimulationAssigned(
-    adminId: string,
-    educatorId: string,
-    educatorName: string,
-    classId: string,
-    className: string,
-    simulationId: string,
-    simulationTitle: string,
-  ): Promise<void> {
-    const message = NotificationsConstants.MESSAGES.ADMIN_SIMULATION_ASSIGNED(
-      educatorName,
-      className,
-      simulationTitle,
-    );
-    const saved = await this.persist(
-      NotificationType.SIMULATION_ASSIGNED,
-      NotificationsConstants.TITLES.SIMULATION_ASSIGNED,
-      message,
-      adminId,
-      RecipientType.ADMIN,
-      { educatorId, educatorName, classId, className, simulationId, simulationTitle },
-    );
-    if (saved) {
-      this.emitToRecipient(
-        RecipientType.ADMIN,
-        adminId,
-        NotificationsConstants.EVENTS.SIMULATION_ASSIGNED,
-        this.buildSocketPayload(saved),
-      );
-    }
+  /** @deprecated Simulation Assigned notifications have been removed per spec. */
+  notifyAdminSimulationAssigned(): void {
+    /* no-op */
   }
 
   async notifyEducatorStudentReportAvailable(
@@ -453,14 +385,10 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     simulationTitle: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    const message = NotificationsConstants.MESSAGES.STUDENT_REPORT_AVAILABLE(
-      studentName,
-      simulationTitle,
-    );
     const saved = await this.persist(
       NotificationType.STUDENT_REPORT_AVAILABLE,
       NotificationsConstants.TITLES.STUDENT_REPORT_AVAILABLE,
-      message,
+      NotificationsConstants.MESSAGES.STUDENT_REPORT_AVAILABLE(studentName, simulationTitle),
       educatorId,
       RecipientType.EDUCATOR,
       { studentName, simulationTitle, ...(metadata ?? {}) },
@@ -475,20 +403,41 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     }
   }
 
+  async notifyEducatorLmsGradeSyncFailed(
+    educatorId: string,
+    studentName: string,
+    className: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
+    const saved = await this.persist(
+      NotificationType.LMS_GRADE_SYNC_FAILED,
+      NotificationsConstants.TITLES.LMS_GRADE_SYNC_FAILED,
+      NotificationsConstants.MESSAGES.LMS_GRADE_SYNC_FAILED(1, className, studentName),
+      educatorId,
+      RecipientType.EDUCATOR,
+      { studentName, className, ...(metadata ?? {}) },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        NotificationsConstants.EVENTS.LMS_GRADE_SYNC_FAILED,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
+
   async notifyAdminStudentReportAvailable(
     adminId: string,
     studentName: string,
     simulationTitle: string,
     metadata?: Record<string, unknown>,
   ): Promise<void> {
-    const message = NotificationsConstants.MESSAGES.STUDENT_REPORT_AVAILABLE(
-      studentName,
-      simulationTitle,
-    );
     const saved = await this.persist(
       NotificationType.STUDENT_REPORT_AVAILABLE,
       NotificationsConstants.TITLES.STUDENT_REPORT_AVAILABLE,
-      message,
+      NotificationsConstants.MESSAGES.STUDENT_REPORT_AVAILABLE(studentName, simulationTitle),
       adminId,
       RecipientType.ADMIN,
       { studentName, simulationTitle, ...(metadata ?? {}) },
@@ -498,6 +447,118 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
         RecipientType.ADMIN,
         adminId,
         NotificationsConstants.EVENTS.STUDENT_REPORT_AVAILABLE,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
+  async notifyEducatorSimulationStartDateReminder(
+    educatorId: string,
+    simulationId: string,
+    simulationTitle: string,
+    classId: string,
+    className: string,
+    startDate: string,
+  ): Promise<void> {
+    const message = NotificationsConstants.MESSAGES.SIMULATION_START_DATE_REMINDER(
+      simulationTitle,
+      className,
+      startDate,
+    );
+    const saved = await this.persist(
+      NotificationType.SIMULATION_START_DATE_REMINDER,
+      NotificationsConstants.TITLES.SIMULATION_START_DATE_REMINDER,
+      message,
+      educatorId,
+      RecipientType.EDUCATOR,
+      { simulationId, simulationTitle, classId, className, startDate },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        NotificationsConstants.EVENTS.SIMULATION_START_DATE_REMINDER,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
+  async notifyEducatorSimulationEndDateReminder(
+    educatorId: string,
+    simulationId: string,
+    simulationTitle: string,
+    classId: string,
+    className: string,
+    endDate: string,
+  ): Promise<void> {
+    const message = NotificationsConstants.MESSAGES.SIMULATION_END_DATE_REMINDER(
+      simulationTitle,
+      className,
+      endDate,
+    );
+    const saved = await this.persist(
+      NotificationType.SIMULATION_END_DATE_REMINDER,
+      NotificationsConstants.TITLES.SIMULATION_END_DATE_REMINDER,
+      message,
+      educatorId,
+      RecipientType.EDUCATOR,
+      { simulationId, simulationTitle, classId, className, endDate },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        NotificationsConstants.EVENTS.SIMULATION_END_DATE_REMINDER,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
+  async notifyEducatorClassStartDateReminder(
+    educatorId: string,
+    classId: string,
+    className: string,
+    startDate: string,
+  ): Promise<void> {
+    const message = NotificationsConstants.MESSAGES.CLASS_START_DATE_REMINDER(className, startDate);
+    const saved = await this.persist(
+      NotificationType.CLASS_START_DATE_REMINDER,
+      NotificationsConstants.TITLES.CLASS_START_DATE_REMINDER,
+      message,
+      educatorId,
+      RecipientType.EDUCATOR,
+      { classId, className, startDate },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        NotificationsConstants.EVENTS.CLASS_START_DATE_REMINDER,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
+  async notifyEducatorClassEndDateReminder(
+    educatorId: string,
+    classId: string,
+    className: string,
+    endDate: string,
+  ): Promise<void> {
+    const message = NotificationsConstants.MESSAGES.CLASS_END_DATE_REMINDER(className, endDate);
+    const saved = await this.persist(
+      NotificationType.CLASS_END_DATE_REMINDER,
+      NotificationsConstants.TITLES.CLASS_END_DATE_REMINDER,
+      message,
+      educatorId,
+      RecipientType.EDUCATOR,
+      { classId, className, endDate },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        NotificationsConstants.EVENTS.CLASS_END_DATE_REMINDER,
         this.buildSocketPayload(saved),
       );
     }
@@ -562,20 +623,16 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
   }
 
   notifyStudentSimulationsUpdated(studentCode: string, scenarioId: string): void {
-    const socketId = this.studentSockets.get(studentCode);
-    if (socketId) {
-      this.server.to(socketId).emit(NotificationsConstants.EVENTS.STUDENT_SIMULATIONS_UPDATED, {
-        scenarioId,
-        status: 'Assessment completed',
-      });
-      this.logger.log(
-        `[notifyStudentSimulationsUpdated] Emitted to student ${studentCode} for scenario ${scenarioId}`,
-      );
-    }
+    this.emitToRoom(
+      NotificationsConstants.ROOMS.STUDENT(studentCode),
+      NotificationsConstants.EVENTS.STUDENT_SIMULATIONS_UPDATED,
+      { scenarioId, status: 'Assessment completed' },
+    );
   }
 
   async notifyClassTransferSourceEducator(
     sourceEducatorId: string,
+    classId: string,
     className: string,
     targetEducatorName: string,
     transferredAt: string,
@@ -587,12 +644,12 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     );
 
     const saved = await this.persist(
-      NotificationType.GENERAL,
+      NotificationType.CLASS_TRANSFERRED,
       NotificationsConstants.TITLES.CLASS_TRANSFERRED_SOURCE,
       message,
       sourceEducatorId,
       RecipientType.EDUCATOR,
-      { className, targetEducatorName, transferredAt },
+      { classId, className, targetEducatorName, transferredAt },
     );
     if (saved) {
       this.emitToRecipient(
@@ -606,6 +663,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
 
   async notifyClassTransferTargetEducator(
     targetEducatorId: string,
+    classId: string,
     className: string,
     sourceEducatorName: string,
     transferredAt: string,
@@ -616,18 +674,77 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
       transferredAt,
     );
     const saved = await this.persist(
-      NotificationType.GENERAL,
+      NotificationType.CLASS_TRANSFERRED,
       NotificationsConstants.TITLES.CLASS_TRANSFERRED_TARGET,
       message,
       targetEducatorId,
       RecipientType.EDUCATOR,
-      { className, sourceEducatorName, transferredAt },
+      { classId, className, sourceEducatorName, transferredAt },
     );
     if (saved) {
       this.emitToRecipient(
         RecipientType.EDUCATOR,
         targetEducatorId,
         NotificationsConstants.EVENTS.CLASS_TRANSFERRED_TARGET,
+        this.buildSocketPayload(saved),
+      );
+    }
+  }
+
+  /** One summary to the educator a bulk Class Transfer moved classes away from. */
+  async notifyClassesTransferredSource(
+    sourceEducatorId: string,
+    summary: IClassesTransferredNotification,
+  ): Promise<void> {
+    await this.notifyClassesTransferred(
+      sourceEducatorId,
+      NotificationsConstants.TITLES.CLASSES_TRANSFERRED_SOURCE,
+      NotificationsConstants.MESSAGES.CLASSES_TRANSFERRED_SOURCE(
+        summary.classIds.length,
+        summary.otherEducatorName,
+      ),
+      NotificationsConstants.EVENTS.CLASSES_TRANSFERRED_SOURCE,
+      summary,
+    );
+  }
+
+  /** One summary to the educator a bulk Class Transfer moved classes to. */
+  async notifyClassesTransferredTarget(
+    targetEducatorId: string,
+    summary: IClassesTransferredNotification,
+  ): Promise<void> {
+    await this.notifyClassesTransferred(
+      targetEducatorId,
+      NotificationsConstants.TITLES.CLASSES_TRANSFERRED_TARGET,
+      NotificationsConstants.MESSAGES.CLASSES_TRANSFERRED_TARGET(
+        summary.classIds.length,
+        summary.otherEducatorName,
+      ),
+      NotificationsConstants.EVENTS.CLASSES_TRANSFERRED_TARGET,
+      summary,
+    );
+  }
+
+  private async notifyClassesTransferred(
+    educatorId: string,
+    title: string,
+    message: string,
+    eventName: string,
+    summary: IClassesTransferredNotification,
+  ): Promise<void> {
+    const saved = await this.persist(
+      NotificationType.CLASS_TRANSFERRED,
+      title,
+      message,
+      educatorId,
+      RecipientType.EDUCATOR,
+      { ...summary, count: summary.classIds.length },
+    );
+    if (saved) {
+      this.emitToRecipient(
+        RecipientType.EDUCATOR,
+        educatorId,
+        eventName,
         this.buildSocketPayload(saved),
       );
     }

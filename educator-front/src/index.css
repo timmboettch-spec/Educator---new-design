@@ -4,9 +4,6 @@
 @import 'tailwindcss/utilities';
 
 :root {
-  /* Realityworks AI brand orange ramp — anchored on #db8833 (primary-500).
-     Golden tints above, burnt shades below; 600 (#c4692a) matches the burnt end
-     of the brand gradient for accent consistency. */
   --color-primary-50: #fef8f0;
   --color-primary-50-rgb: 254, 248, 240;
   --color-primary-100: #fbf2e8;
@@ -27,23 +24,23 @@
   --color-primary-800-rgb: 124, 65, 27;
   --color-primary-900: #562c12;
   --color-primary-900-rgb: 86, 44, 18;
-  --color-filter: invert(46%) sepia(89%) saturate(640%) hue-rotate(356deg) brightness(101%)
-    contrast(97%);
+  --color-filter: invert(46%) sepia(89%) saturate(640%) hue-rotate(356deg)
+    brightness(101%) contrast(97%);
 }
 
 @layer base {
-  body {
-    @apply m-0 p-0 overflow-x-hidden;
-    /* Realityworks AI brand typography. Neulis Sans is the brand face, Apotos the
-       approved alternate; both are commercial and must be added as @font-face
-       (drop .woff2 files in src/assets/fonts and wire them here) before they
-       render. Until then this gracefully falls back to Montserrat, then system. */
-    font-family: 'Neulis Sans', 'Apotos', 'Montserrat', sans-serif;
+  html,
+  body,
+  #root {
+    @apply m-0 p-0 h-full w-full overflow-hidden;
+    font-family: 'Montserrat', sans-serif;
   }
 }
 
+/* Focus uses a darker brand shade than primary-500 (#db8833, 2.77:1 on white)
+   so the indicator meets WCAG 1.4.11's 3:1 non-text contrast (#b45e20, 4.60:1). */
 * {
-  outline-color: #db8833;
+  outline-color: #b45e20;
 }
 
 *:focus {
@@ -51,7 +48,7 @@
 }
 
 *:focus-visible {
-  outline: 2px solid #db8833;
+  outline: 2px solid #b45e20;
   outline-offset: 2px;
 }
 
@@ -73,7 +70,8 @@ textarea:focus-visible,
 input,
 textarea,
 .focus-border {
-  transition-property: border-color, background-color, box-shadow, color, opacity, transform;
+  transition-property:
+    border-color, background-color, box-shadow, color, opacity, transform;
 }
 
 /* Hide browser-native password reveal controls so custom toggle icons do not duplicate. */
@@ -146,12 +144,15 @@ input.masked-password-value {
 [data-sonner-toast][data-type='success'] {
   border-left-color: var(--color-feedback-success, #16a34a) !important;
 }
+
 [data-sonner-toast][data-type='error'] {
   border-left-color: var(--color-feedback-error, #f44435) !important;
 }
+
 [data-sonner-toast][data-type='info'] {
   border-left-color: var(--color-feedback-info, #3182ce) !important;
 }
+
 [data-sonner-toast][data-type='warning'] {
   border-left-color: var(--color-feedback-warning, #dd6b20) !important;
 }
@@ -257,6 +258,7 @@ input.masked-password-value {
 [data-sonner-toast][data-type='warning']::after {
   background-color: #dd6b20;
 }
+
 @layer utilities {
   .scrollbar-hide {
     -ms-overflow-style: none;
@@ -315,10 +317,12 @@ input.masked-password-value {
   100% {
     filter: drop-shadow(0 0 5px rgba(219, 136, 51, 0.6));
   }
+
   50% {
     filter: drop-shadow(0 0 15px rgba(219, 136, 51, 0.9));
   }
 }
+
 .animate-glow {
   animation: glow-pulse 2s ease-in-out infinite;
 }
@@ -327,10 +331,12 @@ input.masked-password-value {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
 }
+
 .rotating-ring {
   animation: rotate-ring 2s linear infinite;
 }
@@ -346,6 +352,7 @@ input.masked-password-value {
     opacity: 0;
     transform: translateY(8px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -355,47 +362,61 @@ input.masked-password-value {
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #f6ddc2;
   border-radius: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #db8833;
 }
+
 .letter {
   opacity: 0;
   animation: fadeIn 0.5s forwards;
 }
+
 .letter:nth-child(1) {
   animation-delay: 0s;
 }
+
 .letter:nth-child(2) {
   animation-delay: 0.1s;
 }
+
 .letter:nth-child(3) {
   animation-delay: 0.2s;
 }
+
 .letter:nth-child(4) {
   animation-delay: 0.3s;
 }
+
 .letter:nth-child(5) {
   animation-delay: 0.4s;
 }
+
 .letter:nth-child(6) {
   animation-delay: 0.5s;
 }
+
 .letter:nth-child(7) {
   animation-delay: 0.6s;
 }
+
 .letter:nth-child(8) {
   animation-delay: 0.7s;
 }
+
 .letter:nth-child(9) {
   animation-delay: 0.8s;
 }
+
 .letter:nth-child(10) {
   animation-delay: 0.9s;
 }
@@ -406,37 +427,39 @@ input.masked-password-value {
     background-color: #374151;
     box-shadow: none;
   }
+
   50% {
     background-color: #db8833;
     box-shadow: 0 0 8px rgba(219, 136, 51, 0.8);
   }
 }
+
 .dot {
   animation: blink 1s infinite;
 }
+
 .dot:nth-child(1) {
   animation-delay: 0s;
 }
+
 .dot:nth-child(2) {
   animation-delay: 0.3s;
 }
+
 .dot:nth-child(3) {
   animation-delay: 0.6s;
 }
 
-/* Dashboard "Activity This Week" tiles: when the tile grid gets narrow enough
-   that the label would wrap beside the icon, drop the icon and center the
-   number + label instead. Tied to the grid's own width via a container query,
-   so it responds to the tile size — not the viewport (the 2-column dashboard
-   layout can make these tiles narrow even on a wide screen). */
+/* Activity tiles: when their grid gets narrow enough that the label would wrap
+   beside the icon, drop the icon and stack the text. Container query on the grid,
+   not the viewport (Tailwind 3 has no container-query utilities without a plugin). */
 @container (max-width: 360px) {
-  .week-tile {
+  .activity-tile {
     flex-direction: column;
     align-items: flex-start;
-    text-align: left;
     gap: 0.25rem;
   }
-  .week-tile .week-tile-icon {
+  .activity-tile .activity-tile-icon {
     display: none;
   }
 }

@@ -4,55 +4,61 @@ import {
   fireEvent,
   waitFor,
   act,
-} from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import Schools from "../../../src/pages/schools/index";
-import "@testing-library/jest-dom";
-import React from "react";
-import { vi } from "vitest";
-import Input from "@/components/ui/Input";
+} from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import Schools from '../../../src/pages/schools/index';
+import '@testing-library/jest-dom';
+import React from 'react';
+import { vi } from 'vitest';
+import Input from '@/components/ui/Input';
 
 // ─── Store hooks ─────────────────────────────────────────────────────────────
 const mockDispatch = vi.fn();
 const mockSelector = vi.fn();
 
-vi.mock("../../../src/store/hooks", () => ({
+vi.mock('../../../src/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
   useAppSelector: (fn: (state: unknown) => unknown) => mockSelector(fn),
 }));
 
 // ─── Redux actions ────────────────────────────────────────────────────────────
-vi.mock("../../../src/redux/schools/PostSchoolsRedux", () => ({
-  PostSchoolRequest: vi.fn(() => ({ type: "schools/post" })),
+vi.mock('../../../src/redux/schools/PostSchoolsRedux', () => ({
+  PostSchoolRequest: vi.fn(() => ({ type: 'schools/post' })),
 }));
 
-vi.mock("../../../src/redux/schools/GetSchoolsRedux", () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
-  GetSchoolRequest: vi.fn(() => ({ type: "schools/get" })),
-  resetSchools: vi.fn(() => ({ type: "schools/reset" })),
+vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
+  GetSchoolRequest: vi.fn(() => ({ type: 'schools/get' })),
+  resetSchools: vi.fn(() => ({ type: 'schools/reset' })),
   selectSchoolResponse: (s: unknown) => s,
-  selectSchoolStatus: () => "idle",
+  selectSchoolStatus: () => 'idle',
 }));
 
-vi.mock("../../../src/redux/schools/PatchSchoolsRedux", () => ({
-  PatchSchoolRequest: vi.fn(() => ({ type: "schools/patch" })),
+vi.mock('../../../src/redux/schools/PatchSchoolsRedux', () => ({
+  PatchSchoolRequest: vi.fn(() => ({ type: 'schools/patch' })),
 }));
 
-vi.mock("../../../src/redux/schools/DeleteSchoolsRedux", () => ({
-  DeleteSchoolRequest: vi.fn(() => ({ type: "schools/delete" })),
+vi.mock('../../../src/redux/schools/DeleteSchoolsRedux', () => ({
+  DeleteSchoolRequest: vi.fn(() => ({ type: 'schools/delete' })),
 }));
 
 vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   GetEducatorByUserRequest: vi.fn(() => ({ type: 'educator/get' })),
-  selectGetEducatorsData: () => ({ items: [], totalItems: 0, currentPage: 1, totalPages: 1 }),
+  selectGetEducatorsData: () => ({
+    items: [],
+    totalItems: 0,
+    currentPage: 1,
+    totalPages: 1,
+  }),
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'users/get' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
-vi.mock("../../../src/components/common/Toast", () => ({
+vi.mock('../../../src/components/common/Toast', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -60,7 +66,7 @@ vi.mock("../../../src/components/common/Toast", () => ({
 }));
 
 // ─── UI primitives ────────────────────────────────────────────────────────────
-vi.mock("../../../src/components/ui/Modal", () => ({
+vi.mock('../../../src/components/ui/Modal', () => ({
   default: ({
     isOpen,
     children,
@@ -70,13 +76,13 @@ vi.mock("../../../src/components/ui/Modal", () => ({
   }) => (isOpen ? <div data-testid="modal">{children}</div> : null),
 }));
 
-vi.mock("../../../src/components/ui/Input", () => ({
+vi.mock('../../../src/components/ui/Input', () => ({
   default: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input {...props} />
   ),
 }));
 
-vi.mock("../../../src/components/ui/Button", () => ({
+vi.mock('../../../src/components/ui/Button', () => ({
   Button: ({
     onClick,
     type,
@@ -85,23 +91,23 @@ vi.mock("../../../src/components/ui/Button", () => ({
     className: _className,
   }: {
     onClick?: () => void;
-    type?: "button" | "submit" | "reset";
+    type?: 'button' | 'submit' | 'reset';
     children: React.ReactNode;
     variant?: string;
     className?: string;
   }) => (
-    <button onClick={onClick} type={type ?? "button"}>
+    <button onClick={onClick} type={type ?? 'button'}>
       {children}
     </button>
   ),
 }));
 
 // ─── Common components ────────────────────────────────────────────────────────
-vi.mock("../../../src/components/common/ListTable", () => ({
+vi.mock('../../../src/components/common/ListTable', () => ({
   default: () => <div data-testid="list-table">Table</div>,
 }));
 
-vi.mock("../../../src/components/common/PageHeader", () => ({
+vi.mock('../../../src/components/common/PageHeader', () => ({
   PageHeader: ({
     title,
     actionButton,
@@ -116,7 +122,7 @@ vi.mock("../../../src/components/common/PageHeader", () => ({
   ),
 }));
 
-vi.mock("../../../src/components/common/SearchBar", () => ({
+vi.mock('../../../src/components/common/SearchBar', () => ({
   SearchBar: ({
     value,
     onSearch,
@@ -127,23 +133,23 @@ vi.mock("../../../src/components/common/SearchBar", () => ({
     placeholder?: string;
   }) => (
     <Input
-      placeholder={placeholder ?? "search"}
+      placeholder={placeholder ?? 'search'}
       value={value}
       onChange={(e) => onSearch(e.target.value)}
     />
   ),
 }));
 
-vi.mock("../../../src/components/common/SortableHeader", () => ({
+vi.mock('../../../src/components/common/SortableHeader', () => ({
   default: ({ label }: { label: string }) => <span>{label}</span>,
 }));
 
-vi.mock("@/components/common/FilterPanel", () => ({
+vi.mock('@/components/common/FilterPanel', () => ({
   default: () => <div data-testid="filter-panel">Filter</div>,
 }));
 
 // ─── CreateSchoolModal ────────────────────────────────────────────────────────
-vi.mock("@/components/modal/CreateSchoolModal", () => ({
+vi.mock('@/components/modal/CreateSchoolModal', () => ({
   default: ({
     isModalOpen,
     modalMode,
@@ -154,7 +160,7 @@ vi.mock("@/components/modal/CreateSchoolModal", () => ({
     setIsModalOpen,
   }: {
     isModalOpen: boolean;
-    modalMode: "create" | "view" | "edit" | "delete";
+    modalMode: 'create' | 'view' | 'edit' | 'delete';
     selectedSchool: unknown;
     isDeleting: boolean;
     isSubmitting: boolean;
@@ -172,12 +178,12 @@ vi.mock("@/components/modal/CreateSchoolModal", () => ({
   }) => {
     if (!isModalOpen) return null;
 
-    if (modalMode === "delete") {
+    if (modalMode === 'delete') {
       return (
         <div data-testid="modal">
           <p>Are you sure you want to delete?</p>
           <button onClick={confirmDelete} disabled={isDeleting}>
-            {isDeleting ? "Deleting..." : "Confirm Delete"}
+            {isDeleting ? 'Deleting...' : 'Confirm Delete'}
           </button>
           <button onClick={() => setIsModalOpen(false)}>Cancel</button>
         </div>
@@ -193,7 +199,7 @@ vi.mock("@/components/modal/CreateSchoolModal", () => ({
             value={formik.values.school_name}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
-            disabled={modalMode === "view" || isSubmitting}
+            disabled={modalMode === 'view' || isSubmitting}
           />
           {formik.touched.school_name && formik.errors.school_name && (
             <span data-testid="error-school_name">
@@ -206,7 +212,7 @@ vi.mock("@/components/modal/CreateSchoolModal", () => ({
             value={formik.values.status}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
-            disabled={modalMode === "view" || isSubmitting}
+            disabled={modalMode === 'view' || isSubmitting}
           >
             <option value="">Select Status</option>
             <option value="ACTIVE">Active</option>
@@ -216,19 +222,19 @@ vi.mock("@/components/modal/CreateSchoolModal", () => ({
             <span data-testid="error-status">{formik.errors.status}</span>
           )}
 
-          {modalMode !== "view" && (
+          {modalMode !== 'view' && (
             <button
               type="submit"
               data-testid="modal-submit-btn"
               disabled={isSubmitting}
             >
-              {modalMode === "create"
+              {modalMode === 'create'
                 ? isSubmitting
-                  ? "Adding..."
-                  : "Add School"
+                  ? 'Adding...'
+                  : 'Add School'
                 : isSubmitting
-                  ? "Saving..."
-                  : "Save Changes"}
+                  ? 'Saving...'
+                  : 'Save Changes'}
             </button>
           )}
           <button type="button" onClick={() => setIsModalOpen(false)}>
@@ -274,19 +280,19 @@ const openCreateModal = async () => {
 
   await waitFor(() => {
     expect(
-      screen.getByPlaceholderText(/Enter School name/i),
+      screen.getByPlaceholderText(/Enter School name/i)
     ).toBeInTheDocument();
   });
 };
 
 /** Fill in the school name and status fields inside the open modal. */
-const fillForm = (name: string, status = "ACTIVE") => {
+const fillForm = (name: string, status = 'ACTIVE') => {
   fireEvent.change(screen.getByPlaceholderText(/Enter School name/i), {
-    target: { name: "school_name", value: name },
+    target: { name: 'school_name', value: name },
   });
 
-  fireEvent.change(screen.getByRole("combobox"), {
-    target: { name: "status", value: status },
+  fireEvent.change(screen.getByRole('combobox'), {
+    target: { name: 'status', value: status },
   });
 };
 
@@ -296,19 +302,19 @@ const fillForm = (name: string, status = "ACTIVE") => {
  */
 const submitForm = async () => {
   await act(async () => {
-    fireEvent.click(screen.getByTestId("modal-submit-btn"));
+    fireEvent.click(screen.getByTestId('modal-submit-btn'));
   });
 };
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe("Create School - Unit Tests", () => {
+describe('Create School - Unit Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
     // Provide a logged-in user in localStorage
-    vi.spyOn(Storage.prototype, "getItem").mockReturnValue(
-      JSON.stringify({ id: "1" }),
+    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(
+      JSON.stringify({ id: '1' })
     );
 
     // Default dispatch: mount GET resolves; any extra call also resolves empty
@@ -324,55 +330,55 @@ describe("Create School - Unit Tests", () => {
     render(
       <MemoryRouter>
         <Schools />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
   // ── 1. Render ───────────────────────────────────────────────────────────────
-  test("renders create school button", () => {
+  test('renders create school button', () => {
     renderSchools();
     expect(screen.getAllByText(/Add School/i).length).toBeGreaterThan(0);
   });
 
   // ── 2. Modal opens ──────────────────────────────────────────────────────────
-  test("opens create modal on add school click", async () => {
+  test('opens create modal on add school click', async () => {
     renderSchools();
     await openCreateModal();
 
     expect(
-      screen.getByPlaceholderText(/Enter School name/i),
+      screen.getByPlaceholderText(/Enter School name/i)
     ).toBeInTheDocument();
   });
 
   // ── 3. Validation errors on empty submit ────────────────────────────────────
-  test("shows validation errors on empty submit", async () => {
+  test('shows validation errors on empty submit', async () => {
     renderSchools();
     await openCreateModal();
 
     const nameInput = screen.getByPlaceholderText(/Enter School name/i);
-    const statusSelect = screen.getByRole("combobox");
+    const statusSelect = screen.getByRole('combobox');
 
     fireEvent.blur(nameInput);
     fireEvent.blur(statusSelect);
 
     await act(async () => {
-      fireEvent.submit(nameInput.closest("form")!);
+      fireEvent.submit(nameInput.closest('form')!);
     });
 
     await waitFor(() => {
       const errors =
-        screen.queryAllByTestId("error-school_name").length +
-        screen.queryAllByTestId("error-status").length;
+        screen.queryAllByTestId('error-school_name').length +
+        screen.queryAllByTestId('error-status').length;
       expect(errors).toBeGreaterThan(0);
     });
   });
 
   // ── 4. Dispatches with valid values ─────────────────────────────────────────
-  test("submits with valid name and active status", async () => {
-    setupDispatch({ message: "School created successfully" });
+  test('submits with valid name and active status', async () => {
+    setupDispatch({ message: 'School created successfully' });
 
     renderSchools();
     await openCreateModal();
-    fillForm("Test School");
+    fillForm('Test School');
     await submitForm();
 
     await waitFor(() => {
@@ -381,53 +387,53 @@ describe("Create School - Unit Tests", () => {
   });
 
   // ── 5. Successful creation closes modal and shows success toast ─────────────
-  test("successful school creation closes modal and shows success toast", async () => {
-    const { toast } = await import("../../../src/components/common/Toast");
-    setupDispatch({ message: "School created successfully" });
+  test('successful school creation closes modal and shows success toast', async () => {
+    const { toast } = await import('../../../src/components/common/Toast');
+    setupDispatch({ message: 'School created successfully' });
 
     renderSchools();
     await openCreateModal();
-    fillForm("My School");
+    fillForm('My School');
     await submitForm();
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith("School created successfully");
+      expect(toast.success).toHaveBeenCalledWith('School created successfully');
     });
 
     await waitFor(() => {
-      expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+      expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
     });
   });
 
   // ── 6. Duplicate school name shows error toast ──────────────────────────────
-  test("shows error when school already exists (resolved with duplicate message)", async () => {
-    const { toast } = await import("../../../src/components/common/Toast");
-    setupDispatch({ message: "School already exists" });
+  test('shows error when school already exists (resolved with duplicate message)', async () => {
+    const { toast } = await import('../../../src/components/common/Toast');
+    setupDispatch({ message: 'School already exists' });
 
     renderSchools();
     await openCreateModal();
-    fillForm("Duplicate School");
+    fillForm('Duplicate School');
     await submitForm();
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("School already exists");
+      expect(toast.error).toHaveBeenCalledWith('School already exists');
     });
 
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(screen.getByTestId('modal')).toBeInTheDocument();
   });
 
   // ── 7. API failure shows error toast ────────────────────────────────────────
-  test("shows toast error on API failure", async () => {
-    const { toast } = await import("../../../src/components/common/Toast");
-    setupDispatchReject({ message: "Server error" });
+  test('shows toast error on API failure', async () => {
+    const { toast } = await import('../../../src/components/common/Toast');
+    setupDispatchReject({ message: 'Server error' });
 
     renderSchools();
     await openCreateModal();
-    fillForm("Fail School");
+    fillForm('Fail School');
     await submitForm();
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith("Server error");
+      expect(toast.error).toHaveBeenCalledWith('Server error');
     });
   });
 });

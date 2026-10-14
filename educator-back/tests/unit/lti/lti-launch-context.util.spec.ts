@@ -68,6 +68,21 @@ describe('lti-launch-context.util', () => {
       expect(result.source).toBe('custom.course_id');
     });
 
+    it('coerces numeric Canvas-style context.id to string', () => {
+      const payload = {
+        'https://purl.imsglobal.org/spec/lti/claim/context': {
+          id: 10000000000001,
+          title: 'Canvas Course',
+        },
+      };
+
+      const result = extractLaunchCourseContext(payload);
+
+      expect(result.courseId).toBe('10000000000001');
+      expect(result.courseTitle).toBe('Canvas Course');
+      expect(result.source).toBe('context.id');
+    });
+
     it('uses default title when none provided', () => {
       const payload = {
         'https://purl.imsglobal.org/spec/lti/claim/context': {

@@ -1,0 +1,12 @@
+{
+  "noAccess": {
+    "title": "This account cannot access the Educator app",
+    "body": "Your sign-in worked, but this account does not hold an Educator or District Admin role. If you think this is a mistake, contact your administrator.",
+    "signOut": "Sign in with a different account"
+  },
+  "routeError": {
+    "title": "Something went wrong on this page",
+    "body": "The rest of the app is still working. Try again, or move to another page using the menu.",
+    "retry": "Try again"
+  }
+}

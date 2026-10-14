@@ -1,4 +1,7 @@
-import { publicJwkFromPrivatePem, generatePlatformKeyPair } from '../../../src/lms/utils/lms-key.util';
+import {
+  publicJwkFromPrivatePem,
+  generatePlatformKeyPair,
+} from '../../../src/lms/utils/lms-key.util';
 
 describe('LMS Key Utility', () => {
   describe('publicJwkFromPrivatePem', () => {
@@ -24,12 +27,12 @@ describe('LMS Key Utility', () => {
       expect(jwk.use).toBe('sig');
 
       // Must NOT have private key fields
-      expect(jwk).not.toHaveProperty('d');   // Private exponent
-      expect(jwk).not.toHaveProperty('p');   // First prime factor
-      expect(jwk).not.toHaveProperty('q');   // Second prime factor
-      expect(jwk).not.toHaveProperty('dp');  // First factor CRT exponent
-      expect(jwk).not.toHaveProperty('dq');  // Second factor CRT exponent
-      expect(jwk).not.toHaveProperty('qi');  // First CRT coefficient
+      expect(jwk).not.toHaveProperty('d'); // Private exponent
+      expect(jwk).not.toHaveProperty('p'); // First prime factor
+      expect(jwk).not.toHaveProperty('q'); // Second prime factor
+      expect(jwk).not.toHaveProperty('dp'); // First factor CRT exponent
+      expect(jwk).not.toHaveProperty('dq'); // Second factor CRT exponent
+      expect(jwk).not.toHaveProperty('qi'); // First CRT coefficient
 
       // Must have exactly the expected keys (no extras)
       const expectedKeys = ['kty', 'n', 'e', 'kid', 'alg', 'use'];
@@ -43,16 +46,14 @@ describe('LMS Key Utility', () => {
     });
 
     it('should reject invalid PEM', async () => {
-      await expect(
-        publicJwkFromPrivatePem('not-a-valid-pem', 'test-kid')
-      ).rejects.toThrow();
+      await expect(publicJwkFromPrivatePem('not-a-valid-pem', 'test-kid')).rejects.toThrow();
     });
 
     it('should normalize PEM with escaped newlines', async () => {
       // Some configs store PEM with literal \n strings instead of actual newlines
       const escapedPem = testPrivateKeyPem.replace(/\n/g, '\\n');
       const jwk = await publicJwkFromPrivatePem(escapedPem, testKid);
-      
+
       expect(jwk.kty).toBe('RSA');
       expect(jwk).not.toHaveProperty('d');
     });
@@ -61,7 +62,7 @@ describe('LMS Key Utility', () => {
   describe('generatePlatformKeyPair', () => {
     it('should generate a valid key pair with kid prefix', async () => {
       const keyPair = await generatePlatformKeyPair();
-      
+
       expect(keyPair.platformKeyId).toMatch(/^edu-portal-[a-f0-9]{8}$/);
       expect(keyPair.platformPrivateKeyPem).toContain('BEGIN PRIVATE KEY');
       expect(keyPair.platformPrivateKeyPem).toContain('END PRIVATE KEY');
@@ -70,7 +71,7 @@ describe('LMS Key Utility', () => {
     it('should generate unique kids', async () => {
       const kp1 = await generatePlatformKeyPair();
       const kp2 = await generatePlatformKeyPair();
-      
+
       expect(kp1.platformKeyId).not.toBe(kp2.platformKeyId);
     });
   });

@@ -1,9 +1,11 @@
+import { AiGateway } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { LoggerService } from 'src/common/services';
 import { Test } from '@nestjs/testing';
 import { ReportsService, normalize } from '@/modules/reports/reports.service';
-import { JsonDataService } from '@/data/json-data.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { NotFoundException } from '@nestjs/common';
+import type { ICurrentUser } from 'src/common/interfaces';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { PpePrivacyService } from '@/modules/reports/ppe-privacy.service';
 import { ClinicalDocumentationService } from '@/modules/reports/clinical-documentation.service';
@@ -11,42 +13,90 @@ import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
-import * as nodemailer from 'nodemailer';
-
-jest.mock('nodemailer');
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../common/utils/mock-factory';
 
 describe('ReportsService', () => {
   let service: ReportsService;
   // Use loose typing to allow mock return values that don't match strict source types
-  let jsonDataService: Record<string, jest.Mock>;
+  let simulationV2Repository: Record<string, jest.Mock>;
+  let transcriptRepository: Record<string, jest.Mock>;
   let configService: jest.Mocked<ConfigService>;
+  let mailService: { sendMail: jest.Mock };
+  let reportRepository: Record<string, jest.Mock>;
+  let studentRepository: Record<string, jest.Mock>;
+  let logger: Record<string, jest.Mock>;
 
   beforeEach(async () => {
-    jsonDataService = {
-      getTranscriptById: jest.fn(),
-      getTranscriptByIdFresh: jest.fn(),
-      getReportByTranscriptId: jest.fn(),
-      getReportByTranscriptIdFresh: jest.fn(),
-      getScenarioById: jest.fn(),
-      getUnitById: jest.fn(),
-      generateId: jest.fn(),
-      addReport: jest.fn(),
-      addReportFresh: jest.fn(),
-      getReportById: jest.fn(),
-      getReportByIdFresh: jest.fn(),
-      getReportsByUserId: jest.fn(),
+    simulationV2Repository = {
+      findByBusinessId: jest.fn(),
+    };
+
+    transcriptRepository = {
+      findByBusinessId: jest.fn(),
     };
 
     configService = {
       get: jest.fn(),
     } as unknown as jest.Mocked<ConfigService>;
 
+    mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
+
+    reportRepository = createMockSimulationReportRepository() as unknown as Record<
+      string,
+      jest.Mock
+    >;
+    studentRepository = createMockStudentRepository() as unknown as Record<string, jest.Mock>;
+    logger = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+      fatal: jest.fn(),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         ReportsService,
-        { provide: JsonDataService, useValue: jsonDataService },
+        { provide: UNIT_REPOSITORY, useValue: createMockUnitRepository() },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: simulationV2Repository },
+        { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: reportRepository },
+        {
+          provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+          useValue: createMockStudentSimulationProgressRepository(),
+        },
+        { provide: STUDENT_REPOSITORY, useValue: studentRepository },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: transcriptRepository },
         { provide: ConfigService, useValue: configService },
-        { provide: HttpService, useValue: {} },
+        { provide: MailService, useValue: mailService },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
         ActionsInterventionsService,
         PpePrivacyService,
         ClinicalDocumentationService,
@@ -63,6 +113,10 @@ describe('ReportsService', () => {
           },
         },
         { provide: LifecycleTelemetryService, useValue: {} },
+        {
+          provide: LoggerService,
+          useValue: logger,
+        },
       ],
     }).compile();
 
@@ -171,183 +225,99 @@ describe('ReportsService', () => {
   });
 
   // =========================
-  // generate()
+  // findAll() / findOne() / findByTranscriptId() — read from simulation_reports
   // =========================
-  describe('generate', () => {
-    it('should generate and return report when transcript exists and no existing report', async () => {
-      const transcript = {
-        id: 't1',
-        userId: 'u1',
-        scenarioId: 's1',
-        messages: [],
-        startedAt: '2024-01-01',
-      };
+  describe('report reads from the database', () => {
+    const STUDENT_UUID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+    const caller = { userId: 'LIN-4RJR', studentId: STUDENT_UUID } as ICurrentUser;
+    const row = {
+      reportId: 'r1',
+      transcriptId: 't1',
+      scenarioId: 's1',
+      userId: 'LIN-4RJR',
+      score: 80,
+      totalTimeSeconds: 60,
+      rubricsTotal: null,
+      createdAt: new Date('2026-08-19T08:58:20.000Z'),
+    };
 
-      jsonDataService.getTranscriptByIdFresh.mockReturnValue(transcript);
-      jsonDataService.getReportByTranscriptId.mockReturnValue(null);
-      jsonDataService.getScenarioById.mockReturnValue({
-        id: 's1',
-        unitId: 'unit1',
-      });
-      jsonDataService.getUnitById.mockReturnValue({ id: 'unit1' });
-      jsonDataService.generateId.mockReturnValue('r1');
+    describe('findAll', () => {
+      it('maps the Student rows to list entries without reading the Blob store', async () => {
+        reportRepository.findListRowsByStudentId.mockResolvedValue([row]);
 
-      jest
-        .spyOn(
-          service as unknown as Record<string, (...args: unknown[]) => unknown>,
-          'buildDynamicAssessment',
-        )
-        .mockReturnValue({
-          score: 80,
-          scoreJson: {},
-          summary: 'Good',
-          strengths: ['A'],
-          improvements: ['B'],
-          feedback: 'Feedback',
-        });
+        const result = await service.findAll(caller, 'assessment');
 
-      const result = await service.generate('t1', 'u1');
-
-      expect(result).toMatchObject({
-        id: 'r1',
-        userId: 'u1',
-        scenarioId: 's1',
-        transcriptId: 't1',
-        score: 80,
+        expect(reportRepository.findListRowsByStudentId).toHaveBeenCalledWith(
+          STUDENT_UUID,
+          'assessment',
+        );
+        expect(result).toEqual([expect.objectContaining({ id: 'r1', scenarioId: 's1' })]);
       });
 
-      expect(jsonDataService.addReportFresh).toHaveBeenCalled();
+      it('returns an empty list when the caller cannot be resolved', async () => {
+        await expect(service.findAll({ userId: 'LIN-4RJR' } as ICurrentUser)).resolves.toEqual([]);
+        expect(reportRepository.findListRowsByStudentId).not.toHaveBeenCalled();
+      });
     });
 
-    it('should return existing report if already generated', async () => {
-      const transcript = { id: 't1', userId: 'u1', scenarioId: 's1' };
-      const existingReport = { id: 'r1' };
+    describe('findOne', () => {
+      it('returns the report with transcript and scenario enrichment', async () => {
+        const transcript = { id: 't1' };
+        const scenario = { id: 's1' };
+        reportRepository.findDetailRowByReportIdForStudent.mockResolvedValue(row);
+        transcriptRepository.findByBusinessId.mockResolvedValue(transcript);
+        simulationV2Repository.findByBusinessId.mockResolvedValue(scenario);
 
-      jsonDataService.getTranscriptByIdFresh.mockReturnValue(transcript);
-      jsonDataService.getReportByTranscriptId.mockReturnValue(existingReport);
+        const result = await service.findOne('r1', caller);
 
-      const result = await service.generate('t1', 'u1');
+        expect(reportRepository.findDetailRowByReportIdForStudent).toHaveBeenCalledWith(
+          STUDENT_UUID,
+          'r1',
+        );
+        expect(result.id).toBe('r1');
+        expect(result._transcript.scenario).toBe(scenario);
+      });
 
-      expect(result).toBe(existingReport);
+      it('throws the same NotFoundException for a missing or foreign Report', async () => {
+        reportRepository.findDetailRowByReportIdForStudent.mockResolvedValue(null);
+
+        await expect(service.findOne('r1', caller)).rejects.toThrow('Report with ID r1 not found');
+      });
+
+      it('throws NotFoundException when the caller cannot be resolved', async () => {
+        await expect(service.findOne('r1', { userId: 'LIN-4RJR' } as ICurrentUser)).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(reportRepository.findDetailRowByReportIdForStudent).not.toHaveBeenCalled();
+      });
     });
 
-    it('should throw NotFoundException if transcript not found', async () => {
-      const realSetTimeout = global.setTimeout;
-      (global as unknown as Record<string, unknown>).setTimeout = (fn: () => void) => {
-        fn();
-        return 0 as unknown as ReturnType<typeof setTimeout>;
-      };
+    describe('findByTranscriptId', () => {
+      it('returns the report when the Student owns it', async () => {
+        reportRepository.findDetailRowByTranscriptIdForStudent.mockResolvedValue(row);
+        transcriptRepository.findByBusinessId.mockResolvedValue({ id: 't1' });
+        simulationV2Repository.findByBusinessId.mockResolvedValue({ id: 's1' });
 
-      jsonDataService.getTranscriptByIdFresh.mockReturnValue(null);
+        const result = await service.findByTranscriptId('t1', caller);
 
-      try {
-        await expect(service.generate('missing', 'u1')).rejects.toThrow(NotFoundException);
-      } finally {
-        (global as unknown as Record<string, unknown>).setTimeout = realSetTimeout;
-      }
-    });
-  });
+        expect(reportRepository.findDetailRowByTranscriptIdForStudent).toHaveBeenCalledWith(
+          STUDENT_UUID,
+          't1',
+        );
+        expect(result.id).toBe('r1');
+      });
 
-  // =========================
-  // generateMockAssessment()
-  // =========================
-  describe('generateMockAssessment', () => {
-    it('should create and save mock report', async () => {
-      jsonDataService.generateId.mockReturnValue('mock1');
+      it('throws NotFoundException for a missing or foreign transcript', async () => {
+        reportRepository.findDetailRowByTranscriptIdForStudent.mockResolvedValue(null);
 
-      const result = await service.generateMockAssessment('t1', 'u1', 's1');
-
-      expect(result.score).toBe(85);
-      expect(jsonDataService.addReportFresh).toHaveBeenCalled();
-    });
-  });
-
-  // =========================
-  // findOne()
-  // =========================
-  describe('findOne', () => {
-    it('should return report with transcript and scenario', async () => {
-      const report = {
-        id: 'r1',
-        transcriptId: 't1',
-        scenarioId: 's1',
-        userId: 'u1',
-      };
-      const transcript = { id: 't1', userId: 'u1' };
-      const scenario = { id: 's1' };
-
-      jsonDataService.getReportByIdFresh.mockReturnValue(report);
-      jsonDataService.getTranscriptById.mockReturnValue(transcript);
-      jsonDataService.getScenarioById.mockReturnValue(scenario);
-
-      const result = await service.findOne('r1', 'u1');
-
-      expect(result._transcript).toBeDefined();
-      expect(result._transcript.scenario).toBe(scenario);
-    });
-
-    it('should throw NotFoundException if report not found', async () => {
-      jsonDataService.getReportByIdFresh.mockReturnValue(null);
-
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw NotFoundException if user does not own report', async () => {
-      const report = {
-        id: 'r1',
-        transcriptId: 't1',
-        scenarioId: 's1',
-        userId: 'u1',
-      };
-      const transcript = { id: 't1', userId: 'u2' };
-
-      jsonDataService.getReportByIdFresh.mockReturnValue(report);
-      jsonDataService.getTranscriptById.mockReturnValue(transcript);
-
-      await expect(service.findOne('r1', 'u1')).rejects.toThrow(NotFoundException);
+        await expect(service.findByTranscriptId('t1', caller)).rejects.toThrow(NotFoundException);
+      });
     });
   });
 
-  // =========================
-  // findByTranscriptId()
-  // =========================
-  describe('findByTranscriptId', () => {
-    it('should return report when ownership matches', async () => {
-      const report = {
-        id: 'r1',
-        transcriptId: 't1',
-        scenarioId: 's1',
-        userId: 'u1',
-      };
-      const transcript = { id: 't1', userId: 'u1' };
-
-      jsonDataService.getReportByTranscriptIdFresh.mockReturnValue(report);
-      jsonDataService.getTranscriptById.mockReturnValue(transcript);
-      jsonDataService.getScenarioById.mockReturnValue({ id: 's1' });
-
-      const result = await service.findByTranscriptId('t1', 'u1');
-
-      expect(result.id).toBe('r1');
-    });
-
-    it('should throw NotFoundException if report missing', async () => {
-      jsonDataService.getReportByTranscriptIdFresh.mockReturnValue(null);
-
-      await expect(service.findByTranscriptId('t1', 'u1')).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  // =========================
-  // sendReportEmail()
   // =========================
   describe('sendReportEmail', () => {
-    it('should send email via SMTP when configured', async () => {
-      const sendMailMock = jest.fn().mockResolvedValue(true);
-
-      (nodemailer.createTransport as jest.Mock).mockReturnValue({
-        sendMail: sendMailMock,
-      });
-
+    it('should send email via MailService (ACS) when not forced to file mode', async () => {
       const report = {
         id: 'r1',
         scenarioId: 's1',
@@ -361,30 +331,22 @@ describe('ReportsService', () => {
       jest
         .spyOn(service, 'findOne')
         .mockResolvedValue(report as unknown as Awaited<ReturnType<typeof service.findOne>>);
-      jsonDataService.getScenarioById.mockReturnValue({
+      simulationV2Repository.findByBusinessId.mockResolvedValue({
         id: 's1',
         title: 'Scenario',
       });
 
-      configService.get.mockImplementation((key: string) => {
-        const map: Record<string, string> = {
-          EMAIL_USER: 'user',
-          EMAIL_PASS: 'pass',
-          EMAIL_HOST: 'smtp.test.com',
-          EMAIL_PORT: '587',
-        };
-        return map[key];
-      });
+      configService.get.mockReturnValue(undefined);
 
       const result = await service.sendReportEmail({ reportId: 'r1' } as unknown as Parameters<
         typeof service.sendReportEmail
       >[0]);
 
-      expect(sendMailMock).toHaveBeenCalled();
+      expect(mailService.sendMail).toHaveBeenCalled();
       expect(result.success).toBe(true);
     });
 
-    it('should fallback when smtp not configured', async () => {
+    it('should fall back to blob storage when EMAIL_MODE=file forces it', async () => {
       jest.spyOn(service, 'findOne').mockResolvedValue({
         id: 'r1',
         scenarioId: 's1',
@@ -395,16 +357,117 @@ describe('ReportsService', () => {
         improvements: [],
       } as unknown as Awaited<ReturnType<typeof service.findOne>>);
 
-      jsonDataService.getScenarioById.mockReturnValue({
+      simulationV2Repository.findByBusinessId.mockResolvedValue({
         id: 's1',
         title: 'Scenario',
       });
 
-      configService.get.mockReturnValue(null);
+      configService.get.mockImplementation((key: string) =>
+        key === 'mail.emailMode' ? 'file' : undefined,
+      );
+
+      const uploadData = jest.fn().mockResolvedValue(undefined);
+      (service as unknown as Record<string, unknown>).containerClient = {
+        createIfNotExists: jest.fn().mockResolvedValue(undefined),
+        getBlockBlobClient: jest.fn().mockReturnValue({ uploadData }),
+      };
 
       const result = await service.sendReportEmail({ reportId: 'r1' } as unknown as Parameters<
         typeof service.sendReportEmail
       >[0]);
+
+      expect(mailService.sendMail).not.toHaveBeenCalled();
+      expect(uploadData).toHaveBeenCalled();
+      expect(result.success).toBe(true);
+    });
+
+    it('should return a failure result when EMAIL_MODE=file forces it and no blob fallback is configured', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue({
+        id: 'r1',
+        scenarioId: 's1',
+        transcriptId: 't1',
+        score: 80,
+        createdAt: '2024-01-01',
+        strengths: [],
+        improvements: [],
+      } as unknown as Awaited<ReturnType<typeof service.findOne>>);
+
+      simulationV2Repository.findByBusinessId.mockResolvedValue({
+        id: 's1',
+        title: 'Scenario',
+      });
+
+      configService.get.mockImplementation((key: string) =>
+        key === 'mail.emailMode' ? 'file' : undefined,
+      );
+
+      const result = await service.sendReportEmail({ reportId: 'r1' } as unknown as Parameters<
+        typeof service.sendReportEmail
+      >[0]);
+
+      expect(mailService.sendMail).not.toHaveBeenCalled();
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/not sent/i);
+    });
+
+    it('should return a failure result when SMTP fails and no blob fallback is configured', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue({
+        id: 'r1',
+        scenarioId: 's1',
+        transcriptId: 't1',
+        score: 80,
+        createdAt: '2024-01-01',
+        strengths: [],
+        improvements: [],
+      } as unknown as Awaited<ReturnType<typeof service.findOne>>);
+
+      simulationV2Repository.findByBusinessId.mockResolvedValue({
+        id: 's1',
+        title: 'Scenario',
+      });
+
+      configService.get.mockReturnValue(undefined);
+      mailService.sendMail.mockRejectedValueOnce(new Error('ACS unavailable'));
+
+      const result = await service.sendReportEmail({ reportId: 'r1' } as unknown as Parameters<
+        typeof service.sendReportEmail
+      >[0]);
+
+      expect(mailService.sendMail).toHaveBeenCalled();
+      expect(result.success).toBe(false);
+      expect(result.message).toMatch(/failed/i);
+    });
+
+    it('should report success when SMTP fails but the blob fallback succeeds', async () => {
+      jest.spyOn(service, 'findOne').mockResolvedValue({
+        id: 'r1',
+        scenarioId: 's1',
+        transcriptId: 't1',
+        score: 80,
+        createdAt: '2024-01-01',
+        strengths: [],
+        improvements: [],
+      } as unknown as Awaited<ReturnType<typeof service.findOne>>);
+
+      simulationV2Repository.findByBusinessId.mockResolvedValue({
+        id: 's1',
+        title: 'Scenario',
+      });
+
+      configService.get.mockReturnValue(undefined);
+      mailService.sendMail.mockRejectedValueOnce(new Error('ACS unavailable'));
+
+      const uploadData = jest.fn().mockResolvedValue(undefined);
+      (service as unknown as Record<string, unknown>).containerClient = {
+        createIfNotExists: jest.fn().mockResolvedValue(undefined),
+        getBlockBlobClient: jest.fn().mockReturnValue({ uploadData }),
+      };
+
+      const result = await service.sendReportEmail({ reportId: 'r1' } as unknown as Parameters<
+        typeof service.sendReportEmail
+      >[0]);
+
+      expect(uploadData).toHaveBeenCalled();
       expect(result.success).toBe(true);
     });
   });

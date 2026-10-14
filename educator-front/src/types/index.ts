@@ -49,15 +49,14 @@ export interface EducatorFormValues {
   tokens: number;
 }
 export interface EducatorFilterState {
-  educator_ids: string[];
-  school_ids: string[];
-  statuses: string[];
-  // Associated-product count buckets: 'none' (0), 'one' (1), 'many' (2+).
-  productAssoc?: string[];
+  educator_id: string;
+  school_id: string;
+  status: string;
 }
 export interface SchoolFormValues {
   school_name: string;
   status: string;
+  google_classroom_enabled: boolean;
 }
 
 export interface MenuItem {
@@ -107,6 +106,7 @@ export interface Student {
   user_id?: string;
   status?: 'ACTIVE' | 'INACTIVE' | 'DRAFT' | 'ATTENTION' | 'ARCHIEVED';
   score: number | null;
+  isEarlyCompletion?: boolean;
   attempt?: number | null;
   sims_completed?: string | null;
   submission_date?: string | null;
@@ -132,6 +132,7 @@ export interface StudentRow {
 export interface SchoolFormValues {
   school_name: string;
   status: string;
+  google_classroom_enabled: boolean;
 }
 
 export interface ClassSource {
@@ -208,7 +209,7 @@ export interface SimulationApiResponse {
     unit_id?: string;
     category?: string;
     image_url?: string;
-    libraryItem?: { name?: string;[key: string]: unknown };
+    libraryItem?: { name?: string; [key: string]: unknown };
     [key: string]: unknown;
   };
 }
@@ -259,7 +260,7 @@ export interface SimulationOption {
 }
 
 export interface SimulationDetail {
-  id: number;
+  id: string | number;
   title: string;
   subtitle?: string;
   scenarioImage?: string;
@@ -320,6 +321,95 @@ export interface SimulationDetail {
   facilitationNotesPdf?: string;
   printableSbarPdf?: string;
   printablePatientChartPdf?: string;
+  historyVisibility?: string;
+  simulationStartTime?: string;
+  productSetup?: {
+    title?: string;
+  };
+  grading?: {
+    debriefReflectionPrompt?: string;
+    maxScore?: number;
+    showDebriefToStudents?: boolean;
+    components?: Record<string, { weight?: number } | undefined>;
+  };
+  teamCommunication?: {
+    prompt?: string;
+    limitType?: string;
+    failMessage?: string;
+    maxAttempts?: number;
+    passMessage?: string;
+    passThreshold?: number;
+    typeRequirement?: string;
+    referenceTranscript?: string;
+    onPassUnlockOrderIds?: string[];
+  };
+  actions?: Record<string, unknown>[];
+  assessments?: Record<string, unknown>[];
+  interventions?: Record<string, unknown>[];
+  tasks?: Record<string, unknown>[];
+  orders?: Record<string, unknown>[];
+  patientData?: {
+    name?: string;
+    age?: string;
+    gender?: string;
+    race?: string;
+    preferredName?: string;
+    dateOfBirth?: string;
+    dobMonthDay?: string;
+    chiefComplaint?: string;
+    historyOfPresentIllness?: string;
+    medicalHistory?: string;
+    pastSurgicalHistory?: string;
+    familyMedicalHistoryClinical?: string;
+    primaryCareProvider?: string;
+    allergies?: string[];
+    currentMedications?: string[];
+    immunizationHistory?: string[];
+    historyVisibility?: Record<string, boolean>;
+    vitals?: {
+      height?: string;
+      weight?: string;
+    };
+    lifestyle?: {
+      diet?: string;
+      exercise?: string;
+      housing?: string;
+      occupation?: string;
+      sleep?: string;
+      stress?: string;
+      transportation?: string;
+    };
+    socialHistory?: {
+      alcohol?: string;
+      drugs?: string;
+      tobacco?: string;
+    };
+  };
+  aiPatientData?: {
+    adls?: string;
+    diet?: string;
+    drugs?: string;
+    sleep?: string;
+    stress?: string;
+    housing?: string;
+    exercise?: string;
+    allergies?: string;
+    occupation?: string;
+    medicalHistory?: string;
+    transportation?: string;
+    associatedSymptoms?: string;
+    currentMedications?: string;
+    specialPatientInfo?: string;
+    familyMedicalHistory?: string;
+    locationSpecificInfo?: string;
+    mainConcernAttributes?: string;
+    openingReasonForVisit?: string;
+    personalSocialHistory?: string;
+    diagnosedChronicIllnesses?: string;
+    emotionalStatePersonality?: string;
+    relationshipStatusSexualHealth?: string;
+    conversationalAttitudeSpeechStyle?: string;
+  };
 }
 
 export interface UnitScenario {
@@ -434,7 +524,7 @@ export interface CatalogData {
 }
 
 export interface SimulationDetail {
-  id: number;
+  id: string | number;
   title: string;
   subtitle?: string;
   scenarioImage?: string;
@@ -469,6 +559,7 @@ export interface SimulationReport {
   scenarioTitle?: string;
   scenarioId?: string;
   score?: number;
+  isEarlyCompletion?: boolean;
   performanceLabel?: string;
   createdAt?: string;
   created_at?: string;

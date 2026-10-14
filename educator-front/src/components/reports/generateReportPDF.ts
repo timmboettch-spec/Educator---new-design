@@ -8,7 +8,7 @@ import {
 } from '../../student-reports/generateStudentReportPDF';
 import type { SimulationReport } from '../../redux/class/SimsCompletedreportsRedux';
 
-// ─── Types 
+// ─── Types
 
 export type StudentNameById = Record<string, string>;
 
@@ -28,13 +28,16 @@ function resolveReportBlobId(r: SimulationReport): string {
 
 function resolveClassName(
   r: SimulationReport,
-  studentIdentityById: StudentIdentityById,
+  studentIdentityById: StudentIdentityById
 ): string | undefined {
   const studentId = r.student_id ?? r.userId ?? '';
   return studentIdentityById[studentId]?.className ?? undefined;
 }
 
-function safeName(r: SimulationReport, studentNameById: StudentNameById): string {
+function safeName(
+  r: SimulationReport,
+  studentNameById: StudentNameById
+): string {
   const name =
     r.student_name ??
     r.studentName ??
@@ -45,21 +48,33 @@ function safeName(r: SimulationReport, studentNameById: StudentNameById): string
     r.student_id ??
     r.userId ??
     'student';
-  return name.replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '_').slice(0, 40);
+  return name
+    .replace(/[^a-zA-Z0-9_\- ]/g, '')
+    .replace(/\s+/g, '_')
+    .slice(0, 40);
 }
 
 function safeSimTitle(r: SimulationReport): string {
-  return (r.scenarioTitle ?? r.scenario_title ?? r.simulation_name ?? r.scenarioId ?? r.scenario_id ?? 'report')
-    .replace(/[^a-zA-Z0-9_\- ]/g, '').replace(/\s+/g, '_').slice(0, 40);
+  return (
+    r.scenarioTitle ??
+    r.scenario_title ??
+    r.simulation_name ??
+    r.scenarioId ??
+    r.scenario_id ??
+    'report'
+  )
+    .replace(/[^a-zA-Z0-9_\- ]/g, '')
+    .replace(/\s+/g, '_')
+    .slice(0, 40);
 }
 
-// ─── Public API 
+// ─── Public API
 
 export async function generateMultiReportPDF(
   reports: SimulationReport[],
   filename: string,
   studentNameById: StudentNameById = {},
-  studentIdentityById: StudentIdentityById = {},
+  studentIdentityById: StudentIdentityById = {}
 ): Promise<void> {
   if (reports.length === 0) return;
 
@@ -90,7 +105,10 @@ export async function generateMultiReportPDF(
         returnDoc: true,
       };
       const doc = buildStudentReportPDF(fullReport, opts);
-      zip.file(`${safeName(r, studentNameById)}_${safeSimTitle(r)}.pdf`, doc.output('arraybuffer'));
+      zip.file(
+        `${safeName(r, studentNameById)}_${safeSimTitle(r)}.pdf`,
+        doc.output('arraybuffer')
+      );
     } catch {
       // skip individual failures silently
     }
@@ -106,12 +124,11 @@ export async function generateMultiReportPDF(
   URL.revokeObjectURL(url);
 }
 
-
 export async function generateZipOfPDFs(
   reports: SimulationReport[],
   zipFilename = 'reports.zip',
   studentNameById: StudentNameById = {},
-  studentIdentityById: StudentIdentityById = {},
+  studentIdentityById: StudentIdentityById = {}
 ): Promise<void> {
   const zip = new JSZip();
   const usedFilenames = new Map<string, number>();
@@ -130,7 +147,10 @@ export async function generateZipOfPDFs(
       const baseFilename = `${safeName(r, studentNameById)}_${safeSimTitle(r)}.pdf`;
       const count = usedFilenames.get(baseFilename) ?? 0;
       usedFilenames.set(baseFilename, count + 1);
-      const uniqueFilename = count === 0 ? baseFilename : baseFilename.replace(/\.pdf$/, `_${count + 1}.pdf`);
+      const uniqueFilename =
+        count === 0
+          ? baseFilename
+          : baseFilename.replace(/\.pdf$/, `_${count + 1}.pdf`);
       zip.file(uniqueFilename, doc.output('arraybuffer'));
     } catch {
       // skip individual failures silently

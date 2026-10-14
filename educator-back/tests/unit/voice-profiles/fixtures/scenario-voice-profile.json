@@ -1,0 +1,13 @@
+{
+  "withScenarioVoice": {
+    "id": "5b0f8a3c-2d4e-4a7b-9c1d-3e6f7a8b9c0d",
+    "displayName": "Stock Female 1",
+    "source": "scenario"
+  },
+  "withGenderDefault": {
+    "id": "7c1e9b4d-3f5a-4b8c-8d2e-4f7a8b9c0d1e",
+    "displayName": "Stock Male 1",
+    "source": "gender_default"
+  },
+  "none": null
+}

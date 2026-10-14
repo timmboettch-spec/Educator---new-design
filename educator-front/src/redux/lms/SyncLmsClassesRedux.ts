@@ -3,7 +3,11 @@ import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 import api from '../api';
-import { fetchLMSClasses, type MoodleMappedClassesResponse, type MoodleMappedClass } from './GetLMSClassRedux';
+import {
+  fetchLMSClasses,
+  type MoodleMappedClassesResponse,
+  type MoodleMappedClass,
+} from './GetLMSClassRedux';
 import {
   getLtiLaunchCourseContextFromStorage,
   indexExistingClassesByCourseId,
@@ -17,7 +21,7 @@ import {
 import { extractImportableNrpsStudents } from '../../utils/lmsNrpsStudentImport';
 import { getLtiSchoolIdFromStorage } from '../../utils/lmsLaunchSync';
 export type { LmsClassDetail } from '../../utils/lmsClassName';
- 
+
 export interface LmsStudent {
   id?: string;
   userId?: string;
@@ -29,7 +33,7 @@ export interface LmsStudent {
   roles?: string[];
   [key: string]: unknown;
 }
- 
+
 export interface LmsLiveClass {
   nrpsUrl?: string;
   classDetails: LmsClassDetail | null;
@@ -37,7 +41,7 @@ export interface LmsLiveClass {
   students: LmsStudent[];
   error?: string;
 }
- 
+
 export interface SyncLmsResult {
   created: number;
   skipped: number;
@@ -45,17 +49,17 @@ export interface SyncLmsResult {
   resynced: number;
   createdClassNames: string[];
 }
- 
+
 interface SyncLmsState {
   syncState: 'idle' | 'loading' | 'succeeded' | 'failed';
   lastSyncResult: SyncLmsResult | null;
   liveRosterByClassName: Record<string, LmsStudent[]>;
   error: string | null;
 }
- 
+
 function buildRosterByClassName(
   lmsClasses: LmsLiveClass[],
-  ltiContext = getLtiLaunchCourseContextFromStorage(),
+  ltiContext = getLtiLaunchCourseContextFromStorage()
 ): Record<string, LmsStudent[]> {
   const roster: Record<string, LmsStudent[]> = {};
   for (const lmsClass of lmsClasses) {
@@ -76,7 +80,7 @@ function isLearnerRole(roles: string[] | undefined): boolean {
       role.includes('student') ||
       role.endsWith('#student') ||
       role.endsWith('/student') ||
-      role === 'student',
+      role === 'student'
   );
   const hasInstructorOrAdmin = normalized.some(
     (role) =>
@@ -84,13 +88,15 @@ function isLearnerRole(roles: string[] | undefined): boolean {
       role.includes('teacher') ||
       role.includes('administrator') ||
       role.includes('admin') ||
-      role.includes('manager'),
+      role.includes('manager')
   );
   return hasLearner && !hasInstructorOrAdmin;
 }
- 
+
 function extractLmsStudents(lmsStudents: LmsStudent[]) {
-  return extractImportableNrpsStudents(lmsStudents, (student) => isLearnerRole(student.roles));
+  return extractImportableNrpsStudents(lmsStudents, (student) =>
+    isLearnerRole(student.roles)
+  );
 }
 
 function defaultClassDateRange(): { start_date: string; end_date: string } {
@@ -103,7 +109,7 @@ function defaultClassDateRange(): { start_date: string; end_date: string } {
     end_date: toISODate(nextYear),
   };
 }
- 
+
 const initialState: SyncLmsState = {
   syncState: IDLE,
   lastSyncResult: null,
@@ -119,24 +125,14 @@ function getNrpsUrlsFromStorage(): string[] {
       raw
         .split(',')
         .map((u) => u.trim())
-        .filter(Boolean),
-    ),
-  );
-}
-
-function getLmsAccessTokenFromStorage(): string {
-  if (typeof window === 'undefined') return '';
-  return (
-    localStorage.getItem('lmsAccessToken') ||
-    localStorage.getItem('moodleAccessToken') ||
-    localStorage.getItem('moodle_access_token') ||
-    ''
+        .filter(Boolean)
+    )
   );
 }
 
 async function triggerBackendRosterSync(
   ltiContext: ReturnType<typeof getLtiLaunchCourseContextFromStorage>,
-  nrpsUrls: string[],
+  nrpsUrls: string[]
 ): Promise<boolean> {
   const lmsCourseId = normalizeLmsCourseId(ltiContext.courseId ?? '');
   if (!lmsCourseId) {
@@ -148,7 +144,7 @@ async function triggerBackendRosterSync(
 async function triggerBackendRosterSyncForCourse(
   lmsCourseId: string,
   nrpsUrl = '',
-  schoolIdOverride = '',
+  schoolIdOverride = ''
 ): Promise<boolean> {
   const normalizedCourseId = normalizeLmsCourseId(lmsCourseId);
   if (!normalizedCourseId) {
@@ -164,7 +160,7 @@ async function triggerBackendRosterSyncForCourse(
         nrpsUrl,
         ...(schoolId ? { schoolId } : {}),
       },
-      { headers: { 'ngrok-skip-browser-warning': 'true' } },
+      { headers: { 'ngrok-skip-browser-warning': 'true' } }
     );
     return true;
   } catch {
@@ -198,7 +194,8 @@ async function resyncAllMappedLmsRosters(): Promise<number> {
     const mappedRes = await api.get(config.LmsMoodleMappedClassesAPI, {
       headers: { 'ngrok-skip-browser-warning': 'true' },
     });
-    const mappedClasses: MoodleMappedClass[] = mappedRes.data?.data?.classes ?? [];
+    const mappedClasses: MoodleMappedClass[] =
+      mappedRes.data?.data?.classes ?? [];
 
     const schoolIdByClassId = await buildSchoolIdByClassIdMap();
 
@@ -217,7 +214,7 @@ async function resyncAllMappedLmsRosters(): Promise<number> {
         triggerBackendRosterSyncForCourse(
           lmsCourseId,
           String(mappedClass.nrpsUrl ?? '').trim(),
-          schoolId,
+          schoolId
         ),
       ];
     });
@@ -232,16 +229,20 @@ async function resyncAllMappedLmsRosters(): Promise<number> {
 function hydrateLmsCachesFromLaunch(
   thunkAPI: { dispatch: (action: unknown) => unknown },
   lmsClasses: LmsLiveClass[],
-  mappedPayload: MoodleMappedClassesResponse | null,
+  mappedPayload: MoodleMappedClassesResponse | null
 ): void {
   thunkAPI.dispatch(
-    fetchLiveLmsClasses.fulfilled(buildRosterByClassName(lmsClasses), '', undefined),
+    fetchLiveLmsClasses.fulfilled(
+      buildRosterByClassName(lmsClasses),
+      '',
+      undefined
+    )
   );
   if (mappedPayload) {
     thunkAPI.dispatch(fetchLMSClasses.fulfilled(mappedPayload, '', undefined));
   }
 }
- 
+
 export const syncLmsClasses = createAsyncThunk<
   SyncLmsResult,
   void,
@@ -250,13 +251,10 @@ export const syncLmsClasses = createAsyncThunk<
   try {
     const ltiContext = getLtiLaunchCourseContextFromStorage();
     const nrpsUrls = getNrpsUrlsFromStorage();
-    const lmsAccessToken = getLmsAccessTokenFromStorage();
     const lmsRes = await api.get(config.LiveClassesAPI, {
-      params: nrpsUrls.length > 0 ? { nrpsUrls: nrpsUrls.join(',') } : undefined,
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        ...(lmsAccessToken ? { 'access-token': lmsAccessToken } : {}),
-      },
+      params:
+        nrpsUrls.length > 0 ? { nrpsUrls: nrpsUrls.join(',') } : undefined,
+      headers: { 'ngrok-skip-browser-warning': 'true' },
     });
     const lmsClasses: LmsLiveClass[] = lmsRes.data?.data?.classes ?? [];
     let mappedClasses: MoodleMappedClass[] = [];
@@ -288,7 +286,10 @@ export const syncLmsClasses = createAsyncThunk<
     }
 
     // Existence is keyed by Moodle course ID / NRPS URL from active mappings only — never class name.
-    const existingByCourseId = indexExistingClassesByCourseId(mappedClasses, existingClasses);
+    const existingByCourseId = indexExistingClassesByCourseId(
+      mappedClasses,
+      existingClasses
+    );
     const existingByNrpsUrl = indexExistingClassesByNrpsUrl(mappedClasses);
     const selectedCourseIds = new Set<string>();
     const selectedNrpsUrls = new Set<string>();
@@ -306,20 +307,20 @@ export const syncLmsClasses = createAsyncThunk<
       end_date: string;
       students: ReturnType<typeof extractLmsStudents>;
     }> = [];
- 
+
     const firstRosterError = lmsClasses.find((c) => !!c.error)?.error;
- 
+
     for (const lmsClass of lmsClasses) {
       if (lmsClass.error) {
         continue;
       }
- 
+
       const detail = lmsClass.classDetails;
       const className = detail ? resolveLmsClassName(detail, ltiContext) : '';
       const lmsClassId = String(
-        detail?.contextId ?? detail?.context_id ?? detail?.id ?? '',
+        detail?.contextId ?? detail?.context_id ?? detail?.id ?? ''
       ).trim();
- 
+
       if (!className) {
         continue;
       }
@@ -331,14 +332,16 @@ export const syncLmsClasses = createAsyncThunk<
       // Only fall back to NRPS URL when we have no course ID — never treat a shared NRPS
       // endpoint as proof that this specific Moodle course already exists.
       if (!existingForCourse && !normalizedCourseId && lmsClass.nrpsUrl) {
-        existingForCourse = existingByNrpsUrl.get(normalizeNrpsUrl(lmsClass.nrpsUrl));
+        existingForCourse = existingByNrpsUrl.get(
+          normalizeNrpsUrl(lmsClass.nrpsUrl)
+        );
       }
 
       if (existingForCourse) {
         if (shouldRenameExistingClass(existingForCourse.className, className)) {
           try {
             await api.put(`${config.ClassAPI}/${existingForCourse.classId}`, {
-              class_name: className,
+              className,
             });
             renamedCount += 1;
           } catch {
@@ -350,7 +353,7 @@ export const syncLmsClasses = createAsyncThunk<
           normalizedCourseId &&
           (await triggerBackendRosterSyncForCourse(
             normalizedCourseId,
-            lmsClass.nrpsUrl ?? nrpsUrls[0] ?? '',
+            lmsClass.nrpsUrl ?? nrpsUrls[0] ?? ''
           ))
         ) {
           resyncedCount += 1;
@@ -363,12 +366,17 @@ export const syncLmsClasses = createAsyncThunk<
       if (normalizedCourseId && selectedCourseIds.has(normalizedCourseId)) {
         continue;
       }
-      const nrpsKey = lmsClass.nrpsUrl ? normalizeNrpsUrl(lmsClass.nrpsUrl) : '';
+      const nrpsKey = lmsClass.nrpsUrl
+        ? normalizeNrpsUrl(lmsClass.nrpsUrl)
+        : '';
       if (nrpsKey && selectedNrpsUrls.has(nrpsKey)) {
         continue;
       }
 
-      const students = lmsClass.students.length > 0 ? extractLmsStudents(lmsClass.students) : [];
+      const students =
+        lmsClass.students.length > 0
+          ? extractLmsStudents(lmsClass.students)
+          : [];
       const { start_date, end_date } = defaultClassDateRange();
       toCreate.push({
         lmsCourseId: lmsClassId || undefined,
@@ -404,7 +412,7 @@ export const syncLmsClasses = createAsyncThunk<
           }
           const detail = entry.classDetails;
           const liveCourseId = normalizeLmsCourseId(
-            String(detail.contextId ?? detail.context_id ?? detail.id ?? ''),
+            String(detail.contextId ?? detail.context_id ?? detail.id ?? '')
           );
           return liveCourseId === launchCourseId;
         });
@@ -425,7 +433,7 @@ export const syncLmsClasses = createAsyncThunk<
         });
       }
     }
- 
+
     if (toCreate.length === 0) {
       if (firstRosterError) {
         return thunkAPI.rejectWithValue({ message: firstRosterError });
@@ -447,7 +455,7 @@ export const syncLmsClasses = createAsyncThunk<
         createdClassNames: [],
       };
     }
- 
+
     const bulkRes = await api.post(
       config.ClassBulkCreateAPI,
       { classes: toCreate },
@@ -455,11 +463,15 @@ export const syncLmsClasses = createAsyncThunk<
         headers: {
           'ngrok-skip-browser-warning': 'true',
         },
-      },
+      }
     );
- 
+
     const bulkData = bulkRes.data?.data as
-      | { created?: number; failed?: number; results?: Array<{ success?: boolean; className?: string }> }
+      | {
+          created?: number;
+          failed?: number;
+          results?: Array<{ success?: boolean; className?: string }>;
+        }
       | undefined;
     const createdClassNames =
       bulkData?.results
@@ -467,9 +479,12 @@ export const syncLmsClasses = createAsyncThunk<
         .map((r) => String(r.className ?? '').trim())
         .filter(Boolean) ?? toCreate.map((c) => c.class_name);
     const createdCount =
-      typeof bulkData?.created === 'number' ? bulkData.created : createdClassNames.length;
-    const failedCount = typeof bulkData?.failed === 'number' ? bulkData.failed : 0;
- 
+      typeof bulkData?.created === 'number'
+        ? bulkData.created
+        : createdClassNames.length;
+    const failedCount =
+      typeof bulkData?.failed === 'number' ? bulkData.failed : 0;
+
     if (await triggerBackendRosterSync(ltiContext, nrpsUrls)) {
       resyncedCount += 1;
     }
@@ -490,7 +505,7 @@ export const syncLmsClasses = createAsyncThunk<
     });
   }
 });
- 
+
 export const resyncLmsRosters = createAsyncThunk<
   { resynced: number },
   void,
@@ -514,16 +529,13 @@ export const fetchLiveLmsClasses = createAsyncThunk<
 >('lmsSync/fetchLiveClasses', async (_, thunkAPI) => {
   try {
     const nrpsUrls = getNrpsUrlsFromStorage();
-    const lmsAccessToken = getLmsAccessTokenFromStorage();
 
     const lmsRes = await api.get(config.LiveClassesAPI, {
-      params: nrpsUrls.length > 0 ? { nrpsUrls: nrpsUrls.join(',') } : undefined,
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        ...(lmsAccessToken ? { 'access-token': lmsAccessToken } : {}),
-      },
+      params:
+        nrpsUrls.length > 0 ? { nrpsUrls: nrpsUrls.join(',') } : undefined,
+      headers: { 'ngrok-skip-browser-warning': 'true' },
     });
- 
+
     const lmsClasses: LmsLiveClass[] = lmsRes.data?.data?.classes ?? [];
     const ltiContext = getLtiLaunchCourseContextFromStorage();
     return buildRosterByClassName(lmsClasses, ltiContext);
@@ -534,7 +546,7 @@ export const fetchLiveLmsClasses = createAsyncThunk<
     });
   }
 });
- 
+
 const syncLmsClassesSlice = createSlice({
   name: 'lmsSync',
   initialState,
@@ -561,7 +573,10 @@ const syncLmsClassesSlice = createSlice({
       })
       .addCase(fetchLiveLmsClasses.fulfilled, (state, action) => {
         const liveResult = action.payload;
-        state.liveRosterByClassName = { ...state.liveRosterByClassName, ...liveResult };
+        state.liveRosterByClassName = {
+          ...state.liveRosterByClassName,
+          ...liveResult,
+        };
       })
       .addCase(fetchLMSClasses.fulfilled, (state, action) => {
         for (const cls of action.payload.classes) {
@@ -574,18 +589,21 @@ const syncLmsClassesSlice = createSlice({
             name: s.name ?? s.studentName ?? undefined,
             email: s.email ?? undefined,
           }));
-          if (!state.liveRosterByClassName[key] || state.liveRosterByClassName[key].length === 0) {
+          if (
+            !state.liveRosterByClassName[key] ||
+            state.liveRosterByClassName[key].length === 0
+          ) {
             state.liveRosterByClassName[key] = students;
           }
         }
       });
   },
 });
- 
+
 export const { resetSyncState } = syncLmsClassesSlice.actions;
 export const selectSyncState = (state: RootState) => state.lmsSync.syncState;
-export const selectLastSyncResult = (state: RootState) => state.lmsSync.lastSyncResult;
+export const selectLastSyncResult = (state: RootState) =>
+  state.lmsSync.lastSyncResult;
 export const selectLiveRosterByClassName = (state: RootState) =>
   state.lmsSync.liveRosterByClassName;
 export default syncLmsClassesSlice.reducer;
- 

@@ -1,8 +1,13 @@
+import { AiGateway } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { LoggerService } from 'src/common/services';
 import { Test } from '@nestjs/testing';
-import { ReportsService, normalize } from '@/modules/reports/reports.service';
-import { JsonDataService } from '@/data/json-data.service';
+import {
+  ReportsService,
+  normalize,
+  recomputeCommunicationScore,
+} from '@/modules/reports/reports.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { PpePrivacyService } from '@/modules/reports/ppe-privacy.service';
 import { ClinicalDocumentationService } from '@/modules/reports/clinical-documentation.service';
@@ -10,6 +15,22 @@ import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../common/utils/mock-factory';
 
 describe('ReportsService - Communication Scoring', () => {
   let service: ReportsService;
@@ -18,6 +39,21 @@ describe('ReportsService - Communication Scoring', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ReportsService,
+        { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: createMockSimulationReportRepository() },
+        {
+          provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+          useValue: createMockStudentSimulationProgressRepository(),
+        },
+        { provide: STUDENT_REPOSITORY, useValue: createMockStudentRepository() },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: { findByBusinessId: jest.fn() } },
+        { provide: UNIT_REPOSITORY, useValue: createMockUnitRepository() },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: { findByBusinessId: jest.fn() } },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn() } },
         ActionsInterventionsService,
         PpePrivacyService,
         ClinicalDocumentationService,
@@ -33,14 +69,122 @@ describe('ReportsService - Communication Scoring', () => {
             }),
           },
         },
-        { provide: JsonDataService, useValue: {} },
-        { provide: ConfigService, useValue: {} },
-        { provide: HttpService, useValue: {} },
+        { provide: ConfigService, useValue: { get: jest.fn(() => undefined) } },
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
         { provide: LifecycleTelemetryService, useValue: {} },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = moduleRef.get(ReportsService);
+  });
+
+  describe('recomputeCommunicationScore', () => {
+    const mockLogger = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+      fatal: jest.fn(),
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
+    it('computes a deterministic score from valid + complete criteriaResults', () => {
+      const item = {
+        subCategory: 'communication',
+        score: 999,
+        criteriaResults: [{ passed: true }, { passed: true }, { passed: false }],
+      };
+
+      recomputeCommunicationScore(item, 3, mockLogger as never);
+
+      expect(item.score).toBe(67);
+      expect(mockLogger.debug).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it('does not retain the AI top-level score when criteriaResults is empty', () => {
+      const item = {
+        subCategory: 'communication',
+        score: 72,
+        criteriaResults: [] as Array<{ passed?: boolean }>,
+      };
+
+      recomputeCommunicationScore(item, 3, mockLogger as never);
+
+      expect(item.score).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'communication-criteria-results-missing',
+          metadata: expect.objectContaining({ aiTopLineScore: 72 }),
+        }),
+      );
+      expect(mockLogger.debug).not.toHaveBeenCalled();
+    });
+
+    it('does not retain the AI top-level score when criteriaResults is missing', () => {
+      const item = { subCategory: 'communication', score: 88 } as {
+        subCategory: string;
+        score: number | null;
+        criteriaResults?: Array<{ passed?: boolean }>;
+      };
+
+      recomputeCommunicationScore(item, 3, mockLogger as never);
+
+      expect(item.score).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('treats a non-array criteriaResults (partial/truncated AI response) as missing', () => {
+      const item = {
+        subCategory: 'communication',
+        score: 50,
+        criteriaResults: 'not-an-array' as unknown as Array<{ passed?: boolean }>,
+      };
+
+      recomputeCommunicationScore(item, 3, mockLogger as never);
+
+      expect(item.score).toBeNull();
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    });
+
+    it('falls back to criteriaResults.length as denominator when no enabled criteria are configured', () => {
+      const item = {
+        subCategory: 'communication',
+        score: 0,
+        criteriaResults: [{ passed: true }, { passed: true }],
+      };
+
+      recomputeCommunicationScore(item, 0, mockLogger as never);
+
+      expect(item.score).toBe(100);
+    });
   });
 
   describe('normalize', () => {
@@ -55,198 +199,6 @@ describe('ReportsService - Communication Scoring', () => {
     it('should handle null/undefined', () => {
       expect(normalize(null as unknown as string)).toBe('');
       expect(normalize(undefined as unknown as string)).toBe('');
-    });
-  });
-
-  describe('evaluateConversationQualityEnhanced', () => {
-    it('should score high for professional and empathetic messages', () => {
-      const messages = [
-        { speaker: 'student', text: 'Hello, please tell me how you feel.' },
-        {
-          speaker: 'student',
-          text: 'I understand that must be difficult, thank you for sharing.',
-        },
-        { speaker: 'student', text: 'Can you tell me more about your pain?' },
-      ];
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).evaluateConversationQualityEnhanced(messages) as Record<string, unknown>;
-
-      expect(result.professionalismScore).toBeGreaterThan(0);
-      expect(result.questionCount).toBeGreaterThan(0);
-      expect(result.engagementScore).toBeGreaterThan(3);
-    });
-
-    it('should score low for unprofessional language', () => {
-      const messages = [
-        { speaker: 'student', text: 'hey what is up' },
-        { speaker: 'student', text: 'um like whatever' },
-      ];
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).evaluateConversationQualityEnhanced(messages) as Record<string, unknown>;
-
-      expect(result.professionalismScore).toBeLessThan(0);
-    });
-
-    it('should handle empty messages array', () => {
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).evaluateConversationQualityEnhanced([]) as Record<string, unknown>;
-      expect(result.messageCount).toBe(0);
-      expect(result.engagementScore).toBe(0);
-    });
-  });
-
-  describe('calculateScoresStrict', () => {
-    const defaultData = {
-      coverage: 50,
-      askedFields: ['name'],
-      missingFields: ['allergies'],
-      criticalMissing: [],
-    };
-    const defaultPhases = {
-      completedTasks: 0,
-      totalTasks: 0,
-      completedPhases: 0,
-      totalPhases: 0,
-      phaseDetails: [],
-    };
-    const defaultActions = {
-      totalExpected: 0,
-      totalMentioned: 0,
-      totalTaken: 0,
-      mentionedInConversation: {
-        labs: 0,
-        imaging: 0,
-        physicalExam: 0,
-        medications: 0,
-      },
-      completionRate: 0,
-    };
-    const defaultConversation = {
-      messageCount: 5,
-      avgResponseLength: 20,
-      professionalismScore: 5,
-      questionCount: 2,
-      engagementScore: 5,
-    };
-    const defaultReqs = { met: 0, total: 0, details: [] };
-
-    it('should yield score 0 if message count is 0', () => {
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).calculateScoresStrict(
-        defaultData,
-        defaultPhases,
-        defaultActions,
-        defaultConversation,
-        defaultReqs,
-        0,
-      ) as Record<string, unknown>;
-      expect(result.overallScore).toBe(0);
-    });
-
-    it('should apply heavy penalty for missing critical fields like allergies', () => {
-      const patientData = { ...defaultData, criticalMissing: ['allergies'] };
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).calculateScoresStrict(
-        patientData,
-        defaultPhases,
-        defaultActions,
-        defaultConversation,
-        defaultReqs,
-        5,
-      ) as Record<string, unknown>;
-      // Base score is around 40-60, penalty is 15
-      expect(result.clinicalJudgment).toBeLessThan(3);
-    });
-
-    it('should be deterministic (same input = same output)', () => {
-      const run1 = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).calculateScoresStrict(
-        defaultData,
-        defaultPhases,
-        defaultActions,
-        defaultConversation,
-        defaultReqs,
-        5,
-      ) as Record<string, unknown>;
-      const run2 = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).calculateScoresStrict(
-        defaultData,
-        defaultPhases,
-        defaultActions,
-        defaultConversation,
-        defaultReqs,
-        5,
-      ) as Record<string, unknown>;
-      expect(run1).toEqual(run2);
-    });
-
-    it('should award communication points based on quality', () => {
-      const highQualityConv = {
-        ...defaultConversation,
-        questionCount: 10,
-        professionalismScore: 10,
-      };
-      const lowQualityConv = {
-        ...defaultConversation,
-        questionCount: 0,
-        professionalismScore: -5,
-      };
-
-      const scoreHigh = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).calculateScoresStrict(
-        defaultData,
-        defaultPhases,
-        defaultActions,
-        highQualityConv,
-        defaultReqs,
-        5,
-      ) as Record<string, unknown>;
-      const scoreLow = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).calculateScoresStrict(
-        defaultData,
-        defaultPhases,
-        defaultActions,
-        lowQualityConv,
-        defaultReqs,
-        5,
-      ) as Record<string, unknown>;
-
-      expect(scoreHigh.communication as number).toBeGreaterThan(scoreLow.communication as number);
-    });
-  });
-
-  describe('Edge Cases in buildDynamicAssessment', () => {
-    it('should return 0 score and critical improvements for empty transcript', () => {
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).buildDynamicAssessment({
-        messages: [],
-        scenario: {},
-      }) as { score: number; scoreJson: { overallScore: number }; improvements: string[] };
-
-      expect(result.score).toBe(0);
-      expect(result.scoreJson.overallScore).toBe(0);
-      expect(result.improvements).toContain('CRITICAL: No questions were asked to the patient');
-    });
-
-    it('should return 0 score for transcript with only empty messages', () => {
-      const result = (
-        service as unknown as Record<string, (...args: unknown[]) => unknown>
-      ).buildDynamicAssessment({
-        messages: [{ speaker: 'student', text: '   ', timestamp: '...' }],
-        scenario: {},
-      }) as { score: number };
-
-      expect(result.score).toBe(0);
     });
   });
 });

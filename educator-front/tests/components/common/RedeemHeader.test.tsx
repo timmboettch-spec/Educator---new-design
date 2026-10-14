@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
@@ -40,7 +40,8 @@ vi.mock('../../../src/store/hooks', async () => {
   const rr = await vi.importActual<typeof import('react-redux')>('react-redux');
   return {
     useAppDispatch: () => mockDispatch,
-    useAppSelector: rr.useSelector as typeof import('../../../src/store/hooks').useAppSelector,
+    useAppSelector:
+      rr.useSelector as typeof import('../../../src/store/hooks').useAppSelector,
   };
 });
 
@@ -59,6 +60,13 @@ vi.mock('../../../src/redux/auth/LogoutRedux', () => ({
   })),
   resetLogout: vi.fn(() => ({ type: 'auth/logout/reset' })),
 }));
+
+vi.mock('../../../src/utils/storage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/utils/storage')>()),
+  getParsedUser: vi.fn(() => null),
+}));
+
+import { getParsedUser } from '../../../src/utils/storage';
 
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: {
@@ -97,7 +105,7 @@ describe('RedeemHeader', () => {
       JSON.stringify({
         full_name: 'John Doe',
         profile_image: '',
-      }),
+      })
     );
   });
 
@@ -107,7 +115,7 @@ describe('RedeemHeader', () => {
         <Provider store={store}>
           <RedeemHeader />
         </Provider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     expect(screen.getByText('Realityworks')).toBeInTheDocument();
@@ -120,7 +128,7 @@ describe('RedeemHeader', () => {
         <Provider store={store}>
           <RedeemHeader />
         </Provider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     expect(screen.getByText('A')).toBeInTheDocument();
@@ -132,7 +140,7 @@ describe('RedeemHeader', () => {
         <Provider store={store}>
           <RedeemHeader />
         </Provider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     const bellIcon = document.querySelector('svg');
@@ -148,7 +156,7 @@ describe('RedeemHeader', () => {
         <Provider store={store}>
           <RedeemHeader onClickNotification={onClickNotification} />
         </Provider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     const bellIcons = document.querySelectorAll('svg');
@@ -164,7 +172,7 @@ describe('RedeemHeader', () => {
         <Provider store={store}>
           <RedeemHeader />
         </Provider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     const buttons = screen.getAllByRole('button');
@@ -180,7 +188,7 @@ describe('RedeemHeader', () => {
         <Provider store={store}>
           <RedeemHeader />
         </Provider>
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     const buttons = screen.getAllByRole('button');
@@ -189,6 +197,88 @@ describe('RedeemHeader', () => {
 
     fireEvent.click(screen.getByText('No'));
 
-    expect(screen.queryByText('Do you want to Sign Out?')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Do you want to Sign Out?')
+    ).not.toBeInTheDocument();
+  });
+
+  describe('profile details', () => {
+    const renderRedeemHeader = () =>
+      render(
+        <MemoryRouter>
+          <Provider store={store}>
+            <RedeemHeader />
+          </Provider>
+        </MemoryRouter>
+      );
+
+    beforeEach(() => {
+      vi.mocked(getParsedUser).mockReturnValue(null);
+    });
+
+    test('prefers the saved user over the sign-in response', () => {
+      vi.mocked(getParsedUser).mockReturnValue({ full_name: 'Zara' });
+      renderRedeemHeader();
+      expect(screen.getByText('Z')).toBeInTheDocument();
+    });
+
+    test('does not bring back a removed photo from the sign-in details', () => {
+      // After Remove Photo, /auth/me saves profile_picture as null.
+      vi.mocked(getParsedUser).mockReturnValue({
+        full_name: 'Zara',
+        profile_picture: null,
+      });
+      render(
+        <MemoryRouter>
+          <Provider
+            store={configureStore({
+              reducer: {
+                Login: () => ({
+                  responseLogin: {
+                    data: {
+                      user: {
+                        full_name: 'Zara',
+                        profile_picture: 'https://cdn.example.com/old.png',
+                      },
+                    },
+                  },
+                }),
+                SignUp: () => ({ responseSignUp: null }),
+              },
+            })}
+          >
+            <RedeemHeader />
+          </Provider>
+        </MemoryRouter>
+      );
+
+      expect(screen.queryByAltText('Zara')).not.toBeInTheDocument();
+      expect(screen.getByText('Z')).toBeInTheDocument();
+    });
+
+    test('follows a name change made on the Account page', () => {
+      renderRedeemHeader();
+      expect(screen.getByText('A')).toBeInTheDocument();
+
+      vi.mocked(getParsedUser).mockReturnValue({ full_name: 'Bea' });
+      act(() => {
+        window.dispatchEvent(new Event('profile-updated'));
+      });
+      expect(screen.getByText('B')).toBeInTheDocument();
+    });
+
+    test('shows the saved profile picture and falls back to the initial if it fails', () => {
+      vi.mocked(getParsedUser).mockReturnValue({
+        full_name: 'Zara',
+        profile_picture: 'https://cdn.example.com/zara.png',
+      });
+      renderRedeemHeader();
+
+      const avatar = screen.getByAltText('Zara');
+      expect(avatar).toHaveAttribute('src', 'https://cdn.example.com/zara.png');
+      fireEvent.error(avatar);
+      expect(screen.queryByAltText('Zara')).not.toBeInTheDocument();
+      expect(screen.getByText('Z')).toBeInTheDocument();
+    });
   });
 });

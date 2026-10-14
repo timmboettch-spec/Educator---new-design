@@ -7,14 +7,24 @@ interface StudentSpeechProps {
   event: TranscriptEventData;
 }
 
-const StudentSpeech = memo(function StudentSpeech({ event }: StudentSpeechProps) {
-  const transcript = eventField(event, 'transcript', 'text', 'content', 'description');
+const StudentSpeech = memo(function StudentSpeech({
+  event,
+}: StudentSpeechProps) {
+  const transcript = eventField(
+    event,
+    'transcript',
+    'text',
+    'content',
+    'description'
+  );
   const speaker = eventField(event, 'speaker');
   const title = eventField(event, 'title');
 
   return (
     <EventCard event={event}>
-      {title && <h4 className="text-sm font-semibold text-gray-900">{title}</h4>}
+      {title && (
+        <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
+      )}
 
       <div className="flex items-start gap-3">
         {/* Avatar circle */}
@@ -24,7 +34,9 @@ const StudentSpeech = memo(function StudentSpeech({ event }: StudentSpeechProps)
 
         <div className="flex-1 min-w-0">
           {speaker && (
-            <p className="text-xs font-semibold text-blue-600 mb-1">{speaker}</p>
+            <p className="text-xs font-semibold text-blue-600 mb-1">
+              {speaker}
+            </p>
           )}
 
           {transcript ? (
@@ -34,7 +46,9 @@ const StudentSpeech = memo(function StudentSpeech({ event }: StudentSpeechProps)
               </p>
             </div>
           ) : (
-            <p className="text-xs text-gray-500 italic">No transcript available.</p>
+            <p className="text-xs text-gray-400 italic">
+              No transcript available.
+            </p>
           )}
         </div>
       </div>

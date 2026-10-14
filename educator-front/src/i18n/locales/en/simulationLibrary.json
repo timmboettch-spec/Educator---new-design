@@ -1,0 +1,193 @@
+{
+  "title": "My Simulation Library",
+  "searchPlaceholder": "Search Simulations...",
+  "resultCount_one": "{{count}} simulation",
+  "resultCount_other": "{{count}} simulations",
+  "view": {
+    "label": "Layout",
+    "grid": "Grid view",
+    "list": "List view"
+  },
+  "duration": {
+    "minutes": "minutes",
+    "minute": "minute",
+    "mins": "mins",
+    "min": "min",
+    "hours": "hours",
+    "hour": "hour"
+  },
+  "selection": {
+    "toolbarLabel": "Selected simulations",
+    "selectAll": "Select all ({{count}})",
+    "clearAll": "Clear all",
+    "selected_one": "{{count}} selected",
+    "selected_other": "{{count}} selected",
+    "clearSelection": "Clear selection",
+    "assign_one": "Assign {{count}} simulation to Class(es)",
+    "assign_other": "Assign {{count}} simulations to Class(es)",
+    "selectSimulation": "Select {{title}}",
+    "selectAllVisible": "Select all shown simulations"
+  },
+  "table": {
+    "caption": "Simulations in your library",
+    "name": "Simulation Name",
+    "learnerLevel": "Learner Level",
+    "targetAudience": "Target Audience",
+    "modality": "Modality",
+    "productName": "Product Name",
+    "difficulty": "Difficulty",
+    "duration": "Duration",
+    "action": "Action",
+    "sortedAscending": "{{label}}, sorted ascending",
+    "sortedDescending": "{{label}}, sorted descending"
+  },
+  "card": {
+    "assignToClass": "Assign to Class",
+    "moreInfo": "More Info",
+    "aiSeatsRequired": "AI Seats Required",
+    "aiSimulation": "AI Simulation",
+    "removeFromLibrary": "Remove from My Library",
+    "bundlePart": "Part of your bundle — cannot be removed",
+    "moreInfoAbout": "More info about {{title}}"
+  },
+  "remove": {
+    "confirmTitle": "Remove from My Library?",
+    "confirmBody": "Are you sure you want to remove <name>“{{title}}”</name> from your library? You can add it back from the Simulation Catalog at any time.",
+    "confirm": "Remove",
+    "cancel": "Cancel",
+    "removing": "Removing…",
+    "success": "Removed from library successfully",
+    "failed": "Failed to remove from library"
+  },
+  "states": {
+    "loading": "Loading simulations",
+    "emptyTitle": "Your library is empty",
+    "emptyBody": "Add simulations from the Simulation Catalog and they'll appear here.",
+    "browseCatalog": "Browse the Simulation Catalog",
+    "noMatchesTitle": "No simulations match your filters",
+    "noMatchesBody": "Try removing a filter or changing your search.",
+    "clearFilters": "Clear filters",
+    "errorTitle": "Failed to load simulations",
+    "errorBody": "We couldn't load your library right now. Check your connection and try again.",
+    "retry": "Try Again",
+    "endOfList": "All simulations in your library are shown.",
+    "loadedMore_one": "{{count}} more simulation loaded",
+    "loadedMore_other": "{{count}} more simulations loaded"
+  },
+  "assignModal": {
+    "simulationsNoun_one": "simulation",
+    "simulationsNoun_other": "simulations",
+    "multipleUnits": "Multiple units",
+    "partialFailure": "{{succeeded}} of {{total}} assignments were created. The rest could not be assigned.",
+    "details": {
+      "title": "Simulation Details",
+      "difficulty": "Difficulty",
+      "duration": "Duration",
+      "clinicalSetting": "Clinical Setting",
+      "description": "Description",
+      "learningObjectives": "Learning Objectives"
+    }
+  },
+  "details": {
+    "back": "Back",
+    "backToLibrary": "Back to Library",
+    "backToProducts": "Back to Products",
+    "backToClassManagement": "Back to Class Management",
+    "activateLicense": "Activate License",
+    "attention": "ATTENTION",
+    "triesLeft": "Only {{count}} Tries Left",
+    "triesLeftDesc": "Educators Can Explore This Simulation Three Times Before Buying.",
+    "tiles": {
+      "modality": "Modality",
+      "targetAudience": "TARGET AUDIENCE",
+      "difficulty": "DIFFICULTY",
+      "duration": "DURATION",
+      "clinicalSetting": "CLINICAL SETTING",
+      "unit": "UNIT"
+    },
+    "modalityValue": {
+      "manikin": "Manikin",
+      "aiOnly": "AI Only"
+    },
+    "library": {
+      "add": "Add to My Library",
+      "remove": "Remove From My Library",
+      "addAria": "Add to library",
+      "removeAria": "Remove from library",
+      "addedByEducator": "Added by Educator",
+      "signInToAdd": "Sign In to Add to Library"
+    },
+    "expandAll": "Expand All",
+    "collapseAll": "Collapse All",
+    "sections": {
+      "overview": "Simulation Overview",
+      "additionalDetails": "Additional Details",
+      "studentBriefing": "Student Briefing",
+      "sbar": "Patient Handoff SBAR",
+      "facilitationDocuments": "Facilitation Documents"
+    },
+    "overviewFields": {
+      "purpose": "Purpose:",
+      "description": "Description:",
+      "learningObjective": "Learning Objectives:",
+      "learningObjectives": "Learning Objectives:",
+      "topicsAddressed": "Topics Addressed:"
+    },
+    "additionalFields": {
+      "productName": "Required Product Name",
+      "additionalEquipment": "Additional Equipment / Supplies Needed",
+      "optionalEquipment": "Optional Additional Equipment / Supplies",
+      "setupNotes": "Set-Up Notes"
+    },
+    "briefing": {
+      "safeEnvironment": "Creating a Safe Learning Environment",
+      "facilitatorSupport": "Facilitator Presence and Learner Support",
+      "orientationSpace": "Orientation to the Simulation Space",
+      "orientationEquipment": "Orientation to Equipment",
+      "evaluation": "Evaluation and Assessment",
+      "rolesExpectations": "Roles and Expectations",
+      "simulationLimitations": "Simulation Limitations",
+      "timeAllotment": "Time Allotment",
+      "purpose": "Purpose of the Simulation",
+      "learningObjectives": "Learning Objectives",
+      "closingReminder": "Closing Reminder"
+    },
+    "sbarFields": {
+      "situation": "Situation",
+      "background": "Background",
+      "assessment": "Assessment",
+      "recommendation": "Recommendation / Request"
+    },
+    "screenshotAlt": "Screenshot {{number}}",
+    "instructorFacing": "Instructor-Facing",
+    "studentFacing": "Student-Facing",
+    "documents": {
+      "setupGuide": "Simulation Set-Up Guide",
+      "simulationDetails": "Simulation Details Doc",
+      "briefingScript": "Simulation Briefing Script",
+      "debriefingScript": "Simulation Debriefing Script",
+      "patientSbar": "Printable Patient SBAR Handoff Doc",
+      "patientChart": "Printable Patient Chart Doc"
+    },
+    "preparingPdf": "Preparing PDF...",
+    "documentFailed": "Unable to prepare this document. Please try again.",
+    "toast": {
+      "addedToLibrary": "Added to My Library",
+      "removedFromLibrary": "Removed from My Library",
+      "failedToAdd": "Failed to add to library",
+      "failedToRemove": "Failed to remove from library",
+      "cannotAddNoScenario": "Cannot add to library: simulation has no valid scenario ID",
+      "failedToResolve": "Failed to resolve simulation by title",
+      "failedToLoadUnitData": "Failed to load unit data",
+      "failedToLoadDetails": "Failed to load simulation details",
+      "unexpectedError": "Unexpected error loading simulation details"
+    },
+    "loading": "Loading simulation details",
+    "notFound": "Simulation not found.",
+    "retry": "Retry",
+    "partialError": {
+      "title": "Couldn't load the full details",
+      "body": "The summary above is available, but the rest of this simulation's details didn't load. Check your connection and try again."
+    }
+  }
+}

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Reports Digest</title>
+</head>
+
+<body style="margin: 0; padding: 24px 0; background-color: #e9edf2; font-family: Arial, Helvetica, sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+        style="border-collapse: collapse;">
+        <tr>
+            <td align="center">
+                <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"
+                    style="width: 560px; max-width: 560px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 16px 24px 14px; background-color: #db8833;">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="border-collapse: collapse;">
+                                <tr>
+                                    <td align="center" style="padding-bottom: 8px;">
+                                        {{#if logoUrl}}
+                                        <img src="{{logoUrl}}" alt="Realityworks AI" width="124"
+                                            style="display: block; border: 0; outline: none; text-decoration: none;" />
+                                        {{else}}
+                                        <p
+                                            style="margin: 0; text-align: center; font-size: 26px; line-height: 1.2; font-weight: 600; color: #ff6b00;">
+                                            Realityworks AI</p>
+                                        {{/if}}
+                                    </td>
+                                </tr>
+                            </table>
+                            <p
+                                style="margin: 0; text-align: center; font-size: 30px; line-height: 1.2; font-weight: 600; color: #ffffff;">
+                                Student Reports Digest</p>
+                            <p
+                                style="margin: 4px 0 0; text-align: center; font-size: 13px; line-height: 1.35; color: #ffffff;">
+                                {{frequency}} summary of newly available reports</p>
+                        </td>
+                    </tr>
+
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 26px 24px 18px; background-color: #ffffff;">
+                            <p style="margin: 0; font-size: 22px; line-height: 1.2; font-weight: 600; color: #1f2a37;">
+                                Hi {{educatorName}},</p>
+                            <p style="margin: 14px 0 0; font-size: 13px; line-height: 1.5; color: #6b7280;">
+                                The following student reports became available since your last digest:
+                            </p>
+
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                                style="margin-top: 18px; border-collapse: collapse; border: 1px solid #f0a15c; background-color: #fbf7f3;">
+                                <tr>
+                                    <td
+                                        style="padding: 8px 14px; font-size: 11px; line-height: 1.4; font-weight: 600; color: #db8833; text-transform: uppercase;">
+                                        Student</td>
+                                    <td
+                                        style="padding: 8px 14px; font-size: 11px; line-height: 1.4; font-weight: 600; color: #db8833; text-transform: uppercase;">
+                                        Simulation</td>
+                                    <td
+                                        style="padding: 8px 14px; font-size: 11px; line-height: 1.4; font-weight: 600; color: #db8833; text-transform: uppercase;">
+                                        Class</td>
+                                </tr>
+                                {{#each reports}}
+                                <tr>
+                                    <td style="padding: 6px 14px; font-size: 13px; line-height: 1.4; color: #111827;">
+                                        {{#if this.studentCode}}{{this.studentCode}}{{else}}{{this.studentName}}{{/if}}
+                                    </td>
+                                    <td style="padding: 6px 14px; font-size: 13px; line-height: 1.4; color: #111827;">
+                                        {{this.simulationTitle}}</td>
+                                    <td style="padding: 6px 14px; font-size: 13px; line-height: 1.4; color: #111827;">
+                                        {{this.className}}</td>
+                                </tr>
+                                {{/each}}
+                            </table>
+
+                            <p style="margin: 20px 0 0; font-size: 13px; line-height: 1.5; color: #6b7280;">
+                                Log in to your dashboard to view the full reports.
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 14px 24px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+                            <p
+                                style="margin: 0; font-size: 11px; line-height: 1.5; color: #9ca3af; text-align: center;">
+                                You are receiving this email because you are registered as an educator on Realityworks
+                                AI.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>

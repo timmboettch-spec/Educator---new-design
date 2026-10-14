@@ -15,7 +15,7 @@ const scenarioCache = new Map<string, Record<string, unknown>>();
 
 export async function fetchReportById(
   reportId: string,
-  options?: { skipCache?: boolean },
+  options?: { skipCache?: boolean }
 ): Promise<AssessmentReport> {
   if (!options?.skipCache) {
     const cached = reportCache.get(reportId);
@@ -34,7 +34,7 @@ export async function fetchReportById(
 // fetch transcript log for a given transcript ID
 export async function fetchTranscriptLog(
   transcriptId: string,
-  options?: { skipCache?: boolean },
+  options?: { skipCache?: boolean }
 ): Promise<Record<string, unknown>> {
   if (!options?.skipCache) {
     const cached = logCache.get(transcriptId);
@@ -52,7 +52,7 @@ export async function fetchTranscriptLog(
 
 export async function fetchScenarioById(
   scenarioId: string,
-  options?: { skipCache?: boolean },
+  options?: { skipCache?: boolean }
 ): Promise<Record<string, unknown>> {
   if (!options?.skipCache) {
     const cached = scenarioCache.get(scenarioId);
@@ -69,10 +69,14 @@ export async function fetchScenarioById(
 }
 
 /** HS-online-shaped report + transcript log, with legacy Educator DTO fallback. */
-export async function fetchUserTranscript(attemptId: string): Promise<UserTranscriptResponse> {
+export async function fetchUserTranscript(
+  attemptId: string
+): Promise<UserTranscriptResponse> {
   try {
     const report = await fetchReportById(attemptId);
-    const transcriptId = String(report['transcriptId'] ?? report['transcript_id'] ?? '').trim();
+    const transcriptId = String(
+      report['transcriptId'] ?? report['transcript_id'] ?? ''
+    ).trim();
 
     let log: Record<string, unknown> | null = null;
     if (transcriptId) {

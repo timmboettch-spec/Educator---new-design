@@ -1,4 +1,3 @@
-
 const SAFE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export function getClassPrefix(className: string): string {
   const cleaned = className
@@ -18,7 +17,7 @@ function generateSuffix(): string {
 }
 export function generateUniqueStudentCode(
   existingCodes: Set<string> = new Set(),
-  className = '',
+  className = ''
 ): string {
   const prefix = getClassPrefix(className);
   const MAX_ATTEMPTS = 200;
@@ -33,7 +32,7 @@ export function generateUniqueStudentCode(
 export function generateUniqueStudentCodes(
   count: number,
   existingCodes: Set<string> = new Set(),
-  className = '',
+  className = ''
 ): string[] {
   const used = new Set<string>(existingCodes);
   const codes: string[] = [];
@@ -47,8 +46,8 @@ export function generateUniqueStudentCodes(
 
 export function isValidAccessCode(code: string): boolean {
   return (
-    /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/.test(code) ||
-    /^\d{8}$/.test(code)
+    /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/.test(
+      code
+    ) || /^\d{8}$/.test(code)
   );
 }
-

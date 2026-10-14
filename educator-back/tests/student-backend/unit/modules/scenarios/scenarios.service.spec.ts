@@ -1,222 +1,221 @@
 import { Test } from '@nestjs/testing';
-import { ScenariosService } from '@/modules/scenarios/scenarios.service';
-import { JsonDataService } from '@/data/json-data.service';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
-import type { Scenario, Unit } from '@/data/json-data.service';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { AutomationAccessService } from 'src/common/services/automation-access.service';
+import {
+  LMS_ASSIGNMENT_MAPPING_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
+import { SimulationService } from 'src/simulation/simulation.service';
+import { RoleSlug, UserTokenType } from 'src/common/constants';
+import type { ICurrentUser } from 'src/common/interfaces';
+import { LoggerService } from 'src/common/services';
+import { VoiceProfilesService } from 'src/voice-profiles/voice-profiles.service';
+import {
+  createMockUnitRepository,
+  createMockSimulationRepository,
+} from '../../common/utils/mock-factory';
 
 describe('ScenariosService', () => {
   let service: ScenariosService;
-  let jsonDataService: jest.Mocked<JsonDataService>;
+  let unitRepository: ReturnType<typeof createMockUnitRepository>;
+  let simulationV2Repository: ReturnType<typeof createMockSimulationRepository>;
+  let transcriptRepository: { findByUserId: jest.Mock };
+  let assignmentService: { getAssignedSimulationIds: jest.Mock };
+  let assignmentMappingRepository: { findOne: jest.Mock };
 
   beforeEach(async () => {
-    const getScenarioById = jest.fn();
-    const getScenarios = jest.fn();
-    const getScenariosByUnitId = jest.fn();
-    jsonDataService = {
-      getDefaultScenarioById: jest.fn(),
-      getDefaultScenario: jest.fn(),
-      getScenarios,
-      getScenariosByUnitId,
-      getScenarioById,
-      getScenarioByIdFresh: getScenarioById,
-      // Localized wrappers used by ScenariosService. Delegate to the plain
-      // getters so existing tests that seed data via `.mockReturnValue(...)`
-      // on the non-localized mocks continue to work without modification.
-      getAllScenariosLocalized: jest
-        .fn()
-        .mockImplementation(async (_lang?: string) => getScenarios()),
-      getScenariosByUnitIdLocalized: jest
-        .fn()
-        .mockImplementation(async (unitId: string, _lang?: string) => getScenariosByUnitId(unitId)),
-      getScenarioByIdLocalized: jest
-        .fn()
-        .mockImplementation(async (id: string, _lang?: string) => getScenarioById(id)),
-      getUnitById: jest.fn(),
-      getTranscriptsByUserId: jest.fn(),
-      addScenario: jest.fn(),
-      saveAsDefaultScenario: jest.fn(),
-      updateScenario: jest.fn(),
-    } as unknown as jest.Mocked<JsonDataService>;
+    unitRepository = createMockUnitRepository();
+    simulationV2Repository = createMockSimulationRepository();
+    transcriptRepository = { findByUserId: jest.fn().mockResolvedValue([]) };
+    assignmentService = {
+      getAssignedSimulationIds: jest.fn().mockResolvedValue(new Set<string>()),
+    };
+    assignmentMappingRepository = { findOne: jest.fn().mockResolvedValue(null) };
 
     const moduleRef = await Test.createTestingModule({
-      providers: [ScenariosService, { provide: JsonDataService, useValue: jsonDataService }],
+      providers: [
+        ScenariosService,
+        {
+          provide: VoiceProfilesService,
+          useValue: { resolveForScenario: jest.fn().mockResolvedValue(null) },
+        },
+        { provide: UNIT_REPOSITORY, useValue: unitRepository },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: simulationV2Repository },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: transcriptRepository },
+        { provide: SimulationService, useValue: assignmentService },
+        { provide: LMS_ASSIGNMENT_MAPPING_REPOSITORY, useValue: assignmentMappingRepository },
+        { provide: LoggerService, useValue: { warn: jest.fn(), log: jest.fn(), error: jest.fn() } },
+        {
+          provide: AutomationAccessService,
+          useValue: {
+            filterRecords: jest.fn((records) => records),
+            canAccessRecord: jest.fn(() => true),
+          },
+        },
+      ],
     }).compile();
 
     service = moduleRef.get(ScenariosService);
   });
 
-  describe('getDefaultScenario', () => {
-    it('should return default scenario when no id provided', async () => {
-      jsonDataService.getDefaultScenario.mockReturnValue({ id: 's1' } as unknown as Scenario);
-
-      const result = await service.getDefaultScenario();
-
-      expect(result).toEqual({ id: 's1' });
-    });
-
-    it('should return scenario by id when id provided', async () => {
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
-        id: 's2',
-      } as unknown as Scenario);
-
-      const result = await service.getDefaultScenario('s2');
-
-      expect(result).toEqual({ id: 's2' });
-      expect(jsonDataService.getScenarioByIdFresh).toHaveBeenCalledWith('s2');
-    });
-
-    it('should throw when scenario id not found', async () => {
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue(undefined);
-
-      await expect(service.getDefaultScenario('missing')).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw when default scenario not found', async () => {
-      jsonDataService.getDefaultScenario.mockReturnValue(null);
-
-      await expect(service.getDefaultScenario()).rejects.toThrow(NotFoundException);
-    });
-  });
-
   describe('findAll', () => {
     it('should return scenarios with unit mapped', async () => {
-      jsonDataService.getScenarios.mockReturnValue([
+      simulationV2Repository.findAllWithChildrenJoined.mockResolvedValue([
         { id: 's1', unitId: 'u1' },
-      ] as unknown as Scenario[]);
-      jsonDataService.getUnitById.mockReturnValue({ id: 'u1' } as unknown as Unit);
+      ] as never);
+      unitRepository.find.mockResolvedValue([{ id: 'u1' }] as never);
 
       const result = await service.findAll();
 
-      expect(result[0].unit).toEqual({ id: 'u1' });
+      expect(result[0].unit).toEqual({ id: 'u1', imageUrl: '' });
     });
   });
 
-  describe('findByUnit', () => {
-    it('should return scenarios without completion info when userId not provided', async () => {
-      jsonDataService.getScenariosByUnitId.mockReturnValue([
-        { id: 's1', unitId: 'u1' },
-      ] as unknown as Scenario[]);
-      jsonDataService.getUnitById.mockReturnValue({ id: 'u1' } as unknown as Unit);
-
-      const result = await service.findByUnit('u1');
-
-      expect(result[0].completed).toBeUndefined();
-      expect(result[0].progress).toBeUndefined();
-    });
-
-    it('should return completed and progress when transcript exists', async () => {
-      jsonDataService.getScenariosByUnitId.mockReturnValue([
-        { id: 's1', unitId: 'u1' },
-        { id: 's2', unitId: 'u1' },
-      ] as unknown as Scenario[]);
-
-      jsonDataService.getUnitById.mockReturnValue({ id: 'u1' } as unknown as Unit);
-
-      jsonDataService.getTranscriptsByUserId.mockReturnValue([
-        { scenarioId: 's1', endedAt: '2024-01-01', userId: 'user1' },
-      ] as unknown as ReturnType<JsonDataService['getTranscriptsByUserId']>);
-
-      const result = await service.findByUnit('u1', 'user1');
-
-      expect(result[0].completed).toBe(true);
-      expect(result[0].progress).toBe(100);
-
-      expect(result[1].completed).toBe(false);
-      expect(result[1].progress).toBe(0);
-    });
+  const educator: ICurrentUser = {
+    userId: 'user1',
+    roles: [RoleSlug.EDUCATOR],
+    type: UserTokenType.EDUCATOR,
+  };
+  const anyUser = educator;
+  const student = (overrides: Partial<ICurrentUser> = {}): ICurrentUser => ({
+    userId: 'REP-PH9N',
+    student_id: 'REP-PH9N',
+    roles: [RoleSlug.STUDENT],
+    type: UserTokenType.STUDENT,
+    ...overrides,
   });
 
   describe('findOne', () => {
     it('should return scenario with unit', async () => {
-      jsonDataService.getScenarioById.mockReturnValue({
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue({
         id: 's1',
         unitId: 'u1',
-      } as unknown as Scenario);
-      jsonDataService.getUnitById.mockReturnValue({ id: 'u1' } as unknown as Unit);
+      } as never);
+      unitRepository.findByBusinessId.mockResolvedValue({ id: 'u1' } as never);
 
-      const result = await service.findOne('s1');
+      const result = await service.findOne(anyUser, 's1');
 
-      expect(result.unit).toEqual({ id: 'u1' });
+      expect(result.unit).toEqual({ id: 'u1', imageUrl: '' });
     });
 
     it('should throw when scenario not found', async () => {
-      jsonDataService.getScenarioById.mockReturnValue(undefined);
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(null);
 
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(anyUser, 'missing')).rejects.toThrow(NotFoundException);
     });
 
     it('should add completed and progress when user transcript exists', async () => {
-      jsonDataService.getScenarioById.mockReturnValue({
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue({
         id: 's1',
         unitId: 'u1',
-      } as unknown as Scenario);
-      jsonDataService.getUnitById.mockReturnValue({ id: 'u1' } as unknown as Unit);
-      jsonDataService.getTranscriptsByUserId.mockReturnValue([
+      } as never);
+      unitRepository.findByBusinessId.mockResolvedValue({ id: 'u1' } as never);
+      transcriptRepository.findByUserId.mockResolvedValue([
         { scenarioId: 's1', userId: 'user1', endedAt: '2024-01-01' },
-      ] as unknown as ReturnType<JsonDataService['getTranscriptsByUserId']>);
+      ]);
 
-      const result = await service.findOne('s1', 'user1');
+      const result = await service.findOne(educator, 's1');
 
       expect(result.completed).toBe(true);
       expect(result.progress).toBe(100);
     });
-  });
 
-  describe('createScenario', () => {
-    it('should add scenario and save as default', async () => {
-      const scenario = { id: 's1' };
-
-      const result = await service.createScenario(scenario as unknown as Scenario);
-
-      expect(jsonDataService.addScenario).toHaveBeenCalledWith(scenario);
-      expect(jsonDataService.saveAsDefaultScenario).toHaveBeenCalledWith(scenario);
-      expect(result).toEqual(scenario);
-    });
-
-    it('should throw BadRequestException when physical product setup is enabled but no product name provided', async () => {
-      const scenario = {
-        requiresProductSetup: true,
-        productSetup: { title: '' },
-      };
-
-      await expect(service.createScenario(scenario as unknown as Scenario)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-  });
-
-  describe('updateScenario', () => {
-    it('should update scenario when found', async () => {
-      jsonDataService.getScenarioById.mockReturnValue({
+    it('returns 403 to a student when the loaded scenario is not assigned', async () => {
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue({
         id: 's1',
-        title: 'Old',
-      } as unknown as Scenario);
+      } as never);
 
-      const result = await service.updateScenario('s1', { title: 'New' });
-
-      expect(jsonDataService.updateScenario).toHaveBeenCalledWith('s1', {
-        title: 'New',
-      });
-      expect(result.title).toBe('New');
+      await expect(service.findOne(student(), 's1')).rejects.toBeInstanceOf(ForbiddenException);
     });
 
-    it('should throw when scenario not found', async () => {
-      jsonDataService.getScenarioById.mockReturnValue(undefined);
+    it('returns the scenario to a student when it is assigned', async () => {
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue({
+        id: 's1',
+      } as never);
+      assignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['s1']));
+      transcriptRepository.findByUserId.mockResolvedValue([]);
 
-      await expect(service.updateScenario('missing', { title: 'New' })).rejects.toThrow(
-        NotFoundException,
+      await expect(service.findOne(student(), 's1')).resolves.toMatchObject({ id: 's1' });
+    });
+  });
+
+  describe('assertScenarioAssigned', () => {
+    it('allows a non-student without looking up assignments', async () => {
+      await expect(service.assertScenarioAssigned(educator, 's1')).resolves.toBeUndefined();
+      expect(assignmentService.getAssignedSimulationIds).not.toHaveBeenCalled();
+    });
+
+    it('allows a student whose scenario is in the assigned set', async () => {
+      assignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['s1', 's2']));
+
+      await expect(service.assertScenarioAssigned(student(), 's1')).resolves.toBeUndefined();
+      expect(assignmentService.getAssignedSimulationIds).toHaveBeenCalledWith('REP-PH9N');
+    });
+
+    it('returns 403 for a student whose scenario is not assigned', async () => {
+      assignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['s2']));
+
+      await expect(service.assertScenarioAssigned(student(), 's1')).rejects.toThrow(
+        new ForbiddenException('Scenario not assigned to this student'),
       );
     });
 
-    it('should throw BadRequestException when physical product setup is enabled but no product name provided', async () => {
-      jsonDataService.getScenarioById.mockReturnValue({ id: 's1' } as unknown as Scenario);
-
+    it('returns 403 for a student token with no student code', async () => {
       await expect(
-        service.updateScenario('s1', {
-          requiresProductSetup: true,
-          productSetup: { title: '' },
-        }),
-      ).rejects.toThrow(BadRequestException);
+        service.assertScenarioAssigned(student({ userId: '', student_id: null }), 's1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    describe('LTI simulationId lock', () => {
+      const locked = student({ ltiLaunch: { simulationId: 's1' } });
+
+      it('allows the locked scenario without consulting assignments', async () => {
+        await expect(service.assertScenarioAssigned(locked, 's1')).resolves.toBeUndefined();
+        expect(assignmentService.getAssignedSimulationIds).not.toHaveBeenCalled();
+      });
+
+      it('returns 403 for any other scenario, even an assigned one', async () => {
+        assignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['s2']));
+
+        await expect(service.assertScenarioAssigned(locked, 's2')).rejects.toThrow(
+          new ForbiddenException('You can only launch the simulation linked to your LMS activity'),
+        );
+      });
+    });
+
+    describe('LTI resourceLinkId mapping', () => {
+      const launched = student({ ltiLaunch: { resourceLinkId: 'rl-1', classId: 'c-1' } });
+
+      it('allows the mapped scenario', async () => {
+        assignmentMappingRepository.findOne.mockResolvedValue({ simulationId: 's1' });
+
+        await expect(service.assertScenarioAssigned(launched, 's1')).resolves.toBeUndefined();
+        expect(assignmentMappingRepository.findOne).toHaveBeenCalledWith({
+          where: { classId: 'c-1', lmsResourceLinkId: 'rl-1' },
+        });
+        expect(assignmentService.getAssignedSimulationIds).not.toHaveBeenCalled();
+      });
+
+      it('returns 403 for a scenario other than the mapped one', async () => {
+        assignmentMappingRepository.findOne.mockResolvedValue({ simulationId: 's1' });
+        assignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['s2']));
+
+        await expect(service.assertScenarioAssigned(launched, 's2')).rejects.toThrow(
+          new ForbiddenException('You can only launch the simulation linked to your LMS activity'),
+        );
+      });
+
+      it('falls back to the assigned set when no mapping exists', async () => {
+        assignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['s2']));
+
+        await expect(service.assertScenarioAssigned(launched, 's2')).resolves.toBeUndefined();
+        await expect(service.assertScenarioAssigned(launched, 's3')).rejects.toBeInstanceOf(
+          ForbiddenException,
+        );
+      });
     });
   });
 });

@@ -1,12 +1,23 @@
 import { ExecutionContext } from '@nestjs/common';
 import { ThrottlerException, ThrottlerModuleOptions, ThrottlerStorage } from '@nestjs/throttler';
-import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
+import { TokenService } from '../../../src/common/services';
 import { AuthThrottlerGuard } from '../../../src/common/guards/auth-throttler.guard';
 import { AuthThrottleConstants } from '../../../src/common/constants/throttle.constants';
 import { HttpExceptionFilter } from '../../../src/common/filters/http-exception.filter';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { HttpStatus } from '@nestjs/common';
+import { I18nService } from 'nestjs-i18n';
 import { RATE_LIMIT } from '../../../src/common/constants/throttle.constants';
+import { LoggerService } from '../../../src/common/services';
+
+const mockLogger = {
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+} as unknown as LoggerService;
+
+const mockI18n = { t: jest.fn((key: string) => key) } as unknown as I18nService;
 
 describe('Auth Throttling', () => {
   describe('RATE_LIMIT constants', () => {
@@ -20,9 +31,14 @@ describe('Auth Throttling', () => {
       expect(RATE_LIMIT.AUTHENTICATED.TTL).toBeGreaterThan(0);
     });
 
+    it('defines LTI_LAUNCH classroom burst limits', () => {
+      expect(RATE_LIMIT.LTI_LAUNCH.LIMIT).toBeGreaterThan(0);
+      expect(RATE_LIMIT.LTI_LAUNCH.TTL).toBeGreaterThan(0);
+      expect(RATE_LIMIT.LTI_LAUNCH.LIMIT).toBeGreaterThan(RATE_LIMIT.PUBLIC.LIMIT);
+    });
+
     it('authenticated users get a higher limit than public users', () => {
-      expect(RATE_LIMIT.AUTHENTICATED.LIMIT)
-        .toBeGreaterThan(RATE_LIMIT.PUBLIC.LIMIT);
+      expect(RATE_LIMIT.AUTHENTICATED.LIMIT).toBeGreaterThan(RATE_LIMIT.PUBLIC.LIMIT);
     });
   });
 
@@ -35,6 +51,9 @@ describe('Auth Throttling', () => {
     it('defines FORGOT_PASSWORD limits with positive values', () => {
       expect(AuthThrottleConstants.FORGOT_PASSWORD.LIMIT).toBeGreaterThan(0);
       expect(AuthThrottleConstants.FORGOT_PASSWORD.TTL).toBeGreaterThan(0);
+      expect(AuthThrottleConstants.FORGOT_PASSWORD.COOLDOWN_SECONDS).toBeGreaterThan(0);
+      expect(AuthThrottleConstants.FORGOT_PASSWORD.IP_LIMIT).toBeGreaterThan(0);
+      expect(AuthThrottleConstants.FORGOT_PASSWORD.IP_TTL).toBeGreaterThan(0);
     });
 
     it('defines VERIFY_OTP limits with positive values', () => {
@@ -78,7 +97,7 @@ describe('Auth Throttling', () => {
       };
 
       return {
-        getClass: jest.fn(() => class TestController { }),
+        getClass: jest.fn(() => class TestController {}),
         getHandler: jest.fn(() => jest.fn()),
         switchToHttp: jest.fn(() => ({
           getRequest: jest.fn(() => request),
@@ -99,8 +118,8 @@ describe('Auth Throttling', () => {
         increment: jest.fn(),
       } as unknown as ThrottlerStorage;
       const reflector = new Reflector();
-      const jwtService = { verifyAsync: jest.fn() } as unknown as JwtService;
-      return new AuthThrottlerGuard(options, storage, reflector, jwtService);
+      const tokenService = { verifyToken: jest.fn() } as unknown as TokenService;
+      return new AuthThrottlerGuard(options, storage, reflector, mockLogger, tokenService);
     };
 
     it('sets Retry-After header before throwing ThrottlerException', () => {
@@ -109,12 +128,11 @@ describe('Auth Throttling', () => {
       const ctx = buildContext({}, { setHeader });
 
       expect(() =>
-        (guard as unknown as {
-          throwThrottlingException: (
-            c: ExecutionContext,
-            d: { timeToExpire: number },
-          ) => void;
-        }).throwThrottlingException(ctx, { timeToExpire: 42 }),
+        (
+          guard as unknown as {
+            throwThrottlingException: (c: ExecutionContext, d: { timeToExpire: number }) => void;
+          }
+        ).throwThrottlingException(ctx, { timeToExpire: 42 }),
       ).toThrow(ThrottlerException);
 
       expect(setHeader).toHaveBeenCalledWith('Retry-After', '42');
@@ -126,21 +144,17 @@ describe('Auth Throttling', () => {
       const ctx = buildContext({}, { setHeader });
 
       expect(() =>
-        (guard as unknown as {
-          throwThrottlingException: (
-            c: ExecutionContext,
-            d: { timeToExpire: number },
-          ) => void;
-        }).throwThrottlingException(ctx, { timeToExpire: 0 }),
+        (
+          guard as unknown as {
+            throwThrottlingException: (c: ExecutionContext, d: { timeToExpire: number }) => void;
+          }
+        ).throwThrottlingException(ctx, { timeToExpire: 0 }),
       ).toThrow(ThrottlerException);
 
       expect(setHeader).toHaveBeenCalledWith('Retry-After', '1');
     });
 
-    const generateKey = (
-      guard: AuthThrottlerGuard,
-      context: ExecutionContext,
-    ): string =>
+    const generateKey = (guard: AuthThrottlerGuard, context: ExecutionContext): string =>
       (
         guard as unknown as {
           generateKey: (
@@ -215,13 +229,9 @@ describe('Auth Throttling', () => {
         },
       });
 
-      const key1 = (
-        guard as any
-      ).generateKey(ctx1, 'tracker', 'rateLimit');
+      const key1 = (guard as any).generateKey(ctx1, 'tracker', 'rateLimit');
 
-      const key2 = (
-        guard as any
-      ).generateKey(ctx2, 'tracker', 'rateLimit');
+      const key2 = (guard as any).generateKey(ctx2, 'tracker', 'rateLimit');
 
       expect(key1).not.toEqual(key2);
     });
@@ -229,13 +239,13 @@ describe('Auth Throttling', () => {
     it('stores authenticated user after jwt verification', async () => {
       const guard = buildGuard();
 
-      const jwtService = (
+      const tokenService = (
         guard as unknown as {
-          jwtService: JwtService;
+          tokenService: TokenService;
         }
-      ).jwtService;
+      ).tokenService;
 
-      jest.spyOn(jwtService, 'verifyAsync').mockResolvedValue({
+      jest.spyOn(tokenService, 'verifyToken').mockResolvedValue({
         sub: 'user-1',
         user_id: 'user-1',
       } as never);
@@ -246,9 +256,7 @@ describe('Auth Throttling', () => {
         },
       };
 
-      await (
-        guard as any
-      ).ensureAuthResolved(request);
+      await (guard as any).ensureAuthResolved(request);
 
       expect((request as any).__rlUser).toEqual(
         expect.objectContaining({
@@ -259,8 +267,8 @@ describe('Auth Throttling', () => {
   });
 
   describe('HttpExceptionFilter — 429 handling', () => {
-    it('sets a default Retry-After header when a 429 is thrown without one', () => {
-      const filter = new HttpExceptionFilter();
+    it('sets a default Retry-After header when a ThrottlerException is thrown without one', () => {
+      const filter = new HttpExceptionFilter(mockI18n, mockLogger);
       const setHeader = jest.fn();
       const getHeader = jest.fn().mockReturnValue(undefined);
       const status = jest.fn().mockReturnThis();
@@ -281,24 +289,24 @@ describe('Auth Throttling', () => {
         }),
       } as unknown as Parameters<HttpExceptionFilter['catch']>[1];
 
-      const exception = new HttpException('Too Many Requests', HttpStatus.TOO_MANY_REQUESTS);
+      const exception = new ThrottlerException('Too Many Requests');
       filter.catch(exception, host);
 
       expect(getHeader).toHaveBeenCalledWith('Retry-After');
       expect(setHeader).toHaveBeenCalledWith('Retry-After', '60');
       expect(status).toHaveBeenCalledWith(HttpStatus.TOO_MANY_REQUESTS);
-      expect(json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          success: false,
-          statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          error: 'Too Many Requests',
+      expect(json).toHaveBeenCalledWith({
+        message: 'error.COMMON.TOO_MANY_REQUESTS',
+        data: null,
+        error: null,
+        meta: expect.objectContaining({
           retryAfter: 60,
         }),
-      );
+      });
     });
 
     it('does not overwrite an existing Retry-After header', () => {
-      const filter = new HttpExceptionFilter();
+      const filter = new HttpExceptionFilter(mockI18n, mockLogger);
       const setHeader = jest.fn();
       const getHeader = jest.fn().mockReturnValue('120');
       const status = jest.fn().mockReturnThis();
@@ -319,9 +327,15 @@ describe('Auth Throttling', () => {
         }),
       } as unknown as Parameters<HttpExceptionFilter['catch']>[1];
 
-      const exception = new HttpException('Too Many Requests', HttpStatus.TOO_MANY_REQUESTS);
+      const exception = new ThrottlerException('Too Many Requests');
       filter.catch(exception, host);
+
       expect(setHeader).not.toHaveBeenCalled();
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          meta: expect.objectContaining({ retryAfter: 120 }),
+        }),
+      );
     });
   });
 });

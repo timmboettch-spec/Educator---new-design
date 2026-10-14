@@ -21,7 +21,10 @@ function getNrpsUserId(member: NrpsMemberLike): string {
 }
 
 function getDisplayName(member: NrpsMemberLike): string {
-  return (member.name ?? `${member.given_name ?? ''} ${member.family_name ?? ''}`.trim()).trim();
+  return (
+    member.name ??
+    `${member.given_name ?? ''} ${member.family_name ?? ''}`.trim()
+  ).trim();
 }
 
 /**
@@ -34,7 +37,8 @@ export function isNrpsGuestUser(member: NrpsMemberLike): boolean {
     return true;
   }
 
-  const email = typeof member.email === 'string' ? member.email.trim().toLowerCase() : '';
+  const email =
+    typeof member.email === 'string' ? member.email.trim().toLowerCase() : '';
   if (email === 'root@localhost') {
     return true;
   }
@@ -63,24 +67,27 @@ export function hasInstructorOrAdminRole(member: NrpsMemberLike): boolean {
     return false;
   }
 
-  const normalized = member.roles.map((role) => String(role ?? '').toLowerCase());
+  const normalized = member.roles.map((role) =>
+    String(role ?? '').toLowerCase()
+  );
 
-  return normalized.some((role) =>
-    role.includes('instructor') ||
-    role.includes('teacher') ||
-    role.includes('administrator') ||
-    role.includes('admin') ||
-    role.includes('manager') ||
-    role.includes('contentdeveloper') ||
-    role.includes('mentor') ||
-    role === 'teaching assistant' ||
-    role.includes('teachingassistant') ||
-    // LTI 1.3 standard role URNs
-    role.endsWith('/instructor') ||
-    role.endsWith('/teachingassistant') ||
-    role.endsWith('/contentdeveloper') ||
-    role.endsWith('/administrator') ||
-    role.endsWith('/mentor')
+  return normalized.some(
+    (role) =>
+      role.includes('instructor') ||
+      role.includes('teacher') ||
+      role.includes('administrator') ||
+      role.includes('admin') ||
+      role.includes('manager') ||
+      role.includes('contentdeveloper') ||
+      role.includes('mentor') ||
+      role === 'teaching assistant' ||
+      role.includes('teachingassistant') ||
+      // LTI 1.3 standard role URNs
+      role.endsWith('/instructor') ||
+      role.endsWith('/teachingassistant') ||
+      role.endsWith('/contentdeveloper') ||
+      role.endsWith('/administrator') ||
+      role.endsWith('/mentor')
   );
 }
 
@@ -98,16 +105,19 @@ export function hasLearnerOnlyRole(member: NrpsMemberLike): boolean {
     return false;
   }
 
-  const normalized = member.roles.map((role) => String(role ?? '').toLowerCase());
+  const normalized = member.roles.map((role) =>
+    String(role ?? '').toLowerCase()
+  );
 
-  return normalized.some((role) =>
-    role.includes('learner') ||
-    role.includes('student') ||
-    role.endsWith('#student') ||
-    role.endsWith('/student') ||
-    role.endsWith('/learner') ||
-    role === 'student' ||
-    role === 'learner'
+  return normalized.some(
+    (role) =>
+      role.includes('learner') ||
+      role.includes('student') ||
+      role.endsWith('#student') ||
+      role.endsWith('/student') ||
+      role.endsWith('/learner') ||
+      role === 'student' ||
+      role === 'learner'
   );
 }
 
@@ -125,7 +135,9 @@ export function normalizeImportableEmail(email: unknown): string | undefined {
   return trimmed;
 }
 
-export function toBulkCreateStudent(member: NrpsMemberLike): BulkCreateStudentPayload | null {
+export function toBulkCreateStudent(
+  member: NrpsMemberLike
+): BulkCreateStudentPayload | null {
   if (isNrpsGuestUser(member)) {
     return null;
   }
@@ -151,7 +163,7 @@ export function toBulkCreateStudent(member: NrpsMemberLike): BulkCreateStudentPa
 
 export function extractImportableNrpsStudents<T extends NrpsMemberLike>(
   members: T[],
-  isLearner: (member: T) => boolean,
+  isLearner: (member: T) => boolean
 ): BulkCreateStudentPayload[] {
   return members
     .filter((member) => {

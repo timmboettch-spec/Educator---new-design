@@ -6,27 +6,58 @@ import {
   Delete,
   Param,
   Body,
-  UseGuards,
+  Query,
   Req,
   ForbiddenException,
   NotFoundException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiBadRequestResponse,
+  ApiCreatedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
+} from '@nestjs/swagger';
 import { ClassSimulationService } from './class-simulation.service';
-import { AssignClassSimulationDto, UpdateClassSimulationDto } from './dto/class-simulation.dto';
+import { AssignClassSimulationDto } from './dto/class-simulation.dto';
+import {
+  ClassSimulationListItemResDto,
+  ListClassSimulationsReqDto,
+  ListClassSimulationsResponseDto,
+} from './dto/list-class-simulations.dto';
+import {
+  BulkAssignClassSimulationsReqDto,
+  BulkAssignClassSimulationsResDto,
+  BulkAssignClassSimulationsResponseDto,
+} from './dto/bulk-assign-class-simulations.dto';
+import {
+  UpdateClassSimulationReqDto,
+  UpdateClassSimulationResDto,
+  UpdateClassSimulationResponseDto,
+} from './dto/update-class-simulation.dto';
 import { ApiResponse } from 'src/common/types';
 import { AppStatus, ErrorTypes, Messages } from 'src/common/utils/messages';
 import { throwAppError } from 'src/common/utils/app-error';
-import { ClassSimulation } from './entity/class-simulation.entity';
+
 import { ClassSimulationConstants } from './class-simulation.constant';
 import * as types from 'src/common/types';
-import { ClassConstants } from 'src/class/classes.constants';
 import { EducatorsService } from 'src/educators/educators.service';
+import { ClassSimulation } from 'src/database/entities';
+import { ClassSimulationAssignmentConstants, RoleSlug } from 'src/common/constants';
+import { resolveActingEducatorId } from 'src/educators/utils/educator-school-access.util';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import type { ICurrentUser, IPaginationMeta } from 'src/common/interfaces';
+import { ResponseResult } from 'src/common/class/response.class';
 
 @ApiTags(ClassSimulationConstants.SWAGGER.TAG)
 @Controller(ClassSimulationConstants.ROUTES.BASE)
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth('JWT-auth')
 export class ClassSimulationController {
   constructor(
@@ -34,24 +65,62 @@ export class ClassSimulationController {
     private readonly educatorService: EducatorsService,
   ) {}
 
+  @Get()
+  @RequiredRoles(RoleSlug.EDUCATOR)
+  @ApiBadRequestResponse({
+    description: 'Missing/invalid classId, or an invalid page, pageSize, sortBy or sortDir',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid or expired token, or a role not yet selected',
+  })
+  @ApiForbiddenResponse({ description: 'Insufficient role' })
+  @ApiNotFoundResponse({ description: 'Class not found or not accessible' })
+  @ApiOkResponse({ type: ListClassSimulationsResponseDto })
+  async findForClassListing(
+    @CurrentUser() currentUser: ICurrentUser,
+    @Query() dto: ListClassSimulationsReqDto,
+  ): Promise<ResponseResult<ClassSimulationListItemResDto[], IPaginationMeta>> {
+    return this.service.findClassSimulations(currentUser, dto);
+  }
+
+  @Post(ClassSimulationAssignmentConstants.BULK.ROUTE)
+  @RequiredRoles(RoleSlug.EDUCATOR)
+  @ApiBadRequestResponse({
+    description:
+      'Invalid body (ids, dates, array sizes, unknown fields such as reduceToken), dates out of order, or insufficient seats',
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Missing, invalid or expired token, or a role not yet selected',
+  })
+  @ApiForbiddenResponse({
+    description: 'Insufficient role, or the educator is not assigned to the school',
+  })
+  @ApiNotFoundResponse({ description: 'Educator not found or inactive' })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'One or more class/simulation pairs failed; nothing was assigned. `error` = { total, failed, results[] }',
+  })
+  @ApiCreatedResponse({ type: BulkAssignClassSimulationsResponseDto })
+  async bulkAssign(
+    @CurrentUser() currentUser: ICurrentUser,
+    @Body() dto: BulkAssignClassSimulationsReqDto,
+  ): Promise<ResponseResult<BulkAssignClassSimulationsResDto>> {
+    return this.service.bulkAssign(currentUser, dto);
+  }
+
   @Post()
+  @RequiredRoles(RoleSlug.EDUCATOR)
   @ApiOperation({ summary: ClassSimulationConstants.SWAGGER.ASSIGN })
   async assign(
     @Body() dto: AssignClassSimulationDto,
     @Req() req: types.JwtRequest,
   ): Promise<ApiResponse<ClassSimulation>> {
-    const roles = req.user.roles || [];
-    const isEducator = roles.includes(ClassConstants.ROLE.EDUCATOR);
-
-    if (!isEducator) {
-      throw new ForbiddenException(Messages.ONLY_EDUCATOR_CREATE);
-    }
-    const educatorTokens = await this.educatorService.availableTokens(req.user.userId);
+    const educatorTokens = await this.educatorService.availableTokens(resolveActingEducatorId(req));
     if (educatorTokens === null) {
       throw new ForbiddenException(Messages.NO_TOKENS);
     }
 
-    const educatorResponse = await this.educatorService.findById(req.user.userId);
+    const educatorResponse = await this.educatorService.findById(resolveActingEducatorId(req));
 
     if (!educatorResponse.data) {
       throw new NotFoundException(Messages.EDUCATOR_NOT_FOUND);
@@ -64,6 +133,7 @@ export class ClassSimulationController {
   }
 
   @Get(ClassSimulationConstants.ROUTES.BY_CLASS)
+  @RequiredRoles(RoleSlug.EDUCATOR)
   @ApiOperation({ summary: ClassSimulationConstants.SWAGGER.BY_CLASS })
   async findByClass(@Param('class_id') class_id: string): Promise<ApiResponse> {
     if (!class_id)
@@ -73,6 +143,7 @@ export class ClassSimulationController {
   }
 
   @Get(ClassSimulationConstants.ROUTES.BY_SIMULATION)
+  @RequiredRoles(RoleSlug.EDUCATOR)
   @ApiOperation({ summary: ClassSimulationConstants.SWAGGER.BY_SIMULATION })
   async findBySimulation(@Param('simulation_id') simulation_id: string): Promise<ApiResponse> {
     if (!simulation_id)
@@ -85,21 +156,23 @@ export class ClassSimulationController {
   }
 
   @Put(ClassSimulationConstants.ROUTES.ID)
-  @ApiOperation({ summary: ClassSimulationConstants.SWAGGER.UPDATE })
+  @RequiredRoles(RoleSlug.EDUCATOR)
+  @ApiForbiddenResponse({ description: 'Insufficient role' })
+  @ApiOkResponse({ type: UpdateClassSimulationResponseDto })
   async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateClassSimulationDto,
-  ): Promise<ApiResponse<ClassSimulation>> {
-    const result = await this.service.update(id, dto);
-    if (!result.success) throwAppError(result.message!, result.type);
-    return { status: AppStatus.SUCCESS, message: result.message!, data: result.data };
+    @CurrentUser() currentUser: ICurrentUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateClassSimulationReqDto,
+  ): Promise<ResponseResult<UpdateClassSimulationResDto>> {
+    return this.service.update(currentUser, id, dto);
   }
 
   @Delete(ClassSimulationConstants.ROUTES.ID)
+  @RequiredRoles(RoleSlug.EDUCATOR)
   @ApiOperation({ summary: ClassSimulationConstants.SWAGGER.REMOVE })
-  async remove(@Param('id') id: string,@Req() req: types.JwtRequest): Promise<ApiResponse<null>> {
-    const userId = req.user.userId;
-    const result = await this.service.remove(id,userId);
+  async remove(@Param('id') id: string, @Req() req: types.JwtRequest): Promise<ApiResponse<null>> {
+    const userId = resolveActingEducatorId(req);
+    const result = await this.service.remove(id, userId);
     if (!result.success) throwAppError(result.message!, result.type);
     return { status: AppStatus.SUCCESS, message: result.message!, data: null };
   }

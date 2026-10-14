@@ -10,7 +10,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
   describe('onBeforeInput Event - Direct Typing Prevention', () => {
     it('should prevent emoji before entering textarea', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const beforeInputEvent = new InputEvent('beforeinput', {
         data: '😀',
@@ -26,7 +28,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should prevent ZWJ emoji sequence', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const beforeInputEvent = new InputEvent('beforeinput', {
         data: '👨👩👧',
@@ -42,7 +46,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should prevent skin tone modifier emoji', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const beforeInputEvent = new InputEvent('beforeinput', {
         data: '👋🏽',
@@ -58,7 +64,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should prevent flag emoji', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const beforeInputEvent = new InputEvent('beforeinput', {
         data: '🇺🇸',
@@ -74,7 +82,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should allow regular text input', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const beforeInputEvent = new InputEvent('beforeinput', {
         data: 'hello',
@@ -90,7 +100,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should allow newlines', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const beforeInputEvent = new InputEvent('beforeinput', {
         data: '\n',
@@ -108,7 +120,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
   describe('Paste Event - Emoji Removal', () => {
     it('should strip emoji from pasted text', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
@@ -124,14 +138,19 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should strip multiple emoji types', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
         bubbles: true,
         cancelable: true,
       });
-      pasteEvent.clipboardData?.setData('text/plain', 'Line 1 😀\nLine 2 with 👍\nLine 3 with 🇺🇸');
+      pasteEvent.clipboardData?.setData(
+        'text/plain',
+        'Line 1 😀\nLine 2 with 👍\nLine 3 with 🇺🇸'
+      );
 
       textarea.dispatchEvent(pasteEvent);
 
@@ -140,7 +159,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should handle paste with only emojis', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
@@ -156,14 +177,19 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should preserve newlines and text', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
         bubbles: true,
         cancelable: true,
       });
-      pasteEvent.clipboardData?.setData('text/plain', 'First Line\n😀\nSecond Line');
+      pasteEvent.clipboardData?.setData(
+        'text/plain',
+        'First Line\n😀\nSecond Line'
+      );
 
       textarea.dispatchEvent(pasteEvent);
 
@@ -174,7 +200,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
   describe('No Text Conversion', () => {
     it('should NOT convert emoji to text descriptions', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
@@ -185,7 +213,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
       textarea.dispatchEvent(pasteEvent);
 
-      expect(textarea.value).not.toMatch(/grinning|smile|heart|eye|thumbs|up|like/i);
+      expect(textarea.value).not.toMatch(
+        /grinning|smile|heart|eye|thumbs|up|like/i
+      );
       expect(textarea.value).toBe('');
     });
   });
@@ -193,7 +223,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
   describe('Edge Cases', () => {
     it('should handle empty value', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
@@ -209,9 +241,12 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should handle very long text with scattered emojis', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
-      const longText = 'A'.repeat(100) + '😀' + 'B'.repeat(100) + '👍' + 'C'.repeat(100);
+      const longText =
+        'A'.repeat(100) + '😀' + 'B'.repeat(100) + '👍' + 'C'.repeat(100);
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
         bubbles: true,
@@ -221,12 +256,16 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
       textarea.dispatchEvent(pasteEvent);
 
-      expect(textarea.value).toBe('A'.repeat(100) + 'B'.repeat(100) + 'C'.repeat(100));
+      expect(textarea.value).toBe(
+        'A'.repeat(100) + 'B'.repeat(100) + 'C'.repeat(100)
+      );
     });
 
     it('should handle consecutive emojis', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
@@ -244,7 +283,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
   describe('onChange Safety Net — Programmatic Emoji Bypass Prevention', () => {
     it('should strip emoji from value when onChange fires with emoji content', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       fireEvent.change(textarea, { target: { value: 'Hello 😀 World' } });
 
@@ -253,7 +294,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should strip emoji-only value to empty string via onChange', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       fireEvent.change(textarea, { target: { value: '😀😍👍' } });
 
@@ -263,7 +306,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
     it('should pass clean value to user onChange callback', () => {
       const mockOnChange = vi.fn();
       const { container } = render(<Textarea onChange={mockOnChange} />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       fireEvent.change(textarea, { target: { value: 'test 🔥' } });
 
@@ -274,9 +319,13 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
     it('should preserve newlines and multi-line text without emoji', () => {
       const mockOnChange = vi.fn();
       const { container } = render(<Textarea onChange={mockOnChange} />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
-      fireEvent.change(textarea, { target: { value: 'Line 1\nLine 2\nLine 3' } });
+      fireEvent.change(textarea, {
+        target: { value: 'Line 1\nLine 2\nLine 3' },
+      });
 
       expect(textarea.value).toBe('Line 1\nLine 2\nLine 3');
       expect(mockOnChange).toHaveBeenCalledTimes(1);
@@ -284,7 +333,9 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should strip ZWJ family emoji via onChange', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       fireEvent.change(textarea, { target: { value: 'family: 👨‍👩‍👧' } });
 
@@ -295,11 +346,13 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
   describe('onCompositionEnd — OS Emoji Picker Prevention', () => {
     it('should strip emoji committed via composition', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       nativeSetter?.call(textarea, '😶');
 
@@ -315,11 +368,13 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should strip emoji in mixed value committed via composition', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       nativeSetter?.call(textarea, 'Notes 🔥 important');
 
@@ -335,11 +390,13 @@ describe('Textarea Component - Emoji Filtering (onBeforeInput)', () => {
 
     it('should NOT strip normal accented text committed via composition', () => {
       const { container } = render(<Textarea />);
-      const textarea = container.querySelector('textarea') as HTMLTextAreaElement;
+      const textarea = container.querySelector(
+        'textarea'
+      ) as HTMLTextAreaElement;
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       nativeSetter?.call(textarea, 'café');
 

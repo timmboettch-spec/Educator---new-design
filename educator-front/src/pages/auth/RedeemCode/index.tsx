@@ -6,16 +6,31 @@ import RedeemKeyIcon from '@/assets/redeem/redeemKey.png';
 import RedeemHeader from '@/components/common/RedeemHeader';
 import { toast, sonnerToast } from '../../../components/common/Toast';
 import { Button } from '@/components/ui/Button';
-import { clearRedeemError, RedeemRequest, selectRedeemError } from '@/redux/auth/RedeemRedux';
+import {
+  clearRedeemError,
+  RedeemRequest,
+  selectRedeemError,
+} from '@/redux/auth/RedeemRedux';
 import { useAppDispatch } from '@/store/hooks';
-import { getCurrentUserRequest } from '../../../redux/users/GetUserRedux';
+import { fetchCurrentUser } from '../../../redux/auth/MeRedux';
 import { AUTH_MESSAGES } from '../../../utils/messages/auth';
-import { updateStoredUser, clearAuthData, getToken, getParsedUser } from '../../../utils/storage';
+import {
+  updateStoredUser,
+  clearAuthData,
+  getToken,
+  getParsedUser,
+  setAuthData,
+  isRememberMe,
+} from '../../../utils/storage';
 import { restoreSession } from '../../../redux/auth/LoginRedux';
 import { useNavigate } from 'react-router-dom';
 import Input from '@/components/ui/Input';
 import loginEn from '../../../locales/auth/login/en.json';
 import loginEs from '../../../locales/auth/login/es.json';
+import {
+  clearRedeemSkipped,
+  markRedeemSkipped,
+} from '../../../utils/trialState';
 
 type SupportedLang = 'en' | 'es';
 
@@ -36,26 +51,52 @@ interface RedeemCodeProps {
   isLoading?: boolean;
 }
 
-const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: RedeemCodeProps) => {
+const RedeemCode = ({
+  isModal = false,
+  onSubmitSubscribe,
+  isLoading = false,
+}: RedeemCodeProps) => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const language = getStoredLanguage();
   const locale = language === 'es' ? loginEs : loginEn;
   const redeemCopy = {
-    title: locale?.redeem?.title ?? AUTH_MESSAGES.TITLES.ENTER_REDEEM_CODE ?? 'Enter Your Redeem Code',
-    subtitle: locale?.redeem?.subtitle ?? AUTH_MESSAGES.LABELS.ENTER_REDEEM_CODE_SUBTITLE ?? 'Your account has been provisioned with full access privileges.',
-    trial: locale?.redeem?.trial ?? AUTH_MESSAGES.BUTTONS.TRIAL ?? 'Start Trial',
-    activeLicense: locale?.redeem?.activeLicense ?? AUTH_MESSAGES.BUTTONS.ACTIVE_LICENSE,
+    title:
+      locale?.redeem?.title ??
+      AUTH_MESSAGES.TITLES.ENTER_REDEEM_CODE ??
+      'Enter Your Redeem Code',
+    subtitle:
+      locale?.redeem?.subtitle ??
+      AUTH_MESSAGES.LABELS.ENTER_REDEEM_CODE_SUBTITLE ??
+      'Your account has been provisioned with full access privileges.',
+    trial:
+      locale?.redeem?.trial ?? AUTH_MESSAGES.BUTTONS.TRIAL ?? 'Start Trial',
+    activeLicense:
+      locale?.redeem?.activeLicense ?? AUTH_MESSAGES.BUTTONS.ACTIVE_LICENSE,
     licenseActivated: locale?.redeem?.licenseActivated ?? 'License Activated',
     loading: locale?.redeem?.loading ?? 'Loading...',
-    requiredError: locale?.redeem?.requiredError ?? AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED,
-    lengthError: locale?.redeem?.lengthError ?? AUTH_MESSAGES.VALIDATION.REDEEM_CODE_LENGTH,
+    requiredError:
+      locale?.redeem?.requiredError ??
+      AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED,
+    lengthError:
+      locale?.redeem?.lengthError ??
+      AUTH_MESSAGES.VALIDATION.REDEEM_CODE_LENGTH,
   };
   const redeemError = useSelector(selectRedeemError);
-  const [redeemCodeSegments, setRedeemCodeSegments] = useState(['', '', '', '']);
+  const [redeemCodeSegments, setRedeemCodeSegments] = useState([
+    '',
+    '',
+    '',
+    '',
+  ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null]);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([
+    null,
+    null,
+    null,
+    null,
+  ]);
 
   const normalizeRedeemValue = (rawValue: string) =>
     rawValue
@@ -74,17 +115,23 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
       const res = await dispatch(
         RedeemRequest({
           code: redeemCodeFormik.values.code,
-        }),
+        })
       ).unwrap();
+      // Redeem can rotate the access token when the license activates; persist
+      // it before the follow-up authenticated call below or that call 401s
+      // with the stale token and forceLogout wins the race against navigate().
+      if (res.token) {
+        setAuthData(
+          { accessToken: res.token },
+          getParsedUser() ?? {},
+          isRememberMe()
+        );
+      }
       updateStoredUser({ is_license_active: true });
       try {
-        const userRes = await dispatch(getCurrentUserRequest()).unwrap();
-        if (userRes?.data) {
-          updateStoredUser({
-            subscriptions: (userRes.data as { subscriptions?: unknown[] }).subscriptions,
-            is_license_active: true,
-          });
-        }
+        // fetchCurrentUser stores the refreshed profile (seats included).
+        await dispatch(fetchCurrentUser()).unwrap();
+        updateStoredUser({ is_license_active: true });
       } catch {
         // non-critical, ignore
       }
@@ -92,15 +139,19 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
       const token = getToken();
       const updatedUser = getParsedUser();
       if (token && updatedUser) {
-        dispatch(restoreSession({
-          data: { tokens: { accessToken: token }, user: updatedUser },
-          message: '',
-          status: 'success',
-        }));
+        dispatch(
+          restoreSession({
+            data: { tokens: { accessToken: token }, user: updatedUser },
+            message: '',
+            status: 'success',
+          })
+        );
       }
       const successMsg =
         (res as { message?: string })?.message ??
-        (language === 'es' ? 'Licencia activada con éxito' : 'License activated successfully');
+        (language === 'es'
+          ? 'Licencia activada con éxito'
+          : 'License activated successfully');
       sonnerToast.success(successMsg);
       setIsSuccess(true);
       setTimeout(() => {
@@ -108,7 +159,10 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
       }, 2000);
     } catch (err: unknown) {
       const msg = (err as { message?: string })?.message;
-      toast.error(msg || (language === 'es' ? 'Error al canjear el código' : 'Redeem failed'));
+      toast.error(
+        msg ||
+          (language === 'es' ? 'Error al canjear el código' : 'Redeem failed')
+      );
       setRedeemCodeSegments(['', '', '', '']);
       redeemCodeFormik.setFieldValue('code', '');
       redeemCodeFormik.setFieldTouched('code', false);
@@ -148,7 +202,7 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
     // Full-code paste fallback: distribute across all 4 inputs.
     if (normalizedValue.length > 4) {
       const distributedSegments = [0, 1, 2, 3].map((i) =>
-        normalizedValue.slice(i * 4, i * 4 + 4),
+        normalizedValue.slice(i * 4, i * 4 + 4)
       );
       setRedeemCodeSegments(distributedSegments);
       redeemCodeFormik.setFieldValue('code', distributedSegments.join(''));
@@ -170,7 +224,10 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
     }
   };
 
-  const handleRedeemPaste = async (e: ClipboardEvent<HTMLInputElement>, index: number) => {
+  const handleRedeemPaste = async (
+    e: ClipboardEvent<HTMLInputElement>,
+    index: number
+  ) => {
     const pastedText = e.clipboardData.getData('text');
     const normalizedValue = normalizeRedeemValue(pastedText);
     if (!normalizedValue) return;
@@ -191,7 +248,10 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
     redeemCodeFormik.setFieldValue('code', newSegments.join(''));
 
     if (redeemError) await dispatch(clearRedeemError());
-    const nextInputIndex = Math.min(Math.ceil(newSegments.join('').length / 4), 3);
+    const nextInputIndex = Math.min(
+      Math.ceil(newSegments.join('').length / 4),
+      3
+    );
     inputRefs.current[nextInputIndex]?.focus();
   };
 
@@ -201,7 +261,7 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
         <RedeemHeader
           onClickSignout={() => {
             clearAuthData();
-            sessionStorage.removeItem('skipped_redeem');
+            clearRedeemSkipped();
             window.location.href = '/login';
           }}
         />
@@ -212,7 +272,11 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
       >
         <div className="bg-white rounded-[32px] shadow-[0_20px_60px_rgba(0,0,0,0.07)] w-full max-w-[500px] px-8 py-10 flex flex-col items-center">
           <div className="w-14 h-14 bg-[#FFF5ED] rounded-full flex items-center justify-center mb-5 border border-primary-50">
-            <img src={RedeemKeyIcon} alt="Redeem Key Icon" className="w-12 h-12" />
+            <img
+              src={RedeemKeyIcon}
+              alt="Redeem Key Icon"
+              className="w-12 h-12"
+            />
           </div>
 
           <h3 className="font-bold text-[22px] text-primary-500 mb-2 text-center">
@@ -243,7 +307,11 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
                       void handleRedeemPaste(e, i);
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Backspace' && !redeemCodeSegments[i] && i > 0) {
+                      if (
+                        e.key === 'Backspace' &&
+                        !redeemCodeSegments[i] &&
+                        i > 0
+                      ) {
                         inputRefs.current[i - 1]?.focus();
                       }
                     }}
@@ -252,14 +320,17 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
                         uppercase rounded-xl bg-white leading-[38px] placeholder:text-gray-300
                         placeholder:text-center placeholder:tracking-normal tracking-[2px] transition-all
                         shadow-sm
-                        ${redeemError
-                        ? 'border-red-300 bg-red-50'
-                        : 'border border-dashed border-gray-300 focus:border-primary-400 focus:border-solid'
-                      }
+                        ${
+                          redeemError
+                            ? 'border-red-300 bg-red-50'
+                            : 'border border-dashed border-gray-300 focus:border-primary-400 focus:border-solid'
+                        }
                         `}
                   />
                   {i < 3 && (
-                    <span className="text-gray-300 text-lg select-none font-light">·</span>
+                    <span className="text-gray-300 text-lg select-none font-light">
+                      ·
+                    </span>
                   )}
                 </div>
               ))}
@@ -291,7 +362,7 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
                 <button
                   type="button"
                   onClick={() => {
-                    sessionStorage.setItem('skipped_redeem', 'true');
+                    markRedeemSkipped();
                     window.location.href = '/simulation-catalog';
                   }}
                   className="px-6 h-[44px] rounded-full bg-[#BEC1C4] hover:bg-[#aeb1b4] text-gray-700 font-semibold text-sm transition-colors"
@@ -309,7 +380,12 @@ const RedeemCode = ({ isModal = false, onSubmitSubscribe, isLoading = false }: R
                   : isLoading || isSubmitting
                     ? redeemCopy.loading
                     : redeemCopy.activeLicense}
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"

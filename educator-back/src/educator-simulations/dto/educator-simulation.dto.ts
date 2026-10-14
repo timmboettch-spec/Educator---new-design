@@ -24,3 +24,10 @@ export class BulkAddToLibraryDto {
   @IsString({ each: true })
   scenario_ids: string[] = [];
 }
+
+export class RemoveFromLibraryBulkDto {
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  scenario_ids: string[] = [];
+}  

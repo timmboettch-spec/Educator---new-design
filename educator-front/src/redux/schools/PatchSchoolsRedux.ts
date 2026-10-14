@@ -1,4 +1,8 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -8,6 +12,7 @@ export interface PatchSchoolPayload {
   id: string;
   school_name: string;
   status: string;
+  google_classroom_enabled?: boolean;
 }
 
 export interface PatchSchoolResponse {
@@ -42,7 +47,7 @@ export const PatchSchoolRequest = createAsyncThunk<
     const res = await api.put(url, data, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
-      }
+      },
     });
 
     return res.data;
@@ -91,6 +96,15 @@ const PatchSchoolSlice = createSlice({
 export const { resetPatchSchool } = PatchSchoolSlice.actions;
 export default PatchSchoolSlice.reducer;
 const selectState = (state: RootState) => state.PatchSchool;
-export const selectPatchSchoolResponse = createSelector(selectState, (state) => state.response);
-export const selectPatchSchoolStatus = createSelector(selectState, (state) => state.status);
-export const selectPatchSchoolError = createSelector(selectState, (state) => state.error);
+export const selectPatchSchoolResponse = createSelector(
+  selectState,
+  (state) => state.response
+);
+export const selectPatchSchoolStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectPatchSchoolError = createSelector(
+  selectState,
+  (state) => state.error
+);

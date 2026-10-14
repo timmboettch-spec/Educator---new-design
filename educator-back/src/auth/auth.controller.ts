@@ -1,217 +1,156 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  BadRequestException,
-  UseGuards,
-  Req,
-  Headers,
-  Logger,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
+import { ResponseResult } from 'src/common/class/response.class';
+import { RATE_LIMIT_THROTTLER_NAME } from 'src/common/guards/auth-throttler.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import { AllowRoleSelectionToken } from 'src/common/decorators/allow-role-selection-token.decorator';
+import type { ICurrentUser } from 'src/common/interfaces';
+import { extractAccessToken } from 'src/common/utils/token-extractor.util';
 import { AuthService } from './auth.service';
-import {
-  SignupDto,
-  LoginDto,
-  RedeemDto,
-  ResendOtpDto,
-  ForgotPasswordDto,
-  VerifyOtpDto,
-  ResetPasswordDto,
-} from './dto/auth.dto';
-import type { ApiResponse } from 'src/common/types';
-import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import * as types from 'src/common/types';
-import { throwAppError } from '../common/utils/app-error';
-import { Messages, AppStatus } from '../common/utils/messages';
 import { AuthConstants } from './auth.constants';
-import { TokenBlacklistService } from 'src/common/strategy/jwt.blacklist.strategy';
-import { CsrfService } from '../csrf/csrf.service';
+import { ForgotPasswordThrottleGuard } from './guards/forgot-password-throttle.guard';
+import { SignupReqDto, SignupResponseDto } from './dto/signup.dto';
+import { LoginReqDto, LoginResDto, LoginResponseDto } from './dto/login.dto';
+import { ForgotPasswordReqDto, ForgotPasswordResponseDto } from './dto/forgot-password.dto';
+import { ResendOtpReqDto, ResendOtpResponseDto } from './dto/resend-otp.dto';
+import { VerifyOtpReqDto, VerifyOtpResponseDto } from './dto/verify-otp.dto';
+import { ResetPasswordReqDto, ResetPasswordResponseDto } from './dto/reset-password.dto';
+import { ChangePasswordReqDto, ChangePasswordResponseDto } from './dto/change-password.dto';
+import { CsrfTokenResDto, CsrfTokenResponseDto } from './dto/csrf-token.dto';
+import { RedeemReqDto, RedeemResDto, RedeemResponseDto } from './dto/redeem.dto';
+import { LogoutResponseDto } from './dto/logout.dto';
+import { SelectRoleReqDto } from './dto/select-role.dto';
+import { EmptyDataDto } from 'src/common/dtos/api-response.dto';
+import { Public } from 'src/common/decorators/public.decorator';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { RoleSlug } from 'src/common/constants';
 
 @ApiTags(AuthConstants.SWAGGER.TAG)
-@Controller(AuthConstants.ROUTES.AUTH)
+@Controller({ path: AuthConstants.ROUTES.AUTH })
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
-
-  constructor(
-    private readonly authService: AuthService,
-    private blacklistService: TokenBlacklistService,
-    private readonly csrfService: CsrfService,
-  ) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post(AuthConstants.ROUTES.SIGNUP)
-  async signup(@Body() body: SignupDto): Promise<ApiResponse> {
-    const result = await this.authService.signup(body);
-    if (result.success === false) {
-      return throwAppError(result.message || Messages.SIGNUP_FAILED);
-    }
-    return {
-      status: AppStatus.SUCCESS,
-      message: result.message || Messages.SIGNUP_SUCCESS,
-      data: result.data,
-    };
+  @ApiCreatedResponse({ type: SignupResponseDto })
+  @Public()
+  async signup(
+    @Body() dto: SignupReqDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseResult<LoginResDto>> {
+    return this.authService.signup(dto, res);
   }
 
-  @Post(AuthConstants.ROUTES.DUALSIGNUP)
-  async dualsignup(@Body() body: SignupDto): Promise<ApiResponse> {
-    const result = await this.authService.dualsignup(body);
-    if (result.success === false) {
-      return throwAppError(result.message || Messages.SIGNUP_FAILED);
-    }
-    return {
-      status: AppStatus.SUCCESS,
-      message: result.message || Messages.SIGNUP_SUCCESS,
-      data: result.data,
-    };
+  @Post(AuthConstants.ROUTES.LOGIN)
+  @ApiOkResponse({ type: LoginResponseDto })
+  @Public()
+  async login(
+    @Body() dto: LoginReqDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseResult<LoginResDto>> {
+    return this.authService.login(dto, res);
   }
 
-@Post(AuthConstants.ROUTES.LOGIN)
-async login(@Body() body: LoginDto): Promise<ApiResponse> {
-  const result = await this.authService.login(body);
-
-  if (result.success === false) {
-    return throwAppError(result.message || Messages.LOGIN_FAILED, result.type);
-  }
-
-  const csrfToken = await this.csrfService.generateToken();
-
-  const rawData: unknown = result.data;
-  const data = this.asRecord(rawData);
-  const tokens = this.asRecord(data['tokens']);
-
-  const responseData: Record<string, unknown> = {
-    ...data,
-    tokens: {
-      ...tokens,
-      csrfToken,
-    },
-  };
-
-  if (data['has_dual_role']) {
-    const educatorTokens = this.asRecord(data['educator_tokens']);
-
-    responseData['educator_tokens'] = {
-      ...educatorTokens,
-      csrfToken,
-    };
-  }
-
-  return {
-    status: AppStatus.SUCCESS,
-    message: Messages.LOGIN_SUCCESS,
-    data: responseData,
-  };
-}
-
-  private asRecord(value: unknown): Record<string, unknown> {
-    if (value && typeof value === 'object') {
-      return value as Record<string, unknown>;
-    }
-
-    return {};
-  }
-
-  @Get(AuthConstants.ROUTES.CSRF_TOKEN)
-  @UseGuards(AuthGuard(AuthConstants.STRATEGY.JWT))
+  /**
+   * Combined role-selection/switch endpoint. The global `AuthGuard`/`JwtStrategy` accepts either a
+   * `purpose: 'login'` token (issued by `login()` for a multi-role account, first role pick) or
+   * an existing `purpose: 'access'` token (switching between an account's own active roles) —
+   * both resolve to a valid `ICurrentUser`, so one route/method handles both cases identically.
+   */
+  @Post(AuthConstants.ROUTES.SELECT_ROLE)
+  @AllowRoleSelectionToken()
   @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
-  async issueCsrfToken(@Req() req: types.JwtRequest): Promise<ApiResponse> {
-    const sub =
-      (req.user as { sub?: string; id?: string; type?: string } | undefined)?.sub ??
-      (req.user as { id?: string } | undefined)?.id ??
-      'unknown';
-    const type = (req.user as { type?: string } | undefined)?.type ?? 'unknown';
-    this.logger.warn(`[RCA][issueCsrfToken] JWT validated — sub=${sub} type=${type}`);
-
-    const csrfToken = await this.csrfService.generateToken();
-
-    const body: ApiResponse = {
-      status: AppStatus.SUCCESS,
-      message: 'CSRF token issued',
-      data: { csrfToken },
-    };
-    this.logger.warn(
-      `[RCA][issueCsrfToken] response body keys=${JSON.stringify(Object.keys(body))} dataKeys=${JSON.stringify(Object.keys(body.data ?? {}))}`,
-    );
-    return body;
+  @ApiOkResponse({ type: LoginResponseDto })
+  async selectRole(
+    @CurrentUser() currentUser: ICurrentUser,
+    @Body() dto: SelectRoleReqDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseResult<LoginResDto>> {
+    return this.authService.selectRole(currentUser, dto, res);
   }
 
-  @Post(AuthConstants.ROUTES.REDEEM)
-  @UseGuards(AuthGuard(AuthConstants.STRATEGY.JWT))
+  /** Session-restore endpoint — returns the authenticated account's current details. */
+  @Get(AuthConstants.ROUTES.ME)
+  @AllowRoleSelectionToken()
   @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
-  async redeem(@Body() body: RedeemDto, @Req() req: types.JwtRequest): Promise<ApiResponse> {
-    const { code } = body;
-    const userEmail = req.user?.email;
-
-    if (!userEmail) {
-      throw new BadRequestException(Messages.INVALID_USER_CONTEXT);
-    }
-    const result = await this.authService.redeem({ code, email: userEmail });
-    if (result.success === false) {
-      return throwAppError(result.message || Messages.REDEMPTION_FAILED, result.type);
-    }
-
-    return {
-      status: AppStatus.SUCCESS,
-      message: result.message || Messages.LICENSE_ACTIVATED,
-      data: result.data,
-    };
-  }
-
-  @Post(AuthConstants.ROUTES.LOGOUT)
-  @UseGuards(AuthGuard(AuthConstants.STRATEGY.JWT))
-  @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
-  logout(@Headers('authorization') authHeader?: string): {
-    status?: string;
-    message: string;
-    data?: null;
-  } {
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : undefined;
-
-    if (!token) {
-      return { message: AuthConstants.MESSAGES.NO_TOKEN_PROVIDED };
-    }
-    this.blacklistService.add(token);
-    return {
-      status: AppStatus.SUCCESS,
-      message: AuthConstants.MESSAGES.LOGOUT_SUCCESS,
-      data: null,
-    };
+  @ApiOkResponse({ type: LoginResponseDto })
+  async getMe(@CurrentUser() currentUser: ICurrentUser): Promise<ResponseResult<LoginResDto>> {
+    return this.authService.getMe(currentUser);
   }
 
   @Post(AuthConstants.ROUTES.FORGOT_PASSWORD)
-  async forgotPassword(@Body() body: ForgotPasswordDto): Promise<ApiResponse> {
-    const result = await this.authService.forgotPassword(body);
-    if (result.success === false) {
-      return throwAppError(result.message || 'Failed to send OTP', result.type);
-    }
-    return { status: AppStatus.SUCCESS, message: result.message!, data: result.data };
-  }
-
-  @Post(AuthConstants.ROUTES.VERIFY_OTP)
-  async verifyOtp(@Body() body: VerifyOtpDto): Promise<ApiResponse> {
-    const result = await this.authService.verifyOtp(body);
-    if (result.success === false) {
-      return throwAppError(result.message || 'OTP verification failed', result.type);
-    }
-    return { status: AppStatus.SUCCESS, message: result.message!, data: result.data };
+  @SkipThrottle({ default: true, [RATE_LIMIT_THROTTLER_NAME]: true })
+  @UseGuards(ForgotPasswordThrottleGuard)
+  @Public()
+  @ApiOkResponse({ type: ForgotPasswordResponseDto })
+  async forgotPassword(@Body() dto: ForgotPasswordReqDto): Promise<ResponseResult<EmptyDataDto>> {
+    return this.authService.forgotPassword(dto);
   }
 
   @Post(AuthConstants.ROUTES.RESEND_OTP)
-  async resendOtp(@Body() body: ResendOtpDto): Promise<ApiResponse> {
-    const result = await this.authService.resendOtp(body);
-    if (result.success === false) {
-      return throwAppError(result.message || 'Failed to resend OTP', result.type);
-    }
-    return { status: AppStatus.SUCCESS, message: result.message!, data: result.data };
+  @Public()
+  @ApiOkResponse({ type: ResendOtpResponseDto })
+  async resendOtp(@Body() dto: ResendOtpReqDto): Promise<ResponseResult<EmptyDataDto>> {
+    return this.authService.resendOtp(dto);
+  }
+
+  @Post(AuthConstants.ROUTES.VERIFY_OTP)
+  @Public()
+  @ApiOkResponse({ type: VerifyOtpResponseDto })
+  async verifyOtp(@Body() dto: VerifyOtpReqDto): Promise<ResponseResult<EmptyDataDto>> {
+    return this.authService.verifyOtp(dto);
   }
 
   @Post(AuthConstants.ROUTES.RESET_PASSWORD)
-  async resetPassword(@Body() body: ResetPasswordDto): Promise<ApiResponse> {
-    const result = await this.authService.resetPassword(body);
-    if (result.success === false) {
-      return throwAppError(result.message || 'Password reset failed', result.type);
-    }
-    return { status: AppStatus.SUCCESS, message: result.message!, data: null };
+  @Public()
+  @ApiOkResponse({ type: ResetPasswordResponseDto })
+  async resetPassword(@Body() dto: ResetPasswordReqDto): Promise<ResponseResult<EmptyDataDto>> {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Post(AuthConstants.ROUTES.CHANGE_PASSWORD)
+  @RequiredRoles(RoleSlug.EDUCATOR, RoleSlug.DISTRICT_ADMIN, RoleSlug.SCENARIO_ADMIN, RoleSlug.STUDENT)
+  @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
+  @ApiOkResponse({ type: ChangePasswordResponseDto })
+  async changePassword(
+    @CurrentUser() currentUser: ICurrentUser,
+    @Body() dto: ChangePasswordReqDto,
+  ): Promise<ResponseResult<EmptyDataDto>> {
+    return this.authService.changePassword(currentUser, dto);
+  }
+
+  @Get(AuthConstants.ROUTES.CSRF_TOKEN)
+  @RequiredRoles(RoleSlug.EDUCATOR, RoleSlug.DISTRICT_ADMIN, RoleSlug.SCENARIO_ADMIN, RoleSlug.STUDENT)
+  @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
+  @ApiOkResponse({ type: CsrfTokenResponseDto })
+  async issueCsrfToken(
+    @CurrentUser() currentUser: ICurrentUser,
+  ): Promise<ResponseResult<CsrfTokenResDto>> {
+    return this.authService.csrfToken(currentUser);
+  }
+
+  @Post(AuthConstants.ROUTES.REDEEM)
+  @RequiredRoles(RoleSlug.EDUCATOR, RoleSlug.DISTRICT_ADMIN, RoleSlug.SCENARIO_ADMIN, RoleSlug.STUDENT)
+  @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
+  @ApiOkResponse({ type: RedeemResponseDto })
+  async redeem(
+    @CurrentUser() currentUser: ICurrentUser,
+    @Body() dto: RedeemReqDto,
+  ): Promise<ResponseResult<RedeemResDto>> {
+    return this.authService.redeem(currentUser, dto);
+  }
+
+  @Post(AuthConstants.ROUTES.LOGOUT)
+  @AllowRoleSelectionToken()
+  @ApiBearerAuth(AuthConstants.SWAGGER.JWT_AUTH)
+  @ApiOkResponse({ type: LogoutResponseDto })
+  async logout(
+    @CurrentUser() currentUser: ICurrentUser,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ResponseResult<EmptyDataDto>> {
+    const token = extractAccessToken(req) ?? undefined;
+    return this.authService.logout(currentUser, token, res);
   }
 }

@@ -8,7 +8,12 @@ const mockHealthService = {
     uptimeMs: 0,
     timestamp: new Date().toISOString(),
   }),
-  readiness: (): Promise<{ status: 'ok' | 'error'; uptimeMs: number; timestamp: string; checks: Record<string, { status: 'ok' | 'error'; error?: string; skipped?: boolean }> }> =>
+  readiness: (): Promise<{
+    status: 'ok' | 'error';
+    uptimeMs: number;
+    timestamp: string;
+    checks: Record<string, { status: 'ok' | 'error'; error?: string; skipped?: boolean }>;
+  }> =>
     Promise.resolve({
       status: 'ok',
       uptimeMs: 0,

@@ -1,5 +1,5 @@
-import { useNavigate, useParams, useLocation } from "react-router-dom";
-import StudentTranscriptView from "../../student-reports/transcript/page";
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import StudentTranscriptView from '../../student-reports/transcript/page';
 
 export default function UserTranscriptPage() {
   const navigate = useNavigate();
@@ -12,11 +12,14 @@ export default function UserTranscriptPage() {
     };
   };
 
-  const reportId = attemptId ?? "";
+  const reportId = attemptId ?? '';
 
   const handleBack = () => {
     if (state?.backPath) {
-      navigate(state.backPath, state.backState ? { state: state.backState } : undefined);
+      navigate(
+        state.backPath,
+        state.backState ? { state: state.backState } : undefined
+      );
       return;
     }
     navigate(-1);

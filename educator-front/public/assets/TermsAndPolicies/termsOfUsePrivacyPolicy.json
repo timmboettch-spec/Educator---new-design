@@ -29,22 +29,22 @@
     "title": "Orders",
     "content": "We request information from you on our order form. To buy from us, you must provide contact information, such as your name and shipping address, as well as financial information, such as a credit card number. This information is used solely for billing and order fulfillment purposes. If we have trouble processing an order, we'll use this information to contact you.\n\nWe use an outside credit card processing company to bill users for goods and services purchased via credit card. These companies do not retain, share, store, or use personally identifiable information for any secondary purposes beyond fulfilling your order."
   },
-   {
+  {
     "id": "07",
     "title": "Cookies And Analytics",
     "content": "Realityworks.com uses two web analytics platforms to track the information and behavior of our website users: Sugar Market and Google Analytics. Sugar Market tracks individual interaction with Realityworks.com. Google Analytics tracks single web sessions.\n\nBoth of these web analytics platforms are enabled through the use of cookies. Cookies (also known as HTTP cookies, web cookies, or browser cookies) are small pieces of data sent from a website and stored in a user's web browser while a user is browsing a website. Cookies do not expire."
   },
-   {
+  {
     "id": "08",
     "title": "Links",
     "content": "This website contains links to other sites. We are not responsible for the content or privacy practices of other sites. We encourage our users to be aware when they leave our site and to read the privacy statements of any other site that collects personally identifiable information."
   },
-   {
+  {
     "id": "09",
     "title": "Surveys & Contests",
     "content": "We occasionally request information via surveys or contests. Requested information may include contact information, like name and address, and demographic information, like zip code and age level. Contact information will be used to notify contest winners and award prizes. Survey information will be used for purposes of monitoring or improving the use and satisfaction of our products, programs, website and other areas of Realityworks. Participation in these surveys or contests is voluntary. You may change your preferences or opt out of communications with us at any time using the unsubscribe link provided in our email communications."
   },
-   {
+  {
     "id": "10",
     "title": "Questions",
     "content": "We welcome questions, comments and concerns about our privacy policy and privacy practices. If you wish to provide feedback, ask a question, share a concern or exercise your rights related to your personal data, please contact our team at information@realityworks.com or 1-800-380-1416."

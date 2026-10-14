@@ -55,15 +55,14 @@ export class HealthService {
     error?: string;
     skipped?: boolean;
   }> {
-    const conn = this.configService.get<string>('AZURE_STORAGE_CONNECTION_STRING') ?? '';
+    const conn = this.configService.get<string>('azureBlob.connectionString') ?? '';
     if (!conn.trim()) {
       return { status: 'ok', skipped: true };
     }
 
-    const containerName =
-      this.configService.get<string>('AZURE_BLOB_CONTAINER_NAME') ??
-      this.configService.get<string>('AZURE_STORAGE_CONTAINER_NAME') ??
-      'json-data';
+    const containerName = this.configService.get<string>(
+      'azureBlob.jsonCatalogContainer',
+    ) as string;
 
     try {
       const blobServiceClient = BlobServiceClient.fromConnectionString(conn.trim());

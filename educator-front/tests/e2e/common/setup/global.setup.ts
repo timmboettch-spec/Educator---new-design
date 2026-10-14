@@ -7,12 +7,17 @@ import { EDUCATOR_LOCKOUT_FLAG } from '../utils/loginHelpers';
 
 dotenv.config({ path: '.env.local' });
 
-const BASE_URL = (process.env.BASE_URL ?? process.env.VITE_API_URL ?? '').trim();
+const BASE_URL = (
+  process.env.BASE_URL ??
+  process.env.VITE_API_URL ??
+  ''
+).trim();
 
 // Normalises the educator account password to the fixture value (Test@123) before
 // any worker starts.  spec-08 may have left it as Test@1234 on a previous run.
 async function normalizeEducatorPassword(): Promise<void> {
-  const EDUCATOR_EMAIL = process.env.EDUCATOR_EMAIL ?? 'satheeshkumart.ait+2@gmail.com';
+  const EDUCATOR_EMAIL =
+    process.env.EDUCATOR_EMAIL ?? 'satheeshkumart.ait+2@gmail.com';
   const FIXTURE_PASSWORD = process.env.EDUCATOR_PASSWORD ?? 'Test@123';
   const ALT_PASSWORD = 'Test@1234';
 
@@ -25,34 +30,51 @@ async function normalizeEducatorPassword(): Promise<void> {
     const btn = page.getByRole('button', { name: 'Educator' });
     if (await btn.isVisible({ timeout: 5000 }).catch(() => false)) {
       await btn.click();
-      await page.waitForURL(/(dashboard|educator-dashboard|classes)/i, { timeout: 20000 }).catch(() => {});
+      await page
+        .waitForURL(/(dashboard|educator-dashboard|classes)/i, {
+          timeout: 20000,
+        })
+        .catch(() => {});
     }
   };
 
   try {
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-    await page.locator('input[type="email"], input[placeholder*="email" i]').first()
+    await page
+      .locator('input[type="email"], input[placeholder*="email" i]')
+      .first()
       .waitFor({ state: 'visible', timeout: 30000 });
 
     // Try fixture password first — if it works we're done
-    await page.locator('input[type="email"], input[placeholder*="email" i]').first().fill(EDUCATOR_EMAIL);
+    await page
+      .locator('input[type="email"], input[placeholder*="email" i]')
+      .first()
+      .fill(EDUCATOR_EMAIL);
     await page.locator('input[type="password"]').first().fill(FIXTURE_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.waitForURL(/(dashboard|educator-dashboard|classes)/i, { timeout: 20000 }).catch(() => {});
+    await page
+      .waitForURL(/(dashboard|educator-dashboard|classes)/i, { timeout: 20000 })
+      .catch(() => {});
     await handleDualRolePopup();
 
     if (/(dashboard|educator-dashboard|classes)/i.test(page.url())) {
       // Fixture password works — clear any stale lockout flag
-      if (fs.existsSync(EDUCATOR_LOCKOUT_FLAG)) fs.unlinkSync(EDUCATOR_LOCKOUT_FLAG);
+      if (fs.existsSync(EDUCATOR_LOCKOUT_FLAG))
+        fs.unlinkSync(EDUCATOR_LOCKOUT_FLAG);
       return; // already on fixture password — nothing to do
     }
 
     // Fixture password didn't work — try alt password and restore if successful
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' });
-    await page.locator('input[type="email"], input[placeholder*="email" i]').first().fill(EDUCATOR_EMAIL);
+    await page
+      .locator('input[type="email"], input[placeholder*="email" i]')
+      .first()
+      .fill(EDUCATOR_EMAIL);
     await page.locator('input[type="password"]').first().fill(ALT_PASSWORD);
     await page.getByRole('button', { name: /sign in/i }).click();
-    await page.waitForURL(/(dashboard|educator-dashboard|classes)/i, { timeout: 20000 }).catch(() => {});
+    await page
+      .waitForURL(/(dashboard|educator-dashboard|classes)/i, { timeout: 20000 })
+      .catch(() => {});
     await handleDualRolePopup();
 
     if (!/(dashboard|educator-dashboard|classes)/i.test(page.url())) {
@@ -63,21 +85,58 @@ async function normalizeEducatorPassword(): Promise<void> {
     }
 
     // Logged in with alt password — clear stale flag and restore fixture password
-    if (fs.existsSync(EDUCATOR_LOCKOUT_FLAG)) fs.unlinkSync(EDUCATOR_LOCKOUT_FLAG);
+    if (fs.existsSync(EDUCATOR_LOCKOUT_FLAG))
+      fs.unlinkSync(EDUCATOR_LOCKOUT_FLAG);
     await page.goto(`${BASE_URL}/account`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle').catch(() => {});
 
     const changeBtn = page.getByRole('button', { name: /change password/i });
-    if (!await changeBtn.isVisible({ timeout: 10000 }).catch(() => false)) return;
+    if (!(await changeBtn.isVisible({ timeout: 10000 }).catch(() => false)))
+      return;
     await changeBtn.click();
 
     await page.locator('input[placeholder="Old Password"]').fill(ALT_PASSWORD);
-    await page.locator('input[placeholder="New Password"]').fill(FIXTURE_PASSWORD);
-    await page.locator('input[placeholder="Confirm Password"]').fill(FIXTURE_PASSWORD);
+    await page
+      .locator('input[placeholder="New Password"]')
+      .fill(FIXTURE_PASSWORD);
+    await page
+      .locator('input[placeholder="Confirm Password"]')
+      .fill(FIXTURE_PASSWORD);
     await page.getByRole('button', { name: /update password/i }).click();
     await page.waitForTimeout(3000);
   } catch {
     // Best-effort — do not fail global setup if password normalisation fails
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Fails fast if the target app is unreachable/down — avoids every suite grinding
+ * through multi-minute per-test timeouts against a dead backend.
+ */
+async function assertAppIsReachable(): Promise<void> {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const response = await page.goto(`${BASE_URL}/login`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 20000,
+    });
+    if (!response?.ok()) {
+      throw new Error(
+        `Health check failed: ${BASE_URL}/login responded with status ${response?.status() ?? 'no response'}`
+      );
+    }
+    await page
+      .locator('input[type="email"], input[placeholder*="email" i]')
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 });
+  } catch (err) {
+    throw new Error(
+      `[globalSetup] App health check failed — target environment (${BASE_URL}) appears unreachable or degraded. ` +
+        `Aborting regression run early instead of letting every suite time out. Cause: ${(err as Error).message}`
+    );
   } finally {
     await browser.close();
   }
@@ -89,10 +148,14 @@ async function normalizeEducatorPassword(): Promise<void> {
  * then authenticates admin and saves the session state used by admin specs.
  */
 export default async function globalSetup(): Promise<void> {
+  await assertAppIsReachable();
   await normalizeEducatorPassword();
   await setupAdminAuth();
   await setupEducatorAuth().catch((err: unknown) => {
     // eslint-disable-next-line no-console
-    console.warn('[globalSetup] Educator auth setup skipped:', (err as Error).message);
+    console.warn(
+      '[globalSetup] Educator auth setup skipped:',
+      (err as Error).message
+    );
   });
 }

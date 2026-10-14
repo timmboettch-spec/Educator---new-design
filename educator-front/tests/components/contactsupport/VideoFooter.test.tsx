@@ -13,7 +13,7 @@ describe('VideoFooter Component', () => {
     expect(iframe).toBeInTheDocument();
     expect(iframe).toHaveAttribute(
       'src',
-      'https://www.youtube.com/embed/XGTUqYHnlEY',
+      'https://www.youtube.com/embed/XGTUqYHnlEY'
     );
   });
 
@@ -29,8 +29,12 @@ describe('VideoFooter Component', () => {
 
   test('renders all four video links', () => {
     render(<VideoFooter />);
-    expect(screen.getByText('Blood Pressure Simulator Tutorial')).toBeInTheDocument();
-    expect(screen.getByText('Animal Science - Chicken Model')).toBeInTheDocument();
+    expect(
+      screen.getByText('Blood Pressure Simulator Tutorial')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Animal Science - Chicken Model')
+    ).toBeInTheDocument();
     expect(screen.getByText('guideWELD LIVE intro')).toBeInTheDocument();
     expect(screen.getByText('Electrical Wiring Kit Intro')).toBeInTheDocument();
   });

@@ -1,0 +1,98 @@
+name: 'fileservice-blob-upload'
+description: >-
+  Uploads one local file straight to RW Thrive's enterprise File Service
+  storage account via `az login` (OIDC) + `az storage blob upload
+  --auth-mode login` — bypassing the File Service HTTP API entirely, so no
+  API key is needed. Requires the caller's OIDC identity to already hold
+  Storage Blob Data Contributor on the target storage account.
+  Copied from Realityworks-AI/orgwide's pipelines/actions/fileservice-blob-upload
+  (PR #74) so CI reports here outlive GitHub Actions' 90-day artifact cap —
+  mirrors HS-online-AI-app's deploy-app.yml (PR #1089), which added the same
+  action + report-archiving steps to that repo's pipeline.
+  Swap this local copy for `uses: Realityworks-AI/orgwide/pipelines/actions/fileservice-blob-upload@main`
+  once that PR merges, to avoid the two copies drifting apart.
+
+inputs:
+  client-id:
+    description: 'Azure AD application (client) ID with a federated credential for this repo/environment.'
+    required: true
+  tenant-id:
+    description: 'Azure AD tenant ID.'
+    required: true
+  subscription-id:
+    description: 'Azure subscription ID the storage account lives in.'
+    required: true
+  storage-account:
+    description: "Storage account name, e.g. 'stdev1entfiles'."
+    required: true
+  tier:
+    description: "'public' or 'authenticated' — maps to the storage account's container of the same name."
+    required: true
+  file-path:
+    description: 'Local path to the file to upload.'
+    required: true
+  path:
+    description: 'Destination path prefix inside the container (no leading/trailing slash needed).'
+    required: true
+  filename:
+    description: 'Destination filename. Defaults to the basename of file-path if omitted.'
+    required: false
+    default: ''
+  overwrite:
+    description: "'true' to overwrite an existing blob at the destination path, 'false' to fail if it already exists."
+    required: false
+    default: 'true'
+
+outputs:
+  uploaded-path:
+    description: 'Container-relative destination path (path + filename).'
+    value: ${{ steps.upload.outputs.uploaded-path }}
+  blob-url:
+    description: 'Full https:// URL of the uploaded blob.'
+    value: ${{ steps.upload.outputs.blob-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Azure login (OIDC)
+      uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        tenant-id: ${{ inputs.tenant-id }}
+        subscription-id: ${{ inputs.subscription-id }}
+
+    - name: Upload to blob storage
+      id: upload
+      uses: azure/CLI@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          set -euo pipefail
+
+          if [ "${{ inputs.tier }}" != "public" ] && [ "${{ inputs.tier }}" != "authenticated" ]; then
+            echo "::error::tier must be 'public' or 'authenticated', got '${{ inputs.tier }}'"
+            exit 1
+          fi
+          if [ ! -f "${{ inputs.file-path }}" ]; then
+            echo "::error::file-path '${{ inputs.file-path }}' does not exist"
+            exit 1
+          fi
+
+          FILENAME="${{ inputs.filename }}"
+          if [ -z "$FILENAME" ]; then
+            FILENAME="$(basename "${{ inputs.file-path }}")"
+          fi
+          DEST_PATH="${{ inputs.path }}/${FILENAME}"
+          DEST_PATH="${DEST_PATH#/}"
+
+          echo "Uploading ${{ inputs.file-path }} -> ${{ inputs.storage-account }}/${{ inputs.tier }}/${DEST_PATH}"
+          az storage blob upload \
+            --account-name "${{ inputs.storage-account }}" \
+            --container-name "${{ inputs.tier }}" \
+            --name "$DEST_PATH" \
+            --file "${{ inputs.file-path }}" \
+            --auth-mode login \
+            --overwrite "${{ inputs.overwrite }}"
+
+          echo "uploaded-path=${DEST_PATH}" >> "$GITHUB_OUTPUT"
+          echo "blob-url=https://${{ inputs.storage-account }}.blob.core.windows.net/${{ inputs.tier }}/${DEST_PATH}" >> "$GITHUB_OUTPUT"

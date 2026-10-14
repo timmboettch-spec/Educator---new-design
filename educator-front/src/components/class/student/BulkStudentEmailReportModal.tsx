@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from '../../../components/common/Toast';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
 import {
   generateZipAsBase64,
   type StudentNameById,
@@ -20,6 +22,13 @@ import { Button } from '../../ui/Button';
 import Input from '../../ui/Input';
 import Modal from '../../ui/Modal';
 import Textarea from '../../ui/Textarea';
+
+type SupportedLang = 'en' | 'es';
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
 
 interface Props {
   /** Reports for the simulation — same list used by Export Report. */
@@ -52,10 +61,14 @@ export default function BulkStudentEmailReportModal({
   onClose,
 }: Props) {
   const dispatch = useAppDispatch();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
   const isLoading = useAppSelector(selectEmailReportLoading);
   const isSuccess = useAppSelector(selectEmailReportSuccess);
   const error = useAppSelector(selectEmailReportError);
-  const successMessage = useAppSelector((state) => state.StudentEmailReport.message);
+  const successMessage = useAppSelector(
+    (state) => state.StudentEmailReport.message
+  );
   const currentUser = useAppSelector(selectCurrentUser);
   const educatorEmail = currentUser?.email ?? toEmail ?? '';
 
@@ -77,19 +90,33 @@ export default function BulkStudentEmailReportModal({
       const msg = successMessage;
       dispatch(clearEmailReportState());
       onClose();
-      setTimeout(() => toast.success(msg || 'Email sent successfully'), 100);
+      setTimeout(
+        () => toast.success(msg || locale.toast.emailSentSuccessfully),
+        100
+      );
     }
-  }, [isSuccess, successMessage, dispatch, onClose]);
+  }, [
+    isSuccess,
+    successMessage,
+    dispatch,
+    onClose,
+    locale.toast.emailSentSuccessfully,
+  ]);
 
   useEffect(() => {
     if (error) toast.error(error);
   }, [error]);
 
   useEffect(() => {
-    return () => { dispatch(clearEmailReportState()); };
+    return () => {
+      dispatch(clearEmailReportState());
+    };
   }, [dispatch]);
 
-  const buildIdentityMaps = (): { studentNameById: StudentNameById; studentIdentityById: StudentIdentityById } => {
+  const buildIdentityMaps = (): {
+    studentNameById: StudentNameById;
+    studentIdentityById: StudentIdentityById;
+  } => {
     const studentNameById: StudentNameById = {};
     const studentIdentityById: StudentIdentityById = {};
     for (const s of students ?? []) {
@@ -112,26 +139,36 @@ export default function BulkStudentEmailReportModal({
   const handleSend = async () => {
     if (!recipientEmail.trim()) {
       setEmailError('Educator email is required');
-      toast.error('Educator email address is required');
+      toast.error(locale.toast.educatorEmailRequired);
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim())) {
       setEmailError('Invalid email address');
-      toast.error('Invalid email address');
+      toast.error(locale.toast.invalidEmail);
       return;
     }
     setEmailError('');
-    if (!message.trim()) { setMessageError('Message is required'); return; }
+    if (!message.trim()) {
+      setMessageError('Message is required');
+      return;
+    }
     setMessageError('');
-    if (reports.length === 0) { toast.error('No reports available to send.'); return; }
+    if (reports.length === 0) {
+      toast.error(locale.toast.noReportsAvailable);
+      return;
+    }
 
     setIsGenerating(true);
     try {
       const { studentNameById, studentIdentityById } = buildIdentityMaps();
       // Same pipeline as Export Report — produces identical PDFs.
-      const zipBase64 = await generateZipAsBase64(reports, studentNameById, studentIdentityById);
+      const zipBase64 = await generateZipAsBase64(
+        reports,
+        studentNameById,
+        studentIdentityById
+      );
       if (!zipBase64) {
-        toast.error('No Assessment Report PDFs could be generated. Please try again.');
+        toast.error(locale.toast.noPdfGenerated);
         return;
       }
       dispatch(
@@ -143,10 +180,14 @@ export default function BulkStudentEmailReportModal({
           email: recipientEmail,
           zip_base64: zipBase64,
           zip_filename: 'AssessmentReports.zip',
-        }),
+        })
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate Assessment Report ZIP');
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : 'Failed to generate Assessment Report ZIP'
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -158,15 +199,20 @@ export default function BulkStudentEmailReportModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={isBulk ? `Email ${reports.length} Assessment Reports` : 'Email Assessment Report'}
+      title={
+        isBulk
+          ? `Email ${reports.length} Assessment Reports`
+          : 'Email Assessment Report'
+      }
     >
       <div className="flex flex-col gap-4">
         {isBulk && (
-          <div className="rounded-lg bg-primary-50 border border-primary-200 px-4 py-3 text-sm text-primary-800">
+          <div className="rounded-lg bg-orange-50 border border-orange-200 px-4 py-3 text-sm text-orange-800">
             <p className="font-semibold mb-1">Bulk Report Email</p>
             <p>
-              A single email with <strong>AssessmentReports.zip</strong> ({reports.length} PDFs)
-              will be sent. Each PDF is identical to the Export Report PDF.
+              A single email with <strong>AssessmentReports.zip</strong> (
+              {reports.length} PDFs) will be sent. Each PDF is identical to the
+              Export Report PDF.
             </p>
           </div>
         )}
@@ -200,7 +246,9 @@ export default function BulkStudentEmailReportModal({
           rows={5}
           textareaClassName={`py-2.5 ${messageError ? 'border-red-400 focus:ring-red-300' : ''}`}
         />
-        {messageError && <p className="text-xs text-red-500 -mt-2">{messageError}</p>}
+        {messageError && (
+          <p className="text-xs text-red-500 -mt-2">{messageError}</p>
+        )}
 
         <div className="flex gap-3 mt-2">
           <Button
@@ -216,7 +264,11 @@ export default function BulkStudentEmailReportModal({
             className="flex-1 h-11 rounded-full text-sm"
             onClick={handleSend}
             loading={isBusy}
-            loadingText={isGenerating ? 'Generating PDFs…' : 'Sending…'}
+            loadingText={
+              isGenerating
+                ? locale.common.generatingPdfs
+                : locale.common.sending
+            }
           >
             {isBulk ? 'Send ZIP Email' : 'Send Email'}
           </Button>

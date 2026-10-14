@@ -12,9 +12,7 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { JwtAuthGuard } from '../../../../../src/student-backend/guards/jwt-auth.guard';
 import { UploadsModule } from '../../../../../src/student-backend/modules/uploads/uploads.module';
-import { AUTH_GUARD_MOCK } from '../../../mocks/auth.mock';
 import { UploadsService } from '../../../../../src/student-backend/modules/uploads/uploads.service';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { STATUS } from '../../common/constants/status-codes';
@@ -50,20 +48,19 @@ describe('Uploads API — Negative Tests', () => {
   const pdfBuffer = Buffer.from('%PDF-1.4');
 
   beforeAll(async () => {
-    // Controller wires its FileInterceptor via `new UploadsService()` at
-    // decorator-load time, so patch the prototype to avoid the real filters.
+    // Controller wires its FileInterceptor via `UploadsService.getMulterConfig()`
+    // (a static method) at decorator-load time, so patch the static method to
+    // avoid the real filters.
     jest
-      .spyOn(UploadsService.prototype, 'getMulterConfig')
-      .mockReturnValue(passThroughMulter as ReturnType<UploadsService['getMulterConfig']>);
+      .spyOn(UploadsService, 'getMulterConfig')
+      .mockReturnValue(passThroughMulter as ReturnType<typeof UploadsService.getMulterConfig>);
     jest
-      .spyOn(UploadsService.prototype, 'getFileMulterConfig')
-      .mockReturnValue(passThroughMulter as ReturnType<UploadsService['getFileMulterConfig']>);
+      .spyOn(UploadsService, 'getFileMulterConfig')
+      .mockReturnValue(passThroughMulter as ReturnType<typeof UploadsService.getFileMulterConfig>);
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [UploadsModule],
     })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(AUTH_GUARD_MOCK)
       .overrideProvider(UploadsService)
       .useValue(mockUploadsService)
       .compile();

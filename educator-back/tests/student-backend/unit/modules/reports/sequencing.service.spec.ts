@@ -1,19 +1,18 @@
 import { Test, type TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
-import { of, throwError } from 'rxjs';
+import { AiGateway } from 'src/common/interfaces';
 
 import { SequencingService } from '../../../../../src/student-backend/modules/reports/sequencing.service';
 import { ActionsInterventionsService } from '../../../../../src/student-backend/modules/reports/actions-interventions.service';
 import {
   type Scenario,
   type SequenceGroupDefinition,
-} from '../../../../../src/student-backend/data/json-data.service';
+} from 'src/common/interfaces/student-scenario.interface';
+import { LoggerService } from '../../../../../src/common/services';
+import { SimulationSequenceGroupsOrderMode } from '../../../../../src/common/constants';
 
 describe('SequencingService - Group-Based Sequencing Tests', () => {
   let service: SequencingService;
-  let configService: ConfigService;
-  let httpService: HttpService;
+  let aiGateway: jest.Mocked<AiGateway>;
   let actionsService: ActionsInterventionsService;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -74,23 +73,11 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
       providers: [
         SequencingService,
         {
-          provide: ConfigService,
+          provide: AiGateway,
           useValue: {
-            get: jest.fn((key: string) => {
-              if (key === 'OPENAI_API_KEY') {
-                return 'test-api-key';
-              }
-              if (key === 'AI_MODEL') {
-                return 'gpt-4o';
-              }
-              return undefined;
-            }),
-          },
-        },
-        {
-          provide: HttpService,
-          useValue: {
-            post: jest.fn(),
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(true),
           },
         },
         {
@@ -113,12 +100,22 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
             }),
           },
         },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<SequencingService>(SequencingService);
-    configService = module.get<ConfigService>(ConfigService);
-    httpService = module.get<HttpService>(HttpService);
+    aiGateway = module.get(AiGateway);
     actionsService = module.get<ActionsInterventionsService>(ActionsInterventionsService);
   });
 
@@ -268,7 +265,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'strict' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.STRICT,
       });
 
       const actionsTimeline = [
@@ -309,7 +306,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'strict' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.STRICT,
       });
 
       // Group 2 starts before Group 1 finishes
@@ -354,7 +351,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'strict' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.STRICT,
         actions: [
           { id: 'ppe.handHygiene', title: 'Hand Hygiene', order: 0, items: [], correct: '' },
           {
@@ -412,7 +409,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'strict' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.STRICT,
       });
 
       // Only Group 1 completed
@@ -457,7 +454,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'flexible' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.FLEXIBLE,
       });
 
       // Groups can be in any order in flexible mode
@@ -499,7 +496,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'flexible' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.FLEXIBLE,
         actions: [
           { id: 'ppe.handHygiene', title: 'Hand Hygiene', order: 0, items: [], correct: '' },
           {
@@ -813,32 +810,18 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
   describe('QuestionAsked Assessment Method', () => {
     it('should use AI to detect when a question was asked', async () => {
-      const aiResponse = {
-        data: {
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  evaluations: {
-                    'patient.name': {
-                      occurrences: [
-                        {
-                          evidence: "What's your name?",
-                          messageIndex: 0,
-                        },
-                      ],
-                    },
-                  },
-                }),
+      aiGateway.completeJson.mockResolvedValue({
+        evaluations: {
+          'patient.name': {
+            occurrences: [
+              {
+                evidence: "What's your name?",
+                messageIndex: 0,
               },
-            },
-          ],
+            ],
+          },
         },
-      };
-
-      jest
-        .spyOn(httpService, 'post')
-        .mockReturnValue(of(aiResponse) as ReturnType<typeof httpService.post>);
+      });
 
       const sequenceGroups: SequenceGroupDefinition[] = [
         {
@@ -867,11 +850,11 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
       );
 
       expect(result.score).toBe(100);
-      expect(httpService.post).toHaveBeenCalled();
+      expect(aiGateway.completeJson).toHaveBeenCalled();
     });
 
     it('should fallback to deterministic matching when AI fails', async () => {
-      jest.spyOn(httpService, 'post').mockReturnValue(throwError(() => new Error('API Error')));
+      aiGateway.completeJson.mockRejectedValue(new Error('API Error'));
 
       const sequenceGroups: SequenceGroupDefinition[] = [
         {
@@ -905,7 +888,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
     });
 
     it('should use deterministic matching when no API key configured', async () => {
-      jest.spyOn(configService, 'get').mockReturnValue(undefined);
+      aiGateway.isConfigured.mockReturnValue(false);
 
       const sequenceGroups: SequenceGroupDefinition[] = [
         {
@@ -936,7 +919,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
       );
 
       expect(result.score).toBe(100);
-      expect(httpService.post).not.toHaveBeenCalled();
+      expect(aiGateway.completeJson).not.toHaveBeenCalled();
     });
   });
 
@@ -977,7 +960,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'strict' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.STRICT,
       });
 
       const actionsTimeline = [
@@ -1022,7 +1005,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'flexible' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.FLEXIBLE,
       });
 
       const actionsTimeline = [
@@ -1064,7 +1047,7 @@ describe('SequencingService - Group-Based Sequencing Tests', () => {
 
       const scenario = createMockScenario({
         sequenceGroups,
-        sequenceGroupsOrderMode: 'strict' as const,
+        sequenceGroupsOrderMode: SimulationSequenceGroupsOrderMode.STRICT,
       });
 
       // Group 2 starts before Group 1 finishes AND items in wrong order

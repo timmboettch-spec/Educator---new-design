@@ -1,6 +1,15 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, test, expect, vi, beforeEach } from 'vitest';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+  within,
+} from '@testing-library/react';
+import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
+import i18n from '@/i18n';
 import React from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import Account from '../../../src/pages/app/account/index';
 
 const mockDispatch = vi.fn();
@@ -16,6 +25,7 @@ vi.mock('../../../src/utils/storage', () => ({
   })),
   updateStoredUser: vi.fn(),
   getToken: vi.fn(() => null),
+  getSecondaryToken: vi.fn(() => null),
   clearAuthData: vi.fn(),
   setAuthData: vi.fn(),
 }));
@@ -54,11 +64,38 @@ interface LoaderProps {
 }
 
 vi.mock('../../../src/components/common/Loader', () => ({
-  default: ({ loading }: LoaderProps) => (loading ? <div>Loading...</div> : null),
+  default: ({ loading }: LoaderProps) =>
+    loading ? <div>Loading...</div> : null,
 }));
 
 vi.mock('../../../src/pages/auth/RedeemCode/index', () => ({
-  default: () => <div>Redeem Code Modal</div>,
+  default: ({
+    onSubmitSubscribe,
+  }: {
+    onSubmitSubscribe?: (code: string) => Promise<void>;
+  }) => (
+    <div>
+      Redeem Code Modal
+      <button
+        onClick={() =>
+          onSubmitSubscribe?.('RWMASTER20250617').catch(() => {
+            /* mirrors RedeemCode's own local catch */
+          })
+        }
+      >
+        Submit Redeem Code
+      </button>
+    </div>
+  ),
+}));
+
+vi.mock('../../../src/redux/auth/RedeemRedux', () => ({
+  RedeemRequest: vi.fn((payload: unknown) => ({
+    type: 'auth/redeem',
+    payload,
+  })),
+  clearRedeemError: vi.fn(() => ({ type: 'auth/redeem/clearError' })),
+  selectRedeemError: vi.fn(() => null),
 }));
 
 interface ButtonProps {
@@ -129,14 +166,15 @@ vi.mock('../../../src/redux/auth/UpdateProfileRedux', () => {
         type: 'profile/update',
         payload,
       })),
-      { fulfilled },
+      { fulfilled }
     ),
   };
 });
 
 vi.mock('../../../src/redux/auth/ChangePasswordRedux', () => {
   const fulfilled = {
-    match: (action: ReduxAction) => action.type === 'changePassword/changePassword/fulfilled',
+    match: (action: ReduxAction) =>
+      action.type === 'changePassword/changePassword/fulfilled',
   };
 
   return {
@@ -145,16 +183,14 @@ vi.mock('../../../src/redux/auth/ChangePasswordRedux', () => {
         type: 'changePassword/changePassword',
         payload,
       })),
-      { fulfilled },
+      { fulfilled }
     ),
   };
 });
 
-vi.mock('@/redux/users/GetUserRedux', () => ({
+vi.mock('@/redux/auth/MeRedux', () => ({
   default: (state = {}) => state,
-  getCurrentUserRequest: vi.fn(() => ({
-    type: 'getCurrentUserRequest',
-  })),
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: {
@@ -164,14 +200,12 @@ vi.mock('../../../src/components/common/Toast', () => ({
   },
 }));
 
+vi.mock('../../../src/components/notifications/NotificationSettings', () => ({
+  default: () => null,
+}));
+
 vi.mock('@/components/modal/RequestSeatsModal', () => ({
-  default: ({
-    isOpen,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-  }) =>
+  default: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
     isOpen ? (
       <div data-testid="request-seats-modal">
         <button onClick={onClose}>Close Request Seats</button>
@@ -182,6 +216,8 @@ vi.mock('@/components/modal/RequestSeatsModal', () => ({
 import { toast } from '../../../src/components/common/Toast';
 import { ACCOUNT_VALIDATION } from '../../../src/utils/messages/account';
 import { updateProfileRequest } from '../../../src/redux/auth/UpdateProfileRedux';
+import { changePasswordRequest } from '../../../src/redux/auth/ChangePasswordRedux';
+import { getParsedUser } from '../../../src/utils/storage';
 describe('Account Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -202,7 +238,7 @@ describe('Account Page', () => {
             seats_available: 0,
           },
         ],
-      }),
+      })
     );
 
     mockDispatch.mockImplementation((action: ReduxAction) => {
@@ -218,15 +254,13 @@ describe('Account Page', () => {
         });
       }
 
-      if (action?.type === 'getCurrentUserRequest') {
+      if (action?.type === 'auth/Me') {
         return {
           unwrap: () =>
             Promise.resolve({
-              data: {
-                full_name: 'Sanjay',
-                email: 'test@gmail.com',
-                role: 'District Admin',
-              },
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
             }),
         };
       }
@@ -237,7 +271,49 @@ describe('Account Page', () => {
     });
   });
 
-  const renderComponent = () => render(<Account />);
+  const renderComponent = () => render(<Account />, { wrapper: MemoryRouter });
+
+  describe('opening at the notification preferences', () => {
+    const scrolledIds = () =>
+      vi
+        .mocked(Element.prototype.scrollIntoView)
+        .mock.contexts.map((el) => (el as Element).id);
+
+    beforeEach(() => {
+      Element.prototype.scrollIntoView = vi.fn();
+    });
+
+    test('scrolls to them when the dashboard asks to', async () => {
+      render(
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/account',
+              state: { scrollTo: 'notification-preferences' },
+            },
+          ]}
+        >
+          <Account />
+        </MemoryRouter>
+      );
+
+      await waitFor(() =>
+        expect(scrolledIds()).toContain('notification-preferences')
+      );
+    });
+
+    test('stays at the top otherwise', async () => {
+      renderComponent();
+      await screen.findByText('Account Settings');
+      // Let the animation frame the scroll would use run.
+      await act(
+        () =>
+          new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+      );
+
+      expect(scrolledIds()).not.toContain('notification-preferences');
+    });
+  });
 
   test('renders profile information correctly', async () => {
     renderComponent();
@@ -249,6 +325,38 @@ describe('Account Page', () => {
     expect(screen.getByText('test@gmail.com')).toBeInTheDocument();
   });
 
+  test('shows Edit Profile beside the name in the profile row', async () => {
+    renderComponent();
+
+    const profileRow = await screen.findByTestId('profile-photo-dropzone');
+    expect(
+      within(profileRow).getByRole('button', { name: 'Edit Profile' })
+    ).toBeInTheDocument();
+    expect(within(profileRow).getByText('Add Photo')).toBeInTheDocument();
+  });
+
+  test('shows the initial as the avatar when there is no photo', async () => {
+    renderComponent();
+
+    const profileRow = await screen.findByTestId('profile-photo-dropzone');
+    expect(within(profileRow).getByText('S')).toBeInTheDocument();
+    expect(within(profileRow).queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  test('labels the read-only Full Name and Email fields', async () => {
+    renderComponent();
+
+    await screen.findByText('test@gmail.com');
+    const terms = screen.getAllByRole('term');
+    const values = screen.getAllByRole('definition');
+    expect(terms.map((term) => term.textContent)).toEqual([
+      'Full Name',
+      'Email',
+    ]);
+    expect(values[0]).toHaveTextContent('Sanjay');
+    expect(values[1]).toHaveTextContent('test@gmail.com');
+  });
+
   test('email field is disabled', async () => {
     renderComponent();
 
@@ -257,16 +365,21 @@ describe('Account Page', () => {
     expect(emailEl).toBeInTheDocument();
   });
 
-  test('shows no changes toast when save clicked', async () => {
+  test('keeps Save disabled until the name actually changes', async () => {
     renderComponent();
 
-    // Open the edit profile modal first
     fireEvent.click(await screen.findByText('Edit Profile'));
+    const saveButton = await screen.findByText('Save Changes');
+    expect(saveButton).toBeDisabled();
 
-    // Click Save Changes without making any changes
-    fireEvent.click(await screen.findByText('Save Changes'));
+    const nameInput = screen.getByPlaceholderText('Enter Full Name');
+    fireEvent.change(nameInput, { target: { value: 'Sanjay K' } });
+    expect(saveButton).toBeEnabled();
 
-    expect(toast.error).toHaveBeenCalledWith(ACCOUNT_VALIDATION.NO_CHANGES);
+    // Back to the saved name: nothing to save again.
+    fireEvent.change(nameInput, { target: { value: 'Sanjay' } });
+    expect(saveButton).toBeDisabled();
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   test('updates name successfully', async () => {
@@ -284,15 +397,13 @@ describe('Account Page', () => {
         });
       }
 
-      if (action?.type === 'getCurrentUserRequest') {
+      if (action?.type === 'auth/Me') {
         return {
           unwrap: () =>
             Promise.resolve({
-              data: {
-                full_name: 'Sanjay',
-                email: 'test@gmail.com',
-                role: 'District Admin',
-              },
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
             }),
         };
       }
@@ -321,6 +432,128 @@ describe('Account Page', () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalled();
     });
+    expect(
+      screen.queryByPlaceholderText('Enter Full Name')
+    ).not.toBeInTheDocument();
+  });
+
+  test('shows Saving… on the button instead of the full-page loader while the name saves', async () => {
+    await i18n.changeLanguage('en');
+    let finishSave: (value: unknown) => void = () => {};
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'profile/update') {
+        return new Promise((resolve) => {
+          finishSave = resolve;
+        });
+      }
+      if (action?.type === 'auth/Me') {
+        return {
+          unwrap: () =>
+            Promise.resolve({
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
+            }),
+        };
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    renderComponent();
+    fireEvent.click(await screen.findByText('Edit Profile'));
+    fireEvent.change(await screen.findByPlaceholderText('Enter Full Name'), {
+      target: { value: 'Updated User' },
+    });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    const savingButton = await screen.findByText('Saving…');
+    expect(savingButton).toBeDisabled();
+    // Can't be closed mid-save, so a second save can't start.
+    expect(screen.getByText('Cancel')).toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByPlaceholderText('Enter Full Name')).toBeInTheDocument();
+    expect(updateProfileRequest).toHaveBeenCalledWith({
+      fullName: 'Updated User',
+      silent: true,
+    });
+
+    await act(async () => {
+      finishSave({ type: 'profile/update/fulfilled', payload: {} });
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByPlaceholderText('Enter Full Name')
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  test('keeps Edit Profile open with the message when the save fails', async () => {
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'profile/update') {
+        return Promise.resolve({
+          type: 'profile/update/rejected',
+          payload: 'Full name is too long',
+        });
+      }
+      if (action?.type === 'auth/Me') {
+        return {
+          unwrap: () =>
+            Promise.resolve({
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
+            }),
+        };
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    renderComponent();
+    fireEvent.click(await screen.findByText('Edit Profile'));
+    const nameInput = await screen.findByPlaceholderText('Enter Full Name');
+    fireEvent.change(nameInput, { target: { value: 'Updated User' } });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    expect(
+      await screen.findByText('Full name is too long')
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter Full Name')).toHaveValue(
+      'Updated User'
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    // The card still shows the saved name, not the one that failed.
+    expect(screen.queryByText('Updated User')).not.toBeInTheDocument();
+  });
+
+  test('shows a generic message in Edit Profile when the save errors without one', async () => {
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'profile/update') {
+        return Promise.resolve({ type: 'profile/update/rejected' });
+      }
+      if (action?.type === 'auth/Me') {
+        return {
+          unwrap: () =>
+            Promise.resolve({
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
+            }),
+        };
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    renderComponent();
+    fireEvent.click(await screen.findByText('Edit Profile'));
+    fireEvent.change(await screen.findByPlaceholderText('Enter Full Name'), {
+      target: { value: 'Updated User' },
+    });
+    fireEvent.click(screen.getByText('Save Changes'));
+
+    expect(
+      await screen.findByText(ACCOUNT_VALIDATION.UPDATE_FAILED)
+    ).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter Full Name')).toBeInTheDocument();
   });
 
   test('updates profile image successfully', async () => {
@@ -330,12 +563,16 @@ describe('Account Page', () => {
       type: 'image/png',
     });
 
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
 
-    fireEvent.change(input, {
-      target: {
-        files: [file],
-      },
+    await act(async () => {
+      fireEvent.change(input, {
+        target: {
+          files: [file],
+        },
+      });
     });
 
     expect(input.files?.[0]).toEqual(file);
@@ -347,8 +584,13 @@ describe('Account Page', () => {
   test('file input accepts jpg jpeg png svg', async () => {
     renderComponent();
 
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(input).toHaveAttribute('accept', '.jpg,.jpeg,.png,.svg,image/jpeg,image/png,image/svg+xml');
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+    expect(input).toHaveAttribute(
+      'accept',
+      '.jpg,.jpeg,.png,.svg,image/jpeg,image/png,image/svg+xml'
+    );
   });
 
   test.each([
@@ -360,12 +602,16 @@ describe('Account Page', () => {
     renderComponent();
 
     const file = new File(['dummy'], fileName, { type: mimeType });
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
 
-    fireEvent.change(input, {
-      target: {
-        files: [file],
-      },
+    await act(async () => {
+      fireEvent.change(input, {
+        target: {
+          files: [file],
+        },
+      });
     });
 
     await waitFor(() => {
@@ -376,35 +622,50 @@ describe('Account Page', () => {
   test.each([
     ['resume.pdf', 'application/pdf'],
     ['resume.doc', 'application/msword'],
-    ['resume.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    [
+      'resume.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ],
     ['script.exe', 'application/x-msdownload'],
     ['image-as-pdf.png', 'application/pdf'],
-  ])('rejects unsupported format %s and prevents upload', async (fileName, mimeType) => {
-    renderComponent();
+  ])(
+    'rejects unsupported format %s and prevents upload',
+    async (fileName, mimeType) => {
+      renderComponent();
 
-    const file = new File(['dummy'], fileName, { type: mimeType });
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+      const file = new File(['dummy'], fileName, { type: mimeType });
+      const input = document.querySelector(
+        'input[type="file"]'
+      ) as HTMLInputElement;
 
-    fireEvent.change(input, {
-      target: {
-        files: [file],
-      },
-    });
+      await act(async () => {
+        fireEvent.change(input, {
+          target: {
+            files: [file],
+          },
+        });
+      });
 
-    await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(ACCOUNT_VALIDATION.IMAGE_TYPE_INVALID);
-    });
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          ACCOUNT_VALIDATION.IMAGE_TYPE_INVALID
+        );
+      });
 
-    const updateProfileCalls = (updateProfileRequest as unknown as { mock: { calls: unknown[] } }).mock
-      .calls.length;
-    expect(updateProfileCalls).toBe(0);
-  });
+      const updateProfileCalls = (
+        updateProfileRequest as unknown as { mock: { calls: unknown[] } }
+      ).mock.calls.length;
+      expect(updateProfileCalls).toBe(0);
+    }
+  );
 
   test('applies same validation rules for drag-and-drop upload', async () => {
     renderComponent();
 
     const dropzone = await screen.findByTestId('profile-photo-dropzone');
-    const invalidFile = new File(['dummy'], 'not-image.pdf', { type: 'application/pdf' });
+    const invalidFile = new File(['dummy'], 'not-image.pdf', {
+      type: 'application/pdf',
+    });
 
     fireEvent.drop(dropzone, {
       dataTransfer: {
@@ -413,11 +674,14 @@ describe('Account Page', () => {
     });
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith(ACCOUNT_VALIDATION.IMAGE_TYPE_INVALID);
+      expect(toast.error).toHaveBeenCalledWith(
+        ACCOUNT_VALIDATION.IMAGE_TYPE_INVALID
+      );
     });
 
-    const updateProfileCalls = (updateProfileRequest as unknown as { mock: { calls: unknown[] } }).mock
-      .calls.length;
+    const updateProfileCalls = (
+      updateProfileRequest as unknown as { mock: { calls: unknown[] } }
+    ).mock.calls.length;
     expect(updateProfileCalls).toBe(0);
   });
 
@@ -428,15 +692,21 @@ describe('Account Page', () => {
       type: 'image/png',
     });
 
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
 
-    fireEvent.change(input, {
-      target: {
-        files: [bigFile],
-      },
+    await act(async () => {
+      fireEvent.change(input, {
+        target: {
+          files: [bigFile],
+        },
+      });
     });
 
-    expect(toast.error).toHaveBeenCalledWith(ACCOUNT_VALIDATION.IMAGE_TOO_LARGE);
+    expect(toast.error).toHaveBeenCalledWith(
+      ACCOUNT_VALIDATION.IMAGE_TOO_LARGE
+    );
   });
 
   test('opens change password modal', async () => {
@@ -455,11 +725,17 @@ describe('Account Page', () => {
     fireEvent.click(await screen.findByText('Update Password'));
 
     await waitFor(() => {
-      expect(screen.getByText(ACCOUNT_VALIDATION.OLD_PASSWORD_REQUIRED)).toBeInTheDocument();
+      expect(
+        screen.getByText(ACCOUNT_VALIDATION.OLD_PASSWORD_REQUIRED)
+      ).toBeInTheDocument();
 
-      expect(screen.getByText(ACCOUNT_VALIDATION.NEW_PASSWORD_REQUIRED)).toBeInTheDocument();
+      expect(
+        screen.getByText(ACCOUNT_VALIDATION.NEW_PASSWORD_REQUIRED)
+      ).toBeInTheDocument();
 
-      expect(screen.getByText(ACCOUNT_VALIDATION.CONFIRM_PASSWORD_REQUIRED)).toBeInTheDocument();
+      expect(
+        screen.getByText(ACCOUNT_VALIDATION.CONFIRM_PASSWORD_REQUIRED)
+      ).toBeInTheDocument();
     });
   });
 
@@ -472,7 +748,8 @@ describe('Account Page', () => {
 
     const newPasswordInput = screen.getByPlaceholderText('New Password');
 
-    const confirmPasswordInput = screen.getByPlaceholderText('Confirm Password');
+    const confirmPasswordInput =
+      screen.getByPlaceholderText('Confirm Password');
 
     fireEvent.change(oldPasswordInput, {
       target: {
@@ -495,7 +772,9 @@ describe('Account Page', () => {
     fireEvent.click(screen.getByText('Update Password'));
 
     await waitFor(() => {
-      expect(screen.getByText(ACCOUNT_VALIDATION.PASSWORD_MISMATCH)).toBeInTheDocument();
+      expect(
+        screen.getByText(ACCOUNT_VALIDATION.PASSWORD_MISMATCH)
+      ).toBeInTheDocument();
     });
   });
 
@@ -503,19 +782,20 @@ describe('Account Page', () => {
     mockDispatch.mockImplementation((action: ReduxAction) => {
       if (action?.type === 'changePassword/changePassword') {
         return {
-          unwrap: () => Promise.reject({ message: ACCOUNT_VALIDATION.INCORRECT_OLD_PASSWORD }),
+          unwrap: () =>
+            Promise.reject({
+              message: ACCOUNT_VALIDATION.INCORRECT_OLD_PASSWORD,
+            }),
         };
       }
 
-      if (action?.type === 'getCurrentUserRequest') {
+      if (action?.type === 'auth/Me') {
         return {
           unwrap: () =>
             Promise.resolve({
-              data: {
-                full_name: 'Sanjay',
-                email: 'test@gmail.com',
-                role: 'District Admin',
-              },
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
             }),
         };
       }
@@ -562,15 +842,13 @@ describe('Account Page', () => {
         };
       }
 
-      if (action?.type === 'getCurrentUserRequest') {
+      if (action?.type === 'auth/Me') {
         return {
           unwrap: () =>
             Promise.resolve({
-              data: {
-                full_name: 'Sanjay',
-                email: 'test@gmail.com',
-                role: 'District Admin',
-              },
+              full_name: 'Sanjay',
+              email: 'test@gmail.com',
+              role: 'District Admin',
             }),
         };
       }
@@ -607,6 +885,14 @@ describe('Account Page', () => {
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalled();
     });
+    // The dialog's own "Updating..." replaces the full-page loader.
+    expect(changePasswordRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ silent: true })
+    );
+    // Closes straight away rather than after a delay.
+    expect(
+      screen.queryByPlaceholderText('Old Password')
+    ).not.toBeInTheDocument();
   });
 
   test('opens redeem code modal', async () => {
@@ -616,6 +902,70 @@ describe('Account Page', () => {
 
     const redeemElements = await screen.findAllByText('Redeem Code Modal');
     expect(redeemElements.length).toBeGreaterThan(0);
+  });
+
+  test('redeem success shows the activated toast and closes the modal even if the profile refresh fails', async () => {
+    // Regression: fetchCurrentUser() (GET /auth/me) is only a post-redeem
+    // profile/seat refresh — a failure there must not block the success
+    // toast or leave the redeem dialog open, since the redeem itself
+    // already succeeded.
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'auth/redeem') {
+        return {
+          unwrap: () =>
+            Promise.resolve({ message: 'License activated successfully' }),
+        };
+      }
+      if (action?.type === 'auth/Me') {
+        return {
+          unwrap: () => Promise.reject(new Error('Failed to load profile')),
+        };
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    renderComponent();
+
+    fireEvent.click(await screen.findByText('Add Subscription'));
+    fireEvent.click(await screen.findByText('Submit Redeem Code'));
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalledWith(
+        expect.stringMatching(/license.*activated/i)
+      );
+    });
+    expect(toast.error).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.queryByText('Redeem Code Modal')).not.toBeInTheDocument();
+    });
+  });
+
+  test('redeem failure shows the error toast and keeps the modal open', async () => {
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'auth/redeem') {
+        return {
+          unwrap: () => Promise.reject(new Error('Invalid code')),
+        };
+      }
+      if (action?.type === 'auth/Me') {
+        return {
+          unwrap: () =>
+            Promise.resolve({ full_name: 'Sanjay', role: 'District Admin' }),
+        };
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    renderComponent();
+
+    fireEvent.click(await screen.findByText('Add Subscription'));
+    fireEvent.click(await screen.findByText('Submit Redeem Code'));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalled();
+    });
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(screen.getByText('Redeem Code Modal')).toBeInTheDocument();
   });
 
   test('valid redeem code matches pattern', () => {
@@ -662,11 +1012,11 @@ describe('Account Page', () => {
         await waitFor(() => {
           // Both new and confirm may show the same complexity message; verify at least one is present
           const complexityMessages = screen.getAllByText(
-            ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY,
+            ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY
           );
           expect(complexityMessages.length).toBeGreaterThanOrEqual(1);
         });
-      },
+      }
     );
 
     test.each(invalidPasswords)(
@@ -693,11 +1043,11 @@ describe('Account Page', () => {
         await waitFor(() => {
           // Both new and confirm show the same complexity message; verify at least one is present
           const complexityMessages = screen.getAllByText(
-            ACCOUNT_VALIDATION.CONFIRM_PASSWORD_COMPLEXITY,
+            ACCOUNT_VALIDATION.CONFIRM_PASSWORD_COMPLEXITY
           );
           expect(complexityMessages.length).toBeGreaterThanOrEqual(1);
         });
-      },
+      }
     );
 
     test('accepts passwords longer than 8 characters', async () => {
@@ -708,15 +1058,13 @@ describe('Account Page', () => {
             payload: 'Password updated successfully',
           });
         }
-        if (action?.type === 'getCurrentUserRequest') {
+        if (action?.type === 'auth/Me') {
           return {
             unwrap: () =>
               Promise.resolve({
-                data: {
-                  full_name: 'Sanjay',
-                  email: 'test@gmail.com',
-                  role: 'District Admin',
-                },
+                full_name: 'Sanjay',
+                email: 'test@gmail.com',
+                role: 'District Admin',
               }),
           };
         }
@@ -741,7 +1089,7 @@ describe('Account Page', () => {
 
       await waitFor(() => {
         expect(
-          screen.queryByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY),
+          screen.queryByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY)
         ).not.toBeInTheDocument();
       });
     });
@@ -763,11 +1111,13 @@ describe('Account Page', () => {
               payload: 'Password updated successfully',
             });
           }
-          if (action?.type === 'getCurrentUserRequest') {
+          if (action?.type === 'auth/Me') {
             return {
               unwrap: () =>
                 Promise.resolve({
-                  data: { full_name: 'Sanjay', email: 'test@gmail.com', role: 'District Admin' },
+                  full_name: 'Sanjay',
+                  email: 'test@gmail.com',
+                  role: 'District Admin',
                 }),
             };
           }
@@ -792,13 +1142,13 @@ describe('Account Page', () => {
 
         await waitFor(() => {
           expect(
-            screen.queryByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY),
+            screen.queryByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY)
           ).not.toBeInTheDocument();
           expect(
-            screen.queryByText(ACCOUNT_VALIDATION.CONFIRM_PASSWORD_COMPLEXITY),
+            screen.queryByText(ACCOUNT_VALIDATION.CONFIRM_PASSWORD_COMPLEXITY)
           ).not.toBeInTheDocument();
         });
-      },
+      }
     );
 
     test('shows validation error on blur for empty new password', async () => {
@@ -810,7 +1160,9 @@ describe('Account Page', () => {
       fireEvent.blur(newPasswordInput);
 
       await waitFor(() => {
-        expect(screen.getByText(ACCOUNT_VALIDATION.NEW_PASSWORD_REQUIRED)).toBeInTheDocument();
+        expect(
+          screen.getByText(ACCOUNT_VALIDATION.NEW_PASSWORD_REQUIRED)
+        ).toBeInTheDocument();
       });
     });
 
@@ -824,7 +1176,9 @@ describe('Account Page', () => {
       fireEvent.blur(newPasswordInput);
 
       await waitFor(() => {
-        expect(screen.getByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY)).toBeInTheDocument();
+        expect(
+          screen.getByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY)
+        ).toBeInTheDocument();
       });
     });
 
@@ -833,13 +1187,16 @@ describe('Account Page', () => {
 
       fireEvent.click(await screen.findByText('Change Password'));
 
-      const confirmPasswordInput = screen.getByPlaceholderText('Confirm Password');
-      fireEvent.change(confirmPasswordInput, { target: { value: 'nospecial1A' } });
+      const confirmPasswordInput =
+        screen.getByPlaceholderText('Confirm Password');
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: 'nospecial1A' },
+      });
       fireEvent.blur(confirmPasswordInput);
 
       await waitFor(() => {
         expect(
-          screen.getByText(ACCOUNT_VALIDATION.CONFIRM_PASSWORD_COMPLEXITY),
+          screen.getByText(ACCOUNT_VALIDATION.CONFIRM_PASSWORD_COMPLEXITY)
         ).toBeInTheDocument();
       });
     });
@@ -853,12 +1210,17 @@ describe('Account Page', () => {
         target: { value: 'ValidP@ss1' },
       });
 
-      const confirmPasswordInput = screen.getByPlaceholderText('Confirm Password');
-      fireEvent.change(confirmPasswordInput, { target: { value: 'DifferentP@ss2' } });
+      const confirmPasswordInput =
+        screen.getByPlaceholderText('Confirm Password');
+      fireEvent.change(confirmPasswordInput, {
+        target: { value: 'DifferentP@ss2' },
+      });
       fireEvent.blur(confirmPasswordInput);
 
       await waitFor(() => {
-        expect(screen.getByText(ACCOUNT_VALIDATION.PASSWORD_MISMATCH)).toBeInTheDocument();
+        expect(
+          screen.getByText(ACCOUNT_VALIDATION.PASSWORD_MISMATCH)
+        ).toBeInTheDocument();
       });
     });
 
@@ -881,13 +1243,323 @@ describe('Account Page', () => {
 
       await waitFor(() => {
         // Both new and confirm fields show the same complexity message
-        const complexityErrors = screen.getAllByText(ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY);
+        const complexityErrors = screen.getAllByText(
+          ACCOUNT_VALIDATION.NEW_PASSWORD_COMPLEXITY
+        );
         expect(complexityErrors.length).toBeGreaterThanOrEqual(1);
         // dispatch should NOT have been called with changePassword
         expect(mockDispatch).not.toHaveBeenCalledWith(
-          expect.objectContaining({ type: 'changePassword' }),
+          expect.objectContaining({ type: 'changePassword' })
         );
       });
     });
+  });
+});
+
+describe('Account Page — photo upload and removal states', () => {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+  const meResponse = (profilePicture: string) => ({
+    unwrap: () =>
+      Promise.resolve({
+        full_name: 'Sanjay',
+        email: 'test@gmail.com',
+        role: 'District Admin',
+        profile_picture: profilePicture,
+      }),
+  });
+  const pngFile = () =>
+    new File(['dummy'], 'profile.png', { type: 'image/png' });
+  const chooseFile = async (file: File) => {
+    const input = document.querySelector(
+      'input[type="file"]'
+    ) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+  };
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    URL.createObjectURL = vi.fn(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn();
+    await i18n.changeLanguage('en');
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  test('shows the photo as busy until the upload finishes, then releases the preview', async () => {
+    let finishUpload: (value: unknown) => void = () => {};
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'profile/update') {
+        return new Promise((resolve) => {
+          finishUpload = resolve;
+        });
+      }
+      if (action?.type === 'auth/Me') return meResponse('');
+      return Promise.resolve({ type: 'default' });
+    });
+
+    render(<Account />, { wrapper: MemoryRouter });
+    await screen.findByText('Add Photo');
+    await chooseFile(pngFile());
+
+    expect(screen.getByTestId('profile-photo-busy')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Uploading photo…');
+    // The avatar's own busy state replaces the full-page loader.
+    expect(updateProfileRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ silent: true })
+    );
+    // The preview is showing, so the links read Update / Remove.
+    expect(screen.getByText('Update Photo')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+    expect(screen.getByText('Remove Photo')).toHaveAttribute(
+      'aria-disabled',
+      'true'
+    );
+
+    // No rename mid-upload: the upload would write the old name back.
+    expect(screen.getByText('Edit Profile')).toBeDisabled();
+
+    // A second file dropped mid-upload is ignored.
+    fireEvent.drop(screen.getByTestId('profile-photo-dropzone'), {
+      dataTransfer: { files: [pngFile()] },
+    });
+    expect(updateProfileRequest).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      finishUpload({ type: 'profile/update/fulfilled', payload: {} });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId('profile-photo-busy')
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview');
+    expect(screen.getByText('Edit Profile')).toBeEnabled();
+  });
+
+  test('shows a generic message, never "undefined", when the upload fails without one', async () => {
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'profile/update') {
+        return Promise.resolve({ type: 'profile/update/rejected' });
+      }
+      if (action?.type === 'auth/Me') return meResponse('');
+      return Promise.resolve({ type: 'default' });
+    });
+
+    render(<Account />, { wrapper: MemoryRouter });
+    await screen.findByText('Add Photo');
+    await chooseFile(pngFile());
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        ACCOUNT_VALIDATION.UPDATE_FAILED
+      );
+    });
+    expect(screen.queryByTestId('profile-photo-busy')).not.toBeInTheDocument();
+  });
+
+  test('removes the photo straight away, showing the busy state while it runs', async () => {
+    let photo = 'https://cdn.example.com/profile.png';
+    let finishRemove: (value: unknown) => void = () => {};
+    mockDispatch.mockImplementation((action: unknown) => {
+      // The real removeProfilePictureRequest thunk is dispatched as a function.
+      if (typeof action === 'function') {
+        return new Promise((resolve) => {
+          finishRemove = resolve;
+        });
+      }
+      if ((action as ReduxAction)?.type === 'auth/Me') return meResponse(photo);
+      return Promise.resolve({ type: 'default' });
+    });
+
+    render(<Account />, { wrapper: MemoryRouter });
+    fireEvent.click(await screen.findByText('Remove Photo'));
+
+    // No confirmation step, matching the design.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('profile-photo-busy')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Removing photo…');
+
+    photo = '';
+    await act(async () => {
+      finishRemove({
+        type: 'profile/removePicture/fulfilled',
+        payload: { message: 'Photo removed' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalled();
+    });
+    expect(await screen.findByText('Add Photo')).toBeInTheDocument();
+    expect(screen.queryByTestId('profile-photo-busy')).not.toBeInTheDocument();
+  });
+});
+
+describe('Account Page — profile loading and unavailable states', () => {
+  const defaultCachedUser = vi.mocked(getParsedUser).getMockImplementation();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await i18n.changeLanguage('en');
+    // No saved copy, so the page has to wait for /auth/me.
+    vi.mocked(getParsedUser).mockReturnValue(null);
+  });
+
+  afterEach(() => {
+    if (defaultCachedUser) {
+      vi.mocked(getParsedUser).mockImplementation(defaultCachedUser);
+    }
+  });
+
+  const meAction = (result: () => Promise<unknown>) => ({ unwrap: result });
+
+  test('shows a skeleton until the details arrive', async () => {
+    let finishLoad: (value: unknown) => void = () => {};
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'auth/Me') {
+        return meAction(
+          () =>
+            new Promise((resolve) => {
+              finishLoad = resolve;
+            })
+        );
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    render(<Account />, { wrapper: MemoryRouter });
+    expect(screen.getByTestId('profile-card-skeleton')).toBeInTheDocument();
+    expect(screen.getByText('Loading your profile…')).toBeInTheDocument();
+    expect(screen.queryByText('Edit Profile')).not.toBeInTheDocument();
+
+    await act(async () => {
+      finishLoad({
+        full_name: 'Sanjay',
+        email: 'test@gmail.com',
+        role: 'District Admin',
+      });
+    });
+
+    expect(await screen.findByText('test@gmail.com')).toBeInTheDocument();
+    expect(
+      screen.queryByTestId('profile-card-skeleton')
+    ).not.toBeInTheDocument();
+  });
+
+  test('shows a retry message when the details fail to load, and recovers on retry', async () => {
+    let shouldFail = true;
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'auth/Me') {
+        return meAction(() =>
+          shouldFail
+            ? Promise.reject(new Error('Network Error'))
+            : Promise.resolve({
+                full_name: 'Sanjay',
+                email: 'test@gmail.com',
+                role: 'District Admin',
+              })
+        );
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    render(<Account />, { wrapper: MemoryRouter });
+    expect(
+      await screen.findByText("We couldn't load your profile")
+    ).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    shouldFail = false;
+    fireEvent.click(screen.getByText('Try again'));
+
+    expect(await screen.findByText('test@gmail.com')).toBeInTheDocument();
+    expect(
+      screen.queryByText("We couldn't load your profile")
+    ).not.toBeInTheDocument();
+  });
+
+  test('keeps showing the saved copy when a background refresh fails', async () => {
+    if (defaultCachedUser) {
+      vi.mocked(getParsedUser).mockImplementation(defaultCachedUser);
+    }
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'auth/Me') {
+        return meAction(() => Promise.reject(new Error('Network Error')));
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+
+    render(<Account />, { wrapper: MemoryRouter });
+    expect(await screen.findByText('test@gmail.com')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockDispatch).toHaveBeenCalled();
+    });
+    expect(
+      screen.queryByText("We couldn't load your profile")
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('Account Page — educator seat summary', () => {
+  const educator = {
+    id: 1,
+    full_name: 'Sanjay',
+    email: 'test@gmail.com',
+    role: 'Educator',
+    profile_picture: '',
+    ai_seats: { total: 20, consumed: 5, available: 15 },
+  };
+  const defaultGetParsedUser = vi.mocked(getParsedUser).getMockImplementation();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    await i18n.changeLanguage('en');
+    vi.mocked(getParsedUser).mockImplementation(() => educator);
+    mockDispatch.mockImplementation((action: ReduxAction) => {
+      if (action?.type === 'auth/Me') {
+        return { unwrap: () => Promise.resolve(educator) };
+      }
+      return Promise.resolve({ type: 'default' });
+    });
+  });
+
+  afterEach(() => {
+    vi.mocked(getParsedUser).mockImplementation(
+      defaultGetParsedUser ?? (() => null)
+    );
+  });
+
+  const renderEducatorAccount = () =>
+    render(<Account />, { wrapper: MemoryRouter });
+
+  test('shows the remaining seats in the brand primary colour', async () => {
+    renderEducatorAccount();
+
+    const remaining = await screen.findByText('15');
+    expect(remaining).toHaveClass('text-primary-500');
+    expect(remaining).not.toHaveClass('text-[#F97316]');
+  });
+
+  test('uses the gradient Request More Seats button and opens the modal', async () => {
+    renderEducatorAccount();
+
+    const requestSeats = await screen.findByRole('button', {
+      name: 'Request More Seats',
+    });
+    expect(requestSeats).toHaveAttribute('variant', 'gradient');
+    expect(requestSeats).not.toHaveClass('bg-orange-500');
+
+    fireEvent.click(requestSeats);
+    expect(screen.getByTestId('request-seats-modal')).toBeInTheDocument();
   });
 });

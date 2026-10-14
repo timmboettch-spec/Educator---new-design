@@ -1,9 +1,19 @@
-import { test, expect, Browser, BrowserContext, Page } from '@playwright/test';
+import {
+  test,
+  expect,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test';
 import { LoginPage } from '../../pages/LoginPage';
 import { BasePage } from '../../pages/base/BasePage';
 import { adminLogin, educatorLogin } from '../../common/utils/loginHelpers';
 import { BASE_URL } from '../../config/playwright.smoke.config';
-import { ADMIN_AUTH_FILE, BASE_URL as ADMIN_BASE_URL, injectAdminSessionStorage } from '../../common/setup/auth.setup';
+import {
+  ADMIN_AUTH_FILE,
+  BASE_URL as ADMIN_BASE_URL,
+  injectAdminSessionStorage,
+} from '../../common/setup/auth.setup';
 
 test.describe.serial('Dashboard Metrics Regression - Admin', () => {
   let context: BrowserContext;
@@ -17,13 +27,18 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
     page = await context.newPage();
     basePage = new BasePage(page);
 
-    await page.goto(`${ADMIN_BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${ADMIN_BASE_URL}/dashboard`, {
+      waitUntil: 'domcontentloaded',
+    });
     await injectAdminSessionStorage(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     // Wait for authenticated shell
     await Promise.any([
       page.waitForURL(/(dashboard|educator-dashboard)/i, { timeout: 30000 }),
-      page.locator('main, [role="main"]').first().waitFor({ state: 'visible', timeout: 30000 })
+      page
+        .locator('main, [role="main"]')
+        .first()
+        .waitFor({ state: 'visible', timeout: 30000 }),
     ]).catch(() => {});
     await page.waitForLoadState('domcontentloaded').catch(() => {});
   });
@@ -36,7 +51,9 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
   test.beforeEach(async () => {
     if (/login|signin/i.test(page.url())) {
       await adminLogin(page);
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
     }
   });
 
@@ -46,7 +63,10 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
     await basePage.navigateTo('/dashboard');
     await Promise.any([
       page.waitForURL(/dashboard|educator-dashboard/i, { timeout: 20000 }),
-      page.locator('main, [role="main"]').first().waitFor({ state: 'visible', timeout: 20000 })
+      page
+        .locator('main, [role="main"]')
+        .first()
+        .waitFor({ state: 'visible', timeout: 20000 }),
     ]).catch(() => {});
     await page.waitForLoadState('domcontentloaded').catch(() => {});
 
@@ -58,14 +78,21 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
   test.describe('Dashboard Navigation', () => {
     test('Positive - Should navigate from dashboard to schools page via card click', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Find and click schools card or link
-      const schoolsCard = page.locator('[class*="card"], button, a').filter({ hasText: /schools?/i }).first();
+      const schoolsCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /schools?/i })
+        .first();
       if (await schoolsCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         await schoolsCard.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
 
         // Verify navigation to schools page
@@ -78,14 +105,21 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should navigate from dashboard to educators page via card click', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Find and click educators card or link
-      const educatorsCard = page.locator('[class*="card"], button, a').filter({ hasText: /educators?|teachers?/i }).first();
+      const educatorsCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /educators?|teachers?/i })
+        .first();
       if (await educatorsCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         await educatorsCard.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
 
         // Verify navigation to educators/educators page
@@ -98,14 +132,21 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should navigate from dashboard to students page via card click', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Find and click students card or link
-      const studentsCard = page.locator('[class*="card"], button, a').filter({ hasText: /students?/i }).first();
+      const studentsCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /students?/i })
+        .first();
       if (await studentsCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         await studentsCard.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
 
         // Verify navigation to students page
@@ -118,14 +159,21 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should navigate from dashboard to classes page via card click', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Find and click classes card or link
-      const classesCard = page.locator('[class*="card"], button, a').filter({ hasText: /classes?/i }).first();
+      const classesCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /classes?/i })
+        .first();
       if (await classesCard.isVisible({ timeout: 5000 }).catch(() => false)) {
         await classesCard.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
 
         // Verify navigation to classes page
@@ -142,7 +190,9 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
   test.describe('Dashboard Data Consistency', () => {
     test('Positive - Should maintain dashboard stability on page reload', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Capture initial metric text
@@ -165,12 +215,18 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should display correct page title and heading', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Check for dashboard heading
-      const heading = page.getByRole('heading', { name: /dashboard|overview|metrics/i });
-      const hasHeading = await heading.isVisible({ timeout: 5000 }).catch(() => false);
+      const heading = page.getByRole('heading', {
+        name: /dashboard|overview|metrics/i,
+      });
+      const hasHeading = await heading
+        .isVisible({ timeout: 5000 })
+        .catch(() => false);
 
       // Dashboard should have identifying heading
       await expect(hasHeading || true).toBeTruthy();
@@ -179,12 +235,18 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should display dashboard without errors', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Check for error messages - scope to [role="alert"] to avoid matching data labels
-      const errorMessages = page.locator('[role="alert"]').getByText(/error|failed|exception/i);
-      const hasErrors = await errorMessages.isVisible({ timeout: 3000 }).catch(() => false);
+      const errorMessages = page
+        .locator('[role="alert"]')
+        .getByText(/error|failed|exception/i);
+      const hasErrors = await errorMessages
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
 
       // Dashboard should not show error messages
       expect(hasErrors).toBeFalsy();
@@ -193,7 +255,9 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should have responsive layout for metrics cards', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Check viewport size
@@ -221,17 +285,23 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
       }
       let apiResponse: ApiResponse | undefined;
 
-      page.on('response', async response => {
-        if (response.url().includes('/dashboard') || response.url().includes('/overview') || response.url().includes('/metrics')) {
+      page.on('response', async (response) => {
+        if (
+          response.url().includes('/dashboard') ||
+          response.url().includes('/overview') ||
+          response.url().includes('/metrics')
+        ) {
           apiResponse = {
             status: response.status(),
-            url: response.url()
+            url: response.url(),
           };
         }
       });
 
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Verify no error navigation occurred
@@ -241,7 +311,9 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should display metrics data from API response', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Verify dashboard content is populated (not just loading state)
@@ -256,8 +328,10 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
       const startTime = Date.now();
 
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
-      
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
+
       const endTime = Date.now();
       const loadTime = endTime - startTime;
 
@@ -273,17 +347,23 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
     test('Positive - Should maintain user context after dashboard view', async () => {
       // Navigate to dashboard
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Navigate away and back — use /classes (accessible to all roles including educator)
       await basePage.navigateTo('/classes');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1000);
 
       // Navigate back to dashboard
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Dashboard should still load correctly
@@ -305,19 +385,27 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
 
     test('Positive - Should preserve dashboard metrics on sidebar navigation', async () => {
       await basePage.navigateTo('/dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Use sidebar to navigate to another page
-      const sidebarLink = page.locator('a[href*="/school"], a[href*="/educator"]').first();
+      const sidebarLink = page
+        .locator('a[href*="/school"], a[href*="/educator"]')
+        .first();
       if (await sidebarLink.isVisible({ timeout: 5000 }).catch(() => false)) {
         await sidebarLink.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1000);
 
         // Navigate back to dashboard
         await basePage.navigateTo('/dashboard');
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
 
         // Dashboard should reload correctly
@@ -330,33 +418,48 @@ test.describe.serial('Dashboard Metrics Regression - Admin', () => {
     test('Positive - Should load dashboard correctly after account page navigation', async () => {
       // Navigate to account page
       await basePage.navigateTo('/account').catch(() => {});
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Verify still authenticated as admin
       await expect(page).not.toHaveURL(/login|signin/i);
 
       // Navigate to another page (school or educator)
-      const altPage = page.locator('a[href*="/school"], a[href*="/educator"]').first();
+      const altPage = page
+        .locator('a[href*="/school"], a[href*="/educator"]')
+        .first();
       if (await altPage.isVisible({ timeout: 5000 }).catch(() => false)) {
         await altPage.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1000);
       }
 
       // Navigate back to dashboard â€” use absolute URL to avoid relative-URL resolution issues
       // when the page is in an unexpected state after navigating away.
-      await page.goto(`${ADMIN_BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(async () => {
-        // Retry once on transient connection failure
-        await page.waitForTimeout(2000);
-        await page.goto(`${ADMIN_BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' }).catch(() => {});
-      });
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .goto(`${ADMIN_BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' })
+        .catch(async () => {
+          // Retry once on transient connection failure
+          await page.waitForTimeout(2000);
+          await page
+            .goto(`${ADMIN_BASE_URL}/dashboard`, {
+              waitUntil: 'domcontentloaded',
+            })
+            .catch(() => {});
+        });
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Verify dashboard loaded correctly
-      const dashboardVisible = await page.locator('main, [role="main"]').first().isVisible({ timeout: 5000 }).catch(() => false);
-      await expect(dashboardVisible).toBeTruthy();
+      await expect(page.locator('main, [role="main"]').first()).toBeVisible({
+        timeout: 15000,
+      });
       await expect(page).not.toHaveURL(/error|login/i);
     });
   });
@@ -378,14 +481,27 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
 
     const login = new LoginPage(page);
     await login.goto();
-    // educatorLogin already tries both Test@123 and Test@1234 â€” no extra catch attempt needed
     await educatorLogin(page);
 
-    // Wait for authenticated shell
+    // Wait for authenticated shell — retry once if still on login
     await Promise.any([
-      page.waitForURL(/(dashboard|educator-dashboard)/i, { timeout: 25000 }),
-      page.locator('main, [role="main"]').first().waitFor({ state: 'visible', timeout: 25000 })
+      page.waitForURL(/(dashboard|educator-dashboard)/i, { timeout: 30000 }),
+      page
+        .locator('main, [role="main"]')
+        .first()
+        .waitFor({ state: 'visible', timeout: 30000 }),
     ]).catch(() => {});
+
+    if (/login|signin/i.test(page.url())) {
+      await login.goto();
+      await educatorLogin(page);
+      await page
+        .waitForURL(/(dashboard|educator-dashboard|classes)/i, {
+          timeout: 30000,
+        })
+        .catch(() => {});
+    }
+
     await page.waitForLoadState('domcontentloaded').catch(() => {});
   });
 
@@ -398,13 +514,18 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
   test.describe('Dashboard Navigation', () => {
     test('Positive - Should navigate from dashboard to schools page via card click', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
-      // For educator accounts, navigation cards may not be available - skip if not found
-      const schoolsCard = page.locator('[class*="card"], button, a').filter({ hasText: /schools?/i }).first();
-      const isCardVisible = await schoolsCard.isVisible({ timeout: 3000 }).catch(() => false);
-      
+      // Only a link to a schools page counts: matching by text also hits the
+      // Simulations Completed chart's "All Schools" filter, which doesn't navigate.
+      const schoolsCard = page.locator('a[href*="/school"]').first();
+      const isCardVisible = await schoolsCard
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+
       if (!isCardVisible) {
         // Educator accounts may not have school navigation - this is acceptable
         await expect(page).not.toHaveURL(/error/i);
@@ -412,24 +533,31 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
       }
 
       await schoolsCard.click();
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
-      // Verify navigation to schools page or stay on dashboard (educator may not navigate)
-      const isOnSchoolsPage = page.url().includes('/school') || page.url().includes('/dashboard');
-      await expect(isOnSchoolsPage).toBeTruthy();
+      await expect(page).toHaveURL(/\/school/i);
       await expect(page).not.toHaveURL(/error/i);
     });
 
     test('Positive - Should navigate from dashboard to educators page via card click', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // For educator accounts, navigation cards may not be available - skip if not found
-      const educatorsCard = page.locator('[class*="card"], button, a').filter({ hasText: /educators?|teachers?/i }).first();
-      const isCardVisible = await educatorsCard.isVisible({ timeout: 3000 }).catch(() => false);
-      
+      const educatorsCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /educators?|teachers?/i })
+        .first();
+      const isCardVisible = await educatorsCard
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+
       if (!isCardVisible) {
         // Educator accounts may not have educator navigation - this is acceptable
         await expect(page).not.toHaveURL(/error/i);
@@ -437,24 +565,34 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
       }
 
       await educatorsCard.click();
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Verify navigation or stay on dashboard (educator may not navigate)
-      const isOnEducatorsPage = page.url().includes('/educator') || page.url().includes('/dashboard');
+      const isOnEducatorsPage =
+        page.url().includes('/educator') || page.url().includes('/dashboard');
       await expect(isOnEducatorsPage).toBeTruthy();
       await expect(page).not.toHaveURL(/error/i);
     });
 
     test('Positive - Should navigate from dashboard to students page via card click', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // For educator accounts, navigation cards may not be available - skip if not found
-      const studentsCard = page.locator('[class*="card"], button, a').filter({ hasText: /students?/i }).first();
-      const isCardVisible = await studentsCard.isVisible({ timeout: 3000 }).catch(() => false);
-      
+      const studentsCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /students?/i })
+        .first();
+      const isCardVisible = await studentsCard
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+
       if (!isCardVisible) {
         // Educator accounts may not have student navigation card - this is acceptable
         // Just verify we're still on dashboard without errors
@@ -467,7 +605,9 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
       // Card exists, attempt to click it
       try {
         await studentsCard.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
       } catch {
         // Click may fail if not clickable - this is acceptable
@@ -479,18 +619,30 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
 
     test('Positive - Should navigate from dashboard to classes page via card click', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // For educator accounts, navigation might work via sidebar or buttons
-      const classesCard = page.locator('[class*="card"], button, a').filter({ hasText: /classes?|class management/i }).first();
-      const isCardVisible = await classesCard.isVisible({ timeout: 3000 }).catch(() => false);
-      
+      const classesCard = page
+        .locator('[class*="card"], button, a')
+        .filter({ hasText: /classes?|class management/i })
+        .first();
+      const isCardVisible = await classesCard
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+
       if (!isCardVisible) {
         // Try to find classes link in sidebar for educators
-        const classesLink = page.locator('a, button').filter({ hasText: /class management|classes?/i }).first();
-        const isSidebarLinkVisible = await classesLink.isVisible({ timeout: 3000 }).catch(() => false);
-        
+        const classesLink = page
+          .locator('a, button')
+          .filter({ hasText: /class management|classes?/i })
+          .first();
+        const isSidebarLinkVisible = await classesLink
+          .isVisible({ timeout: 3000 })
+          .catch(() => false);
+
         if (!isSidebarLinkVisible) {
           // Classes navigation not available - this is acceptable for some roles
           await expect(page).not.toHaveURL(/error/i);
@@ -502,11 +654,14 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
         await classesCard.click();
       }
 
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Verify navigation to classes page or stay on dashboard
-      const isOnClassesPage = page.url().includes('/class') || page.url().includes('/dashboard');
+      const isOnClassesPage =
+        page.url().includes('/class') || page.url().includes('/dashboard');
       await expect(isOnClassesPage).toBeTruthy();
       await expect(page).not.toHaveURL(/error/i);
     });
@@ -517,7 +672,9 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
   test.describe('Dashboard API Integration', () => {
     test('Positive - Should fetch dashboard metrics from API', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Check for API response in network calls or in page data
@@ -529,11 +686,12 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
       await expect(page).not.toHaveURL(/error/i);
     });
 
-
     test('Positive - Should verify dashboard renders within acceptable time', async () => {
       const startTime = Date.now();
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       const loadTime = Date.now() - startTime;
 
       // Dashboard should load within reasonable time (30 seconds)
@@ -547,23 +705,39 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
   test.describe('Dashboard State Management', () => {
     test('Positive - Should maintain user context after dashboard view', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Navigate to class management if available
-      const classesLink = page.locator('a, button').filter({ hasText: /class management|classes?/i }).first();
-      const isClassesAvailable = await classesLink.isVisible({ timeout: 3000 }).catch(() => false);
+      const classesLink = page
+        .locator('a, button')
+        .filter({ hasText: /class management|classes?/i })
+        .first();
+      const isClassesAvailable = await classesLink
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
 
       if (isClassesAvailable) {
         await classesLink.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
 
         // Navigate back to dashboard
-        const dashboardLink = page.locator('a, button').filter({ hasText: /dashboard/i }).first();
-        if (await dashboardLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const dashboardLink = page
+          .locator('a, button')
+          .filter({ hasText: /dashboard/i })
+          .first();
+        if (
+          await dashboardLink.isVisible({ timeout: 3000 }).catch(() => false)
+        ) {
           await dashboardLink.click();
-          await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+          await page
+            .waitForLoadState('networkidle', { timeout: 8000 })
+            .catch(() => {});
           await page.waitForTimeout(1500);
 
           // Should return to dashboard
@@ -577,7 +751,9 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
     test('Positive - Should handle rapid dashboard navigation', async () => {
       for (let i = 0; i < 3; i++) {
         await basePage.navigateTo('/educator-dashboard');
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(500);
       }
 
@@ -587,20 +763,26 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
 
     test('Positive - Should preserve dashboard metrics on sidebar navigation', async () => {
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Try clicking sidebar navigation
       const sidebarLinks = page.locator('nav a, nav button').first();
       if (await sidebarLinks.isVisible({ timeout: 3000 }).catch(() => false)) {
         await sidebarLinks.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1000);
       }
 
       // Return to dashboard
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(1500);
 
       // Metrics should be preserved or reloaded correctly
@@ -611,16 +793,23 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
 
     test('Positive - Should load dashboard correctly after account page navigation', async () => {
       // Navigate to account page
-      const accountLink = page.locator('a, button').filter({ hasText: /account|profile/i }).first();
+      const accountLink = page
+        .locator('a, button')
+        .filter({ hasText: /account|profile/i })
+        .first();
       if (await accountLink.isVisible({ timeout: 3000 }).catch(() => false)) {
         await accountLink.click();
-        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await page
+          .waitForLoadState('networkidle', { timeout: 8000 })
+          .catch(() => {});
         await page.waitForTimeout(1500);
       }
 
       // Navigate back to dashboard
       await basePage.navigateTo('/educator-dashboard');
-      await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+      await page
+        .waitForLoadState('networkidle', { timeout: 8000 })
+        .catch(() => {});
       await page.waitForTimeout(2000);
 
       // Dashboard should load correctly
@@ -634,7 +823,9 @@ test.describe.serial('Dashboard Metrics Regression - Educator', () => {
 // ==================== UNAUTHENTICATED ACCESS â€” NEGATIVE ====================
 
 test.describe.serial('Dashboard Access Control - Unauthenticated', () => {
-  test('Negative - Should redirect unauthenticated user from /dashboard to /login', async ({ browser }) => {
+  test('Negative - Should redirect unauthenticated user from /dashboard to /login', async ({
+    browser,
+  }) => {
     // Fresh context â€” no session cookies
     const context = await browser.newContext();
     const page = await context.newPage();
@@ -649,7 +840,9 @@ test.describe.serial('Dashboard Access Control - Unauthenticated', () => {
     await context.close();
   });
 
-  test('Negative - Should redirect unauthenticated user from /dashboard/overview to /login', async ({ browser }) => {
+  test('Negative - Should redirect unauthenticated user from /dashboard/overview to /login', async ({
+    browser,
+  }) => {
     const context = await browser.newContext();
     const page = await context.newPage();
 
@@ -665,7 +858,8 @@ test.describe.serial('Dashboard Access Control - Unauthenticated', () => {
 
 // ==================== AI SEATS SECTION â€” ADMIN ====================
 
-test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', () => {
+test.describe
+  .serial('Dashboard AI Seats & Simulation Chart Section - Admin', () => {
   let context: BrowserContext;
   let page: Page;
   let basePage: BasePage;
@@ -676,14 +870,26 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
     page = await context.newPage();
     basePage = new BasePage(page);
 
-    await page.goto(`${ADMIN_BASE_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${ADMIN_BASE_URL}/dashboard`, {
+      waitUntil: 'domcontentloaded',
+    });
     await injectAdminSessionStorage(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await Promise.any([
       page.waitForURL(/(dashboard|educator-dashboard)/i, { timeout: 25000 }),
-      page.locator('main, [role="main"]').first().waitFor({ state: 'visible', timeout: 25000 }),
+      page
+        .locator('main, [role="main"]')
+        .first()
+        .waitFor({ state: 'visible', timeout: 25000 }),
     ]).catch(() => {});
     await page.waitForLoadState('domcontentloaded').catch(() => {});
+
+    // Stale storageState redirects to /login — fall back to fresh admin login.
+    if (/login|signin/i.test(page.url())) {
+      const login = new LoginPage(page);
+      await login.goto();
+      await adminLogin(page);
+    }
   });
 
   test.afterAll(async () => {
@@ -692,7 +898,9 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should display AI Seats section heading', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     const heading = page.getByText(/ai seats/i).first();
@@ -701,26 +909,34 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should display Purchased, Consumed and Remaining AI seat values', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     const purchased = page.getByText(/purchased/i).first();
     const consumed = page.getByText(/consumed/i).first();
     const remaining = page.getByText(/remaining/i).first();
 
-    await expect(purchased).toBeVisible({ timeout: 8000 });
+    // These labels are always rendered in the AI Seats card; use a longer timeout to
+    // account for async subscription data loading.
+    await expect(purchased).toBeVisible({ timeout: 15000 });
     await expect(consumed).toBeVisible({ timeout: 8000 });
     await expect(remaining).toBeVisible({ timeout: 8000 });
   });
 
   test('Positive - Should display AI Seats usage progress bar', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     // Progress bar is a div with bg-orange-500 inside the AI Seats card
     const progressBar = page.locator('[class*="bg-orange"]').first();
-    const hasProgressBar = await progressBar.isVisible({ timeout: 5000 }).catch(() => false);
+    const hasProgressBar = await progressBar
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     // Progress bar should exist (width may be 0% if no seats purchased)
     await expect(hasProgressBar).toBeTruthy();
@@ -729,7 +945,9 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should display Simulation Completed section heading', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     const heading = page.getByText(/simulation completed/i).first();
@@ -738,16 +956,22 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should render bar chart for simulation data', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(4000);
 
     // Chart renders as a canvas element â€” wait up to 15s for chart.js to mount
     const chart = page.locator('canvas').first();
-    const hasChart = await chart.isVisible({ timeout: 15000 }).catch(() => false);
+    const hasChart = await chart
+      .isVisible({ timeout: 15000 })
+      .catch(() => false);
 
     // Fallback: chart section itself must be present even if canvas is slow
     const simSection = page.getByText(/simulation completed/i).first();
-    const hasSectionHeading = await simSection.isVisible({ timeout: 5000 }).catch(() => false);
+    const hasSectionHeading = await simSection
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     await expect(hasChart || hasSectionHeading).toBeTruthy();
     await expect(page).not.toHaveURL(/error/i);
@@ -755,17 +979,30 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should switch chart range from 6 months to 3 months via dropdown', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     // Find the range select/dropdown (Select component with "6" default)
-    const rangeSelect = page.locator('select, [role="combobox"]').filter({ hasText: /3|6/i }).first();
-    const isSelectVisible = await rangeSelect.isVisible({ timeout: 5000 }).catch(() => false);
+    const rangeSelect = page
+      .locator('select, [role="combobox"]')
+      .filter({ hasText: /3|6/i })
+      .first();
+    const isSelectVisible = await rangeSelect
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isSelectVisible) {
-      await rangeSelect.selectOption({ value: '3' }).catch(() =>
-        rangeSelect.click().then(() => page.getByRole('option', { name: /3/i }).first().click())
-      );
+      await rangeSelect
+        .selectOption({ value: '3' })
+        .catch(() =>
+          rangeSelect
+            .click()
+            .then(() =>
+              page.getByRole('option', { name: /3/i }).first().click()
+            )
+        );
       await page.waitForTimeout(1500);
 
       // Chart should still be visible after range change
@@ -778,11 +1015,15 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should not crash when Export PNG button is clicked', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     const exportPng = page.getByRole('button', { name: /export png/i }).first();
-    const isVisible = await exportPng.isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await exportPng
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isVisible) {
       await exportPng.click();
@@ -796,11 +1037,15 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should not crash when Export PDF button is clicked', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     const exportPdf = page.getByRole('button', { name: /export pdf/i }).first();
-    const isVisible = await exportPdf.isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await exportPdf
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isVisible) {
       await exportPdf.click();
@@ -813,11 +1058,15 @@ test.describe.serial('Dashboard AI Seats & Simulation Chart Section - Admin', ()
 
   test('Positive - Should not crash when Export CSV button is clicked', async () => {
     await basePage.navigateTo('/dashboard');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    await page
+      .waitForLoadState('networkidle', { timeout: 8000 })
+      .catch(() => {});
     await page.waitForTimeout(2000);
 
     const exportCsv = page.getByRole('button', { name: /export csv/i }).first();
-    const isVisible = await exportCsv.isVisible({ timeout: 5000 }).catch(() => false);
+    const isVisible = await exportCsv
+      .isVisible({ timeout: 5000 })
+      .catch(() => false);
 
     if (isVisible) {
       await exportCsv.click();

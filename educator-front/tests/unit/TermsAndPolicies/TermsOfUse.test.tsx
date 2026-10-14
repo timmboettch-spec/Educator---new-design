@@ -23,9 +23,7 @@ vi.mock('@/components/TermsOfUse/QuickNavigation', () => ({
 
 vi.mock('@/components/TermsOfUse/TermsCardList', () => ({
   default: ({ activeSection }: { activeSection: number }) => (
-    <div data-testid="terms-card-list">
-      Section: {activeSection}
-    </div>
+    <div data-testid="terms-card-list">Section: {activeSection}</div>
   ),
 }));
 

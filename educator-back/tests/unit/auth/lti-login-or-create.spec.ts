@@ -7,7 +7,10 @@ import { AuthConstants } from '../../../src/auth/auth.constants';
 describe('LTI educator login school binding', () => {
   describe('educatorBelongsToSchool logic', () => {
     function belongsToSchool(
-      educator: { school?: { id: string } | null; schoolAssignments?: Array<{ school?: { id: string } }> },
+      educator: {
+        school?: { id: string } | null;
+        schoolAssignments?: Array<{ school?: { id: string } }>;
+      },
       schoolId: string,
     ): boolean {
       if (educator.school?.id === schoolId) {

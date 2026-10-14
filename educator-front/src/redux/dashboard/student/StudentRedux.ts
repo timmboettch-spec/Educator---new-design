@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
 import config from '../../config';
@@ -52,11 +56,11 @@ export const ImportStudentRosterRequest = createAsyncThunk<
     if (confirm === true) {
       formData.append('confirm', 'true');
     }
-   const res = await api.post(config.StudentAPI, formData,{
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+    const res = await api.post(config.StudentAPI, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return res.data;
   } catch (err: unknown) {
     const error = err as {
@@ -108,4 +112,7 @@ const selectState = (state: RootState) => state.Student;
 
 export const selectStudentStatus = createSelector(selectState, (s) => s.status);
 export const selectStudentError = createSelector(selectState, (s) => s.error);
-export const selectImportResult = createSelector(selectState, (s) => s.importResult);
+export const selectImportResult = createSelector(
+  selectState,
+  (s) => s.importResult
+);

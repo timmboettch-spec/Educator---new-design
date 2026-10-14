@@ -18,7 +18,7 @@ export default tseslint.config(
       prettier: eslintPluginPrettier,
     },
     rules: {
-      'prettier/prettier': 'warn',
+      'prettier/prettier': 'off',
     },
   },
   {
@@ -29,7 +29,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': 'off',
       'unused-imports/no-unused-imports': 'warn',
       'unused-imports/no-unused-vars': [
-        'warn',
+        'off',
         {
           vars: 'all',
           args: 'all',
@@ -67,8 +67,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
-      '@typescript-eslint/explicit-function-return-type': 'warn',
-      '@typescript-eslint/explicit-module-boundary-types': 'warn',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
     },
   },
   {

@@ -1,6 +1,14 @@
 import type { Educator } from '../types';
 
-export type SortableEducatorField = 'full_name' | 'email' | 'school_name' | 'createdAt' | 'totalTokens' | 'tokensUsed' | 'remainingTokens' | 'status' | 'associatedProducts' | 'hardwareHours';
+export type SortableEducatorField =
+  | 'full_name'
+  | 'email'
+  | 'school_name'
+  | 'createdAt'
+  | 'totalTokens'
+  | 'tokensUsed'
+  | 'remainingTokens'
+  | 'status';
 export type EducatorSortDirection = 'asc' | 'desc';
 
 export interface EducatorSortState {
@@ -13,18 +21,32 @@ export const DEFAULT_SORT_STATE: EducatorSortState = {
   direction: 'desc',
 };
 
-const NUMERIC_FIELDS: SortableEducatorField[] = ['totalTokens', 'tokensUsed', 'remainingTokens'];
+const NUMERIC_FIELDS: SortableEducatorField[] = [
+  'totalTokens',
+  'tokensUsed',
+  'remainingTokens',
+];
 
-function getNumericValue(educator: Educator, field: SortableEducatorField): number {
+function getNumericValue(
+  educator: Educator,
+  field: SortableEducatorField
+): number {
   switch (field) {
-    case 'totalTokens': return educator.totalTokens ?? 0;
-    case 'tokensUsed': return educator.tokensUsed ?? 0;
-    case 'remainingTokens': return educator.remainingTokens ?? 0;
-    default: return 0;
+    case 'totalTokens':
+      return educator.totalTokens ?? 0;
+    case 'tokensUsed':
+      return educator.tokensUsed ?? 0;
+    case 'remainingTokens':
+      return educator.remainingTokens ?? 0;
+    default:
+      return 0;
   }
 }
 
-function getStringValue(educator: Educator, field: SortableEducatorField): string {
+function getStringValue(
+  educator: Educator,
+  field: SortableEducatorField
+): string {
   switch (field) {
     case 'full_name':
       return (educator.full_name ?? '').toLowerCase().trim();
@@ -48,7 +70,7 @@ function getDateMs(educator: Educator): number {
 export function sortEducators(
   educators: Educator[],
   field: SortableEducatorField,
-  direction: EducatorSortDirection,
+  direction: EducatorSortDirection
 ): Educator[] {
   return [...educators].sort((a, b) => {
     if (field === 'createdAt') {
@@ -69,8 +91,11 @@ export function sortEducators(
     }
 
     if (field === 'status') {
-      const STATUS_PRIORITY: Record<EducatorSortDirection, Record<string, number>> = {
-        asc:  { active: 0, pending: 1, inactive: 2 },
+      const STATUS_PRIORITY: Record<
+        EducatorSortDirection,
+        Record<string, number>
+      > = {
+        asc: { active: 0, pending: 1, inactive: 2 },
         desc: { inactive: 0, pending: 1, active: 2 },
       };
       const priority = STATUS_PRIORITY[direction];
@@ -93,7 +118,7 @@ export function sortEducators(
 
 export function nextSortState(
   current: EducatorSortState,
-  clickedField: string,
+  clickedField: string
 ): EducatorSortState {
   const field = clickedField as SortableEducatorField;
 

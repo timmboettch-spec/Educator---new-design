@@ -1,20 +1,67 @@
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { AdminService } from '../../../../../src/student-backend/modules/admin/admin.service';
 import { ScenariosService } from '../../../../../src/student-backend/modules/scenarios/scenarios.service';
-import { JsonDataService } from '../../../../../src/student-backend/data/json-data.service';
-import type { Scenario } from '../../../../../src/student-backend/data/json-data.service';
+import { AutomationAccessService } from '../../../../../src/common/services/automation-access.service';
+import type { Scenario } from '../../../../../src/common/interfaces/student-scenario.interface';
 import { NotFoundException } from '@nestjs/common';
+import { loggerServiceTestProvider } from '../../common/setup/logger.mock';
+import { ClassSimulationService } from '../../../../../src/class-simulations/class-simulation.service';
+import {
+  SIMULATION_ACTION_REPOSITORY,
+  SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+  SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+  SIMULATION_ORDER_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  LMS_ASSIGNMENT_MAPPING_REPOSITORY,
+} from '../../../../../src/database/tokens';
+import { SimulationService } from '../../../../../src/simulation/simulation.service';
+import { VoiceProfilesService } from '../../../../../src/voice-profiles/voice-profiles.service';
 
-// ── test-only interface for accessing private service properties ──────────────
-interface ServiceInternals {
-  azureEnabled: boolean;
-  cache: Record<string, Scenario[]>;
-  persistChain: Record<string, Promise<void>>;
-  containerReady: Promise<void>;
-  containerClient: { getBlockBlobClient: jest.Mock };
-  writeJsonFileAndFlush: (file: string, data: unknown[]) => Promise<void>;
-}
+const scenarioAssignmentProviders = [
+  { provide: LMS_ASSIGNMENT_MAPPING_REPOSITORY, useValue: { findOne: jest.fn() } },
+  { provide: SimulationService, useValue: { getAssignedSimulationIds: jest.fn() } },
+  loggerServiceTestProvider,
+];
+
+const mockSimulationReportRepositoryProvider = {
+  provide: SIMULATION_REPORT_REPOSITORY,
+  useValue: { findDetailRowByReportId: jest.fn() },
+};
+
+const mockTranscriptRepositoryProvider = {
+  provide: TRANSCRIPT_REPOSITORY,
+  useValue: {
+    find: jest.fn().mockResolvedValue([]),
+    findByUserId: jest.fn().mockResolvedValue([]),
+  },
+};
+import {
+  createMockClassSimulationService,
+  createMockSimulationChildRepository,
+  createMockSimulationOrderLinkedActionRepository,
+  createStatefulMockSimulationRepository,
+} from '../../common/utils/simulation-mock-factory';
+import type { ICurrentUser } from '../../../../../src/common/interfaces';
+
+const anyUser = { userId: 'user-1', type: 'educator', roles: ['educator'] } as ICurrentUser;
+
+const mockClassSimulationServiceProvider = {
+  provide: ClassSimulationService,
+  useValue: createMockClassSimulationService(),
+};
+
+const mockUnitRepositoryProvider = {
+  provide: UNIT_REPOSITORY,
+  useValue: {
+    findByBusinessId: jest.fn(async (id: string) => ({ id, name: 'Unit' })),
+    find: jest.fn(async () => []),
+  },
+};
 
 // ── helper ────────────────────────────────────────────────────────────────────
 
@@ -38,273 +85,105 @@ function makeScenario(overrides: Record<string, unknown> = {}) {
 // UNIT TESTS
 // =============================================================================
 
-// ─────────────────────────────────────────────────────────────────────────────
-// JsonDataService – blob persistence & in-memory cache
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('[Unit] JsonDataService – blob persistence & cache', () => {
-  let service: JsonDataService;
-
-  const mockUpload = jest.fn().mockResolvedValue({ etag: 'e1', lastModified: new Date() });
-  const mockGetProperties = jest.fn().mockResolvedValue({ etag: 'e1', lastModified: new Date() });
-
-  beforeEach(async () => {
-    jest.clearAllMocks();
-
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [JsonDataService],
-    }).compile();
-
-    service = module.get<JsonDataService>(JsonDataService);
-    (service as unknown as Record<string, unknown>).azureEnabled = false;
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.clear();
-  });
-
-  it('addScenario – adds to cache immediately', async () => {
-    await service.addScenario(makeScenario());
-
-    const scenariosMap = (service as unknown as { scenariosMap: Map<string, Scenario> })
-      .scenariosMap;
-    expect(scenariosMap.get('s1')).toBeDefined();
-  });
-
-  it('addScenario – schedules blob upload when azure enabled', async () => {
-    (service as unknown as Record<string, unknown>).azureEnabled = true;
-    (service as unknown as Record<string, unknown>).containerReady = Promise.resolve();
-    (service as unknown as Record<string, unknown>).containerClient = {
-      getBlockBlobClient: jest.fn().mockReturnValue({
-        uploadData: mockUpload,
-        getProperties: mockGetProperties,
-        downloadToBuffer: jest.fn().mockResolvedValue(Buffer.from('[]', 'utf-8')),
-      }),
-    };
-
-    await service.addScenario(makeScenario());
-    const persistChain = (service as unknown as Record<string, unknown>).persistChain as Record<
-      string,
-      Promise<void>
-    >;
-    await persistChain['scenarios.json'];
-
-    expect(mockUpload).toHaveBeenCalled();
-  });
-
-  it('updateScenario – merges fields in cache', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario({ title: 'Old' }),
-    );
-
-    await service.updateScenario('s1', { title: 'New' });
-
-    expect(service.getScenarioById('s1')!.title).toBe('New');
-  });
-
-  it('updateScenario – throws when scenario not found', async () => {
-    await expect(service.updateScenario('missing', { title: 'X' })).rejects.toThrow(
-      'Scenario with id missing not found',
-    );
-  });
-
-  it('deleteScenario – removes from cache', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario(),
-    );
-
-    await service.deleteScenario('s1');
-
-    expect(service.getScenarioById('s1')).toBeUndefined();
-  });
-
-  it('deleteScenario – throws when not found', async () => {
-    await expect(service.deleteScenario('missing')).rejects.toThrow(
-      'Scenario with id missing not found',
-    );
-  });
-
-  it('writeJsonFileAndFlush – updates cache then awaits upload', async () => {
-    const uploadOrder: string[] = [];
-    const data = [makeScenario()];
-    (service as unknown as Record<string, unknown>).azureEnabled = true;
-    (service as unknown as Record<string, unknown>).containerReady = Promise.resolve();
-    (service as unknown as Record<string, unknown>).containerClient = {
-      getBlockBlobClient: jest.fn().mockReturnValue({
-        uploadData: jest.fn().mockImplementation(async () => {
-          uploadOrder.push('uploaded');
-          return { etag: 'e2', lastModified: new Date() };
-        }),
-        getProperties: mockGetProperties,
-        downloadToBuffer: jest.fn().mockResolvedValue(Buffer.from(JSON.stringify(data), 'utf-8')),
-      }),
-    };
-
-    await (service as unknown as ServiceInternals).writeJsonFileAndFlush('scenarios.json', data);
-
-    expect(
-      ((service as unknown as Record<string, unknown>).cache as Record<string, unknown>)[
-        'scenarios.json'
-      ],
-    ).toEqual(data);
-    expect(uploadOrder).toContain('uploaded');
-  });
-
-  it('cache is updated immediately after addScenario (no stale read)', async () => {
-    await service.addScenario(makeScenario());
-
-    expect(service.getScenarioById('s1')).toBeDefined();
-  });
-
-  it('cache is updated immediately after updateScenario (no stale read)', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario({ title: 'Old' }),
-    );
-
-    await service.updateScenario('s1', { title: 'Updated' });
-
-    expect(service.getScenarioById('s1')!.title).toBe('Updated');
-  });
-
-  it('concurrent rapid updates do not leave stale cache', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario({ title: 'v0' }),
-    );
-
-    await Promise.all([
-      service.updateScenario('s1', { title: 'v1' }),
-      service.updateScenario('s1', { title: 'v2' }),
-    ]);
-
-    expect(service.getScenarioById('s1')!.title).not.toBe('v0');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AdminService – awaits JsonDataService mutations before returning
+// AdminService – awaits simulation-repository mutations before returning
+//
+// Scenario CRUD moved off JSON blob storage onto the Postgres-backed
+// SimulationRepository (see src/student-backend/modules/admin/admin.service.ts
+// and src/database/repositories/simulation.repository.ts) — these tests now
+// verify AdminService awaits that repository's async create/updateById/delete
+// rather than the old blob-backed addScenario/updateScenario/deleteScenario.
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('[Unit] AdminService – awaits blob mutations', () => {
   let service: AdminService;
 
-  const mockJsonDataService = {
-    getScenarios: jest.fn().mockReturnValue([]),
-    getScenarioById: jest.fn(),
-    addScenario: jest.fn().mockResolvedValue(undefined),
-    updateScenario: jest.fn().mockResolvedValue(undefined),
-    deleteScenario: jest.fn().mockResolvedValue(undefined),
-    getUnits: jest.fn().mockReturnValue([]),
-    getUnitById: jest.fn(),
-    getPermissionsData: jest.fn().mockReturnValue({ permissions: [] }),
-    getUsers: jest.fn().mockReturnValue([]),
-    getTranscripts: jest.fn().mockReturnValue([]),
-    getReports: jest.fn().mockReturnValue([]),
-    updatePermissions: jest.fn(),
-    getScenariosByUnitId: jest.fn().mockReturnValue([]),
-    getActionCategories: jest.fn().mockReturnValue([]),
-    createActionCategory: jest.fn().mockResolvedValue({ id: 'cat1', name: 'Cat' }),
-    updateActionCategory: jest.fn().mockResolvedValue({ id: 'cat1', name: 'Updated' }),
-    deleteActionCategory: jest.fn().mockResolvedValue(undefined),
-    getReportByIdFresh: jest.fn(),
-    deleteReport: jest.fn().mockResolvedValue(undefined),
-  };
+  const mockSimulationRepository = createStatefulMockSimulationRepository();
+  const mockSimulationActionRepository = createMockSimulationChildRepository();
+  const mockSimulationOrderRepository = createMockSimulationChildRepository();
+  const mockSimulationOrderLinkedActionRepository =
+    createMockSimulationOrderLinkedActionRepository();
+  const mockSimulationGradingRubricItemRepository = createMockSimulationChildRepository();
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockSimulationRepository.__reset();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AdminService, { provide: JsonDataService, useValue: mockJsonDataService }],
+      providers: [
+        AdminService,
+        {
+          provide: VoiceProfilesService,
+          useValue: {
+            resolveForScenario: jest.fn().mockResolvedValue(null),
+            assertValidForScenarioWrite: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        loggerServiceTestProvider,
+        mockUnitRepositoryProvider,
+        mockClassSimulationServiceProvider,
+        { provide: SIMULATION_V2_REPOSITORY, useValue: mockSimulationRepository },
+        { provide: SIMULATION_ACTION_REPOSITORY, useValue: mockSimulationActionRepository },
+        { provide: SIMULATION_ORDER_REPOSITORY, useValue: mockSimulationOrderRepository },
+        {
+          provide: SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+          useValue: mockSimulationOrderLinkedActionRepository,
+        },
+        {
+          provide: SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+          useValue: mockSimulationGradingRubricItemRepository,
+        },
+        mockTranscriptRepositoryProvider,
+        mockSimulationReportRepositoryProvider,
+      ],
     }).compile();
 
     service = module.get<AdminService>(AdminService);
   });
 
-  it('createScenario – awaits addScenario before returning', async () => {
+  it('createScenario – awaits simulationRepository.create before returning', async () => {
     let resolved = false;
-    mockJsonDataService.addScenario.mockImplementation(async () => {
+    const originalCreate = mockSimulationRepository.create.getMockImplementation()!;
+    mockSimulationRepository.create.mockImplementationOnce(async (data) => {
       await new Promise((r) => setTimeout(r, 10));
       resolved = true;
+      return originalCreate(data);
     });
-    mockJsonDataService.getScenarioById.mockReturnValue(null);
-    mockJsonDataService.getScenarios.mockReturnValue([]);
-    mockJsonDataService.getUnitById.mockReturnValue({ id: 'u1' });
+    mockUnitRepositoryProvider.useValue.findByBusinessId.mockResolvedValueOnce({
+      id: 'u1',
+      name: 'Unit',
+    });
 
     await service.createScenario({ id: 's1', title: 'T', unitId: 'u1' });
 
     expect(resolved).toBe(true);
   });
 
-  it('updateScenario – awaits updateScenario before returning', async () => {
+  it('updateScenario – awaits simulationRepository.updateById before returning', async () => {
+    mockSimulationRepository.__seed({ id: 's1', unitId: 'u1', title: 'Old' });
     let resolved = false;
-    mockJsonDataService.updateScenario.mockImplementation(async () => {
+    const originalUpdateById = mockSimulationRepository.updateById.getMockImplementation()!;
+    mockSimulationRepository.updateById.mockImplementationOnce(async (simulationId, data) => {
       await new Promise((r) => setTimeout(r, 10));
       resolved = true;
+      return originalUpdateById(simulationId, data);
     });
-    mockJsonDataService.getScenarioById
-      .mockReturnValueOnce({ id: 's1', unitId: 'u1', title: 'Old' })
-      .mockReturnValueOnce({ id: 's1', unitId: 'u1', title: 'New' });
-    mockJsonDataService.getUnitById.mockReturnValue({
-      id: 'u1',
-      Status: 'Paid',
-    });
-    mockJsonDataService.getScenarios.mockReturnValue([{ id: 's1', title: 'Old', unitId: 'u1' }]);
 
     await service.updateScenario('s1', { title: 'New' });
 
     expect(resolved).toBe(true);
   });
 
-  it('deleteScenario – awaits deleteScenario before returning', async () => {
+  it('deleteScenario – awaits simulationRepository.delete before returning', async () => {
+    mockSimulationRepository.__seed({ id: 's1' });
     let resolved = false;
-    mockJsonDataService.deleteScenario.mockImplementation(async () => {
+    const originalDelete = mockSimulationRepository.delete.getMockImplementation()!;
+    mockSimulationRepository.delete.mockImplementationOnce(async (simulationId) => {
       await new Promise((r) => setTimeout(r, 10));
       resolved = true;
+      return originalDelete(simulationId);
     });
-    mockJsonDataService.getScenarioById.mockReturnValue({ id: 's1' });
 
     await service.deleteScenario('s1');
-
-    expect(resolved).toBe(true);
-  });
-
-  it('createCategory – awaits createActionCategory', async () => {
-    let resolved = false;
-    mockJsonDataService.createActionCategory.mockImplementation(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      resolved = true;
-      return { id: 'cat1', name: 'Cat' };
-    });
-    mockJsonDataService.getScenarioById.mockReturnValue({ id: 's1' });
-
-    await service.createCategory('s1', { name: 'Cat' });
-
-    expect(resolved).toBe(true);
-  });
-
-  it('updateCategory – awaits updateActionCategory', async () => {
-    let resolved = false;
-    mockJsonDataService.updateActionCategory.mockImplementation(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      resolved = true;
-      return { id: 'cat1', name: 'Updated' };
-    });
-    mockJsonDataService.getScenarioById.mockReturnValue({ id: 's1' });
-
-    await service.updateCategory('s1', 'cat1', { name: 'Updated' });
-
-    expect(resolved).toBe(true);
-  });
-
-  it('deleteCategory – awaits deleteActionCategory', async () => {
-    let resolved = false;
-    mockJsonDataService.deleteActionCategory.mockImplementation(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      resolved = true;
-    });
-    mockJsonDataService.getScenarioById.mockReturnValue({ id: 's1' });
-
-    await service.deleteCategory('s1', 'cat1');
 
     expect(resolved).toBe(true);
   });
@@ -317,79 +196,55 @@ describe('[Unit] AdminService – awaits blob mutations', () => {
 describe('[Unit] ScenariosService – awaits blob mutations', () => {
   let service: ScenariosService;
 
-  const mockJsonDataService = {
-    getDefaultScenario: jest.fn(),
-    getDefaultScenarioById: jest.fn(),
-    getScenarios: jest.fn().mockReturnValue([]),
-    getScenariosByUnitId: jest.fn().mockReturnValue([]),
-    getScenariosByUnitIdLocalized: jest.fn().mockResolvedValue([]),
-    getAllScenariosLocalized: jest.fn().mockResolvedValue([]),
-    getScenarioById: jest.fn(),
-    getScenarioByIdFresh: jest.fn(),
-    getScenarioByIdLocalized: jest.fn(),
-    getUnitById: jest.fn(),
-    getTranscriptsByUserId: jest.fn().mockReturnValue([]),
-    addScenario: jest.fn().mockResolvedValue(undefined),
-    saveAsDefaultScenario: jest.fn(),
-    updateScenario: jest.fn().mockResolvedValue(undefined),
-  };
+  const mockSimulationV2Repository = createStatefulMockSimulationRepository();
 
   beforeEach(async () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ScenariosService, { provide: JsonDataService, useValue: mockJsonDataService }],
+      providers: [
+        ScenariosService,
+        {
+          provide: VoiceProfilesService,
+          useValue: { resolveForScenario: jest.fn().mockResolvedValue(null) },
+        },
+        mockUnitRepositoryProvider,
+        { provide: SIMULATION_V2_REPOSITORY, useValue: mockSimulationV2Repository },
+        mockTranscriptRepositoryProvider,
+        mockSimulationReportRepositoryProvider,
+        ...scenarioAssignmentProviders,
+        {
+          provide: AutomationAccessService,
+          useValue: {
+            filterRecords: jest.fn((records) => records),
+            canAccessRecord: jest.fn(() => true),
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<ScenariosService>(ScenariosService);
   });
 
-  it('createScenario – awaits addScenario before returning', async () => {
-    let resolved = false;
-    mockJsonDataService.addScenario.mockImplementation(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      resolved = true;
-    });
-
-    await service.createScenario(makeScenario({ id: 's1' }));
-
-    expect(resolved).toBe(true);
-  });
-
-  it('updateScenario – awaits updateScenario before returning', async () => {
-    let resolved = false;
-    mockJsonDataService.updateScenario.mockImplementation(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      resolved = true;
-    });
-    mockJsonDataService.getScenarioById.mockReturnValue({
-      id: 's1',
-      title: 'Old',
-    });
-
-    await service.updateScenario('s1', { title: 'New' });
-
-    expect(resolved).toBe(true);
-  });
-
-  it('findOne – uses getScenarioByIdLocalized', async () => {
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue({
+  it('findOne – reads the catalog scenario from SimulationV2Repository', async () => {
+    mockSimulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue({
       id: 's1',
       unitId: 'u1',
       title: 'Fresh',
-    });
-    mockJsonDataService.getUnitById.mockReturnValue({ id: 'u1' });
+    } as never);
 
-    const result = await service.findOne('s1');
+    const result = await service.findOne(anyUser, 's1');
 
-    expect(mockJsonDataService.getScenarioByIdLocalized).toHaveBeenCalledWith('s1', undefined);
+    expect(mockSimulationV2Repository.findByBusinessIdWithChildrenJoined).toHaveBeenCalledWith(
+      's1',
+    );
     expect(result.title).toBe('Fresh');
   });
 
   it('findOne – throws NotFoundException when scenario not found', async () => {
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue(undefined);
+    mockSimulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(null);
 
-    await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
+    await expect(service.findOne(anyUser, 'missing')).rejects.toThrow(NotFoundException);
   });
 });
 
@@ -455,164 +310,63 @@ describe('[Unit] ScenarioPage – strict-mode double-mount guard', () => {
 // =============================================================================
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cache consistency – write → read with real JsonDataService (no Azure)
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('[Integration] Cache consistency – no stale reads after mutations', () => {
-  let service: JsonDataService;
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [JsonDataService],
-    }).compile();
-
-    service = module.get<JsonDataService>(JsonDataService);
-    (service as unknown as Record<string, unknown>).azureEnabled = false;
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.clear();
-  });
-
-  it('POST scenario → GET returns it immediately (no refresh needed)', async () => {
-    await service.addScenario(makeScenario({ id: 's-new' }));
-
-    expect(service.getScenarioById('s-new')).toBeDefined();
-  });
-
-  it('PUT scenario → GET returns updated data immediately', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario({ title: 'Before' }),
-    );
-
-    await service.updateScenario('s1', { title: 'After' });
-
-    expect(service.getScenarioById('s1')!.title).toBe('After');
-  });
-
-  it('DELETE scenario → GET returns undefined immediately', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario(),
-    );
-
-    await service.deleteScenario('s1');
-
-    expect(service.getScenarioById('s1')).toBeUndefined();
-  });
-
-  it('multiple rapid updates – final GET reflects last write', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario({ title: 'v0' }),
-    );
-
-    await service.updateScenario('s1', { title: 'v1' });
-    await service.updateScenario('s1', { title: 'v2' });
-    await service.updateScenario('s1', { title: 'v3' });
-
-    expect(service.getScenarioById('s1')!.title).toBe('v3');
-  });
-
-  it('getScenarioByIdFresh always returns latest cache value', async () => {
-    (service as unknown as { scenariosMap: Map<string, Scenario> }).scenariosMap.set(
-      's1',
-      makeScenario({ title: 'Fresh' }),
-    );
-
-    const result = await service.getScenarioByIdFresh('s1');
-
-    expect(result!.title).toBe('Fresh');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ScenariosService + JsonDataService – write then read consistency
+// ScenariosService – write then read consistency
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('[Integration] ScenariosService – write then read consistency', () => {
   let scenariosService: ScenariosService;
 
-  const mockJsonDataService = {
-    getDefaultScenario: jest.fn(),
-    getDefaultScenarioById: jest.fn(),
-    getScenarios: jest.fn().mockReturnValue([]),
-    getScenariosByUnitId: jest.fn().mockReturnValue([]),
-    getScenariosByUnitIdLocalized: jest.fn().mockResolvedValue([]),
-    getAllScenariosLocalized: jest.fn().mockResolvedValue([]),
-    getScenarioById: jest.fn(),
-    getScenarioByIdFresh: jest.fn(),
-    getScenarioByIdLocalized: jest.fn(),
-    getUnitById: jest.fn().mockReturnValue({ id: 'u1' }),
-    getTranscriptsByUserId: jest.fn().mockReturnValue([]),
-    addScenario: jest.fn().mockResolvedValue(undefined),
-    saveAsDefaultScenario: jest.fn(),
-    updateScenario: jest.fn().mockResolvedValue(undefined),
-  };
+  const mockSimulationV2Repository = createStatefulMockSimulationRepository();
 
   beforeEach(async () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ScenariosService, { provide: JsonDataService, useValue: mockJsonDataService }],
+      providers: [
+        ScenariosService,
+        {
+          provide: VoiceProfilesService,
+          useValue: { resolveForScenario: jest.fn().mockResolvedValue(null) },
+        },
+        mockUnitRepositoryProvider,
+        { provide: SIMULATION_V2_REPOSITORY, useValue: mockSimulationV2Repository },
+        mockTranscriptRepositoryProvider,
+        mockSimulationReportRepositoryProvider,
+        ...scenarioAssignmentProviders,
+        {
+          provide: AutomationAccessService,
+          useValue: {
+            filterRecords: jest.fn((records) => records),
+            canAccessRecord: jest.fn(() => true),
+          },
+        },
+      ],
     }).compile();
 
     scenariosService = module.get<ScenariosService>(ScenariosService);
   });
 
-  it('create scenario → findOne returns it on first call (no delay)', async () => {
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue({
+  it('findOne reads the current catalog row – never returns a stale value', async () => {
+    // Catalog read has the latest title
+    mockSimulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue({
       id: 's1',
       unitId: 'u1',
-      title: 'New Scenario',
-    });
+      title: 'FromCatalog',
+    } as never);
 
-    await scenariosService.createScenario({
-      id: 's1',
-      title: 'New Scenario',
-    } as unknown as Scenario);
-    const result = await scenariosService.findOne('s1');
+    const result = await scenariosService.findOne(anyUser, 's1');
 
-    expect(result.title).toBe('New Scenario');
-  });
-
-  it('update scenario → findOne returns updated data immediately (no stale cache)', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue({
-      id: 's1',
-      title: 'Old',
-    });
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue({
-      id: 's1',
-      unitId: 'u1',
-      title: 'Updated',
-    });
-
-    await scenariosService.updateScenario('s1', { title: 'Updated' });
-    const result = await scenariosService.findOne('s1');
-
-    expect(result.title).toBe('Updated');
-  });
-
-  it('findOne uses localized read – never returns stale in-memory value', async () => {
-    // Stale cache has old title
-    mockJsonDataService.getScenarioById.mockReturnValue({
-      id: 's1',
-      title: 'Stale',
-    });
-    // Localized read has new title
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue({
-      id: 's1',
-      unitId: 'u1',
-      title: 'FromBlob',
-    });
-
-    const result = await scenariosService.findOne('s1');
-
-    expect(result.title).toBe('FromBlob');
-    expect(mockJsonDataService.getScenarioByIdLocalized).toHaveBeenCalledWith('s1', undefined);
+    expect(result.title).toBe('FromCatalog');
+    expect(mockSimulationV2Repository.findByBusinessIdWithChildrenJoined).toHaveBeenCalledWith(
+      's1',
+    );
   });
 
   it('findOne throws NotFoundException when scenario deleted', async () => {
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue(undefined);
+    mockSimulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(null);
 
-    await expect(scenariosService.findOne('deleted-id')).rejects.toThrow(NotFoundException);
+    await expect(scenariosService.findOne(anyUser, 'deleted-id')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

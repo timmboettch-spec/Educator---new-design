@@ -1,4 +1,4 @@
-name: "build-frontend"
+name: 'build-frontend'
 description: >-
   Aggregated frontend build: Node setup + npm ci + vite build with the given
   VITE_API_URL. Used by both deploy-frontend.yml (real environments) and

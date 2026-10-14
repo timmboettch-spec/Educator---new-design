@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import React from 'react';
 import { vi, describe, it, expect, beforeEach, beforeAll } from 'vitest';
 import { configureStore } from '@reduxjs/toolkit';
@@ -23,34 +30,51 @@ const mockDispatch = vi.fn((action: DispatchAction) => {
 });
 
 vi.mock('react-redux', async () => {
-  const actual = await vi.importActual<typeof import('react-redux')>('react-redux');
+  const actual =
+    await vi.importActual<typeof import('react-redux')>('react-redux');
   return { ...actual, useDispatch: () => mockDispatch };
 });
 
 vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
-  GetEducatorByUserRequest: vi.fn(() => ({ type: 'educator/getByUser', unwrap: () => Promise.resolve() })),
+  GetEducatorByUserRequest: vi.fn(() => ({
+    type: 'educator/getByUser',
+    unwrap: () => Promise.resolve(),
+  })),
   clearGetEducatorState: vi.fn(() => ({ type: 'educator/clearGet' })),
   selectGetEducatorsData: (s: RootState) =>
     s.GetEducator?.responseGetEducator?.data ?? { items: [], total: 0 },
   selectGetEducatorStatus: (s: RootState) => s.GetEducator?.status ?? 'idle',
   selectGetEducatorError: (s: RootState) => s.GetEducator?.error ?? null,
-  selectGetEducatorResponse: (s: RootState) => s.GetEducator?.responseGetEducator ?? null,
+  selectGetEducatorResponse: (s: RootState) =>
+    s.GetEducator?.responseGetEducator ?? null,
 }));
 
 vi.mock('../../../src/redux/educator/UpdateEducatorRedux', () => ({
-  UpdateEducatorRequest: vi.fn(() => ({ type: 'educator/update', unwrap: () => Promise.resolve() })),
+  UpdateEducatorRequest: vi.fn(() => ({
+    type: 'educator/update',
+    unwrap: () => Promise.resolve(),
+  })),
 }));
 
 vi.mock('../../../src/redux/educator/CreateEducatorRedux', () => ({
-  InviteEducatorRequest: vi.fn(() => ({ type: 'educator/invite', unwrap: () => Promise.resolve() })),
+  InviteEducatorRequest: vi.fn(() => ({
+    type: 'educator/invite',
+    unwrap: () => Promise.resolve(),
+  })),
 }));
 
 vi.mock('../../../src/redux/educator/DeleteEducatorRedux', () => ({
-  DeleteEducatorRequest: vi.fn(() => ({ type: 'educator/delete', unwrap: () => Promise.resolve() })),
+  DeleteEducatorRequest: vi.fn(() => ({
+    type: 'educator/delete',
+    unwrap: () => Promise.resolve(),
+  })),
 }));
 
 vi.mock('../../../src/redux/educator/ResendInviteRedux', () => ({
-  ResendInviteRequest: vi.fn(() => ({ type: 'educator/resendInvite', unwrap: () => Promise.resolve() })),
+  ResendInviteRequest: vi.fn(() => ({
+    type: 'educator/resendInvite',
+    unwrap: () => Promise.resolve(),
+  })),
 }));
 
 vi.mock('../../../src/redux/notifications/NotificationsRedux', () => ({
@@ -62,20 +86,25 @@ vi.mock('../../../src/redux/dashboard/admin/DashboardOverviewRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
-  GetSchoolRequest: vi.fn(() => ({ type: 'schools/get', unwrap: () => Promise.resolve() })),
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
+  GetSchoolRequest: vi.fn(() => ({
+    type: 'schools/get',
+    unwrap: () => Promise.resolve(),
+  })),
   selectSchools: (s: RootState) => {
     const data = s.School?.responseSchool?.data;
     if (!data) return [];
     if (Array.isArray(data)) return data as School[];
-    if (Array.isArray((data as { items: School[] }).items)) return (data as { items: School[] }).items;
+    if (Array.isArray((data as { items: School[] }).items))
+      return (data as { items: School[] }).items;
     return [];
   },
   selectSchoolStatus: (s: RootState) => s.School?.status ?? 'idle',
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'users/get' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 vi.mock('../../../src/components/common/Toast', () => ({
@@ -83,11 +112,32 @@ vi.mock('../../../src/components/common/Toast', () => ({
 }));
 
 vi.mock('../../../src/components/ui/DropdownMenu', () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onSelect, disabled, className }: { children: React.ReactNode; onSelect?: () => void; disabled?: boolean; className?: string }) => (
-    <button type="button" onClick={() => onSelect?.()} disabled={disabled} className={className}>
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    disabled,
+    className,
+  }: {
+    children: React.ReactNode;
+    onSelect?: () => void;
+    disabled?: boolean;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onSelect?.()}
+      disabled={disabled}
+      className={className}
+    >
       {children}
     </button>
   ),
@@ -114,15 +164,17 @@ vi.mock('../../../src/components/common/ListTable', () => ({
           <tr key={row.id}>
             <td>{row.full_name ?? row.educator_name}</td>
             <td>
-              {renderActions
-                ? renderActions(row)
-                : (
-                  <>
-                    {onView && <button onClick={() => onView(row)}>View</button>}
-                    {onEdit && <button onClick={() => onEdit(row)}>Edit</button>}
-                    {onDelete && <button onClick={() => onDelete(row)}>Delete</button>}
-                  </>
-                )}
+              {renderActions ? (
+                renderActions(row)
+              ) : (
+                <>
+                  {onView && <button onClick={() => onView(row)}>View</button>}
+                  {onEdit && <button onClick={() => onEdit(row)}>Edit</button>}
+                  {onDelete && (
+                    <button onClick={() => onDelete(row)}>Delete</button>
+                  )}
+                </>
+              )}
             </td>
           </tr>
         ))}
@@ -132,8 +184,18 @@ vi.mock('../../../src/components/common/ListTable', () => ({
 }));
 
 const mockSchools: School[] = [
-  { id: 'school-1', school_name: 'Springfield High', status: 'ACTIVE', user_id: 'u1' },
-  { id: 'school-2', school_name: 'Shelbyville Academy', status: 'ACTIVE', user_id: 'u1' },
+  {
+    id: 'school-1',
+    school_name: 'Springfield High',
+    status: 'ACTIVE',
+    user_id: 'u1',
+  },
+  {
+    id: 'school-2',
+    school_name: 'Shelbyville Academy',
+    status: 'ACTIVE',
+    user_id: 'u1',
+  },
 ];
 
 const mockEducator = {
@@ -159,12 +221,20 @@ const buildStore = (overrides: Partial<RootState> = {}) =>
         },
       School: () =>
         overrides.School ?? {
-          responseSchool: { data: mockSchools, message: 'Success', status: 'success' },
+          responseSchool: {
+            data: mockSchools,
+            message: 'Success',
+            status: 'success',
+          },
           status: 'succeeded',
           error: null,
         },
       getSchools: () => ({
-        responseSchool: { data: mockSchools, message: 'Success', status: 'success' },
+        responseSchool: {
+          data: mockSchools,
+          message: 'Success',
+          status: 'success',
+        },
         status: 'succeeded',
         error: null,
       }),
@@ -177,7 +247,7 @@ const renderPage = (overrides: Partial<RootState> = {}) =>
       <MemoryRouter>
         <Educators />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 
 describe('Educator Page + Modal Integration', () => {
@@ -190,8 +260,12 @@ describe('Educator Page + Modal Integration', () => {
     it('opens CreateEducatorModal when "Add Educator" button is clicked', async () => {
       renderPage();
 
-      const addBtn = await screen.findByRole('button', { name: /Add Educator/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      const addBtn = await screen.findByRole('button', {
+        name: /Add Educator/i,
+      });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -201,13 +275,19 @@ describe('Educator Page + Modal Integration', () => {
     it('closes CreateEducatorModal when Back button is clicked', async () => {
       renderPage();
 
-      const addBtn = await screen.findByRole('button', { name: /Add Educator/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      const addBtn = await screen.findByRole('button', {
+        name: /Add Educator/i,
+      });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
       const backBtn = within(dialog).getByRole('button', { name: /back/i });
-      await act(async () => { fireEvent.click(backBtn); });
+      await act(async () => {
+        fireEvent.click(backBtn);
+      });
 
       await waitFor(() => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -217,8 +297,12 @@ describe('Educator Page + Modal Integration', () => {
     it('shows form fields when modal opens in create mode', async () => {
       renderPage();
 
-      const addBtn = await screen.findByRole('button', { name: /Add Educator/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      const addBtn = await screen.findByRole('button', {
+        name: /Add Educator/i,
+      });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => {
         const inputs = screen.queryAllByRole('textbox');
@@ -229,14 +313,22 @@ describe('Educator Page + Modal Integration', () => {
     it('shows validation errors when form is submitted empty', async () => {
       renderPage();
 
-      const addBtn = await screen.findByRole('button', { name: /Add Educator/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      const addBtn = await screen.findByRole('button', {
+        name: /Add Educator/i,
+      });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const submitBtn = within(dialog).queryByRole('button', { name: /create educator|invite/i });
+      const submitBtn = within(dialog).queryByRole('button', {
+        name: /create educator|invite/i,
+      });
       if (submitBtn) {
-        await act(async () => { fireEvent.click(submitBtn); });
+        await act(async () => {
+          fireEvent.click(submitBtn);
+        });
         await waitFor(() => {
           const errors = screen.queryAllByText(/required|invalid|must/i);
           expect(errors.length).toBeGreaterThan(0);
@@ -249,8 +341,12 @@ describe('Educator Page + Modal Integration', () => {
     it('opens DeleteEducatorModal when Delete row action is clicked', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -260,8 +356,12 @@ describe('Educator Page + Modal Integration', () => {
     it('shows educator name inside delete modal', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => {
         const dialog = screen.getByRole('dialog');
@@ -272,15 +372,23 @@ describe('Educator Page + Modal Integration', () => {
     it('dispatches DeleteEducatorRequest when confirmed', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
 
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|yes|delete educator/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|yes|delete educator/i,
+      });
       if (confirmBtn) {
-        await act(async () => { fireEvent.click(confirmBtn); });
+        await act(async () => {
+          fireEvent.click(confirmBtn);
+        });
         await waitFor(() => {
           expect(mockDispatch).toHaveBeenCalled();
         });
@@ -290,16 +398,24 @@ describe('Educator Page + Modal Integration', () => {
     it('closes DeleteEducatorModal when cancel is clicked without dispatching delete', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
 
       const callsBefore = mockDispatch.mock.calls.length;
-      const cancelBtn = within(dialog).queryByRole('button', { name: /cancel|no|back/i });
+      const cancelBtn = within(dialog).queryByRole('button', {
+        name: /cancel|no|back/i,
+      });
       if (cancelBtn) {
-        await act(async () => { fireEvent.click(cancelBtn); });
+        await act(async () => {
+          fireEvent.click(cancelBtn);
+        });
         expect(mockDispatch.mock.calls.length).toBe(callsBefore);
       }
     });
@@ -310,7 +426,9 @@ describe('Educator Page + Modal Integration', () => {
       renderPage();
 
       const viewBtn = await screen.findByRole('button', { name: /^View$/i });
-      await act(async () => { fireEvent.click(viewBtn); });
+      await act(async () => {
+        fireEvent.click(viewBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -321,7 +439,9 @@ describe('Educator Page + Modal Integration', () => {
       renderPage();
 
       const editBtn = await screen.findByRole('button', { name: /^Edit$/i });
-      await act(async () => { fireEvent.click(editBtn); });
+      await act(async () => {
+        fireEvent.click(editBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -332,11 +452,13 @@ describe('Educator Page + Modal Integration', () => {
       renderPage();
 
       const editBtn = await screen.findByRole('button', { name: /^Edit$/i });
-      await act(async () => { fireEvent.click(editBtn); });
+      await act(async () => {
+        fireEvent.click(editBtn);
+      });
 
       await waitFor(() => {
         expect(
-          screen.queryByRole('button', { name: /update educator/i }),
+          screen.queryByRole('button', { name: /update educator/i })
         ).toBeInTheDocument();
       });
     });

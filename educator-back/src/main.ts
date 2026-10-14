@@ -1,22 +1,19 @@
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
-import { Logger } from 'nestjs-pino';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { ValidationPipe, Logger as NestLogger } from '@nestjs/common';
+import { VersioningType, VERSION_NEUTRAL } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { studentBackendConfig } from './student-backend/helpers/global.helper';
-import { securityHeadersOptions } from './config/security-headers.config';
+import { securityHeadersOptions } from './common/config/security-headers.config';
+import { LoggerService } from './common/services';
+import { createValidationPipe } from './common/pipes/validation.pipe';
+import { setupSocketIoAdapter } from './common/utils';
 
-const HEAP_LOG_INTERVAL_MS = Number(process.env.HEAP_LOG_INTERVAL_MS) || 60_000;
-
-const SERVER_KEEP_ALIVE_TIMEOUT_MS = Number(process.env.SERVER_KEEP_ALIVE_TIMEOUT_MS) || 65_000;
-
-const SERVER_HEADERS_TIMEOUT_MS = Number(process.env.SERVER_HEADERS_TIMEOUT_MS) || 66_000;
-
-function startHeapLogger(logger: NestLogger): void {
+function startHeapLogger(logger: LoggerService, heapLogIntervalMs: number): void {
   setInterval(() => {
     const { heapUsed, heapTotal, rss } = process.memoryUsage();
 
@@ -26,7 +23,7 @@ function startHeapLogger(logger: NestLogger): void {
       `Heap: ${mb(heapUsed)} used / ${mb(heapTotal)} total | RSS: ${mb(rss)}`,
       'MemoryMonitor',
     );
-  }, HEAP_LOG_INTERVAL_MS).unref();
+  }, heapLogIntervalMs).unref();
 }
 
 async function bootstrap(): Promise<void> {
@@ -37,26 +34,27 @@ async function bootstrap(): Promise<void> {
   app.set('trust proxy', 1);
   app.use(helmet(securityHeadersOptions));
 
-  app.useLogger(app.get(Logger));
+  const logger = app.get(LoggerService);
+  app.useLogger(logger);
   app.use(cookieParser());
+
+  // Close the Socket.IO adapter's Redis connections (and other providers) on SIGTERM/SIGINT.
+  app.enableShutdownHooks();
 
   app.enableCors({
     origin: true,
     credentials: true,
   });
 
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
-
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalPipes(createValidationPipe());
 
   app.setGlobalPrefix('api', {
     exclude: ['api-docs', 'api-docs/*path', 'health', 'healthz', 'readyz'],
+  });
+
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: VERSION_NEUTRAL,
   });
 
   const swaggerJwtConfig = {
@@ -90,25 +88,33 @@ async function bootstrap(): Promise<void> {
 
   studentBackendConfig(app);
 
-  const port = process.env.APP_PORT!;
-  await app.listen(port);
+  const configService = app.get(ConfigService);
+
+  setupSocketIoAdapter(app, configService, logger);
+
+  const appPort = configService.get<string>('app.appPort');
+  const displayPort = configService.get<string>('app.port') ?? '3000';
+  const apiTimeoutMs = configService.get<number>('app.apiTimeoutMs') ?? 60_000;
+  const serverKeepAliveTimeoutMs =
+    configService.get<number>('app.serverKeepAliveTimeoutMs') ?? 65_000;
+  const serverHeadersTimeoutMs = configService.get<number>('app.serverHeadersTimeoutMs') ?? 66_000;
+  const heapLogIntervalMs = configService.get<number>('app.heapLogIntervalMs') ?? 60_000;
+
+  await app.listen(appPort as string);
 
   // HTTP server timeouts
   const server = app.getHttpServer();
-  server.keepAliveTimeout = SERVER_KEEP_ALIVE_TIMEOUT_MS;
-  server.headersTimeout = SERVER_HEADERS_TIMEOUT_MS;
+  server.keepAliveTimeout = serverKeepAliveTimeoutMs;
+  server.headersTimeout = serverHeadersTimeoutMs;
 
   // Heap memory logging
-  const logger = new NestLogger('Bootstrap');
-  startHeapLogger(logger);
+  startHeapLogger(logger, heapLogIntervalMs);
 
-  logger.log(`Server running on http://localhost:${process.env.PORT ?? 3000}`);
+  logger.log(`Server running on http://localhost:${displayPort}`);
 
-  logger.log(`Swagger docs available at http://localhost:${process.env.PORT ?? 3000}/api-docs`);
+  logger.log(`Swagger docs available at http://localhost:${displayPort}/api-docs`);
 
-  logger.log(
-    `Timeouts — API: ${Number(process.env.API_TIMEOUT_MS) || 60_000}ms | KeepAlive: ${SERVER_KEEP_ALIVE_TIMEOUT_MS}ms`,
-  );
+  logger.log(`Timeouts — API: ${apiTimeoutMs}ms | KeepAlive: ${serverKeepAliveTimeoutMs}ms`);
 }
 
 void bootstrap();

@@ -19,27 +19,51 @@ export const BASE_ROOT = API_BASE.replace(/\/api$/, '');
 const auth = (req: request.Test, token?: string) =>
   token ? req.set('Authorization', `Bearer ${token}`) : req;
 
-export const smokeGet = (path: string, token?: string, timeoutMs = 15_000): Promise<Response> =>
-  auth(request(BASE).get(path).timeout(timeoutMs), token);
+// On timeout, superagent can emit a second 'error' event (e.g. socket abort) after the
+// request promise has already settled, which otherwise surfaces as an unhandled rejection.
+const suppressLateErrors = (req: request.Test): request.Test => {
+  req.on('error', () => { });
+  return req;
+};
+
+export const smokeGet = (path: string, token?: string, timeoutMs = 25_000): Promise<Response> =>
+  suppressLateErrors(auth(request(BASE).get(path).timeout(timeoutMs), token));
 
 // For endpoints outside the /api prefix (healthz, readyz)
-export const smokeGetRoot = (path: string): Promise<Response> => request(BASE_ROOT).get(path);
+export const smokeGetRoot = (path: string, timeoutMs = 25_000): Promise<Response> =>
+  suppressLateErrors(request(BASE_ROOT).get(path).timeout(timeoutMs));
 
-export const smokePost = (path: string, body: unknown, token?: string): Promise<Response> =>
-  auth(
-    request(BASE)
-      .post(path)
-      .send(body as object),
-    token,
+export const smokePost = (
+  path: string,
+  body: unknown,
+  token?: string,
+  timeoutMs = 25_000,
+): Promise<Response> =>
+  suppressLateErrors(
+    auth(
+      request(BASE)
+        .post(path)
+        .send(body as object)
+        .timeout(timeoutMs),
+      token,
+    ),
   );
 
-export const smokePatch = (path: string, body: unknown, token?: string): Promise<Response> =>
-  auth(
-    request(BASE)
-      .patch(path)
-      .send(body as object),
-    token,
+export const smokePatch = (
+  path: string,
+  body: unknown,
+  token?: string,
+  timeoutMs = 25_000,
+): Promise<Response> =>
+  suppressLateErrors(
+    auth(
+      request(BASE)
+        .patch(path)
+        .send(body as object)
+        .timeout(timeoutMs),
+      token,
+    ),
   );
 
-export const smokeDelete = (path: string, token?: string): Promise<Response> =>
-  auth(request(BASE).delete(path), token);
+export const smokeDelete = (path: string, token?: string, timeoutMs = 25_000): Promise<Response> =>
+  suppressLateErrors(auth(request(BASE).delete(path).timeout(timeoutMs), token));

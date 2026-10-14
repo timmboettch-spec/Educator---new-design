@@ -1,13 +1,12 @@
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { getCsrfToken, getToken, setCsrfToken } from '../utils/storage';
 import { forceLogout, LOGOUT_MESSAGES } from '../utils/forceLogout';
-import { isSessionReady } from '../utils/sessionState';
+import { isLtiSessionHandoff, isSessionReady } from '../utils/sessionState';
 
 const axiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
 });
-
 
 axiosInstance.interceptors.request.use((config) => {
   const token = typeof window !== 'undefined' ? getToken() : null;
@@ -21,12 +20,15 @@ axiosInstance.interceptors.request.use((config) => {
   return config;
 });
 
-
-type RetryableConfig = AxiosRequestConfig & { _csrfRetried?: boolean };
+type RetryableConfig = AxiosRequestConfig & {
+  _csrfRetried?: boolean;
+  _rateLimitRetried?: boolean;
+};
 
 const CSRF_TOKEN_URL = '/api/auth/csrf-token';
 const API_BASE_URL_FOR_CSRF =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:3000';
+  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+  'http://localhost:3000';
 
 let csrfRefreshInFlight: Promise<string | null> | null = null;
 
@@ -42,7 +44,7 @@ const refreshCsrfToken = async (): Promise<string | null> => {
             Authorization: `Bearer ${getToken() ?? ''}`,
             'ngrok-skip-browser-warning': 'true',
           },
-        },
+        }
       );
       const fresh = res.data?.data?.csrfToken;
       if (fresh) {
@@ -79,7 +81,10 @@ axiosInstance.interceptors.response.use(
 
     const isCsrfError =
       status === 403 &&
-      (message.includes('csrf token invalid') || message.includes('csrf token missing'));
+      (message.includes('invalid csrf') ||
+        message.includes('csrf token invalid') ||
+        message.includes('csrf token missing') ||
+        message.includes('csrf token'));
 
     const isSessionAuthError =
       message.includes('jwt') ||
@@ -102,7 +107,6 @@ axiosInstance.interceptors.response.use(
       isCsrfError &&
       !isAuthEndpoint &&
       cfg &&
-
       !cfg._csrfRetried &&
       getToken()
     ) {
@@ -122,18 +126,42 @@ axiosInstance.interceptors.response.use(
       }
     }
 
+    if (status === 429 && cfg && !cfg._rateLimitRetried && !isAuthEndpoint) {
+      cfg._rateLimitRetried = true;
+      const retryAfterHeader = Number(
+        (err.response as { headers?: { 'retry-after'?: string } } | undefined)
+          ?.headers?.['retry-after']
+      );
+      const waitMs =
+        Number.isFinite(retryAfterHeader) && retryAfterHeader > 0
+          ? Math.min(retryAfterHeader * 1000, 1500)
+          : 1100;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return axiosInstance.request(cfg);
+    }
+
     if (!isAuthEndpoint) {
       if (status === 401) {
-        if (isSessionReady()) {
+        // Cross-tab / LTI handoff: a revoked prior JWT may 401 after cookies were
+        // already replaced with the new session — never wipe the newer session.
+        const failedAuth = String(cfg?.headers?.Authorization ?? '');
+        const failedToken = failedAuth.replace(/^Bearer\s+/i, '').trim();
+        const currentToken = getToken();
+        const isStalePriorToken =
+          Boolean(failedToken) &&
+          Boolean(currentToken) &&
+          failedToken !== currentToken;
+
+        if (isSessionReady() && !isLtiSessionHandoff() && !isStalePriorToken) {
           forceLogout(LOGOUT_MESSAGES.SESSION_EXPIRED);
         }
       } else if (status === 403) {
         if (isSchoolError) {
-          if (isSessionReady()) {
+          if (isSessionReady() && !isLtiSessionHandoff()) {
             forceLogout(LOGOUT_MESSAGES.SCHOOL_INACTIVE);
           }
         } else if (isSessionAuthError) {
-          if (isSessionReady()) {
+          if (isSessionReady() && !isLtiSessionHandoff()) {
             forceLogout(LOGOUT_MESSAGES.SESSION_EXPIRED);
           }
         }
@@ -141,7 +169,7 @@ axiosInstance.interceptors.response.use(
     }
 
     return Promise.reject(error);
-  },
+  }
 );
 
 export default axiosInstance;

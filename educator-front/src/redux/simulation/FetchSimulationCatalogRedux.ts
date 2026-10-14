@@ -1,7 +1,17 @@
-import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSlice,
+  type PayloadAction,
+} from '@reduxjs/toolkit';
 import config from '../config';
 import type { RootState } from '../../store';
 import api from '../api';
+import { parseAvatarEnabled } from '../../utils/simulationType';
+import { readProductName } from '../dashboard/simulationlibrary/GetSimulationRedux';
+import {
+  EMPTY_LIBRARY_FILTERS,
+  type LibraryFilters,
+} from '../../utils/libraryFilters';
 
 export interface BrowseByItem {
   id: number;
@@ -39,6 +49,9 @@ export interface SectionItem {
   last_update?: string;
   status?: string;
   learning_objectives?: string[];
+  learnerLevel?: string;
+  avatarEnabled?: boolean;
+  productName?: string;
 }
 
 export interface BannerData {
@@ -125,6 +138,9 @@ export interface SimulationDetail {
   printablePatientChartPdf?: string;
 }
 
+/** Applied catalogue filters: the same multi-select fields as the library. */
+export type CatalogFilters = LibraryFilters;
+
 interface SimulationCatalogState {
   catalogData: CatalogData | null;
   loading: boolean;
@@ -134,6 +150,7 @@ interface SimulationCatalogState {
   detailError: string | null;
   scenarioImageBlobUrl: string | null;
   scenarioImageBlobLoading: boolean;
+  appliedFilters: CatalogFilters;
 }
 
 const initialState: SimulationCatalogState = {
@@ -145,6 +162,7 @@ const initialState: SimulationCatalogState = {
   detailError: null,
   scenarioImageBlobUrl: null,
   scenarioImageBlobLoading: false,
+  appliedFilters: EMPTY_LIBRARY_FILTERS,
 };
 
 const toStr = (v: unknown): string => (v == null ? '' : String(v));
@@ -157,32 +175,37 @@ const normalizeSectionItem = (item: Record<string, unknown>): SectionItem => ({
   id: Number.isFinite(Number(item.id)) ? Number(item.id) : 0,
   scenarioId: toOptStr(
     item.scenarioId ??
-    item.scenario_id ??
-    item.scenarioID ??
-    item.simulation_id ??
-    (isNaN(Number(item.id)) ? item.id : undefined),
+      item.scenario_id ??
+      item.scenarioID ??
+      item.simulation_id ??
+      (isNaN(Number(item.id)) ? item.id : undefined)
   ),
   title: toStr(item.title ?? item.name),
   image: toStr(
     item.scenarioImage ??
-    item.image_url ??
-    item.image ??
-    item.imageUrl ??
-    item.imageURL ??
-    item.scenario_image ??
-    item.cover_image ??
-    item.coverImage ??
-    item.thumbnail ??
-    item.blob_url ??
-    item.blobUrl ??
-    item.media_url ??
-    item.mediaUrl ??
-    item.picture ??
-    item.photo ??
-    item.unit_image,
+      item.image_url ??
+      item.image ??
+      item.imageUrl ??
+      item.imageURL ??
+      item.scenario_image ??
+      item.cover_image ??
+      item.coverImage ??
+      item.thumbnail ??
+      item.blob_url ??
+      item.blobUrl ??
+      item.media_url ??
+      item.mediaUrl ??
+      item.picture ??
+      item.photo ??
+      item.unit_image
   ),
   cta: toStr(item.cta ?? 'View'),
-  unit: toOptStr(item.unit ?? (item.unitId as string | undefined) ?? item.unit_id ?? item.unit_name),
+  unit: toOptStr(
+    item.unit ??
+      (item.unitId as string | undefined) ??
+      item.unit_id ??
+      item.unit_name
+  ),
   unit_name: toOptStr(item.unit_name ?? item.unitName ?? item.unit_title),
   category: undefined, // Category is now derived from avatarEnabled only
   description: toOptStr(item.description),
@@ -207,7 +230,11 @@ const normalizeSectionItem = (item: Record<string, unknown>): SectionItem => ({
   difficulty: toOptStr(item.difficulty ?? item.difficultyLevel),
   duration: toOptStr(item.duration ?? item.estimatedDuration),
   purpose: toOptStr(item.purpose ?? item.objective),
-  status: toOptStr(item.status ?? item.Status),  // Handle both lowercase and uppercase
+  status: toOptStr(item.status ?? item.Status), // Handle both lowercase and uppercase
+  learnerLevel: toOptStr(item.learnerLevel ?? item.learner_level),
+  avatarEnabled: parseAvatarEnabled(item.avatarEnabled),
+  // Same sources as the library: productSetup.title, then the flat aliases.
+  productName: toOptStr(readProductName(item)),
 });
 
 export const fetchSimulationCatalog = createAsyncThunk<
@@ -222,12 +249,12 @@ export const fetchSimulationCatalog = createAsyncThunk<
         'ngrok-skip-browser-warning': 'true',
       };
 
-      const params = ls ? { ls } : {ls: 'en'};
+      const params = ls ? { ls } : { ls: 'en' };
 
-      const response = await api.get(
-        config.SimulationCatalogCombinedAPI,
-        { headers, params },
-      );
+      const response = await api.get(config.SimulationCatalogCombinedAPI, {
+        headers,
+        params,
+      });
 
       const payload = response.data?.data;
 
@@ -239,16 +266,18 @@ export const fetchSimulationCatalog = createAsyncThunk<
         (payload.catalog ?? []).map((item: CatalogFavoriteItem) => [
           item.scenarioId || item.scenario_id,
           item.myFavorite,
-        ]),
+        ])
       );
 
-      const rawItems = (payload.scenarios ?? []).map((item: ScenarioPayloadItem) => ({
-        ...item,
-        myFavorite:
-          catalogFavorites.get(
-            item.scenarioId || item.scenario_id || item.id,
-          ) ?? false,
-      }));
+      const rawItems = (payload.scenarios ?? []).map(
+        (item: ScenarioPayloadItem) => ({
+          ...item,
+          myFavorite:
+            catalogFavorites.get(
+              item.scenarioId || item.scenario_id || item.id
+            ) ?? false,
+        })
+      );
       const simulationItems: SectionItem[] = rawItems
         .map((item: Record<string, unknown>) => normalizeSectionItem(item))
         .filter((item: SectionItem) => {
@@ -273,9 +302,11 @@ export const fetchSimulationCatalog = createAsyncThunk<
 
       const pickOptions = (
         existing: string[],
-        dynamic: (string | undefined)[],
+        dynamic: (string | undefined)[]
       ): string[] =>
-        [...new Set([...existing, ...(dynamic.filter(Boolean) as string[])])].sort();
+        [
+          ...new Set([...existing, ...(dynamic.filter(Boolean) as string[])]),
+        ].sort();
 
       const dynamicFilters: CatalogData['filters'] = {
         fields: [
@@ -286,9 +317,7 @@ export const fetchSimulationCatalog = createAsyncThunk<
                 ?.label ?? 'Unit',
             options: [
               ...new Set(
-                allDisplayItems
-                  .map((i) => i.unit)
-                  .filter(Boolean) as string[],
+                allDisplayItems.map((i) => i.unit).filter(Boolean) as string[]
               ),
             ].sort(),
           },
@@ -296,85 +325,66 @@ export const fetchSimulationCatalog = createAsyncThunk<
             key: 'targetAudience',
             label:
               existingFields.find(
-                (f: FilterField) => f.key === 'targetAudience',
+                (f: FilterField) => f.key === 'targetAudience'
               )?.label ?? 'Target Audience',
             options: pickOptions(
               getExistingOpts('targetAudience'),
-              allDisplayItems.flatMap(
-                (i) => i.targetAudience ?? [],
-              ),
+              allDisplayItems.flatMap((i) => i.targetAudience ?? [])
             ),
           },
           {
             key: 'difficulty',
             label:
-              existingFields.find(
-                (f: FilterField) => f.key === 'difficulty',
-              )?.label ?? 'Difficulty',
+              existingFields.find((f: FilterField) => f.key === 'difficulty')
+                ?.label ?? 'Difficulty',
             options: pickOptions(
               getExistingOpts('difficulty'),
-              allDisplayItems.map((i) => i.difficulty),
+              allDisplayItems.map((i) => i.difficulty)
             ),
           },
           {
             key: 'duration',
             label:
-              existingFields.find(
-                (f: FilterField) => f.key === 'duration',
-              )?.label ?? 'Duration',
+              existingFields.find((f: FilterField) => f.key === 'duration')
+                ?.label ?? 'Duration',
             options: pickOptions(
               getExistingOpts('duration'),
-              allDisplayItems.map((i) => i.duration),
+              allDisplayItems.map((i) => i.duration)
             ),
           },
         ].filter((f) => f.options.length > 0),
       };
 
-      const newestSim =
-        simulationItems[simulationItems.length - 1];
+      const newestSim = simulationItems[simulationItems.length - 1];
 
-      const rawBanner =
-        payload.banner as Record<string, string>;
+      const rawBanner = payload.banner as Record<string, string>;
 
       const normalizedBanner: BannerData = {
-        title: String(
-          newestSim?.title ??
-          rawBanner?.title ??
-          '',
-        ),
-        subtitle: String(
-          newestSim?.description ??
-          rawBanner?.subtitle ??
-          '',
-        ),
-        image: String(
-          newestSim?.image ??
-          rawBanner?.image ??
-          '',
-        ),
+        title: String(newestSim?.title ?? rawBanner?.title ?? ''),
+        subtitle: String(newestSim?.description ?? rawBanner?.subtitle ?? ''),
+        image: String(newestSim?.image ?? rawBanner?.image ?? ''),
       };
 
       return {
         banner: normalizedBanner,
-        browseBy: payload.dashboard?.browseBy ?? payload.browseBy ?? {
-          filters: [],
-          items: [],
-        },
+        browseBy: payload.dashboard?.browseBy ??
+          payload.browseBy ?? {
+            filters: [],
+            items: [],
+          },
         sections: allSections,
         filters: dynamicFilters,
       };
     } catch (err: unknown) {
       return rejectWithValue(
-        err instanceof Error
-          ? err.message
-          : 'Unknown error',
+        err instanceof Error ? err.message : 'Unknown error'
       );
     }
   },
   {
     condition: (_, { getState }) =>
       !(getState() as RootState).simulationCatalog.loading,
-  },
+  }
 );
 
 const simulationCatalogSlice = createSlice({
@@ -391,6 +401,14 @@ const simulationCatalogSlice = createSlice({
       state.error = null;
     },
 
+    setAppliedFilters(state, action: PayloadAction<CatalogFilters>) {
+      state.appliedFilters = action.payload;
+    },
+
+    clearAppliedFilters(state) {
+      state.appliedFilters = EMPTY_LIBRARY_FILTERS;
+    },
+
     updateSimulationFavorite(
       state,
       action: PayloadAction<{
@@ -398,9 +416,13 @@ const simulationCatalogSlice = createSlice({
         favorite: boolean;
       }>
     ) {
-      state.catalogData?.sections.forEach(section => {
-        section.items.forEach(item => {
-          if (item.scenarioId === action.payload.scenarioId) {
+      const targetId = String(action.payload.scenarioId);
+      state.catalogData?.sections.forEach((section) => {
+        section.items.forEach((item) => {
+          const matchScenarioId =
+            item.scenarioId != null && String(item.scenarioId) === targetId;
+          const matchId = item.id != null && String(item.id) === targetId;
+          if (matchScenarioId || matchId) {
             item.myFavorite = action.payload.favorite;
           }
         });
@@ -423,9 +445,15 @@ const simulationCatalogSlice = createSlice({
           typeof action.payload === 'string'
             ? action.payload
             : action.error.message || 'Failed to fetch catalog';
-      })
+      });
   },
 });
 
-export const { clearSelectedSimulation, resetCatalog, updateSimulationFavorite } = simulationCatalogSlice.actions;
+export const {
+  clearSelectedSimulation,
+  resetCatalog,
+  updateSimulationFavorite,
+  setAppliedFilters,
+  clearAppliedFilters,
+} = simulationCatalogSlice.actions;
 export default simulationCatalogSlice.reducer;

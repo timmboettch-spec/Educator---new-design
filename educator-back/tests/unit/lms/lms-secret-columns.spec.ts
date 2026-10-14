@@ -1,7 +1,6 @@
 import { randomBytes } from 'crypto';
 import { getMetadataArgsStorage, ValueTransformer } from 'typeorm';
-import { LmsSchoolConfig } from '../../../src/lms/entity/lms-school-config.entity';
-import { LmsClassMapping } from '../../../src/lms/entity/lms-class-mapping.entity';
+import { LmsSchoolConfig, LmsClassMapping } from '../../../src/database/entities';
 import { LMS_SECRET_PREFIX } from '../../../src/lms/utils/lms-secret-crypto';
 import { LmsConfigService } from '../../../src/lms/services/lms-config.service';
 
@@ -66,7 +65,9 @@ describe('LMS secret columns', () => {
       const service = new LmsConfigService(
         {} as never,
         {} as never,
-        {} as never,
+        { log: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() } as never,
+        { getAccessToken: jest.fn() } as never,
+        { fetch: jest.fn() } as never,
       );
 
       const safe = service.sanitize({

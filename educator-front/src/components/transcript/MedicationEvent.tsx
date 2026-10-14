@@ -7,9 +7,17 @@ interface MedicationEventProps {
   event: TranscriptEventData;
 }
 
-const MedicationEvent = memo(function MedicationEvent({ event }: MedicationEventProps) {
+const MedicationEvent = memo(function MedicationEvent({
+  event,
+}: MedicationEventProps) {
   const name = eventField(event, 'name', 'title');
-  const description = eventField(event, 'description', 'text', 'content', 'transcript');
+  const description = eventField(
+    event,
+    'description',
+    'text',
+    'content',
+    'transcript'
+  );
   const dose = eventField(event, 'dose', 'dosage');
   const route = eventField(event, 'route', 'administration_route');
   const frequency = eventField(event, 'frequency');
@@ -45,7 +53,9 @@ const MedicationEvent = memo(function MedicationEvent({ event }: MedicationEvent
           {frequency && (
             <div className="bg-purple-50 border border-purple-100 rounded-lg px-3 py-2 text-center">
               <p className="text-xs text-purple-400 mb-0.5">Frequency</p>
-              <p className="text-sm font-semibold text-purple-800">{frequency}</p>
+              <p className="text-sm font-semibold text-purple-800">
+                {frequency}
+              </p>
             </div>
           )}
         </div>
@@ -55,7 +65,7 @@ const MedicationEvent = memo(function MedicationEvent({ event }: MedicationEvent
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-2 border-t border-gray-100">
           {extras.map(([k, v]) => (
             <div key={k} className="text-xs">
-              <span className="text-gray-500">{humanLabel(k)}: </span>
+              <span className="text-gray-400">{humanLabel(k)}: </span>
               <span className="text-gray-700">{v}</span>
             </div>
           ))}

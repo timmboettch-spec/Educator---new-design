@@ -1,6 +1,9 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import ListTable, { type Column } from '../../../src/components/common/ListTable';
+import ListTable, {
+  ListTableHeader,
+  type Column,
+} from '../../../src/components/common/ListTable';
 
 type School = { id: string; school_name: string; status: string };
 
@@ -8,7 +11,9 @@ const COLUMNS: Column<School>[] = [
   { header: 'School Name', accessor: 'school_name' },
   {
     header: 'Status',
-    render: (row) => <span>{row.status === 'ACTIVE' ? 'Active' : 'InActive'}</span>,
+    render: (row) => (
+      <span>{row.status === 'ACTIVE' ? 'Active' : 'InActive'}</span>
+    ),
   },
 ];
 
@@ -76,8 +81,12 @@ describe('ListTable — row actions', () => {
 describe('ListTable — pagination', () => {
   it('does not show pagination when data is 10 rows or fewer', () => {
     renderTable(generate(10));
-    expect(screen.queryByRole('button', { name: /prev/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /prev/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /next/i })
+    ).not.toBeInTheDocument();
   });
 
   it('shows Prev and Next buttons when data exceeds 10 rows', () => {
@@ -96,16 +105,22 @@ describe('ListTable — pagination', () => {
   it('navigates to next page and shows remaining rows', async () => {
     renderTable(generate(11));
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
-    await waitFor(() => expect(screen.getByText('School 11')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('School 11')).toBeInTheDocument()
+    );
     expect(screen.queryByText('School 1')).not.toBeInTheDocument();
   });
 
   it('navigates back to previous page', async () => {
     renderTable(generate(11));
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
-    await waitFor(() => expect(screen.getByText('School 11')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('School 11')).toBeInTheDocument()
+    );
     fireEvent.click(screen.getByRole('button', { name: /prev/i }));
-    await waitFor(() => expect(screen.getByText('School 1')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('School 1')).toBeInTheDocument()
+    );
     expect(screen.queryByText('School 11')).not.toBeInTheDocument();
   });
 
@@ -118,16 +133,48 @@ describe('ListTable — pagination', () => {
   it('navigates to a specific page via page number button', async () => {
     renderTable(generate(11));
     fireEvent.click(screen.getByRole('button', { name: '2' }));
-    await waitFor(() => expect(screen.getByText('School 11')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('School 11')).toBeInTheDocument()
+    );
   });
 
   it('resets to first page when data prop changes', async () => {
     const { rerender } = renderTable(generate(11));
     fireEvent.click(screen.getByRole('button', { name: /next/i }));
-    await waitFor(() => expect(screen.getByText('School 11')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('School 11')).toBeInTheDocument()
+    );
     rerender(<ListTable columns={COLUMNS} data={generate(12)} />);
-    await waitFor(() => expect(screen.getByText('School 1')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText('School 1')).toBeInTheDocument()
+    );
     expect(screen.getByText('School 10')).toBeInTheDocument();
     expect(screen.queryByText('School 11')).not.toBeInTheDocument();
+  });
+});
+
+describe('ListTable — hideHeader / paginated', () => {
+  it('omits the header row when hideHeader is set', () => {
+    renderTable(generate(1), { hideHeader: true });
+    expect(screen.queryByText('School Name')).not.toBeInTheDocument();
+    expect(screen.queryByText('Actions')).not.toBeInTheDocument();
+    expect(screen.getByText('School 1')).toBeInTheDocument();
+  });
+
+  it('renders every row without pagination controls when paginated is false', () => {
+    renderTable(generate(12), { paginated: false });
+    expect(screen.getByText('School 12')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /next/i })
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe('ListTableHeader', () => {
+  it('renders the column headers and the actions header on their own', () => {
+    render(<ListTableHeader columns={COLUMNS} actionHeader="Acciones" />);
+    expect(screen.getByText('School Name')).toBeInTheDocument();
+    expect(screen.getByText('Status')).toBeInTheDocument();
+    expect(screen.getByText('Acciones')).toBeInTheDocument();
   });
 });

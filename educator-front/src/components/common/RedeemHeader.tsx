@@ -1,16 +1,17 @@
-import { Bell, LogOut } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { toast } from "../../components/common/Toast";
-import { selectLoginResponse, logout } from "../../redux/auth/LoginRedux";
-import { LogoutRequest, resetLogout } from "../../redux/auth/LogoutRedux";
-import { selectSignUpResponse } from "../../redux/auth/SignUpRedux";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import { AUTH_MESSAGES } from "../../utils/messages/auth";
-import ConfirmModal from "../modal/ConfirmationModal";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
-import { clearAuthData, getParsedUser } from "../../utils/storage";
+import { Bell, LogOut } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from '../../components/common/Toast';
+import { selectLoginResponse, logout } from '../../redux/auth/LoginRedux';
+import { LogoutRequest, resetLogout } from '../../redux/auth/LogoutRedux';
+import { selectSignUpResponse } from '../../redux/auth/SignUpRedux';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { AUTH_MESSAGES } from '../../utils/messages/auth';
+import ConfirmModal from '../modal/ConfirmationModal';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
+import { clearAuthData, getParsedUser } from '../../utils/storage';
+import { useImageFallback } from '@/hooks/useImageFallback';
 
 interface Props {
   showNotification?: boolean;
@@ -31,28 +32,45 @@ export default function RedeemHeader({
   type User = {
     full_name?: string;
     fullname?: string;
+    profile_picture?: string | null;
     profile_image?: string | null;
     avatar?: string | null;
   };
 
-  const user: User | null =
-    loginResponse?.data?.user ||
-    signUpResponse?.data?.user ||
-    (getParsedUser() as User | null);
+  // The saved user is what the Account page updates, so it wins over the
+  // sign-in / sign-up responses, which keep the details from when they ran.
+  const [storedUser, setStoredUser] = useState(
+    () => getParsedUser() as User | null
+  );
+  useEffect(() => {
+    const refresh = () => setStoredUser(getParsedUser() as User | null);
+    window.addEventListener('profile-updated', refresh);
+    return () => window.removeEventListener('profile-updated', refresh);
+  }, []);
 
-  const fullName = user?.full_name || user?.fullname || "";
-  const profileImage = user?.profile_image || user?.avatar || null;
-  const profileLabel = fullName.charAt(0).toUpperCase() || "U";
+  // Take the saved user as a whole: a removed photo is saved as null, and
+  // falling back per field would bring back the photo from sign-in.
+  const user: User | null =
+    storedUser ??
+    loginResponse?.data?.user ??
+    signUpResponse?.data?.user ??
+    null;
+
+  const fullName = user?.full_name || user?.fullname || '';
+  const profileImage =
+    user?.profile_picture || user?.profile_image || user?.avatar || null;
+  const profileLabel = fullName.charAt(0).toUpperCase() || 'U';
+  const { hasImage, handleImageError } = useImageFallback(profileImage);
 
   const handleSignout = async () => {
     setShowConfirm(false);
     try {
       await dispatch(LogoutRequest()).unwrap();
       toast.success(
-        (localStorage.getItem("app_language")?.toLowerCase() === "es"
+        (localStorage.getItem('app_language')?.toLowerCase() === 'es'
           ? loginEs
           : loginEn
-        ).signOutModal.successToast,
+        ).signOutModal.successToast
       );
     } catch {
       toast.error(AUTH_MESSAGES.TOAST.LOGOUT_FAILED);
@@ -60,7 +78,7 @@ export default function RedeemHeader({
       clearAuthData();
       dispatch(logout());
       dispatch(resetLogout());
-      navigate("/login", { replace: true });
+      navigate('/login', { replace: true });
     }
   };
 
@@ -71,13 +89,13 @@ export default function RedeemHeader({
         <ConfirmModal
           isOpen={showConfirm}
           title={
-            (localStorage.getItem("app_language")?.toLowerCase() === "es"
+            (localStorage.getItem('app_language')?.toLowerCase() === 'es'
               ? loginEs
               : loginEn
             ).signOutModal.title
           }
           message={
-            (localStorage.getItem("app_language")?.toLowerCase() === "es"
+            (localStorage.getItem('app_language')?.toLowerCase() === 'es'
               ? loginEs
               : loginEn
             ).signOutModal.message
@@ -85,13 +103,13 @@ export default function RedeemHeader({
           onConfirm={handleSignout}
           onCancel={() => setShowConfirm(false)}
           cancelText={
-            (localStorage.getItem("app_language")?.toLowerCase() === "es"
+            (localStorage.getItem('app_language')?.toLowerCase() === 'es'
               ? loginEs
               : loginEn
             ).signOutModal.cancel
           }
           confirmText={
-            (localStorage.getItem("app_language")?.toLowerCase() === "es"
+            (localStorage.getItem('app_language')?.toLowerCase() === 'es'
               ? loginEs
               : loginEn
             ).signOutModal.confirm
@@ -126,11 +144,12 @@ export default function RedeemHeader({
 
           <div className="rounded-full bg-gradient-to-r from-[#db8833] to-primary-400 p-[2px]">
             <div className="rounded-full bg-white p-[2px]">
-              {profileImage ? (
+              {hasImage && profileImage ? (
                 <img
                   src={profileImage}
                   alt={fullName}
                   className="w-8 h-8 rounded-full object-cover"
+                  onError={handleImageError}
                 />
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#5f6060] text-sm font-semibold text-white">

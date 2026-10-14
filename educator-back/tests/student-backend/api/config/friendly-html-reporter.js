@@ -5,31 +5,31 @@
  * in plain English — what it validates, and (on failure) why it failed.
  */
 
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
 /* ------------------------ helpers ------------------------ */
 
-function stripAnsi(str = "") {
+function stripAnsi(str = '') {
   // eslint-disable-next-line no-control-regex
-  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 }
 
-function escapeHtml(s = "") {
+function escapeHtml(s = '') {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function moduleFromPath(testPath) {
-  const norm = testPath.replace(/\\/g, "/");
+  const norm = testPath.replace(/\\/g, '/');
   const m = norm.match(/\/tests\/(?:api|unit|integration)\/modules\/([^/]+)\//);
   if (m) return m[1];
   const s = norm.match(/\/src\/modules\/([^/]+)\//);
-  return s ? s[1] : "other";
+  return s ? s[1] : 'other';
 }
 
 function fileBase(testPath) {
@@ -37,41 +37,43 @@ function fileBase(testPath) {
 }
 
 function humanizeTitle(title) {
-  if (!title) return "Validates expected behavior.";
+  if (!title) return 'Validates expected behavior.';
   let t = title.trim();
-  t = t.replace(/^should\s+/i, "");
+  t = t.replace(/^should\s+/i, '');
   t = t.charAt(0).toUpperCase() + t.slice(1);
-  if (!/[.!?]$/.test(t)) t += ".";
+  if (!/[.!?]$/.test(t)) t += '.';
   return t;
 }
 
 /* Plain-English descriptions for every HTTP status code used in tests */
 const STATUS_DESCRIPTIONS = {
-  200: "200 OK — The request succeeded and the API returned the expected data.",
-  201: "201 Created — A new resource was successfully created and returned.",
-  204: "204 No Content — The request succeeded but the API returned no body (e.g. delete).",
-  400: "400 Bad Request — The request payload was invalid, malformed, or missing required fields. The API correctly rejected it.",
-  401: "401 Unauthorized — No valid authentication token was provided. The API correctly blocked unauthenticated access.",
-  403: "403 Forbidden — A valid token was provided but the user does not have permission to perform this action.",
-  404: "404 Not Found — The requested resource does not exist. The API correctly returned not-found.",
-  405: "405 Method Not Allowed — The HTTP method (GET/POST/etc.) is not supported on this endpoint.",
-  408: "408 Request Timeout — The request took too long. The API correctly returned a timeout error.",
-  409: "409 Conflict — A duplicate or conflicting resource already exists. The API correctly rejected the request.",
-  415: "415 Unsupported Media Type — The request Content-Type header was wrong or missing.",
-  422: "422 Unprocessable Entity — The payload structure was understood but the data failed business-level validation.",
-  429: "429 Too Many Requests — The client sent too many requests in a short period. Rate limiting kicked in as expected.",
-  500: "500 Internal Server Error — A server-side or dependency failure occurred. The API correctly propagated the error.",
-  502: "502 Bad Gateway — An upstream service returned an invalid response. The API correctly surfaced this.",
-  503: "503 Service Unavailable — A required downstream service is temporarily unavailable. The API handled the outage gracefully.",
-  504: "504 Gateway Timeout — An upstream service timed out. The API correctly returned a gateway timeout.",
+  200: '200 OK — The request succeeded and the API returned the expected data.',
+  201: '201 Created — A new resource was successfully created and returned.',
+  204: '204 No Content — The request succeeded but the API returned no body (e.g. delete).',
+  400: '400 Bad Request — The request payload was invalid, malformed, or missing required fields. The API correctly rejected it.',
+  401: '401 Unauthorized — No valid authentication token was provided. The API correctly blocked unauthenticated access.',
+  403: '403 Forbidden — A valid token was provided but the user does not have permission to perform this action.',
+  404: '404 Not Found — The requested resource does not exist. The API correctly returned not-found.',
+  405: '405 Method Not Allowed — The HTTP method (GET/POST/etc.) is not supported on this endpoint.',
+  408: '408 Request Timeout — The request took too long. The API correctly returned a timeout error.',
+  409: '409 Conflict — A duplicate or conflicting resource already exists. The API correctly rejected the request.',
+  415: '415 Unsupported Media Type — The request Content-Type header was wrong or missing.',
+  422: '422 Unprocessable Entity — The payload structure was understood but the data failed business-level validation.',
+  429: '429 Too Many Requests — The client sent too many requests in a short period. Rate limiting kicked in as expected.',
+  500: '500 Internal Server Error — A server-side or dependency failure occurred. The API correctly propagated the error.',
+  502: '502 Bad Gateway — An upstream service returned an invalid response. The API correctly surfaced this.',
+  503: '503 Service Unavailable — A required downstream service is temporarily unavailable. The API handled the outage gracefully.',
+  504: '504 Gateway Timeout — An upstream service timed out. The API correctly returned a gateway timeout.',
 };
 
 function statusDescription(code) {
-  return STATUS_DESCRIPTIONS[Number(code)] || `HTTP ${code} — response matched the expected status code.`;
+  return (
+    STATUS_DESCRIPTIONS[Number(code)] || `HTTP ${code} — response matched the expected status code.`
+  );
 }
 
 function whyPassed(title) {
-  const lower = (title || "").toLowerCase();
+  const lower = (title || '').toLowerCase();
 
   // If a status code is mentioned in the title, give a detailed status-specific explanation
   const statusMatch = lower.match(/\b([1-5]\d{2})\b/);
@@ -79,37 +81,39 @@ function whyPassed(title) {
     return `The API returned the expected status code. ${statusDescription(statusMatch[1])}`;
   }
   if (/(unauthor|forbidden|token|jwt|auth)/.test(lower))
-    return "Authentication & authorization rules were enforced correctly. The API rejected the request as expected.";
+    return 'Authentication & authorization rules were enforced correctly. The API rejected the request as expected.';
   if (/(create|post|add)/.test(lower))
-    return "The resource was created successfully. The API returned 201 Created with the correct response structure.";
+    return 'The resource was created successfully. The API returned 201 Created with the correct response structure.';
   if (/(update|put|patch|edit)/.test(lower))
-    return "The resource was updated successfully. The API returned 200 OK with the updated data.";
+    return 'The resource was updated successfully. The API returned 200 OK with the updated data.';
   if (/(delete|remove)/.test(lower))
-    return "The resource was deleted successfully. The API responded with the expected status and empty/confirmation body.";
+    return 'The resource was deleted successfully. The API responded with the expected status and empty/confirmation body.';
   if (/(get|list|fetch|read|retrieve)/.test(lower))
-    return "The API returned 200 OK with the expected data in the correct shape and structure.";
+    return 'The API returned 200 OK with the expected data in the correct shape and structure.';
   if (/(validation|invalid|missing|required|payload|schema)/.test(lower))
-    return "Input validation worked correctly. The API returned 400 Bad Request because a required field was missing or invalid.";
+    return 'Input validation worked correctly. The API returned 400 Bad Request because a required field was missing or invalid.';
   if (/(timeout|unavailable|failure|down|outage|gateway)/.test(lower))
-    return "Resilience test passed. The API handled the simulated service failure and returned the expected error response.";
+    return 'Resilience test passed. The API handled the simulated service failure and returned the expected error response.';
   if (/(conflict|duplicate|already exists)/.test(lower))
-    return "Duplicate detection worked. The API returned 409 Conflict because the resource already exists.";
+    return 'Duplicate detection worked. The API returned 409 Conflict because the resource already exists.';
   if (/(rate.?limit|too many)/.test(lower))
-    return "Rate limiting worked. The API returned 429 Too Many Requests and blocked the excess traffic as expected.";
+    return 'Rate limiting worked. The API returned 429 Too Many Requests and blocked the excess traffic as expected.';
   if (/(contract|schema|shape|structure)/.test(lower))
-    return "Contract test passed. The response payload matched the expected API schema exactly.";
-  return "The API behaved as expected and all assertions passed.";
+    return 'Contract test passed. The response payload matched the expected API schema exactly.';
+  return 'The API behaved as expected and all assertions passed.';
 }
 
 function whyFailed(failureMessages = []) {
-  if (!failureMessages.length) return "The test did not meet the expected outcome.";
-  const raw = stripAnsi(failureMessages.join("\n"));
+  if (!failureMessages.length) return 'The test did not meet the expected outcome.';
+  const raw = stripAnsi(failureMessages.join('\n'));
 
   // Most common: Expected: X / Received: Y — check for status code mismatch first
-  const expectMatch = raw.match(/Expected:\s*([\s\S]*?)\nReceived:\s*([\s\S]*?)(?:\n\n|\n\s+at\s|$)/);
+  const expectMatch = raw.match(
+    /Expected:\s*([\s\S]*?)\nReceived:\s*([\s\S]*?)(?:\n\n|\n\s+at\s|$)/,
+  );
   if (expectMatch) {
-    const expected = expectMatch[1].trim().split("\n")[0].slice(0, 200).trim();
-    const received = expectMatch[2].trim().split("\n")[0].slice(0, 200).trim();
+    const expected = expectMatch[1].trim().split('\n')[0].slice(0, 200).trim();
+    const received = expectMatch[2].trim().split('\n')[0].slice(0, 200).trim();
 
     // Both sides are status codes — give a rich explanation
     if (/^\d{3}$/.test(expected) && /^\d{3}$/.test(received)) {
@@ -145,18 +149,18 @@ function whyFailed(failureMessages = []) {
   }
 
   if (/timeout/i.test(raw))
-    return "The test exceeded its allowed time. The API did not respond before the timeout limit. Check for slow queries, infinite loops, or missing awaits.";
+    return 'The test exceeded its allowed time. The API did not respond before the timeout limit. Check for slow queries, infinite loops, or missing awaits.';
 
   if (/ECONNREFUSED/i.test(raw))
-    return "Connection refused — a required service (Redis, database, or the NestJS app itself) was not running when the test executed.";
+    return 'Connection refused — a required service (Redis, database, or the NestJS app itself) was not running when the test executed.';
   if (/ENOTFOUND/i.test(raw))
-    return "DNS/host not found — the test tried to reach a host that does not exist. Check the base URL configuration.";
+    return 'DNS/host not found — the test tried to reach a host that does not exist. Check the base URL configuration.';
   if (/ETIMEDOUT/i.test(raw))
-    return "Network timeout — the connection to a required service timed out. The service may be overloaded or unreachable.";
+    return 'Network timeout — the connection to a required service timed out. The service may be overloaded or unreachable.';
 
-  const firstLine = raw.split("\n").find((l) => l.trim().length > 0 && !/^\s*at\s/.test(l));
+  const firstLine = raw.split('\n').find((l) => l.trim().length > 0 && !/^\s*at\s/.test(l));
   if (firstLine) return escapeHtml(firstLine.trim().slice(0, 400));
-  return "The test did not meet the expected outcome.";
+  return 'The test did not meet the expected outcome.';
 }
 
 /* ------------------------ reporter ------------------------ */
@@ -165,12 +169,12 @@ class FriendlyHtmlReporter {
   constructor(globalConfig, options = {}) {
     this._globalConfig = globalConfig;
     this._options = options;
-    const rawOut =
-      options.outputPath ||
-      "<rootDir>/tests/api/reports/html/api-test-report.html";
+    const rawOut = options.outputPath || '<rootDir>/tests/api/reports/html/api-test-report.html';
     this._outputPath = rawOut.replace(/<rootDir>/g, globalConfig.rootDir);
-    this._pageTitle = options.pageTitle || "Backend API Test Report";
-    this._subtitle = options.subtitle || "User-friendly summary of every API test — what it validates and why it passed / failed.";
+    this._pageTitle = options.pageTitle || 'Backend API Test Report';
+    this._subtitle =
+      options.subtitle ||
+      'User-friendly summary of every API test — what it validates and why it passed / failed.';
     this._showTargetUrl = options.showTargetUrl || false;
   }
 
@@ -214,23 +218,28 @@ class FriendlyHtmlReporter {
       });
 
       fs.mkdirSync(path.dirname(this._outputPath), { recursive: true });
-      fs.writeFileSync(this._outputPath, html, "utf-8");
+      fs.writeFileSync(this._outputPath, html, 'utf-8');
       // eslint-disable-next-line no-console
       console.log(`\n${this._pageTitle}: ${this._outputPath}\n`);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error(`\n[FriendlyHtmlReporter] Failed to generate report: ${err.message}\n`, err.stack);
+      console.error(
+        `\n[FriendlyHtmlReporter] Failed to generate report: ${err.message}\n`,
+        err.stack,
+      );
     }
   }
 
   _renderHtml({ summary, modules }) {
     const moduleKeys = Object.keys(modules).sort();
-    const logoPath = path.resolve(__dirname, "../../../../frontend/public/Realityworks_AI_RGB.png");
-    let logoDataUri = "";
+    const logoPath = path.resolve(__dirname, '../../../../frontend/public/Realityworks_AI_RGB.png');
+    let logoDataUri = '';
     try {
       const logoBytes = fs.readFileSync(logoPath);
-      logoDataUri = "data:image/png;base64," + logoBytes.toString("base64");
-    } catch (_) { /* logo not found — skip */ }
+      logoDataUri = 'data:image/png;base64,' + logoBytes.toString('base64');
+    } catch (_) {
+      /* logo not found — skip */
+    }
     const successRate = summary.tests
       ? Math.round((summary.passed / summary.tests) * 1000) / 10
       : 0;
@@ -238,32 +247,34 @@ class FriendlyHtmlReporter {
     const moduleSections = moduleKeys
       .map((modKey) => {
         const fileEntries = Object.entries(modules[modKey].files);
-        let modPassed = 0, modFailed = 0, modSkipped = 0;
+        let modPassed = 0,
+          modFailed = 0,
+          modSkipped = 0;
         fileEntries.forEach(([, tests]) => {
           tests.forEach((t) => {
-            if (t.status === "passed") modPassed++;
-            else if (t.status === "failed") modFailed++;
+            if (t.status === 'passed') modPassed++;
+            else if (t.status === 'failed') modFailed++;
             else modSkipped++;
           });
         });
         const modTotal = modPassed + modFailed + modSkipped;
-        const modStatus = modFailed > 0 ? "fail" : "pass";
+        const modStatus = modFailed > 0 ? 'fail' : 'pass';
 
         const fileBlocks = fileEntries
           .map(([file, tests]) => {
             const rows = tests
               .map((t) => {
                 try {
-                  const isPass = t.status === "passed";
-                  const isFail = t.status === "failed";
-                  const badgeCls = isPass ? "pass" : isFail ? "fail" : "skip";
-                  const badgeText = isPass ? "PASS" : isFail ? "FAIL" : t.status.toUpperCase();
+                  const isPass = t.status === 'passed';
+                  const isFail = t.status === 'failed';
+                  const badgeCls = isPass ? 'pass' : isFail ? 'fail' : 'skip';
+                  const badgeText = isPass ? 'PASS' : isFail ? 'FAIL' : t.status.toUpperCase();
                   const explanation = isFail
                     ? whyFailed(t.failureMessages)
                     : isPass
-                    ? whyPassed(t.title)
-                    : "Test was skipped or pending.";
-                  const explLabel = isFail ? "Why it failed" : isPass ? "Why it passed" : "Note";
+                      ? whyPassed(t.title)
+                      : 'Test was skipped or pending.';
+                  const explLabel = isFail ? 'Why it failed' : isPass ? 'Why it passed' : 'Note';
 
                   return `
                   <div class="test-row ${badgeCls}" data-status="${badgeCls}">
@@ -278,10 +289,10 @@ class FriendlyHtmlReporter {
                     </div>
                   </div>`;
                 } catch (e) {
-                  return `<div class="test-row fail" data-status="fail"><div class="test-head"><span class="badge fail">ERROR</span><span class="test-title">${escapeHtml(t.title || "unknown")}</span></div><div class="test-body"><div class="kvp"><span class="k">Reporter error:</span><span class="v">${escapeHtml(String(e.message))}</span></div></div></div>`;
+                  return `<div class="test-row fail" data-status="fail"><div class="test-head"><span class="badge fail">ERROR</span><span class="test-title">${escapeHtml(t.title || 'unknown')}</span></div><div class="test-body"><div class="kvp"><span class="k">Reporter error:</span><span class="v">${escapeHtml(String(e.message))}</span></div></div></div>`;
                 }
               })
-              .join("");
+              .join('');
 
             return `
             <div class="file-block">
@@ -289,7 +300,7 @@ class FriendlyHtmlReporter {
               ${rows}
             </div>`;
           })
-          .join("");
+          .join('');
 
         return `
         <section class="module-section ${modStatus}" data-module="${escapeHtml(modKey)}">
@@ -298,8 +309,8 @@ class FriendlyHtmlReporter {
             <span class="module-name">${escapeHtml(modKey.charAt(0).toUpperCase() + modKey.slice(1))}</span>
             <span class="module-stats">
               <span class="chip ok">${modPassed} passed</span>
-              ${modFailed ? `<span class="chip bad">${modFailed} failed</span>` : ""}
-              ${modSkipped ? `<span class="chip warn">${modSkipped} skipped</span>` : ""}
+              ${modFailed ? `<span class="chip bad">${modFailed} failed</span>` : ''}
+              ${modSkipped ? `<span class="chip warn">${modSkipped} skipped</span>` : ''}
               <span class="chip total">${modTotal} total</span>
             </span>
           </button>
@@ -308,7 +319,7 @@ class FriendlyHtmlReporter {
           </div>
         </section>`;
       })
-      .join("");
+      .join('');
 
     const generatedAt = new Date().toLocaleString();
     const durationSec = (summary.durationMs / 1000).toFixed(2);
@@ -413,13 +424,13 @@ class FriendlyHtmlReporter {
       <div class="subtitle">${escapeHtml(this._subtitle)}</div>
       <div class="meta">
         <div><strong>Project</strong>HS Online AI App — Backend</div>
-        <div><strong>Framework</strong>${this._showTargetUrl ? "Jest + axios (live server)" : "Jest + Supertest (NestJS)"}</div>
-        ${this._showTargetUrl && process.env.BASE_BACKEND_URL ? `<div><strong>Target URL</strong>${escapeHtml(process.env.BASE_BACKEND_URL)}</div>` : ""}
+        <div><strong>Framework</strong>${this._showTargetUrl ? 'Jest + axios (live server)' : 'Jest + Supertest (NestJS)'}</div>
+        ${this._showTargetUrl && process.env.BASE_BACKEND_URL ? `<div><strong>Target URL</strong>${escapeHtml(process.env.BASE_BACKEND_URL)}</div>` : ''}
         <div><strong>Duration</strong>${durationSec} s</div>
         <div><strong>Generated</strong>${escapeHtml(generatedAt)}</div>
       </div>
     </div>
-    ${logoDataUri ? `<img src="${logoDataUri}" alt="Realityworks AI" style="height:auto;max-height:64px;width:min(36vw,340px);max-width:100%;object-fit:contain;object-position:right center;flex-shrink:1;background:#fff;padding:8px 12px;border-radius:10px"/>` : ""}
+    ${logoDataUri ? `<img src="${logoDataUri}" alt="Realityworks AI" style="height:auto;max-height:64px;width:min(36vw,340px);max-width:100%;object-fit:contain;object-position:right center;flex-shrink:1;background:#fff;padding:8px 12px;border-radius:10px"/>` : ''}
   </header>
 
   <section class="stats-grid">

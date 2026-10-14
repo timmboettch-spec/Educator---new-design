@@ -1,0 +1,15 @@
+{
+  "photo": {
+    "uploading": "Uploading photo…",
+    "removing": "Removing photo…"
+  },
+  "editProfile": {
+    "saving": "Saving…"
+  },
+  "profile": {
+    "loading": "Loading your profile…",
+    "unavailableTitle": "We couldn't load your profile",
+    "unavailableBody": "Check your connection and try again.",
+    "retry": "Try again"
+  }
+}

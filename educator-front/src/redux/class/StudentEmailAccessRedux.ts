@@ -52,7 +52,9 @@ export const sendEmailAccessCodeRequest = createAsyncThunk<
         };
       };
     };
-    return rejectWithValue(error.response?.data?.message || 'Failed to send email');
+    return rejectWithValue(
+      error.response?.data?.message || 'Failed to send email'
+    );
   }
 });
 const studentEmailAccessCodeSlice = createSlice({
@@ -85,9 +87,14 @@ const studentEmailAccessCodeSlice = createSlice({
   },
 });
 
-export const { clearEmailAccessCodeState } = studentEmailAccessCodeSlice.actions;
+export const { clearEmailAccessCodeState } =
+  studentEmailAccessCodeSlice.actions;
 export default studentEmailAccessCodeSlice.reducer;
-export const selectEmailAccessCodeLoading = (state: RootState) => state.studentEmailAccess.loading;
-export const selectEmailAccessCodeSuccess = (state: RootState) => state.studentEmailAccess.success;
-export const selectEmailAccessCodeError = (state: RootState) => state.studentEmailAccess.error;
-export const selectEmailAccessCodeCount = (state: RootState) => state.studentEmailAccess.count;
+export const selectEmailAccessCodeLoading = (state: RootState) =>
+  state.studentEmailAccess.loading;
+export const selectEmailAccessCodeSuccess = (state: RootState) =>
+  state.studentEmailAccess.success;
+export const selectEmailAccessCodeError = (state: RootState) =>
+  state.studentEmailAccess.error;
+export const selectEmailAccessCodeCount = (state: RootState) =>
+  state.studentEmailAccess.count;

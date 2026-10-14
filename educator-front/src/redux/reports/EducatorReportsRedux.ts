@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSlice,
+  createSelector,
+} from '@reduxjs/toolkit';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 import type { RootState } from '../../store';
@@ -24,13 +28,16 @@ export const GetEducatorSimulationReports = createAsyncThunk<
   { rejectValue: { message: string }; state: RootState }
 >('educatorReports/fetch', async ({ educatorId }, thunkAPI) => {
   try {
-    const res = await api.get(`${config.SimulationEducatorReportsAPI}/${educatorId}`, {
-      headers: {
-        'ngrok-skip-browser-warning': 'true',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-      },
-    });
+    const res = await api.get(
+      `${config.SimulationEducatorReportsAPI}/${educatorId}`,
+      {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
+        },
+      }
+    );
     const reports = (res.data?.data ?? res.data) as SimulationReportItem[];
     const state = thunkAPI.getState();
     const viewedReportIds = state.GetClass.viewedReportIds;
@@ -39,7 +46,8 @@ export const GetEducatorSimulationReports = createAsyncThunk<
     for (const cls of classes) {
       for (const student of cls.students ?? []) {
         if (student.user_id) userToClass.set(student.user_id, String(cls.id));
-        if (student.student_id) userToClass.set(student.student_id, String(cls.id));
+        if (student.student_id)
+          userToClass.set(student.student_id, String(cls.id));
       }
     }
 
@@ -53,7 +61,6 @@ export const GetEducatorSimulationReports = createAsyncThunk<
       unreadByClass[classId] = (unreadByClass[classId] ?? 0) + 1;
     }
 
-
     for (const cls of classes) {
       const id = String(cls.id);
       const unreadCount = unreadByClass[id] ?? 0;
@@ -62,7 +69,7 @@ export const GetEducatorSimulationReports = createAsyncThunk<
           classId: id,
           needsAttention: unreadCount > 0,
           unreadCount,
-        }),
+        })
       );
     }
 
@@ -70,7 +77,8 @@ export const GetEducatorSimulationReports = createAsyncThunk<
   } catch (err) {
     const error = err as { response?: { data?: { message?: string } } };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message ?? 'Failed to fetch educator reports',
+      message:
+        error.response?.data?.message ?? 'Failed to fetch educator reports',
     });
   }
 });
@@ -85,10 +93,23 @@ const slice = createSlice({
       state.error = null;
     },
     clearReportIsNew: (state, action: { payload: string | string[] }) => {
-      const ids = Array.isArray(action.payload) ? action.payload : [action.payload];
+      const ids = Array.isArray(action.payload)
+        ? action.payload
+        : [action.payload];
       for (const report of state.reports) {
         if (ids.includes(report.id)) {
           report.isNew = false;
+        }
+      }
+    },
+    // Reverse of clearReportIsNew, for bulk "mark unreviewed".
+    setReportIsNew: (state, action: { payload: string | string[] }) => {
+      const ids = Array.isArray(action.payload)
+        ? action.payload
+        : [action.payload];
+      for (const report of state.reports) {
+        if (ids.includes(report.id)) {
+          report.isNew = true;
         }
       }
     },
@@ -110,7 +131,19 @@ const slice = createSlice({
   },
 });
 
-export const { resetEducatorReports, clearReportIsNew } = slice.actions;
-export const selectEducatorReports = (state: RootState) => state.EducatorReports.reports;
-export const selectEducatorReportsStatus = (state: RootState) => state.EducatorReports.status;
+export const { resetEducatorReports, clearReportIsNew, setReportIsNew } =
+  slice.actions;
+
+const selectEducatorReportsState = (state: RootState) => state.EducatorReports;
+
+export const selectEducatorReports = createSelector(
+  selectEducatorReportsState,
+  (state) => state.reports
+);
+
+export const selectEducatorReportsStatus = createSelector(
+  selectEducatorReportsState,
+  (state) => state.status
+);
+
 export default slice.reducer;

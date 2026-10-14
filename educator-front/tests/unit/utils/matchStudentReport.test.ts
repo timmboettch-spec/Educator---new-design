@@ -7,7 +7,11 @@ import {
 
 describe('reportMatchesStudent', () => {
   it('matches by student access code', () => {
-    const student = { id: 'uuid-1', student_id: '99190352', student_name: 'Student' };
+    const student = {
+      id: 'uuid-1',
+      student_id: '99190352',
+      student_name: 'Student',
+    };
     const report = { userId: '99190352', studentName: 'Student' };
 
     expect(reportMatchesStudent(student, report)).toBe(true);
@@ -22,10 +26,10 @@ describe('reportMatchesStudent', () => {
     const report = { userId: '99190352', studentName: 'Student' };
 
     expect(
-      reportMatchesStudent(students[0], report, { uniqueStudentNames }),
+      reportMatchesStudent(students[0], report, { uniqueStudentNames })
     ).toBe(true);
     expect(
-      reportMatchesStudent(students[1], report, { uniqueStudentNames }),
+      reportMatchesStudent(students[1], report, { uniqueStudentNames })
     ).toBe(false);
   });
 
@@ -38,10 +42,10 @@ describe('reportMatchesStudent', () => {
     const report = { studentName: 'Jane Doe' };
 
     expect(
-      reportMatchesStudent(students[0], report, { uniqueStudentNames }),
+      reportMatchesStudent(students[0], report, { uniqueStudentNames })
     ).toBe(true);
     expect(
-      reportMatchesStudent(students[1], report, { uniqueStudentNames }),
+      reportMatchesStudent(students[1], report, { uniqueStudentNames })
     ).toBe(false);
   });
 });

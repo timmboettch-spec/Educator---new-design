@@ -2,7 +2,7 @@
 jest.setTimeout(10000);
 
 // Provide deterministic defaults for the JWT / educator-token signing
-// secrets so test modules that import AuthModule / EducatorAuthModule can
+// secrets so test modules that import AuthModule can
 // compile without requiring a fully-populated environment. Individual test
 // files may still override these values (e.g. `scenarios.auth.spec.ts`
 // sets its own SCENARIO_TOKEN_SECRET) — we only fill in a default when

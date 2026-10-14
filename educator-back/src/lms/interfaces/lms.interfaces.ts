@@ -1,4 +1,4 @@
-import type { LmsSchoolConfig } from '../entity/lms-school-config.entity';
+import { LmsSchoolConfig } from 'src/database/entities';
 
 export interface LmsRosterMember {
   userId: string;
@@ -28,7 +28,7 @@ export interface StudentProfileLookup {
 
 /**
  * Adapter interface for LMS-specific implementations.
- * Each LMS platform (Moodle, Canvas, Blackboard) implements this interface.
+ * Each LMS platform (Moodle, Canvas, etc.) implements this interface.
  */
 export interface LmsAdapter {
   /**
@@ -75,6 +75,36 @@ export interface LmsAdapter {
     config: LmsSchoolConfig,
     lmsUserId: string,
   ): Promise<{ email: string | null; error: string | null }>;
+
+  /** List courses available in the LMS (platform API). */
+  listCourses?(config: LmsSchoolConfig): Promise<LmsCoursesResponse>;
+
+  /** Enrolled learners for one course (platform API). */
+  getEnrolledStudentsForCourse?(
+    config: LmsSchoolConfig,
+    courseId: number,
+  ): Promise<LmsEnrolledStudentsResponse>;
+
+  /** Prefer platform enrollment roles over stale NRPS roles when supported. */
+  enrichRosterRoles?(
+    config: LmsSchoolConfig,
+    nrpsUrl: string,
+    roster: LmsRosterResponse,
+  ): Promise<LmsRosterResponse>;
+
+  /** Platform API roster when NRPS/token flow is unavailable. */
+  fetchRosterFromPlatformWs?(config: LmsSchoolConfig, courseId: number): Promise<LmsRosterResponse>;
+
+  /** Member display profiles for a course (platform API fallback). */
+  fetchMemberProfilesForCourse?(
+    config: LmsSchoolConfig,
+    courseId: string,
+  ): Promise<Map<string, LmsMemberProfile>>;
+}
+
+export interface LmsMemberProfile {
+  name: string | null;
+  email: string | null;
 }
 
 /**
@@ -116,6 +146,9 @@ export interface MoodleStudentsResponse {
   total: number;
 }
 
+/** Shared alias — Moodle response shape is the current reference implementation. */
+export type LmsEnrolledStudentsResponse = MoodleStudentsResponse;
+
 export interface MoodleCourse {
   id: number;
   fullname: string;
@@ -130,3 +163,6 @@ export interface MoodleCoursesResponse {
   courses: MoodleCourse[];
   total: number;
 }
+
+/** Shared alias — Moodle response shape is the current reference implementation. */
+export type LmsCoursesResponse = MoodleCoursesResponse;

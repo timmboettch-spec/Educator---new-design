@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsArray, IsOptional } from 'class-validator';
+import { ReportModeType } from 'src/common/constants/simulation-report.constants';
 
 export class CreateReportDto {
   @IsString()
@@ -85,7 +86,7 @@ export class CreateReportDto {
 
   @IsOptional()
   @IsString()
-  mode?: 'Practice' | 'Assessment';
+  mode?: ReportModeType;
 
   @IsOptional()
   @IsString()

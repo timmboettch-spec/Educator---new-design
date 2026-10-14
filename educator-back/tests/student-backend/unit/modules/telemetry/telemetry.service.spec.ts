@@ -7,6 +7,7 @@ import {
   SessionEndReason,
   CompletionStatus,
 } from '../../../../../src/student-backend/modules/telemetry/telemetry.service';
+import { LoggerService } from '../../../../../src/common/services';
 
 // Mock OpenTelemetry
 const mockSpan = {
@@ -27,13 +28,23 @@ jest.mock('@opentelemetry/api', () => ({
 
 describe('TelemetryService', () => {
   let service: TelemetryService;
+  let mockLoggerService: jest.Mocked<LoggerService>;
 
   beforeEach(async () => {
     // Reset mocks
     jest.clearAllMocks();
 
+    mockLoggerService = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+      fatal: jest.fn(),
+    } as unknown as jest.Mocked<LoggerService>;
+
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TelemetryService],
+      providers: [TelemetryService, { provide: LoggerService, useValue: mockLoggerService }],
     }).compile();
 
     service = module.get<TelemetryService>(TelemetryService);
@@ -370,6 +381,7 @@ describe('TelemetryService', () => {
 
       // Should not throw
       expect(() => service.trackLoginSessionStarted(properties)).not.toThrow();
+      expect(mockLoggerService.error).toHaveBeenCalled();
     });
   });
 });

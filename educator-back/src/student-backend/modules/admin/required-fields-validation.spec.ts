@@ -18,18 +18,304 @@
 
 import type { Server } from 'http';
 
-import { BadRequestException, type INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  Global,
+  Module,
+  type INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
+import { ConfigModule } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import { validate } from 'class-validator';
 import * as supertestLib from 'supertest';
+import { envConfig } from '../../../common/config';
 
-import { JsonDataModule, JsonDataService } from '../../data/json-data.service';
-import { ScenarioAuthGuard } from '../../guards/scenario-auth.guard';
+import { LoggerService } from '../../../common/services';
+import { RedisService } from '../../../redis/redis.service';
 
+import { ClassSimulationService } from 'src/class-simulations/class-simulation.service';
+
+import { VOICE_PROFILE_REPOSITORY } from 'src/database/tokens';
+import { AzureBlobService } from 'src/common/services/azure-blob.service';
+import { AudioNormalizerService } from 'src/common/services/audio-normalizer.service';
 import { AdminController } from './admin.controller';
 import { AdminModule } from './admin.module';
 import { AdminService } from './admin.service';
 import { CreateScenarioDto } from './dto/create-scenario.dto';
+import {
+  SIMULATION_ACTION_REPOSITORY,
+  SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+  SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+  SIMULATION_ORDER_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from '../../../database/tokens';
+
+const mockLoggerService: jest.Mocked<
+  Pick<LoggerService, 'log' | 'error' | 'warn' | 'debug' | 'verbose' | 'fatal'>
+> = {
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+  verbose: jest.fn(),
+  fatal: jest.fn(),
+};
+
+// LoggerService is normally provided app-wide by the @Global() ServiceModule in
+// the real app; that module isn't part of this isolated AdminModule test tree,
+// so a stand-in @Global() module supplies the mock the same way.
+@Global()
+@Module({
+  providers: [{ provide: LoggerService, useValue: mockLoggerService }],
+  exports: [LoggerService],
+})
+class MockLoggerModule {}
+
+// TokenService (pulled in via ServicesModule) needs RedisService, normally provided by the
+// @Global() RedisModule, which isn't part of this isolated test tree.
+@Global()
+@Module({
+  providers: [{ provide: RedisService, useValue: { get: jest.fn(), set: jest.fn() } }],
+  exports: [RedisService],
+})
+class MockRedisModule {}
+
+// UNIT_REPOSITORY is normally provided app-wide by the @Global() DatabaseModule in
+// the real app; that module isn't part of this isolated AdminModule test tree,
+// so a stand-in @Global() module supplies the mock the same way.
+const mockUnitRepository = {
+  findByBusinessId: jest.fn().mockResolvedValue({ id: 'UAT-009', name: 'Nursing' }),
+  find: jest.fn().mockResolvedValue([]),
+};
+
+@Global()
+@Module({
+  providers: [{ provide: UNIT_REPOSITORY, useValue: mockUnitRepository }],
+  exports: [UNIT_REPOSITORY],
+})
+class MockUnitRepositoryModule {}
+
+// VOICE_PROFILE_REPOSITORY: same reasoning as MockUnitRepositoryModule — AdminModule now
+// imports VoiceProfilesModule (voiceProfileId scenario read/write), which isn't otherwise
+// wired into this isolated test tree.
+@Global()
+@Module({
+  providers: [
+    {
+      provide: VOICE_PROFILE_REPOSITORY,
+      useValue: { findActiveById: jest.fn().mockResolvedValue(null) },
+    },
+    // ServicesModule (Azure blob + audio normalizer) is not part of this isolated tree either.
+    { provide: AzureBlobService, useValue: {} },
+    { provide: AudioNormalizerService, useValue: {} },
+  ],
+  exports: [VOICE_PROFILE_REPOSITORY, AzureBlobService, AudioNormalizerService],
+})
+class MockVoiceProfileRepositoryModule {}
+
+// SIMULATION_V2_REPOSITORY and its child-table repositories are normally provided
+// app-wide by the @Global() DatabaseModule in the real app; that module isn't
+// part of this isolated AdminModule test tree, so stand-in mocks supply them
+// the same way MockUnitRepositoryModule does for UNIT_REPOSITORY. The
+// simulation mock keeps a tiny in-memory store (keyed by business id) so a
+// created scenario can be found again by the createScenario/getScenarioById
+// round-trip the tests exercise.
+function buildMockSimulationRepository() {
+  const rows = new Map<string, Record<string, unknown>>();
+  let counter = 0;
+  return {
+    __reset: () => rows.clear(),
+    /** Seeds an existing row directly, bypassing create() — used by the mock DataSource's transaction hook. */
+    __seed: (data: Record<string, unknown>) => {
+      const row = { simulationId: `sim-${++counter}`, ...data };
+      rows.set(data.id as string, row);
+      return row;
+    },
+    findByBusinessId: jest.fn((id: string) => Promise.resolve(rows.get(id) ?? null)),
+    findByBusinessIdWithChildrenJoined: jest.fn((id: string) => {
+      const row = rows.get(id);
+      return Promise.resolve(
+        row ? { actions: [], orders: [], gradingRubricItems: [], ...row } : null,
+      );
+    }),
+    findUniqueByTitle: jest.fn((title: string) => {
+      const normalized = (title || '').trim().toLowerCase();
+      const match = Array.from(rows.values()).find(
+        (r) => typeof r.title === 'string' && r.title.trim().toLowerCase() === normalized,
+      );
+      return Promise.resolve(match ?? null);
+    }),
+    find: jest.fn(() => Promise.resolve(Array.from(rows.values()))),
+    create: jest.fn((data: Record<string, unknown>) => {
+      const row = { simulationId: `sim-${++counter}`, ...data };
+      rows.set(data.id as string, row);
+      return Promise.resolve(row);
+    }),
+    updateById: jest.fn((simulationId: string, data: Record<string, unknown>) => {
+      for (const [businessId, row] of rows) {
+        if (row.simulationId === simulationId) rows.set(businessId, { ...row, ...data });
+      }
+      return Promise.resolve(rows.get(simulationId) ?? null);
+    }),
+    delete: jest.fn((simulationId: string) => {
+      for (const [businessId, row] of rows) {
+        if (row.simulationId === simulationId) rows.delete(businessId);
+      }
+      return Promise.resolve();
+    }),
+    findByUnitId: jest.fn(() => Promise.resolve([])),
+  };
+}
+
+/** Actions/orders/rubric-item repositories — never populated by these tests, so plain empty stubs. */
+function buildMockChildRepository() {
+  return {
+    findBySimulationId: jest.fn().mockResolvedValue([]),
+    findByBusinessId: jest.fn().mockResolvedValue(null),
+    find: jest.fn().mockResolvedValue([]),
+    create: jest.fn(),
+    updateById: jest.fn(),
+    delete: jest.fn(),
+  };
+}
+
+function buildMockOrderLinkedActionRepository() {
+  return {
+    findByOrderIds: jest.fn().mockResolvedValue([]),
+    findActionIdsByOrderId: jest.fn().mockResolvedValue([]),
+    linkActions: jest.fn(),
+    replaceLinksForOrder: jest.fn(),
+    deleteByOrderId: jest.fn(),
+  };
+}
+
+/**
+ * Mock for TypeORM's `DataSource`, covering only `transaction()` — the one
+ * method AdminService.createScenario uses (it runs the simulation + child
+ * table inserts through `manager.create`/`manager.save` instead of the
+ * repositories, so a real transaction can span all of them). The callback is
+ * invoked immediately (no real DB); saving the `Simulation` entity seeds the
+ * row into `simulationRepository` (via its `__seed`) so a later
+ * `getScenarioById` in the same test can find it, mirroring the real
+ * create-then-reread round trip against Postgres.
+ */
+function buildMockDataSource(
+  simulationRepository: ReturnType<typeof buildMockSimulationRepository>,
+) {
+  let counter = 0;
+  const manager = {
+    create: jest.fn((_entityClass: unknown, data: unknown) => data),
+    save: jest.fn((entityClassOrEntities: unknown, maybeEntities?: unknown) => {
+      const passedEntityClass = maybeEntities !== undefined;
+      const entityClass = passedEntityClass ? entityClassOrEntities : undefined;
+      const entities = passedEntityClass ? maybeEntities : entityClassOrEntities;
+      const asArray = Array.isArray(entities) ? entities : [entities];
+      const entityName = (entityClass as { name?: string } | undefined)?.name;
+
+      if (entityName === 'SimulationV2') {
+        const seeded = asArray.map((row: Record<string, unknown>) =>
+          simulationRepository.__seed(row),
+        );
+        return Promise.resolve(Array.isArray(entities) ? seeded : seeded[0]);
+      }
+
+      const withIds = asArray.map((entity: Record<string, unknown>) => ({
+        actionId: `action-${++counter}`,
+        id: `id-${++counter}`,
+        ...entity,
+      }));
+      return Promise.resolve(Array.isArray(entities) ? withIds : withIds[0]);
+    }),
+  };
+  return {
+    transaction: jest.fn((work: (txManager: typeof manager) => Promise<unknown>) => work(manager)),
+    __manager: manager,
+  };
+}
+
+const mockSimulationRepository = buildMockSimulationRepository();
+const mockSimulationActionRepository = buildMockChildRepository();
+const mockSimulationOrderRepository = buildMockChildRepository();
+const mockSimulationGradingRubricItemRepository = buildMockChildRepository();
+const mockSimulationOrderLinkedActionRepository = buildMockOrderLinkedActionRepository();
+
+@Global()
+@Module({
+  providers: [
+    { provide: SIMULATION_V2_REPOSITORY, useValue: mockSimulationRepository },
+    { provide: SIMULATION_ACTION_REPOSITORY, useValue: mockSimulationActionRepository },
+    { provide: SIMULATION_ORDER_REPOSITORY, useValue: mockSimulationOrderRepository },
+    {
+      provide: SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+      useValue: mockSimulationOrderLinkedActionRepository,
+    },
+    {
+      provide: SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+      useValue: mockSimulationGradingRubricItemRepository,
+    },
+  ],
+  exports: [
+    SIMULATION_V2_REPOSITORY,
+    SIMULATION_ACTION_REPOSITORY,
+    SIMULATION_ORDER_REPOSITORY,
+    SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+    SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+  ],
+})
+class MockSimulationRepositoryModule {}
+
+// DataSource is normally provided app-wide by TypeORM's root module in the
+// real app; that module isn't part of this isolated AdminModule test tree,
+// so a stand-in @Global() module supplies the mock the same way.
+const mockDataSource = buildMockDataSource(mockSimulationRepository);
+
+@Global()
+@Module({
+  providers: [{ provide: DataSource, useValue: mockDataSource }],
+  exports: [DataSource],
+})
+class MockDataSourceModule {}
+
+// ClassSimulationService is normally provided app-wide via ClassSimulationModule in
+// the real app; that module isn't part of this isolated AdminModule test tree, so
+// a stand-in @Global() module supplies a mock the same way MockUnitRepositoryModule
+// does for UNIT_REPOSITORY. AdminService only calls this conditionally (aiRelevantChanged
+// / category-changed branches) which these required-field-validation tests never trigger.
+const mockClassSimulationService = {
+  recalculateSeatsForSimulationChange: jest.fn().mockResolvedValue(undefined),
+  recalculateSeatsForUnitCategoryChange: jest.fn().mockResolvedValue(undefined),
+};
+
+@Global()
+@Module({
+  providers: [{ provide: ClassSimulationService, useValue: mockClassSimulationService }],
+  exports: [ClassSimulationService],
+})
+class MockClassSimulationModule {}
+
+// TRANSCRIPT_REPOSITORY is normally provided app-wide by the @Global() DatabaseModule
+// in the real app; that module isn't part of this isolated AdminModule test tree, so a
+// stand-in @Global() module supplies the mock the same way MockUnitRepositoryModule does
+// for UNIT_REPOSITORY. AdminService.getAllStudentsWithStats() is the only caller, which
+// these required-field-validation tests never exercise.
+const mockTranscriptRepository = {
+  find: jest.fn().mockResolvedValue([]),
+};
+
+@Global()
+@Module({
+  providers: [
+    { provide: TRANSCRIPT_REPOSITORY, useValue: mockTranscriptRepository },
+    { provide: SIMULATION_REPORT_REPOSITORY, useValue: { findDetailRowByReportId: jest.fn() } },
+  ],
+  exports: [TRANSCRIPT_REPOSITORY, SIMULATION_REPORT_REPOSITORY],
+})
+class MockTranscriptRepositoryModule {}
 
 const request = supertestLib.default;
 
@@ -42,17 +328,6 @@ function extractMessages(body: unknown): string[] {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
-
-function buildMockJsonDataService() {
-  return {
-    getScenarioById: jest.fn().mockReturnValue(null),
-    getScenarios: jest.fn().mockReturnValue([]),
-    addScenario: jest.fn(),
-    updateScenario: jest.fn(),
-    deleteScenario: jest.fn(),
-    getUnitById: jest.fn().mockReturnValue({ id: 'UAT-009', name: 'Nursing' }),
-  };
-}
 
 /** Build a valid DTO plain object — individual tests override specific fields. */
 function validPayload(overrides: Partial<Record<string, unknown>> = {}) {
@@ -212,13 +487,10 @@ describe('AdminController – createScenario required field validation', () => {
     getScenarioById: jest.fn(),
     updateScenario: jest.fn(),
     deleteScenario: jest.fn(),
-    createOrUpdatePermission: jest.fn(),
-    getAllStudentsWithStats: jest.fn(),
     getAllUnitsWithStats: jest.fn(),
     createUnit: jest.fn(),
     updateUnit: jest.fn(),
     deleteUnit: jest.fn(),
-    getReports: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -282,24 +554,22 @@ describe('AdminController – createScenario required field validation', () => {
 describe('POST /api/admin/scenarios – required field validation (e2e)', () => {
   let app: INestApplication;
   let httpServer: Server;
-  let mockJsonDataService: ReturnType<typeof buildMockJsonDataService>;
 
   beforeAll(async () => {
-    mockJsonDataService = buildMockJsonDataService();
-
     const moduleRef = await Test.createTestingModule({
-      // JsonDataModule is @Global() but AdminModule does not import it directly,
-      // so it must be pulled into the testing module tree explicitly here.
-      imports: [AdminModule, JsonDataModule],
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true, load: envConfig }),
+        AdminModule,
+        MockLoggerModule,
+        MockRedisModule,
+        MockUnitRepositoryModule,
+        MockSimulationRepositoryModule,
+        MockDataSourceModule,
+        MockClassSimulationModule,
+        MockTranscriptRepositoryModule,
+        MockVoiceProfileRepositoryModule,
+      ],
     })
-      .overrideProvider(JsonDataService)
-      .useValue(mockJsonDataService)
-      // ScenarioAuthGuard needs passport strategies registered by AuthModule/
-      // EducatorAuthModule, which aren't part of this isolated module tree.
-      // These tests target request-body validation, not auth, so the guard
-      // is neutralized here rather than pulling in the full auth stack.
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -315,7 +585,10 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
     httpServer = app.getHttpServer() as Server;
   });
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSimulationRepository.__reset();
+  });
 
   afterAll(async () => {
     await app.close();
@@ -331,7 +604,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /scenario id is required/i.test(m))).toBe(true);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   it('returns 400 when id is an empty string', async () => {
@@ -342,7 +615,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /scenario id is required/i.test(m))).toBe(true);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   // ── title missing / empty ─────────────────────────────────────────────────
@@ -355,7 +628,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /title is required/i.test(m))).toBe(true);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   it('returns 400 when title is an empty string (enforced by AdminService.createScenario, not the DTO)', async () => {
@@ -366,7 +639,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /title is required/i.test(m))).toBe(true);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   // ── unitId optional (accepts missing or empty) ────────────────────────────
@@ -377,7 +650,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
       .send({ id: 'TEST-SCN-001', title: 'Valid Title', estimatedDuration: '20 minutes' })
       .expect(201);
 
-    expect(mockJsonDataService.addScenario).toHaveBeenCalledTimes(1);
+    expect(mockSimulationRepository.create).toHaveBeenCalledTimes(1);
   });
 
   it('returns 201 when unitId is an empty string', async () => {
@@ -391,7 +664,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
       })
       .expect(201);
 
-    expect(mockJsonDataService.addScenario).toHaveBeenCalledTimes(1);
+    expect(mockSimulationRepository.create).toHaveBeenCalledTimes(1);
   });
 
   // ── multiple fields missing ───────────────────────────────────────────────
@@ -405,7 +678,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /scenario id is required/i.test(m))).toBe(true);
     expect(messages.some((m) => /title is required/i.test(m))).toBe(false);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   it('returns 400 with an id error when both are missing (with unitId, title itself is not flagged)', async () => {
@@ -417,7 +690,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /scenario id is required/i.test(m))).toBe(true);
     expect(messages.some((m) => /title is required/i.test(m))).toBe(false);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   it('returns 400 with id error only when title alone is provided', async () => {
@@ -429,7 +702,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /scenario id is required/i.test(m))).toBe(true);
     expect(messages.some((m) => /unit id is required/i.test(m))).toBe(false);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   it('returns 400 with title error only when id alone is provided (enforced by AdminService.createScenario, not the DTO)', async () => {
@@ -441,7 +714,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
     const messages = extractMessages(res.body);
     expect(messages.some((m) => /title is required/i.test(m))).toBe(true);
     expect(messages.some((m) => /unit id is required/i.test(m))).toBe(false);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   // ── empty body ────────────────────────────────────────────────────────────
@@ -450,7 +723,7 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
     const res = await request(httpServer).post('/api/admin/scenarios').send({}).expect(400);
 
     expect(extractMessages(res.body).length).toBeGreaterThan(0);
-    expect(mockJsonDataService.addScenario).not.toHaveBeenCalled();
+    expect(mockSimulationRepository.create).not.toHaveBeenCalled();
   });
 
   // ── acceptance ────────────────────────────────────────────────────────────
@@ -467,9 +740,10 @@ describe('POST /api/admin/scenarios – required field validation (e2e)', () => 
       })
       .expect(201);
 
-    expect(mockJsonDataService.addScenario).toHaveBeenCalledTimes(1);
-    expect(mockJsonDataService.addScenario).toHaveBeenCalledWith(
+    expect(mockSimulationRepository.create).toHaveBeenCalledTimes(1);
+    expect(mockSimulationRepository.create).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'TEST-SCN-001' }),
+      { lockVoiceProfileId: null },
     );
   });
 });

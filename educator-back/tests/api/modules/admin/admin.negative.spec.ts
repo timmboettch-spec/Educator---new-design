@@ -33,7 +33,9 @@ describe('Admin Controller — Negative Cases', () => {
     const res = await agent
       .get(ENDPOINTS.SCHOOLS.BY_ID('not-a-valid-uuid'))
       .set('Authorization', 'Bearer bad-token');
-    expect([STATUS.BAD_REQUEST, STATUS.NOT_FOUND, STATUS.UNAUTHORIZED, STATUS.FORBIDDEN]).toContain(res.status);
+    expect([STATUS.BAD_REQUEST, STATUS.NOT_FOUND, STATUS.UNAUTHORIZED, STATUS.FORBIDDEN]).toContain(
+      res.status,
+    );
   });
 
   it('GET /dashboard/overview — rejects without token', async () => {
@@ -42,7 +44,9 @@ describe('Admin Controller — Negative Cases', () => {
   });
 
   it('PATCH /schools/:id — rejects without token', async () => {
-    const res = await agent.patch(ENDPOINTS.SCHOOLS.BY_ID('fake-id')).send({ school_name: 'New Name' });
+    const res = await agent
+      .patch(ENDPOINTS.SCHOOLS.BY_ID('fake-id'))
+      .send({ school_name: 'New Name' });
     expect([STATUS.UNAUTHORIZED, STATUS.FORBIDDEN, STATUS.NOT_FOUND]).toContain(res.status);
   });
 

@@ -14,13 +14,17 @@ const NAME_CODE_LIKE_REGEX =
 
 export const CLASS_NAME_MAX_LENGTH = 50;
 
-export const sanitizeTextForTyping = (value: string, maxLength: number): string =>
-  value.replace(CONTROL_CHAR_REGEX, '').slice(0, maxLength);
+export const sanitizeTextForTyping = (
+  value: string,
+  maxLength: number
+): string => value.replace(CONTROL_CHAR_REGEX, '').slice(0, maxLength);
 
 export const trimBoundaryWhitespace = (value: string): string => value.trim();
 
-export const normalizePlainTextInput = (value: string, maxLength: number): string =>
-  trimBoundaryWhitespace(sanitizeTextForTyping(value, maxLength));
+export const normalizePlainTextInput = (
+  value: string,
+  maxLength: number
+): string => trimBoundaryWhitespace(sanitizeTextForTyping(value, maxLength));
 
 export const hasUnsafeMarkupOrScriptPattern = (value: string): boolean =>
   UNSAFE_MARKUP_OR_SCRIPT_REGEX.test(value);

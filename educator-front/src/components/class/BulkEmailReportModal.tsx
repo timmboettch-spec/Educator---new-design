@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from '../../components/common/Toast';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
+import { translateApiError } from '../../utils/translateApiError';
 import {
   clearEmailReportState,
   selectEmailReportError,
@@ -13,6 +16,13 @@ import Input from '../ui/Input';
 import Modal from '../ui/Modal';
 import Textarea from '../ui/Textarea';
 
+type SupportedLang = 'en' | 'es';
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
+
 interface Props {
   classId: string;
   onClose: () => void;
@@ -20,6 +30,8 @@ interface Props {
 
 export default function ClassEmailReportModal({ classId, onClose }: Props) {
   const dispatch = useAppDispatch();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
   const isLoading = useAppSelector(selectEmailReportLoading);
   const error = useAppSelector(selectEmailReportError);
   const isSuccess = useAppSelector(selectEmailReportSuccess);
@@ -30,17 +42,17 @@ export default function ClassEmailReportModal({ classId, onClose }: Props) {
 
   useEffect(() => {
     if (error) {
-      toast.error(error);
+      toast.error(translateApiError(error, language));
     }
-  }, [error]);
+  }, [error, language]);
 
   useEffect(() => {
     if (isSuccess) {
-      toast.success('Report sent successfully to all students in the class!');
+      toast.success(locale.toast.reportSentToAllStudents);
       dispatch(clearEmailReportState());
       onClose();
     }
-  }, [isSuccess, dispatch, onClose]);
+  }, [isSuccess, dispatch, onClose, locale.toast.reportSentToAllStudents]);
 
   useEffect(() => {
     return () => {
@@ -50,7 +62,7 @@ export default function ClassEmailReportModal({ classId, onClose }: Props) {
 
   const handleSend = () => {
     if (!message.trim()) {
-      setMessageError('Message is required');
+      setMessageError(locale.emailModal.messageRequired);
       return;
     }
     setMessageError(undefined);
@@ -60,28 +72,28 @@ export default function ClassEmailReportModal({ classId, onClose }: Props) {
         message,
         sendPdf: includePdf,
         class_id: classId,
-      }),
+      })
     );
   };
 
   return (
-    <Modal isOpen onClose={onClose} title="Email Report">
+    <Modal isOpen onClose={onClose} title={locale.emailModal.titleReport}>
       <div className="flex flex-col gap-4">
         <Input
-          label="Subject"
+          label={locale.emailModal.subject}
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          placeholder="Student Progress Report"
+          placeholder={locale.emailModal.subjectPlaceholderReport}
         />
 
         <Textarea
-          label="Message"
+          label={locale.emailModal.message}
           value={message}
           onChange={(e) => {
             setMessage(e.target.value);
             if (e.target.value.trim()) setMessageError(undefined);
           }}
-          placeholder="Add a message..."
+          placeholder={locale.emailModal.messagePlaceholder}
           rows={5}
           textareaClassName="py-2.5"
           error={messageError}
@@ -93,10 +105,13 @@ export default function ClassEmailReportModal({ classId, onClose }: Props) {
             type="checkbox"
             checked={includePdf}
             onChange={(e) => setIncludePdf(e.target.checked)}
-            className="h-4 w-4 accent-primary-500 cursor-pointer rounded"
+            className="h-4 w-4 accent-orange-500 cursor-pointer rounded"
           />
-          <label htmlFor="includePdfClass" className="text-sm leading-none text-gray-700 cursor-pointer select-none">
-            Include PDF Report
+          <label
+            htmlFor="includePdfClass"
+            className="text-sm leading-none text-gray-700 cursor-pointer select-none"
+          >
+            {locale.emailModal.includePdfReport}
           </label>
         </div>
 
@@ -107,16 +122,16 @@ export default function ClassEmailReportModal({ classId, onClose }: Props) {
             onClick={onClose}
             disabled={isLoading}
           >
-            Back
+            {locale.emailModal.back}
           </Button>
           <Button
             variant="gradient"
             className="flex-1 h-11 rounded-full text-sm"
             onClick={handleSend}
             loading={isLoading}
-            loadingText="Sending..."
+            loadingText={locale.common.sending}
           >
-            Send Mail
+            {locale.emailModal.sendMail}
           </Button>
         </div>
       </div>

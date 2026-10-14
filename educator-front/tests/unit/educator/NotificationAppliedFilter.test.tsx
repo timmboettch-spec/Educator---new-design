@@ -1,5 +1,12 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import '../../../src/i18n';
 import { MemoryRouter } from 'react-router-dom';
 import Educators from '../../../src/pages/educator/index';
 
@@ -65,11 +72,13 @@ const reduxState = {
 };
 
 vi.mock('react-redux', async () => {
-  const actual = await vi.importActual<typeof import('react-redux')>('react-redux');
+  const actual =
+    await vi.importActual<typeof import('react-redux')>('react-redux');
   return {
     ...actual,
     useDispatch: () => mockDispatch,
-    useSelector: (selector: (s: typeof reduxState) => unknown) => selector(reduxState),
+    useSelector: (selector: (s: typeof reduxState) => unknown) =>
+      selector(reduxState),
   };
 });
 
@@ -83,7 +92,8 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   }),
   selectGetEducatorStatus: (s: typeof reduxState) => s.GetEducator.status,
   selectGetEducatorError: (s: typeof reduxState) => s.GetEducator.error,
-  selectGetEducatorResponse: (s: typeof reduxState) => s.GetEducator.responseGetEducator,
+  selectGetEducatorResponse: (s: typeof reduxState) =>
+    s.GetEducator.responseGetEducator,
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
@@ -96,8 +106,8 @@ vi.mock('../../../src/redux/notifications/NotificationsRedux', () => ({
   selectNotifications: (s: typeof reduxState) => s.Notifications,
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'GET_USER' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 vi.mock('../../../src/redux/educator/CreateEducatorRedux', () => ({
@@ -140,6 +150,12 @@ vi.mock('../../../src/components/common/Toast', () => ({
   SESSION_TOAST_KEY: 'app_pending_toast',
 }));
 
+// The applied-filter chip for the educator picked from the notification.
+const getNotificationFilterChip = () => {
+  const region = screen.queryByRole('region', { name: 'Active filters' });
+  return region ? within(region).queryByText('Jane Doe') : null;
+};
+
 describe('Notification Applied Filter', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -161,9 +177,11 @@ describe('Notification Applied Filter', () => {
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the filter chip to appear
@@ -182,9 +200,11 @@ describe('Notification Applied Filter', () => {
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Find the filter button and check for active state
@@ -201,9 +221,11 @@ describe('Notification Applied Filter', () => {
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the filter chip to appear
@@ -233,9 +255,11 @@ describe('Notification Applied Filter', () => {
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the filter chip to appear
@@ -267,9 +291,11 @@ describe('Notification Applied Filter', () => {
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the component to render
@@ -286,7 +312,7 @@ describe('Notification Applied Filter', () => {
     render(
       <MemoryRouter>
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the component to render
@@ -304,10 +330,12 @@ describe('Notification Applied Filter', () => {
     });
 
     // Select a school filter (find the dropdown by placeholder)
-    const schoolButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.textContent?.toLowerCase().includes('select school')
-    );
-    
+    const schoolButtons = screen
+      .getAllByRole('button')
+      .filter((btn) =>
+        btn.textContent?.toLowerCase().includes('select school')
+      );
+
     if (schoolButtons.length > 0) {
       fireEvent.click(schoolButtons[0]);
       await waitFor(() => {
@@ -319,10 +347,12 @@ describe('Notification Applied Filter', () => {
     }
 
     // Select a status filter
-    const statusButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.textContent?.toLowerCase().includes('select status')
-    );
-    
+    const statusButtons = screen
+      .getAllByRole('button')
+      .filter((btn) =>
+        btn.textContent?.toLowerCase().includes('select status')
+      );
+
     if (statusButtons.length > 0) {
       fireEvent.click(statusButtons[0]);
       await waitFor(() => {
@@ -355,7 +385,7 @@ describe('Notification Applied Filter', () => {
     render(
       <MemoryRouter>
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the component to render
@@ -376,29 +406,21 @@ describe('Notification Applied Filter', () => {
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
-    // Wait for the filtered view with highlighting
+    // Wait for the filtered view
     await waitFor(() => {
       expect(screen.getAllByText('Jane Doe').length).toBeGreaterThan(0);
       expect(screen.queryByText('John Smith')).not.toBeInTheDocument();
     });
 
-    // Find a row cell containing Jane Doe and verify it's highlighted
-    const janeDoeElements = screen.getAllByText('Jane Doe');
-    let highlightedCell: HTMLElement | null = null;
-    for (const el of janeDoeElements) {
-      // ListTable uses divs, not tr elements - look for the parent div with bg-orange-50
-      const cell = el.closest('div.bg-orange-50');
-      if (cell) {
-        highlightedCell = cell as HTMLElement;
-        break;
-      }
-    }
-    expect(highlightedCell).not.toBeNull();
+    // The notification filter shows as an applied-filter chip for Jane Doe
+    expect(getNotificationFilterChip()).not.toBeNull();
 
     // Remove the filter
     const removeButton = screen.getByRole('button', {
@@ -412,47 +434,30 @@ describe('Notification Applied Filter', () => {
       expect(screen.getByText('John Smith')).toBeInTheDocument();
     });
 
-    // Verify highlight is removed - no cells should have bg-orange-50 class
-    const janeDoeElementsAfter = screen.getAllByText('Jane Doe');
-    let stillHighlighted = false;
-    for (const el of janeDoeElementsAfter) {
-      const cell = el.closest('div.bg-orange-50');
-      if (cell) {
-        stillHighlighted = true;
-        break;
-      }
-    }
-    expect(stillHighlighted).toBe(false);
+    // The notification filter chip is gone
+    expect(getNotificationFilterChip()).toBeNull();
   });
 
-  it('should remove row highlighting when Clear All is clicked', async () => {
+  it('should remove the notification filter when Clear All is clicked', async () => {
     const initialState = {
       educatorId: 'e1',
     };
 
     render(
-      <MemoryRouter initialEntries={[{ pathname: '/educators', state: initialState }]}>
+      <MemoryRouter
+        initialEntries={[{ pathname: '/educators', state: initialState }]}
+      >
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
-    // Wait for the filtered view with highlighting
+    // Wait for the filtered view
     await waitFor(() => {
       expect(screen.getAllByText('Jane Doe').length).toBeGreaterThan(0);
     });
 
-    // Find a cell containing Jane Doe and verify it's highlighted
-    const janeDoeElements = screen.getAllByText('Jane Doe');
-    let highlightedCell: HTMLElement | null = null;
-    for (const el of janeDoeElements) {
-      // ListTable uses divs, not tr elements - look for parent div with bg-orange-50
-      const cell = el.closest('div.bg-orange-50');
-      if (cell) {
-        highlightedCell = cell as HTMLElement;
-        break;
-      }
-    }
-    expect(highlightedCell).not.toBeNull();
+    // The notification filter shows as an applied-filter chip for Jane Doe
+    expect(getNotificationFilterChip()).not.toBeNull();
 
     // Click Clear All
     const clearAllButton = screen.getByRole('button', {
@@ -465,17 +470,8 @@ describe('Notification Applied Filter', () => {
       expect(screen.getByText('John Smith')).toBeInTheDocument();
     });
 
-    // Verify highlight is removed - no cells should have bg-orange-50 class
-    const janeDoeElementsAfter = screen.getAllByText('Jane Doe');
-    let stillHighlighted = false;
-    for (const el of janeDoeElementsAfter) {
-      const cell = el.closest('div.bg-orange-50');
-      if (cell) {
-        stillHighlighted = true;
-        break;
-      }
-    }
-    expect(stillHighlighted).toBe(false);
+    // The notification filter chip is gone
+    expect(getNotificationFilterChip()).toBeNull();
   });
 
   it('should show all educators on page refresh (no location state)', async () => {
@@ -483,7 +479,7 @@ describe('Notification Applied Filter', () => {
     render(
       <MemoryRouter>
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     // Wait for the component to render

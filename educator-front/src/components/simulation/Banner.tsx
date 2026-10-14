@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 interface HeroBannerProps {
   backgroundImage?: string;
@@ -15,18 +15,18 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   subtitle,
   onClick,
 }) => {
-  const isClickable = typeof onClick === "function";
+  const isClickable = typeof onClick === 'function';
 
   return (
     <div
-      className={`grid w-full rounded-2xl overflow-hidden ${isClickable ? "cursor-pointer" : ""}`}
+      className={`grid w-full rounded-2xl overflow-hidden ${isClickable ? 'cursor-pointer' : ''}`}
       onClick={onClick}
-      role={isClickable ? "button" : undefined}
+      role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       onKeyDown={
         isClickable
           ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
+              if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 onClick?.();
               }
@@ -39,8 +39,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
           <img
             src={backgroundImage}
             alt=""
-            /* Cap the height and cover-crop (object-cover) so the banner is
-               shorter without distorting the image's aspect ratio. */
+            /* Capped height, cover-cropped so the image keeps its aspect ratio. */
             className="col-start-1 row-start-1 w-full h-32 sm:h-40 md:h-48 object-cover object-center block"
           />
           <div className="col-start-1 row-start-1 z-10 flex flex-col items-center justify-center text-center px-4 sm:px-8 md:px-14">
@@ -49,16 +48,16 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
               style={{
                 fontFamily: "'Poppins', sans-serif",
                 fontWeight: 600,
-                fontSize: "clamp(0.875rem, 4.3vw, 3.5rem)",
-                lineHeight: "clamp(0.85rem, 4.1vw, 3.35rem)",
-                letterSpacing: "0px",
+                fontSize: 'clamp(0.875rem, 4.3vw, 3.5rem)',
+                lineHeight: 'clamp(0.85rem, 4.1vw, 3.35rem)',
+                letterSpacing: '0px',
               }}
             >
               {title}
             </h1>
             <p
               className="text-white max-w-2xl opacity-90 leading-relaxed"
-              style={{ fontSize: "clamp(0.625rem, 1.4vw, 1.125rem)" }}
+              style={{ fontSize: 'clamp(0.625rem, 1.4vw, 1.125rem)' }}
             >
               {subtitle}
             </p>

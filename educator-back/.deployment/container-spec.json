@@ -1,13 +1,4 @@
 {
-    "shared-secrets": {
-    "vault": "akv-all1-all",
-    "vault-resource-group": "ARG-all1-rwai",
-    "secrets": {
-      "GRAPH_TENANT_ID": "graph-tenant-id",
-      "GRAPH_CLIENT_ID": "graph-client-id",
-      "GRAPH_CLIENT_SECRET": "graph-client-secret"
-    }
-  },
   "dev": {
     "vault": "akvdev1rwai",
     "cpu": "0.5",
@@ -22,7 +13,7 @@
       "APP_PORT": "3000",
       "APP_URL": "https://dev.educatorbe.realityworksai.com",
       "FRONTEND_URL": "https://dev.educator.realityworksai.com",
-      "MAIL_FROM": "no-reply@realityworks.com",
+      "MAIL_FROM": "no-reply@dev.curionn.com",
       "SMTP_HOST": "smtp.sendgrid.net",
       "SMTP_PORT": "587",
       "SMTP_FROM": "no-reply@realityworksai.com",
@@ -38,12 +29,14 @@
       "DB_PASSWORD": "edu-db-password",
       "JWT_SECRET": "edu-jwt-secret",
       "JWT_EXPIRES_IN": "edu-jwt-expires-in",
-      "GRAPH_TENANT_ID": "GRAPH-TENANT-ID",
-      "GRAPH_CLIENT_ID": "GRAPH-CLIENT-ID",
-      "GRAPH_CLIENT_SECRET": "GRAPH-CLIENT-SECRET",
       "AZURE_STORAGE_CONNECTION_STRING": "edu-azure-storage-connection-string",
       "AZURE_STORAGE_ACCOUNT": "edu-azure-storage-account",
-      "AZURE_STORAGE_CONTAINER": "edu-azure-storage-container"
+      "AZURE_STORAGE_CONTAINER": "edu-azure-storage-container",
+      "RATE_LIMIT_PUBLIC_LIMIT": "edu-rate-limit-public-limit",
+      "RATE_LIMIT_PUBLIC_TTL": "edu-rate-limit-public-ttl",
+      "DEFAULT_THROTTLE_LIMIT": "edu-default-throttle-limit",
+      "DEFAULT_THROTTLE_TTL_MS": "edu-default-throttle-ttl-ms",
+      "RATE_LIMIT_FALLBACK_RETRY_AFTER_SECONDS": "edu-rate-limit-fallback-retry-after-seconds"
     },
     "probes": {
       "liveness": {
@@ -88,10 +81,12 @@
       "DB_PASSWORD": "edu-db-password",
       "JWT_SECRET": "edu-jwt-secret",
       "JWT_EXPIRES_IN": "edu-jwt-expires-in",
-      "GRAPH_TENANT_ID": "GRAPH-TENANT-ID",
-      "GRAPH_CLIENT_ID": "GRAPH-CLIENT-ID",
-      "GRAPH_CLIENT_SECRET": "GRAPH-CLIENT-SECRET",
-      "AZURE_STORAGE_CONNECTION_STRING": "AZURE-STORAGE-CONNECTION-STRING"
+      "AZURE_STORAGE_CONNECTION_STRING": "AZURE-STORAGE-CONNECTION-STRING",
+      "RATE_LIMIT_PUBLIC_LIMIT": "edu-rate-limit-public-limit",
+      "RATE_LIMIT_PUBLIC_TTL": "edu-rate-limit-public-ttl",
+      "DEFAULT_THROTTLE_LIMIT": "edu-default-throttle-limit",
+      "DEFAULT_THROTTLE_TTL_MS": "edu-default-throttle-ttl-ms",
+      "RATE_LIMIT_FALLBACK_RETRY_AFTER_SECONDS": "edu-rate-limit-fallback-retry-after-seconds"
     },
     "probes": {
       "liveness": {
@@ -136,10 +131,12 @@
       "DB_PASSWORD": "edu-db-password",
       "JWT_SECRET": "edu-jwt-secret",
       "JWT_EXPIRES_IN": "edu-jwt-expires-in",
-      "GRAPH_TENANT_ID": "GRAPH-TENANT-ID",
-      "GRAPH_CLIENT_ID": "GRAPH-CLIENT-ID",
-      "GRAPH_CLIENT_SECRET": "GRAPH-CLIENT-SECRET",
-      "AZURE_STORAGE_CONNECTION_STRING": "AZURE-STORAGE-CONNECTION-STRING"
+      "AZURE_STORAGE_CONNECTION_STRING": "AZURE-STORAGE-CONNECTION-STRING",
+      "RATE_LIMIT_PUBLIC_LIMIT": "edu-rate-limit-public-limit",
+      "RATE_LIMIT_PUBLIC_TTL": "edu-rate-limit-public-ttl",
+      "DEFAULT_THROTTLE_LIMIT": "edu-default-throttle-limit",
+      "DEFAULT_THROTTLE_TTL_MS": "edu-default-throttle-ttl-ms",
+      "RATE_LIMIT_FALLBACK_RETRY_AFTER_SECONDS": "edu-rate-limit-fallback-retry-after-seconds"
     },
     "probes": {
       "liveness": {

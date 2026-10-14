@@ -1,4 +1,4 @@
-import { NotificationType, RecipientType } from '../entity/notification.entity';
+import { NotificationType, RecipientType } from 'src/database/entities';
 
 export class CreateNotificationDto {
   type!: NotificationType;

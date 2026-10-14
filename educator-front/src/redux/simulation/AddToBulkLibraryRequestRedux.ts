@@ -1,7 +1,13 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import api from '../api';
 import config from '../config';
-import { RootState } from '@/store';
+import { type RootState } from '@/store';
+import { invalidateMyLibraryList } from '../api/myLibrary/myLibraryApi';
+import { clearSimulationLibraryState } from '../dashboard/simulationlibrary/GetSimulationRedux';
 
 interface BulkLibraryResponse {
   success: boolean;
@@ -27,14 +33,15 @@ export const AddToBulkLibraryRequest = createAsyncThunk<
   { rejectValue: string }
 >(
   'myLibrary/addBulk',
-  async ({ scenarioIds }, { rejectWithValue }) => {
+  async ({ scenarioIds }, { rejectWithValue, dispatch }) => {
     try {
-      const response = await api.post(
-        config.AddToBulkLibraryAPI,
-        {
-          scenario_ids: scenarioIds,
-        },
-      );
+      const response = await api.post(config.AddToBulkLibraryAPI, {
+        scenario_ids: scenarioIds,
+      });
+      dispatch(invalidateMyLibraryList());
+      // The assign modal's full copy is now out of date: dropped, so it is
+      // loaded again when next needed.
+      dispatch(clearSimulationLibraryState());
 
       return response.data;
     } catch (err: unknown) {
@@ -49,11 +56,11 @@ export const AddToBulkLibraryRequest = createAsyncThunk<
 
       return rejectWithValue(
         error.response?.data?.message ??
-        error.response?.data?.error ??
-        (err instanceof Error ? err.message : 'Failed to add simulations'),
+          error.response?.data?.error ??
+          (err instanceof Error ? err.message : 'Failed to add simulations')
       );
     }
-  },
+  }
 );
 
 const addToLibrarySlice = createSlice({
@@ -76,9 +83,7 @@ const addToLibrarySlice = createSlice({
       .addCase(AddToBulkLibraryRequest.rejected, (state, action) => {
         state.adding = false;
         state.error =
-          action.payload ??
-          action.error.message ??
-          'Failed to add simulations';
+          action.payload ?? action.error.message ?? 'Failed to add simulations';
       });
   },
 });
@@ -87,20 +92,19 @@ export const { clearAddLibraryError } = addToLibrarySlice.actions;
 
 export default addToLibrarySlice.reducer;
 
-const selectAddToLibrary = (state: RootState) =>
-  state.addToBulkLibrary;
+const selectAddToLibrary = (state: RootState) => state.addToBulkLibrary;
 
 export const selectLibraryAdding = createSelector(
   selectAddToLibrary,
-  (state) => state.adding,
+  (state) => state.adding
 );
 
 export const selectLibraryLoading = createSelector(
   selectAddToLibrary,
-  (state) => state.loading,
+  (state) => state.loading
 );
 
 export const selectLibraryError = createSelector(
   selectAddToLibrary,
-  (state) => state.error,
+  (state) => state.error
 );

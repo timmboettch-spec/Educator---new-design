@@ -1,9 +1,10 @@
 import { SuperTest, Test } from 'supertest';
 
 export interface ApiResponse<T = unknown> {
-  status: string;
   message: string;
   data: T;
+  meta?: unknown;
+  error?: string | Record<string, string> | null;
 }
 
 /**
@@ -25,17 +26,21 @@ export async function expectStatus<T = unknown>(
 }
 
 /**
- * Asserts that the response body status field equals 'SUCCESS'.
+ * Asserts the response envelope reports success — every route now answers with the unified
+ * `{ message, data, meta, error }` envelope, so a success response always has a null `error`.
  */
 export function expectSuccess(body: ApiResponse): void {
-  expect(body.status).toBe('SUCCESS');
+  expect(body.error ?? null).toBeNull();
 }
 
 /**
- * Asserts that the response body status field equals 'FAILED'.
+ * Asserts the response envelope reports failure — every error response now goes through the
+ * global `HttpExceptionFilter`'s unified `{ message, data, meta, error }` envelope, so `data`
+ * is always `null` and `message` always a string, regardless of which module raised the error.
  */
 export function expectFailed(body: ApiResponse): void {
-  expect(body.status).toBe('FAILED');
+  expect(body.data).toBeNull();
+  expect(typeof body.message).toBe('string');
 }
 
 /**
@@ -50,12 +55,7 @@ export function get(agent: SuperTest<Test>, url: string, token?: string): Test {
 /**
  * POST helper — returns the supertest Test (not awaited).
  */
-export function post(
-  agent: SuperTest<Test>,
-  url: string,
-  body: object,
-  token?: string,
-): Test {
+export function post(agent: SuperTest<Test>, url: string, body: object, token?: string): Test {
   const req = agent.post(url).set('Accept', 'application/json').send(body);
   if (token) req.set('Authorization', `Bearer ${token}`);
   return req;
@@ -64,12 +64,7 @@ export function post(
 /**
  * PATCH helper — returns the supertest Test (not awaited).
  */
-export function patch(
-  agent: SuperTest<Test>,
-  url: string,
-  body: object,
-  token?: string,
-): Test {
+export function patch(agent: SuperTest<Test>, url: string, body: object, token?: string): Test {
   const req = agent.patch(url).set('Accept', 'application/json').send(body);
   if (token) req.set('Authorization', `Bearer ${token}`);
   return req;
@@ -89,8 +84,6 @@ export function del(agent: SuperTest<Test>, url: string, token?: string): Test {
  */
 export function expectOneOf(actual: number, allowed: number[]): void {
   if (!allowed.includes(actual)) {
-    throw new Error(
-      `Expected status to be one of [${allowed.join(', ')}], but received ${actual}`,
-    );
+    throw new Error(`Expected status to be one of [${allowed.join(', ')}], but received ${actual}`);
   }
 }

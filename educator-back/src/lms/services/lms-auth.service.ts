@@ -1,26 +1,61 @@
 import { randomUUID } from 'crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { importPKCS8, SignJWT } from 'jose';
-import { LmsSchoolConfig } from '../entity/lms-school-config.entity';
-import { NRPS_SCOPE } from '../lms.constants';
-
-const LEGACY_NRPS_SCOPE = 'https://purl.imsglobal.org/spec/lis/v2/membership#read';
+import { LmsSchoolConfig } from 'src/database/entities';
+import { LMS_OAUTH_SCOPES, LmsOAuthPurpose } from '../lms.constants';
+import { OutboundIntegration } from '../../common/constants';
+import { LoggerService, OutboundHttpClient } from '../../common/services';
+import { formatLmsHttpFailure, isFriendlyOauthError } from '../utils/lms-error.util';
 
 interface TokenCacheEntry {
   token: string;
   expiresAt: number;
 }
 
+/**
+ * OAuth2 token exchange for LTI 1.3 Advantage services.
+ * Scope selection is platform-agnostic — Moodle, Canvas
+ * use the same IMS scope URLs; only adapter API calls differ per LMS.
+ */
 @Injectable()
 export class LmsAuthService {
-  private readonly logger = new Logger(LmsAuthService.name);
   private readonly tokenCache = new Map<string, TokenCacheEntry>();
 
-  async getAccessToken(config: LmsSchoolConfig): Promise<string> {
-    const cacheKey = `${config.schoolId}:${config.clientId}`;
-    const cached = this.tokenCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now() + 30_000) {
-      return cached.token;
+  constructor(
+    private readonly logger: LoggerService,
+    private readonly outboundHttp: OutboundHttpClient,
+  ) {}
+
+  /** Token for NRPS roster sync (default). */
+  async getAccessToken(
+    config: LmsSchoolConfig,
+    options?: { bypassCache?: boolean },
+  ): Promise<string> {
+    return this.getAccessTokenForPurpose(config, LmsOAuthPurpose.NRPS, options);
+  }
+
+  /** Token for AGS grade passback (POST scores to line item). */
+  async getAccessTokenForGradePassback(config: LmsSchoolConfig): Promise<string> {
+    return this.getAccessTokenForPurpose(config, LmsOAuthPurpose.AGS_SCORE);
+  }
+
+  /** Token for AGS line item management (create/update gradebook columns). */
+  async getAccessTokenForLineItems(config: LmsSchoolConfig): Promise<string> {
+    return this.getAccessTokenForPurpose(config, LmsOAuthPurpose.AGS_LINEITEM);
+  }
+
+  async getAccessTokenForPurpose(
+    config: LmsSchoolConfig,
+    purpose: LmsOAuthPurpose,
+    options?: { bypassCache?: boolean },
+  ): Promise<string> {
+    const scopesToTry = LMS_OAUTH_SCOPES[purpose];
+    const cacheKey = `${config.schoolId}:${config.clientId}:${purpose}`;
+    if (!options?.bypassCache) {
+      const cached = this.tokenCache.get(cacheKey);
+      if (cached && cached.expiresAt > Date.now() + 30_000) {
+        return cached.token;
+      }
     }
 
     const privateKey = await importPKCS8(
@@ -38,7 +73,6 @@ export class LmsAuthService {
       .setJti(randomUUID())
       .sign(privateKey);
 
-    const scopesToTry = [NRPS_SCOPE, LEGACY_NRPS_SCOPE];
     let lastStatus = 0;
     let lastBody = '';
 
@@ -51,10 +85,10 @@ export class LmsAuthService {
       });
 
       this.logger.log(
-        `[LmsAuth] Token request → endpoint: ${config.tokenEndpoint}, clientId: ${config.clientId}, scope: ${scope}`,
+        `[LmsAuth] Token request → endpoint: ${config.tokenEndpoint}, clientId: ${config.clientId}, purpose: ${purpose}, scope: ${scope}`,
       );
 
-      const response = await fetch(config.tokenEndpoint, {
+      const response = await this.outboundHttp.fetch(OutboundIntegration.Lms, config.tokenEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
@@ -79,7 +113,7 @@ export class LmsAuthService {
       lastStatus = response.status;
       lastBody = errorBody;
       this.logger.warn(
-        `[LmsAuth] Token request failed — status: ${response.status}, scope: ${scope}, body: ${errorBody}`,
+        `[LmsAuth] Token request failed — status: ${response.status}, purpose: ${purpose}, scope: ${scope}, body: ${errorBody}`,
       );
 
       const normalizedError = errorBody.toLowerCase();
@@ -88,12 +122,15 @@ export class LmsAuthService {
         (normalizedError.includes('invalid_scope') || normalizedError.includes('invalid_request'));
 
       if (!canRetryWithAnotherScope) {
-        throw new Error(`LMS token request failed (${response.status}): ${errorBody}`);
+        throw new Error(formatLmsHttpFailure(response.status, errorBody, 'oauth'));
       }
     }
 
+    const failure = formatLmsHttpFailure(lastStatus || 400, lastBody, 'oauth');
     throw new Error(
-      `LMS token request failed (${lastStatus}): ${lastBody}. Moodle LTI tool must allow NRPS scope (${NRPS_SCOPE}) or legacy scope (${LEGACY_NRPS_SCOPE}) for this client_id.`,
+      isFriendlyOauthError(failure)
+        ? failure
+        : `${failure} Ensure the LMS tool allows the required LTI scopes.`,
     );
   }
 }

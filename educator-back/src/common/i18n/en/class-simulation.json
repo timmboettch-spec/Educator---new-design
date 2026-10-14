@@ -1,0 +1,11 @@
+{
+  "BULK_ASSIGN": {
+    "CREATED": "{count} simulation assignment(s) created successfully.",
+    "FAILED": "{failed} of {total} simulation assignment(s) could not be created. No assignments were saved.",
+    "CLASS_NOT_ACCESSIBLE": "Class not found, or you do not have access to it in this school.",
+    "SIMULATION_NOT_FOUND": "Simulation not found.",
+    "ALREADY_ASSIGNED_SAME_DATES": "This simulation is already assigned to this class with the same start and end dates.",
+    "ALREADY_ASSIGNED_OVERLAP": "This simulation is already assigned to this class for an overlapping date range.",
+    "INSUFFICIENT_SEATS": "Insufficient seats: {required} required, {available} available."
+  }
+}

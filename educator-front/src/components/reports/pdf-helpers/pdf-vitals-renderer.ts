@@ -10,10 +10,10 @@
  * Phase 7 of Student → Educator transcript PDF parity port.
  */
 
-import type jsPDF from "jspdf";
+import type jsPDF from 'jspdf';
 
-import { sanitizePdfText } from "../../../utils/sanitizePdf";
-import type { TranscriptEventData } from "../../../types/userTranscript";
+import { sanitizePdfText } from '../../../utils/sanitizePdf';
+import type { TranscriptEventData } from '../../../types/userTranscript';
 
 import {
   C_GRAY200,
@@ -22,7 +22,7 @@ import {
   C_VITAL_BG,
   C_VITAL_BORDER,
   C_VITAL_TEXT,
-} from "./pdf-constants";
+} from './pdf-constants';
 import {
   CONTENT_W,
   MARGIN_L,
@@ -33,8 +33,8 @@ import {
   setDraw,
   setFill,
   setText,
-} from "./pdf-primitives";
-import { getVitalValue } from "./transcript-utils";
+} from './pdf-primitives';
+import { getVitalValue } from './transcript-utils';
 
 // ─── Vital-title → short display label ───────────────────────────────────────
 
@@ -44,52 +44,56 @@ import { getVitalValue } from "./transcript-utils";
  * Unknown titles pass through unchanged (uppercased).
  */
 const VITAL_SHORT_LABEL: Record<string, string> = {
-  "heart rate recorded": "HR",
-  "heart rate": "HR",
-  "hr": "HR",
-  "blood pressure recorded": "BP",
-  "blood pressure": "BP",
-  "bp": "BP",
-  "respiratory rate recorded": "RR",
-  "respiratory rate": "RR",
-  "rr": "RR",
-  "temperature recorded": "Temp",
-  "temperature": "Temp",
-  "temp": "Temp",
-  "spo2 recorded": "SpO2",
-  "spo2": "SpO2",
-  "oxygen saturation recorded": "SpO2",
-  "oxygen saturation": "SpO2",
-  "pain score": "Pain",
-  "pain": "Pain",
+  'heart rate recorded': 'HR',
+  'heart rate': 'HR',
+  hr: 'HR',
+  'blood pressure recorded': 'BP',
+  'blood pressure': 'BP',
+  bp: 'BP',
+  'respiratory rate recorded': 'RR',
+  'respiratory rate': 'RR',
+  rr: 'RR',
+  'temperature recorded': 'Temp',
+  temperature: 'Temp',
+  temp: 'Temp',
+  'spo2 recorded': 'SpO2',
+  spo2: 'SpO2',
+  'oxygen saturation recorded': 'SpO2',
+  'oxygen saturation': 'SpO2',
+  'pain score': 'Pain',
+  pain: 'Pain',
 };
 
 /** Preferred column ordering — matches Student PDF display order. */
-const VITAL_ORDER: string[] = ["HR", "BP", "RR", "SpO2", "Temp", "Pain"];
+const VITAL_ORDER: string[] = ['HR', 'BP', 'RR', 'SpO2', 'Temp', 'Pain'];
 
 /** Returns true when the event is a vital-signs row that should be aggregated. */
 export function isVitalEvent(raw: Record<string, unknown>): boolean {
-  const category = String(raw["category"] ?? "").toLowerCase();
-  if (category === "vitals" || category === "vital-signs" || category === "vital signs") {
+  const category = String(raw['category'] ?? '').toLowerCase();
+  if (
+    category === 'vitals' ||
+    category === 'vital-signs' ||
+    category === 'vital signs'
+  ) {
     return true;
   }
-  const type = String(raw["type"] ?? raw["subType"] ?? "").toLowerCase();
-  if (type === "vital-signs" || type === "vital") return true;
-  const title = String(raw["title"] ?? "").toLowerCase();
+  const type = String(raw['type'] ?? raw['subType'] ?? '').toLowerCase();
+  if (type === 'vital-signs' || type === 'vital') return true;
+  const title = String(raw['title'] ?? '').toLowerCase();
   return title in VITAL_SHORT_LABEL;
 }
 
 // ─── Aggregation ─────────────────────────────────────────────────────────────
 
 export interface VitalRow {
-  name: string;      // "HR" / "BP" / …
+  name: string; // "HR" / "BP" / …
   count: number;
-  values: string[];  // ["78 bpm", "82 bpm"]
+  values: string[]; // ["78 bpm", "82 bpm"]
 }
 
 interface VitalIndex {
   rows: VitalRow[];
-  firstIndex: number;         // index into data.events of the first vital
+  firstIndex: number; // index into data.events of the first vital
   vitalIndexSet: Set<number>; // indices in data.events that are vitals
 }
 
@@ -110,12 +114,14 @@ export function collectVitals(events: TranscriptEventData[]): VitalIndex {
     const raw = event as unknown as Record<string, unknown>;
     if (!isVitalEvent(raw)) return;
 
-    const titleRaw = String(raw["title"] ?? raw["name"] ?? "").trim();
-    const details = String(raw["description"] ?? raw["details"] ?? raw["value"] ?? "");
+    const titleRaw = String(raw['title'] ?? raw['name'] ?? '').trim();
+    const details = String(
+      raw['description'] ?? raw['details'] ?? raw['value'] ?? ''
+    );
     const formatted =
       getVitalValue(titleRaw, details) ??
-      details.replace(/^Value:\s*/i, "").trim();
-    const valueText = (formatted || "").trim();
+      details.replace(/^Value:\s*/i, '').trim();
+    const valueText = (formatted || '').trim();
 
     // Skip completely empty vital rows so they don't pollute the aggregate
     // table with "VITAL x1 (N/A)" ghosts. Both title AND value must be blank
@@ -127,17 +133,17 @@ export function collectVitals(events: TranscriptEventData[]): VitalIndex {
 
     const shortLabel =
       VITAL_SHORT_LABEL[titleRaw.toLowerCase()] ??
-      (titleRaw ? titleRaw.toUpperCase() : "VITAL");
+      (titleRaw ? titleRaw.toUpperCase() : 'VITAL');
 
     const existing = groups.get(shortLabel);
     if (existing) {
       existing.count += 1;
-      existing.values.push(valueText || "N/A");
+      existing.values.push(valueText || 'N/A');
     } else {
       groups.set(shortLabel, {
         name: shortLabel,
         count: 1,
-        values: [valueText || "N/A"],
+        values: [valueText || 'N/A'],
       });
     }
   });
@@ -157,7 +163,7 @@ export function collectVitals(events: TranscriptEventData[]): VitalIndex {
 
 // ─── Renderer ────────────────────────────────────────────────────────────────
 
-const CARD_PAD    = 6;
+const CARD_PAD = 6;
 const CLOCK_BADGE_H = 9 * 0.42 + 1.8 * 2;
 
 /**
@@ -181,7 +187,7 @@ const CLOCK_BADGE_H = 9 * 0.42 + 1.8 * 2;
 export function renderVitalsCard(
   pdf: jsPDF,
   state: PdfRenderState,
-  rows: VitalRow[],
+  rows: VitalRow[]
 ): void {
   if (rows.length === 0) return;
 
@@ -191,17 +197,24 @@ export function renderVitalsCard(
   const ix = cardX + CARD_PAD;
   const iw = cardW - CARD_PAD * 2;
 
-  const pillH  = 7.5 * 0.42 + 1.3 * 2;   // Same formula as drawPill
+  const pillH = 7.5 * 0.42 + 1.3 * 2; // Same formula as drawPill
   const titleH = 15 * 0.42 + 1.2;
   const boxHdr = 7;
-  const vRowH  = 6;
-  const vBoxH  = 5 + boxHdr + rows.length * vRowH + 3;
+  const vRowH = 6;
+  const vBoxH = 5 + boxHdr + rows.length * vRowH + 3;
   const estCard = CARD_PAD + pillH + 3 + titleH + 4 + 4 + vBoxH + CARD_PAD + 4;
 
   ensureSpace(pdf, state, CLOCK_BADGE_H + 3 + estCard + 5);
 
   // ── Clock badge (green vital colour) ──────────────────────────────────────
-  const bh = drawClockBadge(pdf, state, "00:00", C_VITAL_TEXT, C_VITAL_BG, C_VITAL_BORDER);
+  const bh = drawClockBadge(
+    pdf,
+    state,
+    '00:00',
+    C_VITAL_TEXT,
+    C_VITAL_BG,
+    C_VITAL_BORDER
+  );
   state.yPosition += bh + 3;
 
   // ── Card container (green fill + border) ──────────────────────────────────
@@ -209,19 +222,27 @@ export function renderVitalsCard(
   setFill(pdf, C_VITAL_BG);
   setDraw(pdf, C_VITAL_BORDER);
   pdf.setLineWidth(0.35);
-  pdf.roundedRect(cardX, startY, cardW, estCard, 2.5, 2.5, "FD");
+  pdf.roundedRect(cardX, startY, cardW, estCard, 2.5, 2.5, 'FD');
 
   state.yPosition = startY + CARD_PAD;
 
   // ── Category pill "[VITALS]" ──────────────────────────────────────────────
-  const pill = drawPill(pdf, "[VITALS]", ix, state.yPosition, C_VITAL_TEXT, C_VITAL_BG, C_VITAL_BORDER);
+  const pill = drawPill(
+    pdf,
+    '[VITALS]',
+    ix,
+    state.yPosition,
+    C_VITAL_TEXT,
+    C_VITAL_BG,
+    C_VITAL_BORDER
+  );
   state.yPosition += pill.height + 3;
 
   // ── Title ─────────────────────────────────────────────────────────────────
-  pdf.setFont("helvetica", "bold");
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(15);
   setText(pdf, C_GRAY900);
-  pdf.text(sanitizePdfText("Vital Signs"), ix, state.yPosition + 4);
+  pdf.text(sanitizePdfText('Vital Signs'), ix, state.yPosition + 4);
   state.yPosition += titleH + 4;
 
   // ── Inner "VITAL SIGNS OBTAINED" white box + rows ─────────────────────────
@@ -229,18 +250,18 @@ export function renderVitalsCard(
   setFill(pdf, [255, 255, 255]);
   setDraw(pdf, C_GRAY200);
   pdf.setLineWidth(0.4);
-  pdf.roundedRect(ix - 2, state.yPosition, iw + 4, vBoxH, 2, 2, "FD");
+  pdf.roundedRect(ix - 2, state.yPosition, iw + 4, vBoxH, 2, 2, 'FD');
   state.yPosition += 4;
-  pdf.setFont("helvetica", "bold");
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7.5);
   setText(pdf, C_GRAY400);
-  pdf.text("VITAL SIGNS OBTAINED:", ix, state.yPosition + 3);
+  pdf.text('VITAL SIGNS OBTAINED:', ix, state.yPosition + 3);
   state.yPosition += 7;
 
   rows.forEach((vr) => {
     const nameStr = `${vr.name} x${vr.count}`;
-    const valueStr = `(${vr.values.join("; ")})`;
-    pdf.setFont("helvetica", "bold");
+    const valueStr = `(${vr.values.join('; ')})`;
+    pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(9);
     setText(pdf, C_GRAY900);
     pdf.text(sanitizePdfText(nameStr), ix, state.yPosition + 3);
@@ -255,10 +276,16 @@ export function renderVitalsCard(
   const actualH = state.yPosition - startY + 4;
   if (actualH > estCard) {
     setFill(pdf, C_VITAL_BG);
-    pdf.rect(cardX, startY + estCard - 0.5, cardW, actualH - estCard + 0.5, "F");
+    pdf.rect(
+      cardX,
+      startY + estCard - 0.5,
+      cardW,
+      actualH - estCard + 0.5,
+      'F'
+    );
     setDraw(pdf, C_VITAL_BORDER);
     pdf.setLineWidth(0.35);
-    pdf.roundedRect(cardX, startY, cardW, actualH, 2.5, 2.5, "S");
+    pdf.roundedRect(cardX, startY, cardW, actualH, 2.5, 2.5, 'S');
   }
 
   state.yPosition = startY + Math.max(estCard, actualH) + 5;

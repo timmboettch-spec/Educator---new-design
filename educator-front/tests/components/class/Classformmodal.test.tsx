@@ -1,7 +1,17 @@
-﻿import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import React from 'react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
+// Initializes the real i18next singleton (side effect on import) so
+// useTranslation() inside ClassFormModal resolves real strings even
+// without wrapping in an I18nextProvider.
+import '../../../src/i18n';
 import ClassFormModal from '../../../src/components/class/Classformmodal';
 import type { Class, ModalMode } from '../../../src/types/Class_types';
 
@@ -10,9 +20,9 @@ import type { Class, ModalMode } from '../../../src/types/Class_types';
 // required `school_id` field stays empty, Yup validation blocks submission,
 // and Formik silently never invokes onSubmit.
 vi.mock('../../../src/utils/storage', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/utils/storage')>(
-    '../../../src/utils/storage',
-  );
+  const actual = await vi.importActual<
+    typeof import('../../../src/utils/storage')
+  >('../../../src/utils/storage');
   return {
     ...actual,
     getParsedUser: () => ({
@@ -90,7 +100,11 @@ vi.mock('../../../src/components/ui/FormField', () => ({
       </label>
       {children}
       {error && (
-        <span data-testid={`error-${label?.toLowerCase().replace(/\s+/g, '-')}`}>{error}</span>
+        <span
+          data-testid={`error-${label?.toLowerCase().replace(/\s+/g, '-')}`}
+        >
+          {error}
+        </span>
       )}
     </div>
   ),
@@ -112,9 +126,12 @@ vi.mock('../../../src/components/ui/Input', () => ({
     readOnly?: boolean;
     [key: string]: unknown;
   }) => {
+    const domProps = { ...(props as Record<string, unknown>) };
+    delete domProps.inputClassName;
     const name = props['name'] as string | undefined;
     const testId =
-      (props['data-testid'] as string | undefined) ?? (name ? `input-${name}` : `input-${label}`);
+      (props['data-testid'] as string | undefined) ??
+      (name ? `input-${name}` : `input-${label}`);
     return (
       <div>
         {label && <label htmlFor={testId}>{label}</label>}
@@ -125,7 +142,7 @@ vi.mock('../../../src/components/ui/Input', () => ({
           onChange={onChange}
           placeholder={placeholder}
           readOnly={readOnly}
-          {...props}
+          {...domProps}
         />
       </div>
     );
@@ -160,7 +177,9 @@ vi.mock('../../../src/components/ui/Select', () => ({
         ))}
       </select>
       {error && (
-        <span data-testid={`select-error-${label?.toLowerCase().replace(/\s+/g, '-')}`}>
+        <span
+          data-testid={`select-error-${label?.toLowerCase().replace(/\s+/g, '-')}`}
+        >
           {error}
         </span>
       )}
@@ -168,30 +187,16 @@ vi.mock('../../../src/components/ui/Select', () => ({
   ),
 }));
 
-vi.mock('../../../src/components/ui/CustomRadio', () => ({
-  default: ({
-    label,
-    checked,
-    onChange,
-  }: {
-    label: string;
-    checked: boolean;
-    onChange: () => void;
-  }) => (
-    <label>
-      <input type="radio" checked={checked} onChange={onChange} data-testid={`radio-${label}`} />
-      {label}
-    </label>
-  ),
-}));
-
 // â”€â”€â”€ Shared test data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const _now = new Date();
 const _pad = (n: number) => String(n).padStart(2, '0');
-const _localDate = (d: Date) => `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}`;
+const _localDate = (d: Date) =>
+  `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}`;
 const TODAY = _localDate(_now);
-const TOMORROW = _localDate(new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() + 1));
+const TOMORROW = _localDate(
+  new Date(_now.getFullYear(), _now.getMonth(), _now.getDate() + 1)
+);
 const NEXT_YEAR = (new Date().getFullYear() + 1).toString();
 
 const mockClass: Class = {
@@ -209,7 +214,7 @@ const defaultProps = {
   onClose: vi.fn(),
   modalMode: 'create' as ModalMode,
   selectedClass: null,
-  deleteStatus: '',
+  isDeleting: false,
   userTokens: 50,
   onConfirmDelete: vi.fn(),
   onSubmit: vi.fn().mockResolvedValue(undefined),
@@ -240,72 +245,60 @@ describe('ClassFormModal', () => {
   });
 
   describe('Create mode', () => {
-    it('renders title, form fields, radio buttons and submit button correctly', () => {
+    it('renders title, form fields and submit button correctly', () => {
       renderModal();
-      expect(screen.getByTestId('modal-title')).toHaveTextContent('Create Class');
+      expect(screen.getByTestId('modal-title')).toHaveTextContent(
+        'Create Class'
+      );
       expect(screen.getByTestId('input-class_name')).toBeInTheDocument();
       expect(screen.getByTestId('select-status')).toBeInTheDocument();
-      expect(screen.getByTestId('radio-Import Roster')).toBeInTheDocument();
-      expect(screen.getByTestId('radio-Enter Number')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Create Class' })).toBeInTheDocument();
-    });
-
-    it('shows file upload UI when "Import Roster" is selected', async () => {
-      renderModal();
-      fireEvent.click(screen.getByTestId('radio-Import Roster'));
-      await waitFor(() => expect(screen.getByText(/Choose File/)).toBeInTheDocument());
-    });
-
-    it('shows student count input when "Enter Number" is selected', async () => {
-      renderModal();
-      fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      await waitFor(() =>
-        expect(screen.getByTestId('input-total_no_of_students')).toBeInTheDocument(),
+      expect(screen.getByTestId('input-total_no_of_students')).toHaveAttribute(
+        'placeholder',
+        'Number of Students (Create Codes Only)'
       );
+      expect(
+        screen.getByRole('button', { name: 'Create Class' })
+      ).toBeInTheDocument();
     });
 
     it('does not show inline token warning when count exceeds userTokens (toast-only)', async () => {
       renderModal({ userTokens: 10 });
-      fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      await waitFor(() => screen.getByTestId('input-total_no_of_students'));
       fireEvent.change(screen.getByTestId('input-total_no_of_students'), {
         target: { value: '15' },
       });
       await waitFor(() =>
-        expect(screen.queryByText(/You can only add up to 10 student/)).not.toBeInTheDocument(),
+        expect(
+          screen.queryByText(/You can only add up to 10 student/)
+        ).not.toBeInTheDocument()
       );
     });
 
     it('shows no error when count is within limit', async () => {
       renderModal({ userTokens: 50 });
-      fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      await waitFor(() => screen.getByTestId('input-total_no_of_students'));
       fireEvent.change(screen.getByTestId('input-total_no_of_students'), {
         target: { value: '20' },
       });
       await waitFor(() =>
-        expect(screen.queryByText(/Insufficient tokens/)).not.toBeInTheDocument(),
+        expect(
+          screen.queryByText(/Insufficient tokens/)
+        ).not.toBeInTheDocument()
       );
     });
 
     it('shows no error when count is 1 below limit', async () => {
       renderModal({ userTokens: 2 });
-      fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      await waitFor(() => screen.getByTestId('input-total_no_of_students'));
       fireEvent.change(screen.getByTestId('input-total_no_of_students'), {
         target: { value: '1' },
       });
       await waitFor(() =>
-        expect(screen.queryByText(/Insufficient tokens/)).not.toBeInTheDocument(),
+        expect(
+          screen.queryByText(/Insufficient tokens/)
+        ).not.toBeInTheDocument()
       );
     });
 
     it('prevents non-numeric keydown (e, E, +, -, .) in student count', async () => {
       renderModal();
-      await act(async () => {
-        fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      });
-      await waitFor(() => screen.getByTestId('input-total_no_of_students'));
       const input = screen.getByTestId('input-total_no_of_students');
       for (const key of ['e', 'E', '+', '-', '.']) {
         await act(async () => {
@@ -326,56 +319,71 @@ describe('ClassFormModal', () => {
     it('shows "Create Class" submit button', () => {
       // covered in 'renders title, form fields...' above
       renderModal();
-      expect(screen.getByRole('button', { name: 'Create Class' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Create Class' })
+      ).toBeInTheDocument();
     });
 
     it('defaults Status to Active and keeps it Active when Start Date is today', async () => {
       renderModal();
-      const statusSelect = screen.getByTestId('select-status') as HTMLSelectElement;
+      const statusSelect = screen.getByTestId(
+        'select-status'
+      ) as HTMLSelectElement;
       expect(statusSelect.value).toBe('ACTIVE');
 
       const [startInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
       fireEvent.change(startInput, { target: { value: TODAY } });
 
       await waitFor(() => {
-        expect((screen.getByTestId('select-status') as HTMLSelectElement).value).toBe('ACTIVE');
+        expect(
+          (screen.getByTestId('select-status') as HTMLSelectElement).value
+        ).toBe('ACTIVE');
       });
     });
 
     it('auto-sets Status to Inactive when Start Date is a future date', async () => {
       renderModal();
-      expect((screen.getByTestId('select-status') as HTMLSelectElement).value).toBe('ACTIVE');
+      expect(
+        (screen.getByTestId('select-status') as HTMLSelectElement).value
+      ).toBe('ACTIVE');
 
       const [startInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
       fireEvent.change(startInput, { target: { value: TOMORROW } });
 
       await waitFor(() => {
-        expect((screen.getByTestId('select-status') as HTMLSelectElement).value).toBe('INACTIVE');
+        expect(
+          (screen.getByTestId('select-status') as HTMLSelectElement).value
+        ).toBe('INACTIVE');
       });
     });
 
     it('calls onSubmit on valid form submission', async () => {
       renderModal();
-      fireEvent.change(screen.getByTestId('input-class_name'), { target: { value: 'Bio 202' } });
+      fireEvent.change(screen.getByTestId('input-class_name'), {
+        target: { value: 'Bio 202' },
+      });
 
       const [startInput, endInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
-      if (startInput) fireEvent.change(startInput, { target: { value: TODAY } });
+      if (startInput)
+        fireEvent.change(startInput, { target: { value: TODAY } });
       if (endInput) fireEvent.change(endInput, { target: { value: TOMORROW } });
 
-      fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      await waitFor(() => screen.getByTestId('input-total_no_of_students'));
       fireEvent.change(screen.getByTestId('input-total_no_of_students'), {
         target: { value: '10' },
       });
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Class' }));
-      await waitFor(() => expect(defaultProps.onSubmit).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(defaultProps.onSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({ total_no_of_students: '10' })
+        )
+      );
     });
 
     it('trims class name on submit while preserving valid special characters', async () => {
@@ -387,9 +395,10 @@ describe('ClassFormModal', () => {
       });
 
       const [startInput, endInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
-      if (startInput) fireEvent.change(startInput, { target: { value: TODAY } });
+      if (startInput)
+        fireEvent.change(startInput, { target: { value: TODAY } });
       if (endInput) fireEvent.change(endInput, { target: { value: TOMORROW } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Class' }));
@@ -398,10 +407,7 @@ describe('ClassFormModal', () => {
         expect(onSubmit).toHaveBeenCalledWith(
           expect.objectContaining({
             class_name: 'Biology & Chemistry (A/B)',
-          }),
-          null,
-          null,
-          expect.any(Function),
+          })
         );
       });
     });
@@ -415,9 +421,10 @@ describe('ClassFormModal', () => {
       });
 
       const [startInput, endInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
-      if (startInput) fireEvent.change(startInput, { target: { value: TODAY } });
+      if (startInput)
+        fireEvent.change(startInput, { target: { value: TODAY } });
       if (endInput) fireEvent.change(endInput, { target: { value: TOMORROW } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Class' }));
@@ -436,9 +443,10 @@ describe('ClassFormModal', () => {
       });
 
       const [startInput, endInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
-      if (startInput) fireEvent.change(startInput, { target: { value: TODAY } });
+      if (startInput)
+        fireEvent.change(startInput, { target: { value: TODAY } });
       if (endInput) fireEvent.change(endInput, { target: { value: TOMORROW } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Class' }));
@@ -446,7 +454,6 @@ describe('ClassFormModal', () => {
       await waitFor(() => {
         expect(onSubmit).not.toHaveBeenCalled();
       });
-
     });
 
     it('rejects class names containing blocked coding keywords', async () => {
@@ -458,9 +465,10 @@ describe('ClassFormModal', () => {
       });
 
       const [startInput, endInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
-      if (startInput) fireEvent.change(startInput, { target: { value: TODAY } });
+      if (startInput)
+        fireEvent.change(startInput, { target: { value: TODAY } });
       if (endInput) fireEvent.change(endInput, { target: { value: TOMORROW } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Class' }));
@@ -470,7 +478,7 @@ describe('ClassFormModal', () => {
       });
     });
 
-    it('rejects Python-style code-like snippets like print(\'Helloo, world!\')', async () => {
+    it("rejects Python-style code-like snippets like print('Helloo, world!')", async () => {
       const onSubmit = vi.fn().mockResolvedValue(undefined);
       renderModal({ onSubmit });
 
@@ -479,9 +487,10 @@ describe('ClassFormModal', () => {
       });
 
       const [startInput, endInput] = Array.from(
-        document.querySelectorAll<HTMLInputElement>('input[type="date"]'),
+        document.querySelectorAll<HTMLInputElement>('input[type="date"]')
       );
-      if (startInput) fireEvent.change(startInput, { target: { value: TODAY } });
+      if (startInput)
+        fireEvent.change(startInput, { target: { value: TODAY } });
       if (endInput) fireEvent.change(endInput, { target: { value: TOMORROW } });
 
       fireEvent.click(screen.getByRole('button', { name: 'Create Class' }));
@@ -499,13 +508,16 @@ describe('ClassFormModal', () => {
   });
 
   describe('Edit mode', () => {
-    it('renders title, pre-filled fields, update button, and no student mode radios', () => {
+    it('renders title, pre-filled fields, update button, and no student count input', () => {
       renderModal({ modalMode: 'edit', selectedClass: mockClass });
       expect(screen.getByTestId('modal-title')).toHaveTextContent('Edit Class');
       expect(screen.getByTestId('input-class_name')).toHaveValue('Math 101');
-      expect(screen.getByRole('button', { name: 'Update Class' })).toBeInTheDocument();
-      expect(screen.queryByTestId('radio-Import Roster')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('radio-Enter Number')).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Update Class' })
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId('input-total_no_of_students')
+      ).not.toBeInTheDocument();
     });
   });
 
@@ -513,15 +525,19 @@ describe('ClassFormModal', () => {
     it('renders delete confirmation UI with correct text and functional buttons', () => {
       renderModal({ modalMode: 'delete' });
       expect(screen.getByText('Delete Class')).toBeInTheDocument();
-      expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Are you sure you want to delete/)
+      ).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
       expect(defaultProps.onConfirmDelete).toHaveBeenCalledTimes(1);
     });
 
-    it('disables Delete button when deleteStatus is "loading"', () => {
-      renderModal({ modalMode: 'delete', deleteStatus: 'loading' });
-      expect(screen.getByRole('button', { name: 'Deleting...' })).toBeDisabled();
+    it('disables Delete button while isDeleting is true', () => {
+      renderModal({ modalMode: 'delete', isDeleting: true });
+      expect(
+        screen.getByRole('button', { name: 'Deleting...' })
+      ).toBeDisabled();
     });
 
     it('calls onClose when Back button is clicked in delete mode', () => {
@@ -534,7 +550,9 @@ describe('ClassFormModal', () => {
   describe('Assign mode', () => {
     it('renders read-only class fields', () => {
       renderModal({ modalMode: 'assign', selectedClass: mockClass });
-      expect(screen.getByTestId('input-class_name')).toHaveAttribute('readonly');
+      expect(screen.getByTestId('input-class_name')).toHaveAttribute(
+        'readonly'
+      );
     });
 
     it('renders editable assign_count input', () => {
@@ -556,67 +574,21 @@ describe('ClassFormModal', () => {
       expect(defaultProps.onClose).toHaveBeenCalled();
     });
 
-    it('resets student mode when modal reopens (isOpen: false â†’ true)', async () => {
-      const { rerender } = renderModal({ isOpen: false });
-      rerender(<ClassFormModal {...defaultProps} isOpen={true} />);
-      await waitFor(() =>
-        expect(screen.queryByTestId('input-total_no_of_students')).not.toBeInTheDocument(),
-      );
-    });
-
-    it('switching from manual to import clears student count input', async () => {
-      renderModal();
-      fireEvent.click(screen.getByTestId('radio-Enter Number'));
-      await waitFor(() => screen.getByTestId('input-total_no_of_students'));
-
-      fireEvent.click(screen.getByTestId('radio-Import Roster'));
-      await waitFor(() =>
-        expect(screen.queryByTestId('input-total_no_of_students')).not.toBeInTheDocument(),
-      );
-      expect(screen.getByText(/Choose File/)).toBeInTheDocument();
-    });
-  });
-
-  describe('File upload validation', () => {
-    const openFileInput = async () => {
-      renderModal();
-      fireEvent.click(screen.getByTestId('radio-Import Roster'));
-      await waitFor(() => screen.getByText(/Choose File/));
-      return document.querySelector('input[type="file"]') as HTMLInputElement;
-    };
-
-    it('accepts a valid .csv file without error', async () => {
-      const input = await openFileInput();
-      const file = new File(['name,email'], 'students.csv', { type: 'text/csv' });
-      Object.defineProperty(input, 'files', { value: [file], configurable: true });
-      fireEvent.change(input);
-      await waitFor(() => expect(screen.queryByText(/Only CSV or Excel/)).not.toBeInTheDocument());
-    });
-
-    it('accepts a valid .xlsx file without error', async () => {
-      const input = await openFileInput();
-      const file = new File(['data'], 'students.xlsx', {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    it('clears the student count when the modal reopens', async () => {
+      const { rerender } = renderModal();
+      fireEvent.change(screen.getByTestId('input-total_no_of_students'), {
+        target: { value: '12' },
       });
-      Object.defineProperty(input, 'files', { value: [file], configurable: true });
-      fireEvent.change(input);
-      await waitFor(() => expect(screen.queryByText(/Only CSV or Excel/)).not.toBeInTheDocument());
-    });
+      expect(screen.getByTestId('input-total_no_of_students')).toHaveValue(
+        '12'
+      );
 
-    it('rejects an invalid .txt file and shows error', async () => {
-      const input = await openFileInput();
-      const file = new File(['data'], 'students.txt', { type: 'text/plain' });
-      Object.defineProperty(input, 'files', { value: [file], configurable: true });
-      fireEvent.change(input);
-      await waitFor(() => expect(screen.getByText(/Only CSV or Excel/)).toBeInTheDocument());
-    });
+      rerender(<ClassFormModal {...defaultProps} isOpen={false} />);
+      rerender(<ClassFormModal {...defaultProps} isOpen={true} />);
 
-    it('shows uploaded filename after valid file is selected', async () => {
-      const input = await openFileInput();
-      const file = new File(['name,email'], 'class_roster.csv', { type: 'text/csv' });
-      Object.defineProperty(input, 'files', { value: [file], configurable: true });
-      fireEvent.change(input);
-      await waitFor(() => expect(screen.getByText('class_roster.csv')).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByTestId('input-total_no_of_students')).toHaveValue('')
+      );
     });
   });
 });

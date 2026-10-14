@@ -1,59 +1,157 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import {
-  MarkReportViewed,
-  type SimulationReport,
-} from "../../redux/class/SimsCompletedreportsRedux";
-import {
-  selectClasses,
-  selectViewedReportIds,
-  isReportNew,
-  markReportUnviewed,
-} from "../../redux/class/GetClassRedux";
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { AlertCircle } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import { MarkReportViewed } from '../../redux/class/SimsCompletedreportsRedux';
+import { selectClasses } from '../../redux/class/GetClassRedux';
 import {
   selectSimulationsByClassId,
   FetchSimulationsByClass,
-} from "../../redux/class/GetSimsRedux";
-import ExportReportModal from "./simulation/ExportReportModal";
-import SortableHeader from "../common/SortableHeader";
+} from '../../redux/class/GetSimsRedux';
+import {
+  ReportReviewStatus,
+  ReportSortField,
+  type ReportListItemResDto,
+  type ReportSortDirection,
+} from '../../redux/api/reports/reports.types';
+import { buildListReportsParams } from '../../redux/api/reports/reportsService';
+import { useReportsTableUrlState } from '../../hooks/useReportsTableUrlState';
+import { useInfiniteReports } from '../../hooks/useInfiniteReports';
+import { cn } from '../../lib/utils';
+import SortableHeader from '../common/SortableHeader';
+import { SkeletonRows, type SkeletonColumn } from '../ui/Skeleton';
+import {
+  SKELETON_INITIAL_ROW_COUNT,
+  SKELETON_REFETCH_ROW_COUNT,
+} from '../../utils/constants/skeleton';
+import {
+  useLmsGradeSync,
+  hasDeletedLmsAssignment,
+  lmsSyncKey,
+  type LmsGradeSyncEntry,
+} from '../../hooks/useLmsGradeSync';
+import LmsSyncAction from './LmsSyncAction';
+import { InfiniteListFooter } from './InfiniteListFooter';
+import { SelectCheckbox } from './reports/SelectCheckbox';
+import { ReportBulkActionBar } from './reports/ReportBulkActionBar';
+import { useReportTableReview } from './reports/useReportTableReview';
+import {
+  REPORT_SORT_FIELDS,
+  buildTranscriptState,
+  formatCompletedAt,
+  formatTimeSpent,
+  getAriaSort,
+  getModeBadgeClass,
+} from './reports/reportTableFormat';
 
 interface ReportSubTableProps {
   classId: string;
-  reports: SimulationReport[];
   isClassInactive?: boolean;
+  // Simulation (assignment or library id) to highlight, e.g. when opened from the Sims table.
   targetScenarioId?: string;
+  /** The element the class list scrolls in, so the next page loads before the end shows. */
+  scrollRootRef?: RefObject<Element | null>;
 }
 
+const PAGE_SIZE = 10;
+const REVIEW_FILTERS: (ReportReviewStatus | undefined)[] = [
+  undefined,
+  ReportReviewStatus.UNREAD,
+  ReportReviewStatus.READ,
+];
+const COLUMN_COUNT = 9;
+
+// Loading placeholders: checkbox, seven text columns, then the action pills.
+const SKELETON_COLUMNS: SkeletonColumn[] = [
+  { barClassName: 'w-4' },
+  ...Array.from({ length: COLUMN_COUNT - 2 }, () => ({})),
+  { barClassName: 'h-7 w-40 rounded-full' },
+];
+
+const SORT_KEYS = Object.keys(REPORT_SORT_FIELDS);
+
+const normalizeTitle = (v: string | null | undefined) =>
+  (v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+// Class sim due dates come as MM-DD-YYYY or ISO; due means end of that day.
+const parseDueDate = (raw: string | null | undefined): Date | null => {
+  if (!raw) return null;
+  const mdY = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  const d = mdY
+    ? new Date(`${mdY[3]}-${mdY[1]}-${mdY[2]}T23:59:59`)
+    : new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// Start of the assignment's first day (dates come as MM-DD-YYYY or ISO).
+const parseStartDate = (raw: string | null | undefined): Date | null => {
+  const end = parseDueDate(raw);
+  if (!end) return null;
+  const d = new Date(end);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+/**
+ * The assignment a report belongs to. The list row has no assignment id yet, only the sim
+ * title, and one sim can be assigned several times with different windows, so pick the
+ * one whose window contains the completion, else the latest one that started before it.
+ * TODO: match on the assignment id once the list API returns it.
+ */
+const pickAssignment = <T extends { start_date?: string; end_date?: string }>(
+  assignments: T[] | undefined,
+  completedAt: string | null
+): T | undefined => {
+  if (!assignments?.length) return undefined;
+  const done = completedAt ? new Date(completedAt) : null;
+  if (!done || Number.isNaN(done.getTime())) return assignments[0];
+  const window = (a: T) => ({
+    start: parseStartDate(a.start_date),
+    end: parseDueDate(a.end_date),
+  });
+  const inWindow = assignments.find((a) => {
+    const { start, end } = window(a);
+    return (!start || start <= done) && (!end || done <= end);
+  });
+  if (inWindow) return inWindow;
+  const startedBefore = assignments
+    .map((a) => ({ a, start: window(a).start }))
+    .filter((x) => x.start && x.start <= done)
+    .sort((x, y) => (y.start?.getTime() ?? 0) - (x.start?.getTime() ?? 0));
+  return startedBefore[0]?.a ?? assignments[0];
+};
+
+const getScoreColorClass = (score: number | null): string => {
+  if (score === null) return 'text-gray-600';
+  if (score > 90) return 'text-blue-600';
+  if (score >= 75) return 'text-green-600';
+  return 'text-red-600';
+};
+
+/**
+ * A class's reports, loaded page by page as the class list scrolls, from
+ * GET /api/simulation-reports/list with server-side sorting, plus row / select-all selection and bulk review (RE-38).
+ */
 export default function ReportSubTable({
   classId,
-  reports,
   isClassInactive,
   targetScenarioId,
+  scrollRootRef,
 }: ReportSubTableProps) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const t = (
-    localStorage.getItem("app_language")?.toLowerCase() === "es"
-      ? loginEs
-      : loginEn
-  ).reportSubTable;
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc" | null>(
-    null,
-  );
-  const [exportModalOpen, setExportModalOpen] = useState(false);
-  // Multi-select: mark selected (or all) reports reviewed / unreviewed.
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [highlightedScenarioId, setHighlightedScenarioId] = useState<
-    string | null
-  >(null);
+  const location = useLocation();
+  const { t } = useTranslation('classManagement');
+
+  const { reviewStatus, sortField, sortDirection, setReviewStatus, setSort } =
+    useReportsTableUrlState(classId, SORT_KEYS);
+  const [highlightedTitle, setHighlightedTitle] = useState<string | null>(null);
   const firstMatchRef = useRef<HTMLTableRowElement | null>(null);
+
   const allClasses = useAppSelector(selectClasses);
-  const viewedReportIds = useAppSelector(selectViewedReportIds);
   const classSims = useAppSelector(selectSimulationsByClassId(classId));
+  const lmsSync = useLmsGradeSync(classId);
 
   useEffect(() => {
     if (classSims === null) {
@@ -61,300 +159,426 @@ export default function ReportSubTable({
     }
   }, [classId, classSims, dispatch]);
 
-  const dueDateBySimId = useMemo(() => {
-    const map = new Map<string, string>();
+  const sortBy = REPORT_SORT_FIELDS[sortField] ?? ReportSortField.COMPLETED_AT;
+  const apiSortDirection: ReportSortDirection =
+    sortDirection === 'asc' ? 'ASC' : 'DESC';
+  const params = buildListReportsParams({
+    pageSize: PAGE_SIZE,
+    classIds: [classId],
+    reviewStatus,
+    sortBy,
+    sortDirection: apiSortDirection,
+  });
+  const {
+    rows,
+    total,
+    isInitialLoading,
+    isLoadError,
+    isFetching,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    isRefreshError,
+    fetchNextPage,
+    refetch,
+  } = useInfiniteReports(params);
+
+  const reportIds = useMemo(() => rows.map((r) => r.reportId), [rows]);
+  const { selection, isReviewing, markSelected, markAll } =
+    useReportTableReview(reportIds, classId, { paged: true });
+  const clearSelection = selection.clear;
+
+  // A new filter is a new result set: drop the selection (also on back/forward in the URL).
+  useEffect(() => {
+    clearSelection();
+  }, [reviewStatus, clearSelection]);
+
+  // The list row carries codes/names only; resolve the class's student and sim from them.
+  const studentsByCode = useMemo(() => {
+    const cls = allClasses?.find((c) => c.id === classId);
+    return new Map(
+      (cls?.students ?? [])
+        .filter((s) => s.student_id)
+        .map((s) => [String(s.student_id), s])
+    );
+  }, [allClasses, classId]);
+
+  // Every assignment per sim title: a sim can be assigned more than once (see pickAssignment).
+  const simsByTitle = useMemo(() => {
+    const map = new Map<string, NonNullable<typeof classSims>>();
     for (const sim of classSims ?? []) {
-      if (sim.simulation_id && sim.due_date)
-        map.set(sim.simulation_id, sim.due_date);
+      const key = normalizeTitle(sim.simulation_title);
+      map.set(key, [...(map.get(key) ?? []), sim]);
     }
     return map;
   }, [classSims]);
 
-  const userIdToStudentCode = useMemo(() => {
-    const map = new Map<string, string>();
-    const cls = allClasses?.find((c) => c.id === classId);
-    for (const student of cls?.students ?? []) {
-      if (student.user_id && student.student_id) {
-        map.set(student.user_id, student.student_id);
-      }
-      if (student.student_id) {
-        map.set(student.student_id, student.student_id);
-      }
+  const visibleLmsStatuses = useMemo(() => {
+    const visible: Record<string, LmsGradeSyncEntry> = {};
+    for (const row of rows) {
+      if (row.mode?.toLowerCase() !== 'assessment') continue;
+      const student = studentsByCode.get(row.studentCode);
+      const sim = pickAssignment(
+        simsByTitle.get(normalizeTitle(row.simulationName)),
+        row.completedAt
+      );
+      if (!student?.id || !sim?.simulation_id) continue;
+      const key = lmsSyncKey(String(sim.simulation_id), String(student.id));
+      const entry = lmsSync.statuses[key];
+      if (entry) visible[key] = entry;
     }
-    return map;
-  }, [allClasses, classId]);
+    return visible;
+  }, [rows, studentsByCode, simsByTitle, lmsSync.statuses]);
 
-  const getReportData = (
-    r: SimulationReport,
-  ): Record<string, unknown> | undefined => {
-    const raw = r as unknown as Record<string, unknown>;
-    return raw["report_data"] && typeof raw["report_data"] === "object"
-      ? (raw["report_data"] as Record<string, unknown>)
-      : undefined;
-  };
+  // Highlight the target sim's rows briefly when opened from the Sims table.
+  const targetTitle = useMemo(() => {
+    if (!targetScenarioId) return null;
+    const sim = (classSims ?? []).find(
+      (s) =>
+        String(s.id) === targetScenarioId ||
+        String(s.simulation_id) === targetScenarioId
+    );
+    return sim ? normalizeTitle(sim.simulation_title) : null;
+  }, [targetScenarioId, classSims]);
 
-  const getStatusColorClass = (_score?: number | null): string => {
-    // Performance Quality text is intentionally neutral gray everywhere now
-    // (consistent across all tables / modals).
-    return "text-gray-700";
-  };
-
-  const hasReports = reports.length > 0;
-
-  const rows = reports;
-
-  const headers = [
-    { label: t.headerStudentCode, field: "studentCode" },
-    { label: t.headerMode, field: "mode" },
-    { label: t.headerSimName, field: "simulationName" },
-    { label: t.headerScore, field: "score" },
-    { label: t.headerStatus, field: "status" },
-    { label: t.headerTimeSpent, field: "timeSpent" },
-    { label: t.headerCompletedAt, field: "completedAt" },
-    { label: t.headerActions, field: "" },
-  ];
-
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-      return;
-    }
-    setSortField(field);
-    setSortDirection("asc");
-  };
-
-  const getSortValue = (
-    row: SimulationReport,
-    field: string,
-  ): string | number => {
-    const score = row.score ?? row.scoreJson?.overallScore ?? null;
-    const completedAt = row.scenarioEndTime ?? row.completed_at ?? null;
-
-    switch (field) {
-      case "studentCode":
-        return (
-          row.studentCode ??
-          row.student_code ??
-          (row.userId ? userIdToStudentCode.get(row.userId) : "") ??
-          ""
-        ).toLowerCase();
-      case "mode":
-        return (row.mode ?? "").toLowerCase();
-      case "simulationName":
-        return (
-          row.scenarioTitle ??
-          row.scenario_title ??
-          row.simulation_name ??
-          ""
-        ).toLowerCase();
-      case "score":
-        return Number(score ?? -1);
-      case "status":
-        return (
-          row.status ??
-          row.performanceLabel ??
-          row.scoreJson?.overallLabel ??
-          ""
-        ).toLowerCase();
-      case "timeSpent":
-        return Number(row.totalTimeSeconds ?? 0);
-      case "completedAt":
-        return completedAt ? new Date(completedAt).getTime() : 0;
-      default:
-        return "";
-    }
-  };
-
-  const sortedRows = useMemo(() => {
-    if (!sortField || !sortDirection) return rows;
-
-    return [...rows].sort((a, b) => {
-      const aVal = getSortValue(a, sortField);
-      const bVal = getSortValue(b, sortField);
-
-      if (typeof aVal === "string" && typeof bVal === "string") {
-        const cmp = aVal.localeCompare(bVal, undefined, {
-          sensitivity: "base",
-        });
-        return sortDirection === "asc" ? cmp : -cmp;
-      }
-
-      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [rows, sortField, sortDirection, userIdToStudentCode]);
-
-  const toggleSelected = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  const markReviewed = (ids: string[]) => {
-    if (!classId || ids.length === 0) return;
-    void dispatch(MarkReportViewed({ reportId: ids, classId }));
-    setSelectedIds(new Set());
-  };
-  const markUnreviewed = (ids: string[]) => {
-    if (!classId || ids.length === 0) return;
-    dispatch(markReportUnviewed({ reportId: ids, classId }));
-    setSelectedIds(new Set());
-  };
-  const allReportIds = sortedRows
-    .map((r) => r.id)
-    .filter((id): id is string => Boolean(id));
+  const firstMatchIndex = highlightedTitle
+    ? rows.findIndex(
+        (r) => normalizeTitle(r.simulationName) === highlightedTitle
+      )
+    : -1;
 
   useEffect(() => {
-    if (!targetScenarioId || sortedRows.length === 0) return;
-    const matchIndex = sortedRows.findIndex((r) => {
-      const sid = (r.scenario_id ?? r.scenarioId ?? "") as string;
-      return sid === targetScenarioId;
-    });
-    if (matchIndex === -1) return;
-    setHighlightedScenarioId(targetScenarioId);
-    const timer = setTimeout(() => {
-      setHighlightedScenarioId(null);
-    }, 2500);
+    if (!targetTitle) return;
+    if (!rows.some((r) => normalizeTitle(r.simulationName) === targetTitle))
+      return;
+    setHighlightedTitle(targetTitle);
+    const timer = setTimeout(() => setHighlightedTitle(null), 2500);
     return () => clearTimeout(timer);
-  }, [targetScenarioId, sortedRows]);
-
-  const firstMatchIndex = useMemo(() => {
-    if (!highlightedScenarioId) return -1;
-    return sortedRows.findIndex((r) => {
-      const sid = (r.scenario_id ?? r.scenarioId ?? "") as string;
-      return sid === highlightedScenarioId;
-    });
-  }, [highlightedScenarioId, sortedRows]);
+  }, [targetTitle, rows]);
 
   useEffect(() => {
     if (firstMatchIndex >= 0 && firstMatchRef.current) {
       firstMatchRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
+        behavior: 'smooth',
+        block: 'nearest',
       });
     }
   }, [firstMatchIndex]);
 
-  function handleViewReport(row: SimulationReport) {
-    const studentName = row.studentName ?? row.student_name ?? "—";
-    dispatch(MarkReportViewed({ reportId: row.id, classId }));
-    navigate("/report-detail", {
+  const headers = [
+    { label: t('reportTable.studentCode'), field: 'studentCode' },
+    { label: t('reportTable.mode'), field: 'mode' },
+    { label: t('reportTable.simulationName'), field: 'simulationName' },
+    { label: t('reportTable.score'), field: 'score' },
+    { label: t('reportReview.columns.performanceQuality'), field: '' },
+    { label: t('reportTable.timeSpent'), field: 'timeSpent' },
+    { label: t('reportTable.completedAt'), field: 'completedAt' },
+    { label: t('rowActions.viewReport'), field: '' },
+  ];
+
+  const handleSort = (field: string) =>
+    setSort(
+      field,
+      sortField === field && sortDirection === 'asc' ? 'desc' : 'asc'
+    );
+
+  const statusLabelMap: Record<string, string> = {
+    exceptional: t('reportTable.statusExceptional'),
+    'meets expectation': t('reportTable.statusMeetsExpectation'),
+    'needs improvement': t('reportTable.statusNeedsImprovement'),
+    needs_improvement: t('reportTable.statusNeedsImprovement'),
+  };
+
+  function handleViewReport(row: ReportListItemResDto, studentName: string) {
+    dispatch(MarkReportViewed({ reportId: row.reportId, classId }));
+    // The detail page loads the full report by id.
+    navigate('/report-detail', {
       state: {
-        report: { ...row, student_name: studentName, class_id: classId },
-        backPath: "/classes",
-        backState: { classId, expandType: "reports" },
+        report: {
+          id: row.reportId,
+          class_id: classId,
+          mode: row.mode,
+          scenarioTitle: row.simulationName,
+          student_name: studentName,
+        },
+        // Keep the table's filter / sort for when the educator comes back.
+        backPath: `/classes${location.search}`,
+        backState: { classId, expandType: 'reports' },
       },
     });
   }
 
-  function handleViewTranscript(row: SimulationReport) {
-    const raw = row as unknown as Record<string, unknown>;
-    const reportData = getReportData(row);
-    const summaryByCategory =
-      (raw["summaryByCategory"] as Record<string, unknown> | undefined) ??
-      (raw["summary_by_category"] as Record<string, unknown> | undefined) ??
-      (reportData?.["summaryByCategory"] as
-        | Record<string, unknown>
-        | undefined) ??
-      (reportData?.["summary_by_category"] as
-        | Record<string, unknown>
-        | undefined);
-    const actions = Array.isArray(summaryByCategory?.["actions"])
-      ? (summaryByCategory?.["actions"] as Record<string, unknown>[])
-      : [];
-    const firstAction = (actions[0] ?? {}) as Record<string, unknown>;
+  function handleViewTranscript(row: ReportListItemResDto) {
+    navigate(`/transcript/${row.reportId}`, {
+      state: buildTranscriptState(
+        row.simulationName,
+        row.mode,
+        row.completedAt
+      ),
+    });
+  }
 
-    const startedAtCombined =
-      (firstAction["startedAt"] as string | undefined) ??
-      (firstAction["started_at"] as string | undefined) ??
-      (firstAction["timestamp"] as string | undefined) ??
-      row.scenarioStartTime ??
-      (reportData?.["scenarioStartTime"] as string | undefined) ??
-      (reportData?.["scenario_start_time"] as string | undefined);
+  const hasReports = rows.length > 0;
+  const actionButtonBase =
+    'inline-flex items-center justify-center px-2.5 py-1 border text-[11px] rounded-full font-medium transition-colors whitespace-nowrap';
+  const disabledButton =
+    'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed';
 
-    let transcriptSimDate = "";
-    let transcriptSimTime = "";
-    if (startedAtCombined && startedAtCombined.includes(",")) {
-      const [datePart, timePart] = startedAtCombined.split(",");
-      transcriptSimDate = (datePart ?? "").trim();
-      transcriptSimTime = (timePart ?? "").trim();
-    } else if (startedAtCombined) {
-      const d = new Date(startedAtCombined);
-      if (!Number.isNaN(d.getTime())) {
-        transcriptSimDate = d.toLocaleDateString("en-US", {
-          month: "short",
-          day: "2-digit",
-        });
-        transcriptSimTime = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-      }
+  const renderBody = () => {
+    // First load and sort/filter changes load in the body only; a refresh after a
+    // review keeps the loaded rows.
+    if (isInitialLoading) {
+      return (
+        <SkeletonRows
+          rows={SKELETON_INITIAL_ROW_COUNT}
+          columns={SKELETON_COLUMNS}
+          label={t('reportReview.loading')}
+          rowClassName="border-t border-gray-100"
+          cellClassName="px-4 py-5"
+        />
+      );
+    }
+    if (isLoadError) {
+      return (
+        <tr>
+          <td
+            colSpan={COLUMN_COUNT}
+            className="px-3 py-10 text-center text-sm text-red-500"
+          >
+            {t('reportReview.loadError')}
+          </td>
+        </tr>
+      );
+    }
+    if (!hasReports) {
+      return (
+        <tr>
+          <td colSpan={COLUMN_COUNT} className="px-3 py-10 text-center">
+            <div className="flex flex-col items-center gap-2">
+              <p className="text-sm font-semibold text-gray-600">
+                {reviewStatus
+                  ? t('reportReview.noMatches')
+                  : t('reportTable.noReportTitle')}
+              </p>
+              {!reviewStatus && (
+                <p className="text-xs text-gray-400">
+                  {t('reportTable.noReportSubtitle')}
+                </p>
+              )}
+            </div>
+          </td>
+        </tr>
+      );
     }
 
-    const transcriptSimName =
-      row.scenarioTitle ??
-      row.scenario_title ??
-      row.simulation_name ??
-      row.scenarioId ??
-      "";
-    const transcriptMode = row.mode ?? "";
-    navigate(`/transcript/${row.id}`, {
-      state: {
-        simulationName: transcriptSimName,
-        reportMode: transcriptMode,
-        simulationDate: transcriptSimDate,
-        simulationTime: transcriptSimTime,
-      },
+    return rows.map((row, i) => {
+      const student = studentsByCode.get(row.studentCode);
+      const studentName = student?.student_name || '—';
+      const sim = pickAssignment(
+        simsByTitle.get(normalizeTitle(row.simulationName)),
+        row.completedAt
+      );
+      const mode = row.mode?.toLowerCase();
+      const isAssessment = mode === 'assessment';
+      const isPractice = mode === 'practice';
+      const modeLabel = isAssessment
+        ? t('reportTable.modeAssessment')
+        : isPractice
+          ? t('reportTable.modePractice')
+          : row.mode || '—';
+      const modeBadgeClass = getModeBadgeClass(row.mode);
+      const score = typeof row.score === 'number' ? row.score : null;
+      const statusText =
+        statusLabelMap[(row.performanceQuality ?? '').toLowerCase()] ??
+        (row.performanceQuality || '—');
+
+      const completed = row.completedAt ? new Date(row.completedAt) : null;
+      const due = parseDueDate(sim?.due_date ?? sim?.end_date);
+      const isLate = isAssessment && !!completed && !!due && completed > due;
+      const completedAtColor = !completed
+        ? 'text-gray-500'
+        : !due
+          ? 'text-gray-700'
+          : completed <= due
+            ? 'text-green-600'
+            : 'text-red-500';
+
+      const isNewReport = row.viewedAt === null;
+      const simulationName = row.simulationName?.trim() ?? '';
+      const isTargetRow =
+        !!highlightedTitle &&
+        normalizeTitle(row.simulationName) === highlightedTitle;
+
+      return (
+        <tr
+          key={row.reportId}
+          ref={i === firstMatchIndex ? firstMatchRef : undefined}
+          className={`border-t border-gray-100 hover:bg-gray-50 transition-colors ${
+            isTargetRow
+              ? 'bg-primary-100'
+              : isNewReport
+                ? 'bg-primary-50/30'
+                : ''
+          }`}
+        >
+          <td className="px-4 py-3">
+            <SelectCheckbox
+              checked={selection.isSelected(row.reportId)}
+              onChange={() => selection.toggle(row.reportId)}
+              label={t('reportReview.selectReport', {
+                name: `${studentName} ${row.simulationName}`,
+              })}
+              disabled={isClassInactive}
+            />
+          </td>
+          <td className="px-4 py-3 text-[13px] font-mono text-gray-700">
+            {row.studentCode || '—'}
+          </td>
+          <td className="px-4 py-3">
+            <span
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${modeBadgeClass}`}
+            >
+              {modeLabel}
+            </span>
+          </td>
+          <td className="px-4 py-3 text-[15px] text-gray-700">
+            <div className="flex items-center gap-2">
+              {simulationName || '—'}
+              {/* With no name there's nothing to badge; the row tint and the filled
+                  View Report button still mark it unread. */}
+              {isNewReport && simulationName && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-primary-500 text-white leading-none tracking-wide">
+                  {t('reportTable.badgeNew')}
+                </span>
+              )}
+            </div>
+          </td>
+          <td className="px-4 py-3 text-[15px] font-medium text-gray-700">
+            {score !== null ? `${score}%` : '—'}
+          </td>
+          <td
+            className={`px-4 py-3 text-[14px] capitalize font-medium ${getScoreColorClass(score)}`}
+          >
+            {statusText}
+          </td>
+          <td className="px-4 py-3 text-[15px] text-gray-500">
+            {formatTimeSpent(row.timeSpent)}
+          </td>
+          <td
+            className={`px-4 py-3 text-[15px] font-medium ${completedAtColor}`}
+          >
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {formatCompletedAt(row.completedAt)}
+              {isLate && (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white leading-none tracking-wide whitespace-nowrap">
+                  {t('reportTable.badgeLate')}
+                </span>
+              )}
+            </div>
+          </td>
+          <td className="px-4 py-3">
+            <div className="flex flex-row flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={isClassInactive}
+                onClick={() =>
+                  !isClassInactive && handleViewReport(row, studentName)
+                }
+                className={`${actionButtonBase} ${
+                  isClassInactive
+                    ? disabledButton
+                    : isNewReport
+                      ? 'bg-primary-500 border-primary-500 text-white hover:bg-primary-600 cursor-pointer'
+                      : 'bg-primary-50 border-primary-200 text-primary-600 hover:bg-primary-100 cursor-pointer'
+                }`}
+              >
+                {t('reportTable.viewReport')}
+              </button>
+              <button
+                type="button"
+                disabled={isClassInactive}
+                onClick={() => !isClassInactive && handleViewTranscript(row)}
+                className={`${actionButtonBase} ${
+                  isClassInactive
+                    ? disabledButton
+                    : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer'
+                }`}
+              >
+                {t('reportTable.viewTranscript')}
+              </button>
+              <LmsSyncAction
+                sync={lmsSync}
+                mode={row.mode}
+                simulationId={sim?.simulation_id}
+                studentId={student?.id}
+              />
+            </div>
+          </td>
+        </tr>
+      );
     });
-  }
+  };
 
   return (
-    <div className="mx-3 my-4 rounded-xl border border-gray-200 bg-white shadow-md overflow-hidden transition-opacity duration-150 ease-out">
-      {hasReports && (
-        <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-gray-100">
-          <span className="text-xs text-gray-500 mr-auto">
-            {selectedIds.size} selected
-          </span>
-          <button
-            type="button"
-            disabled={selectedIds.size === 0}
-            onClick={() => markReviewed([...selectedIds])}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-[#5f6060] hover:bg-[#e9e9e9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Mark reviewed
-          </button>
-          <button
-            type="button"
-            disabled={selectedIds.size === 0}
-            onClick={() => markUnreviewed([...selectedIds])}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-[#5f6060] hover:bg-[#e9e9e9] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Mark unreviewed
-          </button>
-          <span className="mx-1 h-5 w-px bg-gray-300" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => markReviewed(allReportIds)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-[#5f6060] hover:bg-[#e9e9e9] transition-colors"
-          >
-            Mark all reviewed
-          </button>
-          <button
-            type="button"
-            onClick={() => markUnreviewed(allReportIds)}
-            className="text-xs font-semibold px-3 py-1.5 rounded-full border border-gray-300 text-[#5f6060] hover:bg-[#e9e9e9] transition-colors"
-          >
-            Mark all unreviewed
-          </button>
+    <div className="relative mx-3 my-4 rounded-xl border border-gray-200 bg-white shadow-md overflow-hidden transition-opacity duration-150 ease-out">
+      {hasDeletedLmsAssignment(visibleLmsStatuses) && (
+        <div
+          role="status"
+          className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] leading-snug text-amber-900"
+        >
+          <AlertCircle
+            size={14}
+            aria-hidden="true"
+            className="mt-0.5 shrink-0"
+          />
+          <span>{t('reportReview.lmsAssignmentDeleted')}</span>
         </div>
       )}
+      <div className="flex flex-wrap items-center gap-3 px-4 pt-3 pb-1">
+        <div
+          role="group"
+          aria-label={t('reportReview.filterLabel')}
+          className="inline-flex items-center rounded-full bg-[#e9e9e9] p-0.5 text-xs font-semibold"
+        >
+          {REVIEW_FILTERS.map((status) => (
+            <button
+              key={status ?? 'all'}
+              type="button"
+              aria-pressed={reviewStatus === status}
+              onClick={() => setReviewStatus(status)}
+              className={cn(
+                'px-3 py-1 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400',
+                reviewStatus === status
+                  ? 'bg-primary-500 text-white'
+                  : 'text-[#5f6060]'
+              )}
+            >
+              {t(`reportReview.filters.${status ?? 'all'}`)}
+            </button>
+          ))}
+        </div>
+        {hasReports && (
+          <div className="flex-1 min-w-0 [&>div]:mb-0">
+            <ReportBulkActionBar
+              selectedCount={selection.selectedIds.length}
+              totalCount={total ?? reportIds.length}
+              onMarkSelected={markSelected}
+              onMarkAll={markAll}
+              busy={isReviewing}
+              disabled={isClassInactive}
+            />
+          </div>
+        )}
+      </div>
+      {/* Horizontal scroll only: the class list is the one vertical scroller, and loads
+          the next page of reports as the end of this table comes into view. */}
       <div
-        className="overflow-x-auto overflow-y-auto max-h-[400px] border-t border-gray-200"
-        style={{ scrollbarGutter: "stable" }}
+        aria-busy={isFetching || isReviewing}
+        className="overflow-x-auto border-t border-gray-200"
       >
-        <table className="w-full min-w-[1100px] table-auto text-sm">
+        <table className="w-full min-w-[1124px] table-auto text-sm">
           <colgroup>
-            <col className="w-10" />
+            <col className="w-[44px]" />
             <col className="w-[130px]" />
             <col className="w-[110px]" />
             <col />
@@ -364,35 +588,22 @@ export default function ReportSubTable({
             <col className="w-[155px]" />
             <col className="w-[240px]" />
           </colgroup>
-          <thead className="sticky top-0 z-10 bg-[#5a6475]">
+          <thead className="bg-[#5a6475]">
             <tr className="bg-[#5a6475] text-white text-left">
-              <th className="px-4 py-3">
-                <input
-                  type="checkbox"
-                  aria-label="Select all reports"
-                  className="w-4 h-4 accent-white cursor-pointer align-middle"
-                  checked={
-                    allReportIds.length > 0 &&
-                    selectedIds.size === allReportIds.length
-                  }
-                  ref={(el) => {
-                    if (el)
-                      el.indeterminate =
-                        selectedIds.size > 0 &&
-                        selectedIds.size < allReportIds.length;
-                  }}
-                  onChange={() =>
-                    setSelectedIds(
-                      selectedIds.size === allReportIds.length
-                        ? new Set()
-                        : new Set(allReportIds),
-                    )
-                  }
+              <th className="px-4 py-3 w-[44px]">
+                <SelectCheckbox
+                  checked={selection.isAllSelected}
+                  indeterminate={selection.isPartial}
+                  onChange={selection.toggleAll}
+                  label={t('reportReview.selectAll')}
+                  disabled={!hasReports || isClassInactive}
+                  className="accent-white"
                 />
               </th>
               {headers.map(({ label, field }) => (
                 <th
                   key={label}
+                  aria-sort={getAriaSort(field, sortField, sortDirection)}
                   className="px-4 py-3 font-semibold text-sm text-left whitespace-nowrap"
                 >
                   {field ? (
@@ -411,279 +622,34 @@ export default function ReportSubTable({
             </tr>
           </thead>
           <tbody>
-            {!hasReports ? (
-              <tr>
-                <td colSpan={9} className="px-3 py-10 text-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-sm font-semibold text-gray-600">
-                      {t.noReportTitle}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {t.noReportSubtitle}
-                    </p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              sortedRows.map((row, i) => {
-                const reportData = getReportData(row);
-                const reportScore = reportData?.["score"];
-                const reportScoreJson =
-                  reportData?.["scoreJson"] &&
-                  typeof reportData["scoreJson"] === "object"
-                    ? (reportData["scoreJson"] as Record<string, unknown>)
-                    : null;
-                const score =
-                  row.score ??
-                  row.scoreJson?.overallScore ??
-                  (typeof reportScore === "number"
-                    ? reportScore
-                    : typeof reportScore === "string" &&
-                        reportScore.trim() !== ""
-                      ? Number(reportScore)
-                      : null) ??
-                  (typeof reportScoreJson?.["overallScore"] === "number"
-                    ? (reportScoreJson["overallScore"] as number)
-                    : null);
-                const performanceLabel =
-                  row.performanceLabel ??
-                  row.scoreJson?.overallLabel ??
-                  (reportData?.["performanceLabel"] as string | undefined) ??
-                  (typeof reportScoreJson?.["overallLabel"] === "string"
-                    ? (reportScoreJson["overallLabel"] as string)
-                    : null);
-                const completedAt =
-                  row.scenarioEndTime ??
-                  row.completed_at ??
-                  (reportData?.["scenarioEndTime"] as string | undefined) ??
-                  (reportData?.["completed_at"] as string | undefined) ??
-                  (reportData?.["createdAt"] as string | undefined) ??
-                  null;
-                let totalSecs =
-                  row.totalTimeSeconds ??
-                  (reportData?.["totalTimeSeconds"] as number | undefined) ??
-                  null;
-                if (totalSecs != null && totalSecs > 86400)
-                  totalSecs = Math.round(totalSecs / 1000);
-                const timeSpent = (() => {
-                  if (totalSecs == null)
-                    return (
-                      row.time_spent ??
-                      (reportData?.["time_spent"] as string | undefined) ??
-                      null
-                    );
-                  const h = Math.floor(totalSecs / 3600);
-                  const m = Math.floor((totalSecs % 3600) / 60);
-                  const s = totalSecs % 60;
-                  if (h > 0) return `${h}h ${m}m`;
-                  if (m > 0) return `${m}m ${s}s`;
-                  return `${s}s`;
-                })();
-                const simEndDate =
-                  (reportData?.["end_date"] as string | undefined) ??
-                  (reportData?.["endDate"] as string | undefined) ??
-                  row.due_date ??
-                  (reportData?.["due_date"] as string | undefined) ??
-                  null;
-                const completedAtColor = (() => {
-                  if (!completedAt) return "text-gray-500";
-                  if (!simEndDate) return "text-gray-700";
-                  return new Date(completedAt) <= new Date(simEndDate)
-                    ? "text-green-600"
-                    : "text-red-500";
-                })();
-                const studentCode =
-                  row.studentCode ??
-                  row.student_code ??
-                  (reportData?.["studentCode"] as string | undefined) ??
-                  (reportData?.["student_code"] as string | undefined) ??
-                  (row.userId
-                    ? userIdToStudentCode.get(row.userId)
-                    : undefined) ??
-                  "—";
-                const simName =
-                  row.scenarioTitle ??
-                  row.scenario_title ??
-                  row.simulation_name ??
-                  row.scenarioId ??
-                  row.scenario_id ??
-                  (reportData?.["scenarioTitle"] as string | undefined) ??
-                  (reportData?.["scenario_title"] as string | undefined) ??
-                  (reportData?.["simulation_name"] as string | undefined) ??
-                  "—";
-                const rawMode =
-                  row.mode ??
-                  (reportData?.["mode"] as string | undefined) ??
-                  null;
-                const isPractice = rawMode?.toLowerCase() === "practice";
-                const isAssessment = rawMode?.toLowerCase() === "assessment";
-                const isLate = (() => {
-                  if (!isAssessment) return false;
-                  const scenarioId = (
-                    (row.scenario_id ?? row.scenarioId ?? "") as string
-                  ).trim();
-                  const rawDue =
-                    (scenarioId ? dueDateBySimId.get(scenarioId) : undefined) ??
-                    row.due_date ??
-                    (reportData?.["due_date"] as string | undefined);
-                  if (!completedAt || !rawDue) return false;
-                  const dueParsed = rawDue.match(/^(\d{2})-(\d{2})-(\d{4})$/)
-                    ? new Date(
-                        `${rawDue.slice(6)}-${rawDue.slice(0, 2)}-${rawDue.slice(3, 5)}T23:59:59`,
-                      )
-                    : new Date(rawDue);
-                  return (
-                    !isNaN(dueParsed.getTime()) &&
-                    new Date(completedAt) > dueParsed
-                  );
-                })();
-                const modeLabel = isAssessment
-                  ? t.modeAssessment
-                  : isPractice
-                    ? t.modePractice
-                    : (rawMode ?? "—");
-                const modeBadgeClass = isAssessment
-                  ? "bg-blue-50 text-blue-700"
-                  : isPractice
-                    ? "bg-green-50 text-green-700"
-                    : "bg-gray-50 text-gray-500";
-
-                const completedAtDisplay = completedAt
-                  ? (() => {
-                      const d = new Date(completedAt);
-                      if (isNaN(d.getTime())) return completedAt;
-                      const mm = String(d.getMonth() + 1).padStart(2, "0");
-                      const dd = String(d.getDate()).padStart(2, "0");
-                      const yyyy = d.getFullYear();
-                      const hh = String(d.getHours()).padStart(2, "0");
-                      const min = String(d.getMinutes()).padStart(2, "0");
-                      return `${mm}/${dd}/${yyyy} ${hh}:${min}`;
-                    })()
-                  : "—";
-
-                const rawStatusText = row.status ?? performanceLabel ?? "—";
-                // translate known backend performance labels
-                const statusLabelMap: Record<string, string> = {
-                  Exceptional: t.statusExceptional,
-                  EXCEPTIONAL: t.statusExceptional,
-                  "Meets Expectation": t.statusMeetsExpectation,
-                  "MEETS EXPECTATION": t.statusMeetsExpectation,
-                  "Needs Improvement": t.statusNeedsImprovement,
-                  "NEEDS IMPROVEMENT": t.statusNeedsImprovement,
-                };
-                const statusText =
-                  (rawStatusText && statusLabelMap[rawStatusText]) ??
-                  rawStatusText;
-
-                const isNewReport = isReportNew(
-                  row.id,
-                  row.isNew,
-                  viewedReportIds,
-                );
-                const rowScenarioId = (row.scenario_id ??
-                  row.scenarioId ??
-                  "") as string;
-                const isTargetRow =
-                  !!highlightedScenarioId &&
-                  !!rowScenarioId &&
-                  rowScenarioId === highlightedScenarioId;
-
-                return (
-                  <tr
-                    key={i}
-                    ref={i === firstMatchIndex ? firstMatchRef : undefined}
-                    className={`border-t border-gray-100 hover:bg-gray-50 transition-colors ${
-                      isTargetRow ? "bg-[#e9e9e9]" : ""
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        aria-label="Select report"
-                        checked={row.id ? selectedIds.has(row.id) : false}
-                        onChange={() => row.id && toggleSelected(row.id)}
-                        className="w-4 h-4 accent-white cursor-pointer"
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-[13px] font-mono text-gray-700">
-                      {studentCode}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${modeBadgeClass}`}
-                      >
-                        {modeLabel}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[15px] text-gray-700">
-                      {simName}
-                    </td>
-                    <td className="px-4 py-3 text-[15px] font-medium text-gray-700">
-                      {score !== null ? `${score}%` : (performanceLabel ?? "—")}
-                    </td>
-                    <td
-                      className={`px-4 py-3 text-[14px] capitalize font-medium ${getStatusColorClass(score)}`}
-                    >
-                      {statusText}
-                    </td>
-                    <td className="px-4 py-3 text-[15px] text-gray-500">
-                      {timeSpent ?? "—"}
-                    </td>
-                    <td
-                      className={`px-4 py-3 text-[15px] font-medium ${completedAtColor}`}
-                    >
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {completedAtDisplay}
-                        {isLate && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500 text-white leading-none tracking-wide whitespace-nowrap">
-                            {t.badgeLate}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-row items-center gap-2">
-                        <button
-                          disabled={isClassInactive}
-                          onClick={() =>
-                            !isClassInactive && handleViewReport(row)
-                          }
-                          className={`inline-flex items-center justify-center px-2.5 py-1 border text-[11px] rounded-full font-medium transition-colors whitespace-nowrap ${
-                            isClassInactive
-                              ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
-                              : isNewReport
-                                ? "bg-primary-500 border-primary-500 text-white hover:bg-primary-600 cursor-pointer"
-                                : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
-                          }`}
-                        >
-                          {t.viewReport}
-                        </button>
-                        <button
-                          disabled={isClassInactive}
-                          onClick={() =>
-                            !isClassInactive && handleViewTranscript(row)
-                          }
-                          className={`inline-flex items-center justify-center px-2.5 py-1 border text-[11px] rounded-full font-medium transition-colors whitespace-nowrap ${
-                            isClassInactive
-                              ? "bg-gray-100 border-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100 cursor-pointer"
-                          }`}
-                        >
-                          {t.viewTranscript}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+            {renderBody()}
+            {isFetchingNextPage && (
+              <SkeletonRows
+                rows={SKELETON_REFETCH_ROW_COUNT}
+                columns={SKELETON_COLUMNS}
+                label={t('reportReview.loading')}
+                rowClassName="border-t border-gray-100"
+                cellClassName="px-4 py-5"
+              />
             )}
           </tbody>
         </table>
       </div>
-      {exportModalOpen && (
-        <ExportReportModal
-          source={{ type: "class", classId }}
-          onClose={() => setExportModalOpen(false)}
+      {hasReports && (
+        <InfiniteListFooter
+          key={JSON.stringify(params)}
+          itemCount={rows.length}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          isFetching={isFetching}
+          isFetchNextPageError={isFetchNextPageError}
+          fetchNextPage={() => void fetchNextPage()}
+          isRefreshError={isRefreshError}
+          refetch={() => void refetch()}
+          endMessage={t('table.endOfReports')}
+          shouldShowLoadingMessage={false}
+          loadedMoreMessage={(count) => t('table.loadedMoreReports', { count })}
+          scrollRootRef={scrollRootRef}
         />
       )}
     </div>

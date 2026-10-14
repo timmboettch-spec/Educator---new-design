@@ -16,13 +16,13 @@ export interface ApiConversationMessage {
 export interface TranscriptMessage {
   id: string;
   speaker:
-    | "user"
-    | "assistant"
-    | "provider"
-    | "sbar_report"
-    | "system"
-    | "order"
-    | "student_team_comm";
+    | 'user'
+    | 'assistant'
+    | 'provider'
+    | 'sbar_report'
+    | 'system'
+    | 'order'
+    | 'student_team_comm';
   message: string;
   timestamp: string; // wall‑clock display
   timestampValue?: number; // epoch ms for wall-clock derivation
@@ -103,7 +103,7 @@ export interface SummaryEntry {
 export interface CommonActionEntry {
   label: string;
   timestamp: string;
-  type: "infection" | "privacy" | "environmental";
+  type: 'infection' | 'privacy' | 'environmental';
   timestampMs: number;
   elapsedTime?: string;
   elapsedSeconds?: number;
@@ -128,9 +128,9 @@ export interface SbarSession {
 }
 
 export type TimelineItem =
-  | { type: "message"; data: TranscriptMessage }
-  | { type: "summary"; data: SummaryEntry }
-  | { type: "commonAction"; data: CommonActionEntry };
+  | { type: 'message'; data: TranscriptMessage }
+  | { type: 'summary'; data: SummaryEntry }
+  | { type: 'commonAction'; data: CommonActionEntry };
 
 export interface SpeakerStyle {
   icon: React.ReactNode;

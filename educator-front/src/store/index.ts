@@ -10,17 +10,12 @@ import loginReducer from '../redux/auth/LoginRedux';
 import logoutReducer from '../redux/auth/LogoutRedux';
 import redeemReducer from '../redux/auth/RedeemRedux';
 import signupReducer from '../redux/auth/SignUpRedux';
-import classReducer from '../redux/class/ClassRedux';
-import DeleteClassReducer from '../redux/class/DeleteClassRedux';
 import DeleteclassSimReducer from '../redux/class/DeleteSimulationRedux';
 import EmailReportReducer from '../redux/class/EmailReportRedux';
 import GetClassReducer from '../redux/class/GetClassRedux';
 import GetSimsReducer from '../redux/class/GetSimsRedux';
-import PatchClassReducer from '../redux/class/PatchClassRedux';
-import PostClassReducer from '../redux/class/PostClassRedux';
 import studentEmailAccessReducer from '../redux/class/StudentEmailAccessRedux';
 import StudentEmailReportReducer from '../redux/class/StudentEmailReportRedux';
-import PutClassSimReducer from '../redux/class/UpdateSimRedux';
 import simulationLibraryReducer from '../redux/dashboard/simulationlibrary/GetSimulationRedux';
 import studentReducer from '../redux/dashboard/student/StudentRedux';
 import DeleteSchoolReducer from '../redux/schools/DeleteSchoolsRedux';
@@ -29,6 +24,8 @@ import PatchSchoolReducer from '../redux/schools/PatchSchoolsRedux';
 import PostSchoolReducer from '../redux/schools/PostSchoolsRedux';
 import GetEducatorReducer from '../redux/educator/GetEducatorRedux';
 import VerifyInviteReducer from '../redux/auth/VerifyInviteRedux';
+import AcceptInviteReducer from '../redux/auth/AcceptInviteRedux';
+import MeReducer from '../redux/auth/MeRedux';
 import ForgotPasswordReducer from '../redux/auth/ForgotPasswordRedux';
 import VerifyOTPReducer from '../redux/auth/VerifyOTPRedux';
 import ResendOTPReducer from '../redux/auth/ResendOTPRedux';
@@ -50,26 +47,45 @@ import loaderReducer from '../redux/loader/loaderSlice';
 import allSimulationReportsReducer from '../redux/simulation/GetSimulationReportsRedux';
 import simulationDetailReducer from '../redux/simulation/Simulationdetailredux';
 import simulationResolveReducer from '../redux/simulation/SimulationResolveRedux';
-import ProductSimBundleReducer from '../redux/products/simbundle';
 import AddToLibraryReducer from '../redux/simulation/AddToLibraryRequestRedux';
 import RemoveFromLibraryReducer from '../redux/simulation/RemoveFromLibraryRedux';
 import EducatorReportsReducer from '../redux/reports/EducatorReportsRedux';
 import NotificationsReducer from '../redux/notifications/NotificationsRedux';
 import AdminSimulationsReportReducer from '../redux/dashboard/admin/AdminSimulationsReportRedux';
 import SimulationCompletedCountReducer from '../redux/dashboard/admin/SimulationCompletedCountRedux';
-import CurrentUserReducer from '../redux/users/GetUserRedux';
 import AddEducatorSchoolReducer from '../redux/educator/AddEducatorSchoolRedux';
 import RemoveEducatorSchoolReducer from '../redux/educator/RemoveEducatorSchoolRedux';
 import lmsReducer from '../redux/lms/LmsRedux';
+import googleClassroomReducer from '../redux/lms/GoogleClassroomRedux';
 import syncLmsClassesReducer from '../redux/lms/SyncLmsClassesRedux';
 import moodleClassesReducer from '../redux/lms/GetLMSClassRedux';
 import TransferClassReducer from '../redux/class/TransferClassRedux';
 import GetEducatorClassesReducer from '../redux/class/GetEducatorClassesRedux';
 import addToBulkLibrary from '../redux/simulation/AddToBulkLibraryRequestRedux';
+import removeBulkLibraryReducer from '../redux/simulation/RemoveBulkLibraryRedux';
 import DualRoleSignUpReducer from '../redux/auth/DualRoleSignUpRedux';
+import { classesApi } from '../redux/api/classes/classesApi';
+import { studentsApi } from '../redux/api/students/studentsApi';
+import { guidedPathApi } from '../redux/api/guidedPath/guidedPathApi';
+import { reportsApi } from '../redux/api/reports/reportsApi';
+import { classSimulationsApi } from '../redux/api/classSimulations/classSimulationsApi';
+import { myLibraryApi } from '../redux/api/myLibrary/myLibraryApi';
+import { sessionResetMiddleware } from '../redux/sessionResetMiddleware';
+import classesUiReducer from '../redux/api/classes/classesSlice';
 
 export const store = configureStore({
-  middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(loaderMiddleware),
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware()
+      .prepend(sessionResetMiddleware.middleware)
+      .concat(
+        loaderMiddleware,
+        classesApi.middleware,
+        studentsApi.middleware,
+        guidedPathApi.middleware,
+        reportsApi.middleware,
+        classSimulationsApi.middleware,
+        myLibraryApi.middleware
+      ),
   reducer: {
     Login: loginReducer,
     Logout: logoutReducer,
@@ -77,7 +93,6 @@ export const store = configureStore({
     DualRoleSignUp: DualRoleSignUpReducer,
     Redeem: redeemReducer,
     School: getSchoolsReducer,
-    Class: classReducer,
     getSchools: getSchoolsReducer,
     PostSchool: PostSchoolReducer,
     DeleteSchool: DeleteSchoolReducer,
@@ -87,11 +102,7 @@ export const store = configureStore({
     Student: studentReducer,
     AddSimulation: SimulationReducer,
     GetClass: GetClassReducer,
-    PostClass: PostClassReducer,
-    DeleteClass: DeleteClassReducer,
-    PatchClass: PatchClassReducer,
     GetSimsList: GetSimsReducer,
-    PutclassSim: PutClassSimReducer,
     DeleteClassSim: DeleteclassSimReducer,
     EmailReport: EmailReportReducer,
     StudentEmailReport: StudentEmailReportReducer,
@@ -104,6 +115,8 @@ export const store = configureStore({
     RevokeStudentCode: RevokeStudentCodeReducer,
     GetEducator: GetEducatorReducer,
     VerifyInvite: VerifyInviteReducer,
+    AcceptInvite: AcceptInviteReducer,
+    Me: MeReducer,
     ForgotPassword: ForgotPasswordReducer,
     VerifyOTP: VerifyOTPReducer,
     ResendOTP: ResendOTPReducer,
@@ -116,7 +129,7 @@ export const store = configureStore({
     RemoveReallocateSeats: RemoveReallocateSeatsReducer,
     simulationCatalog: simulationCatalogReducer,
     myLibrary: myLibraryReducer,
-    AddToLibrary:AddToLibraryReducer,
+    AddToLibrary: AddToLibraryReducer,
     RemoveFromLibrary: RemoveFromLibraryReducer,
     simsCompletedReports: simulationReportsReducer,
     dashboardOverview: dashboardOverviewReducer,
@@ -124,20 +137,27 @@ export const store = configureStore({
     allSimulationReports: allSimulationReportsReducer,
     simulationDetail: simulationDetailReducer,
     simulationResolve: simulationResolveReducer,
-    ProductSimBundle: ProductSimBundleReducer,
     EducatorReports: EducatorReportsReducer,
     Notifications: NotificationsReducer,
     adminSimulationsReport: AdminSimulationsReportReducer,
     simulationCompletedCount: SimulationCompletedCountReducer,
-    currentUser: CurrentUserReducer,
     addEducatorSchool: AddEducatorSchoolReducer,
     removeEducatorSchool: RemoveEducatorSchoolReducer,
     lms: lmsReducer,
+    GoogleClassroom: googleClassroomReducer,
     lmsSync: syncLmsClassesReducer,
     moodleClasses: moodleClassesReducer,
     TransferClass: TransferClassReducer,
     GetEducatorClassesForTransfer: GetEducatorClassesReducer,
     addToBulkLibrary: addToBulkLibrary,
+    removeBulkLibrary: removeBulkLibraryReducer,
+    [classesApi.reducerPath]: classesApi.reducer,
+    [studentsApi.reducerPath]: studentsApi.reducer,
+    [guidedPathApi.reducerPath]: guidedPathApi.reducer,
+    [reportsApi.reducerPath]: reportsApi.reducer,
+    [classSimulationsApi.reducerPath]: classSimulationsApi.reducer,
+    [myLibraryApi.reducerPath]: myLibraryApi.reducer,
+    classesUi: classesUiReducer,
   },
 });
 

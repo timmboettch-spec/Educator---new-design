@@ -1,6 +1,6 @@
 ﻿import { classLocators } from '../locators/classLocators';
 import { BasePage } from './base/BasePage';
-import { Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 export class ClassPage extends BasePage {
   constructor(page: Page) {
     super(page);
@@ -8,27 +8,19 @@ export class ClassPage extends BasePage {
 
   async classManagementForEducator(): Promise<void> {
     // Use positive-only creation flow for smoke
-    return this.createClassPositive();
+    await this.createClassPositive();
   }
   // create student with emial as mailosaur generated email for testing email flow in future async
   async createStudent(name: string, email: string): Promise<void> {
-    await this.page.waitForLoadState(
-  'networkidle'
-);
+    await this.page.waitForLoadState('networkidle');
 
+    // <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
 
-// <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-
-    const addStudentSection =
-    this.page.locator(
-    'button:has-text("Add Student")'
+    const addStudentSection = this.page.locator(
+      'button:has-text("Add Student")'
     );
 
-    await addStudentSection
-      .locator(
-        'svg.lucide-chevron-down'
-      )
-      .click();
+    await addStudentSection.locator('svg.lucide-chevron-down').click();
     await this.click(classLocators.addStudentButton);
     await this.waitForVisible(classLocators.studentNameInput, 10000);
     await this.fill(classLocators.studentNameInput, name);
@@ -39,12 +31,7 @@ export class ClassPage extends BasePage {
     await this.expectTextVisible(name);
     // click on student menu and click edit student details to verify student creation and also to have steps ready for email verification in future
     // <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
-    await this.page
-      .locator(
-        classLocators.studentMenuButton
-      )
-      .first()
-      .click();
+    await this.page.locator(classLocators.studentMenuButton).first().click();
   }
 
   async viewandeditclass(): Promise<void> {
@@ -100,35 +87,29 @@ export class ClassPage extends BasePage {
 
     // await this.click(classLocators.backButton);
 
-//     const backButton =
-//   this.page.getByRole(
-//     'button',
-//     { name: /Back/i }
-//   );
+    //     const backButton =
+    //   this.page.getByRole(
+    //     'button',
+    //     { name: /Back/i }
+    //   );
 
-// if (
-//   await backButton
-//     .isVisible()
-//     .catch(() => false)
-// ) {
-//   await backButton.click();
+    // if (
+    //   await backButton
+    //     .isVisible()
+    //     .catch(() => false)
+    // ) {
+    //   await backButton.click();
 
-//   await this.waitForModalClose(
-//     'div.fixed.inset-0.z-50',
-//     10000
-//   );
-// }
-
+    //   await this.waitForModalClose(
+    //     'div.fixed.inset-0.z-50',
+    //     10000
+    //   );
+    // }
 
     // await this.waitForModalClose('div.fixed.inset-0.z-50', 10000);
     await this.waitForLoadState('networkidle');
     // click on cap icon to view the students
-      await this.page
-      .locator(
-        'svg.lucide-chevron-down'
-      )
-      .first()
-      .click();
+    await this.page.locator('svg.lucide-chevron-down').first().click();
     await this.expectTextVisible('Class 101');
 
     await this.click(classLocators.addStudentButton);
@@ -141,12 +122,7 @@ export class ClassPage extends BasePage {
     await this.waitForLoadState('networkidle');
     await this.expectTextVisible('Student added successfully');
     await this.expectTextVisible('Test Student');
-await this.page
-  .locator(
-    classLocators.studentMenuButton
-  )
-  .first()
-  .click();
+    await this.page.locator(classLocators.studentMenuButton).first().click();
     // await this.click(classLocators.studentMenuButton);
     await this.click(classLocators.editStudentDetailsButton);
     await this.waitForVisible(classLocators.studentNameInput, 10000);
@@ -156,17 +132,12 @@ await this.page
     await this.expectTextVisible('Student updated successfully');
     await this.page.waitForTimeout(2000);
     await this.page.reload();
-    await this.page
-  .locator(
-    'svg.lucide-chevron-down'
-  )
-  .first()
-  .click();
+    await this.page.locator('svg.lucide-chevron-down').first().click();
     await this.expectTextVisible('Test Student Updated');
   }
 
   // Positive-only class creation for smoke tests
-  async createClassPositive(): Promise<void> {
+  async createClassPositive(): Promise<string> {
     // wait up to 30 s for the page to settle; use domcontentloaded to avoid blocking on websockets
     await this.waitForLoadState('domcontentloaded', 30000).catch(() => {});
     // If not already on classes, navigate to classes/manage first.
@@ -180,45 +151,42 @@ await this.page
     // Wait for navigation
     await this.waitForUrl(/classes/i, 30000);
     await this.page.waitForTimeout(2000);
-    
+
     // Wait for add class button
     await this.waitForVisible(classLocators.addClassButton, 30000);
     await this.click(classLocators.addClassButton);
 
     const className = `Class ${Date.now()}`;
 
-    await this.fill(
-      classLocators.classNameInput,
-      className
-    );
+    await this.fill(classLocators.classNameInput, className);
 
-    //   await this.fill(
-    //     classLocators.termInput,
-    //     'Term 1'
-    //   );
-
-    //   // SELECT YEAR
-    //   await this.click(
-    //     classLocators.selectYearButton
-    //   );
-
-    //   await this.page
-    //     .locator(
-    //       classLocators.yearOption2026
-    //     )
-    //     .first()
-    //     .click();
-
-    //   // START DATE
-    //   // START DATE
-    // await this.waitForLoadState('networkidle');
+    // School is required when the educator has schools. Auto-select can race with
+    // profile load, so pick the first school option if the selector is shown.
+    const schoolTrigger = this.page
+      .locator(
+        'button:has-text("Select a school"), button:has-text("Selecciona una escuela")'
+      )
+      .first();
+    if (await schoolTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await schoolTrigger.click();
+      const firstSchool = this.page
+        .locator('[data-select-dropdown] [role="option"]')
+        .first();
+      await firstSchool.waitFor({ state: 'visible', timeout: 10000 });
+      await firstSchool.click();
+      await this.page.waitForTimeout(300);
+    }
 
     // START DATE - Click on first date picker
-    const datePickerContainers = this.page.locator('div.relative.h-\\[38px\\].rounded-xl.overflow-hidden');
+    const datePickerContainers = this.page.locator(
+      'div.relative.h-\\[38px\\].rounded-xl.overflow-hidden'
+    );
     const startDatePicker = datePickerContainers.first();
-    await startDatePicker.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
-      throw new Error('Start date picker not found');
-    });
+    await startDatePicker
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => {
+        throw new Error('Start date picker not found');
+      });
     await startDatePicker.click({ timeout: 5000 });
 
     await this.page.waitForTimeout(1000);
@@ -226,9 +194,11 @@ await this.page
 
     // END DATE - Click on second date picker
     const endDatePicker = datePickerContainers.nth(1);
-    await endDatePicker.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
-      throw new Error('End date picker not found');
-    });
+    await endDatePicker
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => {
+        throw new Error('End date picker not found');
+      });
     await endDatePicker.click({ timeout: 5000 });
 
     await this.page.waitForTimeout(1000);
@@ -239,41 +209,85 @@ await this.page
 
     await this.page.keyboard.press('Enter');
 
-    // STUDENT COUNT - Select "Enter Number" option and fill count
-    const enterNumberButton = this.page.getByText('Enter Number').first();
-    await enterNumberButton.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
-      throw new Error('Enter Number button not found');
-    });
-    await enterNumberButton.click({ timeout: 5000 });
-    
-    await this.page.waitForTimeout(500);
-
     // STUDENT COUNT
-    const studentCountLocator = this.page.locator(classLocators.studentCountInput).first();
-    await studentCountLocator.waitFor({ state: 'visible', timeout: 10000 }).catch(() => {
-      throw new Error(`Student count input not found using selector: ${classLocators.studentCountInput}`);
-    });
-    await this.fill(
-      classLocators.studentCountInput,
-      '1'
-    );
+    const studentCountLocator = this.page
+      .locator(classLocators.studentCountInput)
+      .first();
+    await studentCountLocator
+      .waitFor({ state: 'visible', timeout: 10000 })
+      .catch(() => {
+        throw new Error(
+          `Student count input not found using selector: ${classLocators.studentCountInput}`
+        );
+      });
+    await this.fill(classLocators.studentCountInput, '1');
 
     // CREATE CLASS
-    await this.click(
-      classLocators.createClassButton
-    );
+    const createResponsePromise = this.page
+      .waitForResponse(
+        (response) =>
+          response.url().includes('/api/classes') &&
+          response.request().method() === 'POST',
+        { timeout: 45000 }
+      )
+      .catch(() => null);
+
+    await this.click(classLocators.createClassButton);
+
+    const createResponse = await createResponsePromise;
+    if (createResponse && !createResponse.ok()) {
+      const bodyText = await createResponse.text().catch(() => '');
+      throw new Error(
+        `Class creation API failed (${createResponse.status()}): ${bodyText.slice(0, 240)}`
+      );
+    }
+
+    // Wait for Saving... to clear (Formik isSubmitting) before asserting success.
+    const savingButton = this.page.getByRole('button', { name: /Saving/i });
+    if (await savingButton.isVisible().catch(() => false)) {
+      await savingButton
+        .waitFor({ state: 'hidden', timeout: 45000 })
+        .catch(() => {});
+    }
 
     // Avoid networkidle here: websocket/polling can keep requests open and cause false timeouts.
     await this.page.waitForLoadState('domcontentloaded').catch(() => {});
     await Promise.any([
-      this.page.locator(classLocators.addClassButton).first().waitFor({ state: 'visible', timeout: 20000 }),
-      this.page.locator(`text="${className}"`).first().waitFor({ state: 'visible', timeout: 20000 }),
-      this.page.locator('[role="status"], [role="alert"], .toast, .notification').first().waitFor({ state: 'visible', timeout: 10000 })
+      this.page
+        .locator(classLocators.addClassButton)
+        .first()
+        .waitFor({ state: 'visible', timeout: 20000 }),
+      this.page
+        .locator(`text="${className}"`)
+        .first()
+        .waitFor({ state: 'visible', timeout: 20000 }),
+      this.page
+        .locator('[role="status"], [role="alert"], .toast, .notification')
+        .first()
+        .waitFor({ state: 'visible', timeout: 10000 }),
     ]).catch(() => {});
     if (!this.page.isClosed()) await this.page.waitForTimeout(1500);
 
+    // Surface school / form validation that previously slipped past toast checks.
+    const schoolRequired = await this.page
+      .getByText(
+        /please select a school|selecciona una escuela|school.*required/i
+      )
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (schoolRequired) {
+      throw new Error(
+        'Class creation blocked: school is required but was not selected'
+      );
+    }
+
     // Check for any visible toast or alert messages (success or error)
-    const toastMessages = this.page.isClosed() ? [] : await this.page.locator('[role="status"], [role="alert"], .toast, .notification').all();
+    const toastMessages = this.page.isClosed()
+      ? []
+      : await this.page
+          .locator('[role="status"], [role="alert"], .toast, .notification')
+          .all();
     let foundSuccessMessage = false;
     let errorFound = false;
     let errorText = '';
@@ -281,10 +295,22 @@ await this.page
     for (const toast of toastMessages) {
       const isVisible = await toast.isVisible().catch(() => false);
       if (isVisible) {
-        const text = await toast.textContent();
+        // Toasts and loading statuses ("Loading schools…") come and go, and
+        // `.all()` locators are positional: bound the read so an element that
+        // vanished after isVisible() is skipped instead of awaited until the
+        // test times out.
+        const text = await toast
+          .textContent({ timeout: 2000 })
+          .catch(() => null);
         if (text && text.includes('created') && text.includes('successfully')) {
           foundSuccessMessage = true;
-        } else if (text && (text.includes('error') || text.includes('failed') || text.includes('invalid'))) {
+        } else if (
+          text &&
+          (text.includes('error') ||
+            text.includes('failed') ||
+            text.includes('invalid') ||
+            text.includes('required'))
+        ) {
           errorFound = true;
           errorText = text;
         }
@@ -302,48 +328,221 @@ await this.page
     } else {
       // If no success message, check if we're on classes page (silent success) or still on form
       const currentUrl = this.page.url();
-      
+      const formStillOpen = await this.page
+        .locator(classLocators.classNameInput)
+        .first()
+        .isVisible()
+        .catch(() => false);
+
       // Try to find the class card with the name we created
-      const classCardExists = await this.page.locator(`text="${className}"`).first().isVisible().catch(() => false);
-      
-      if (!classCardExists && !currentUrl.includes('/classes')) {
+      const classCardExists = await this.page
+        .locator(`text="${className}"`)
+        .first()
+        .isVisible()
+        .catch(() => false);
+
+      if (
+        !classCardExists &&
+        (formStillOpen || !currentUrl.includes('/classes'))
+      ) {
         // Still on form page and no class created - this is a failure
-        const formErrors = await this.page.locator('div.text-red-500, span.text-red-500, .error-message').allTextContents();
+        const formErrors = await this.page
+          .locator('div.text-red-500, span.text-red-500, .error-message')
+          .allTextContents();
         // Ignore bare asterisks — they are required-field indicators, not validation errors
-        const realErrors = formErrors.filter(e => e.trim().length > 1);
+        const realErrors = formErrors.filter((e) => e.trim().length > 1);
         if (realErrors.length > 0) {
           throw new Error(`Form validation errors: ${realErrors.join(', ')}`);
         }
-        throw new Error('Class creation failed - form still displayed and no success message found');
+        throw new Error(
+          'Class creation failed - form still displayed and no success message found'
+        );
       }
     }
 
+    // Prefer searching the list — shared environments can have many classes.
+    const searchBox = this.page.locator('input[placeholder*="Search"]').first();
+    const ensureVisibleViaSearch = async (): Promise<boolean> => {
+      if (
+        await searchBox
+          .waitFor({ state: 'visible', timeout: 15000 })
+          .then(() => true)
+          .catch(() => false)
+      ) {
+        await searchBox.fill(className);
+        await this.page.waitForTimeout(1200);
+      }
+      return this.revealClassInSchoolGroups(className);
+    };
+
     // Reload once if the list hasn't refreshed to show the new class
-    const alreadyVisible = await this.page.locator(`text="${className}"`).first()
-      .isVisible({ timeout: 8000 }).catch(() => false);
+    let alreadyVisible = await ensureVisibleViaSearch();
     if (!alreadyVisible) {
       await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
       await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      await this.page
+        .locator(classLocators.addClassButton)
+        .first()
+        .waitFor({ state: 'visible', timeout: 30000 })
+        .catch(() => {});
+      alreadyVisible = await ensureVisibleViaSearch();
     }
     // Second reload if still not visible — handles slow API responses and stale list caches
-    const visibleAfterReload = await this.page.locator(`text="${className}"`).first()
-      .isVisible({ timeout: 20000 }).catch(() => false);
-    if (!visibleAfterReload) {
+    if (!alreadyVisible) {
       await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
       await this.page.waitForLoadState('domcontentloaded').catch(() => {});
+      await this.page
+        .locator(classLocators.addClassButton)
+        .first()
+        .waitFor({ state: 'visible', timeout: 30000 })
+        .catch(() => {});
+      alreadyVisible = await ensureVisibleViaSearch();
     }
-    await this.page.locator(`text="${className}"`).first().waitFor({ state: 'visible', timeout: 60000 });
+    if (!alreadyVisible) await this.revealClassInSchoolGroups(className);
+    await this.page
+      .locator(`text="${className}"`)
+      .first()
+      .waitFor({ state: 'visible', timeout: 60000 });
+    return className;
+  }
+
+  /**
+   * The class list groups classes under collapsed school accordions
+   * ("School: <name> (<count>)"), and a class row only renders once its school
+   * is expanded. Opens the schools one at a time (only one stays open) until
+   * `className` is visible. Returns whether it became visible.
+   */
+  private async revealClassInSchoolGroups(className: string): Promise<boolean> {
+    const target = this.page.locator(`text="${className}"`).first();
+    const schoolToggles = this.page.getByRole('button', { name: /^School: / });
+
+    // Wait for the (search-narrowed) school list to load.
+    await schoolToggles
+      .first()
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .catch(() => {});
+    // isVisible() ignores its timeout and answers immediately, but class rows
+    // load asynchronously (each expanded school fetches its own classes), so
+    // actually wait for the row.
+    const isTargetShown = (timeout: number) =>
+      target
+        .waitFor({ state: 'visible', timeout })
+        .then(() => true)
+        .catch(() => false);
+    if (await isTargetShown(3000)) {
+      return true;
+    }
+
+    const count = await schoolToggles.count().catch(() => 0);
+    for (let i = 0; i < count; i++) {
+      const toggle = schoolToggles.nth(i);
+      const expanded = await toggle
+        .getAttribute('aria-expanded', { timeout: 2000 })
+        .catch(() => null);
+      if (expanded === 'false') {
+        await toggle.click({ timeout: 5000 }).catch(() => {});
+      }
+      if (await isTargetShown(10000)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Best-effort cleanup — deletes a class created by automation so it doesn't linger in the shared dev environment. */
+  async deleteClassByName(name: string): Promise<void> {
+    try {
+      if (!/classes/i.test(this.page.url())) {
+        await this.page.goto(
+          `${this.page.url().match(/^https?:\/\/[^/]+/)?.[0] ?? ''}/classes`,
+          { waitUntil: 'domcontentloaded' }
+        );
+      } else {
+        await this.page.reload({ waitUntil: 'domcontentloaded' });
+      }
+      await this.page.waitForLoadState('networkidle').catch(() => {});
+
+      const searchBox = this.page
+        .locator('input[placeholder*="Search"]')
+        .first();
+      if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await searchBox.fill(name);
+        await this.page.waitForTimeout(1200);
+      }
+      await this.revealClassInSchoolGroups(name);
+
+      // Safety: only proceed if the exact class name is visible in the (search-narrowed) list —
+      // never delete based on a "first row" guess, to avoid touching an unrelated real class.
+      const row = this.page
+        .locator('div[class*="grid"], div[class*="rounded"], tr')
+        .filter({ hasText: name })
+        .first();
+      if (
+        !(await row
+          .locator(`text="${name}"`)
+          .first()
+          .isVisible({ timeout: 5000 })
+          .catch(() => false))
+      )
+        return;
+
+      const menuBtn = row
+        .locator(
+          'button[aria-label*="menu" i], button[data-sim-trigger], button:has(svg.lucide-ellipsis-vertical), button:has(svg.lucide-more-vertical)'
+        )
+        .first();
+      if (!(await menuBtn.isVisible({ timeout: 5000 }).catch(() => false)))
+        return;
+      await menuBtn.click();
+      await this.page.waitForTimeout(300);
+
+      const deleteOpt = this.page
+        .locator(
+          '[role="menuitem"]:has-text("Delete"), button:has-text("Delete Class")'
+        )
+        .first();
+      if (!(await deleteOpt.isVisible({ timeout: 3000 }).catch(() => false))) {
+        await this.page.keyboard.press('Escape').catch(() => {});
+        return;
+      }
+      await deleteOpt.click();
+      await this.page.waitForTimeout(300);
+
+      // Safety: only confirm if the delete dialog references this exact class name.
+      const confirmDialog = this.page.locator('[role="dialog"]').first();
+      const dialogMentionsName = await confirmDialog
+        .getByText(name)
+        .first()
+        .isVisible({ timeout: 3000 })
+        .catch(() => false);
+      const confirmBtn = confirmDialog
+        .locator('button:has-text("Delete")')
+        .first();
+      if (
+        dialogMentionsName &&
+        (await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false))
+      ) {
+        await confirmBtn.click();
+        await confirmDialog
+          .waitFor({ state: 'hidden', timeout: 10000 })
+          .catch(() => {});
+      } else {
+        await this.page.keyboard.press('Escape').catch(() => {});
+      }
+    } catch {
+      // cleanup must not throw and mask real test failures
+    }
   }
 
   // ==================== NEGATIVE CLASS SCENARIOS ====================
-  
+
   async createClassNegativeEmptyName(): Promise<void> {
     await this.openClassManagement();
     await this.click(classLocators.addClassButton);
-    
+
     // Try to submit without entering class name
     await this.click(classLocators.createClassButton);
-    
+
     // Verify validation error
     await this.expectTextVisible(/class name.*required|required/i);
   }
@@ -351,13 +550,13 @@ await this.page
   async createClassNegativeEmptyDates(): Promise<void> {
     await this.openClassManagement();
     await this.click(classLocators.addClassButton);
-    
+
     const className = `Class ${Date.now()}`;
     await this.fill(classLocators.classNameInput, className);
-    
+
     // Try to submit without setting dates
     await this.click(classLocators.createClassButton);
-    
+
     // Verify validation error
     await this.expectTextVisible(/date.*required|start date|end date/i);
   }
@@ -365,16 +564,18 @@ await this.page
   async createClassNegativeEmptyStudentCount(): Promise<void> {
     await this.openClassManagement();
     await this.click(classLocators.addClassButton);
-    
+
     const className = `Class ${Date.now()}`;
     await this.fill(classLocators.classNameInput, className);
-    
+
     // Set start date
-    const datePickerContainers = this.page.locator('div.relative.h-\\[38px\\].rounded-xl.overflow-hidden');
+    const datePickerContainers = this.page.locator(
+      'div.relative.h-\\[38px\\].rounded-xl.overflow-hidden'
+    );
     await datePickerContainers.first().click({ timeout: 5000 });
     await this.page.waitForTimeout(1000);
     await this.page.keyboard.press('Enter');
-    
+
     // Set end date
     await datePickerContainers.nth(1).click({ timeout: 5000 });
     await this.page.waitForTimeout(1000);
@@ -382,30 +583,32 @@ await this.page
       await this.page.keyboard.press('ArrowRight');
     }
     await this.page.keyboard.press('Enter');
-    
+
     // Try to submit without entering student count
     await this.click(classLocators.createClassButton);
-    
+
     // Verify validation error
     await this.expectTextVisible(/student.*required|number.*required/i);
   }
 
   // ==================== POSITIVE CLASS SCENARIOS ====================
-  
+
   async openClassManagement(): Promise<void> {
     const currentUrl = this.page.url();
     if (!currentUrl.includes('/classes')) {
       // First ensure page is loaded
       await this.waitForLoadState('networkidle').catch(() => {});
-      
+
       // Get the button locator and try to scroll it into view
-      const buttonLocator = this.page.locator(classLocators.manageClassesButton).first();
+      const buttonLocator = this.page
+        .locator(classLocators.manageClassesButton)
+        .first();
       await buttonLocator.scrollIntoViewIfNeeded().catch(() => {});
-      
+
       // Retry logic for finding the visible button
       let retries = 3;
       let lastError: Error | null = null;
-      
+
       while (retries > 0) {
         try {
           await this.waitForVisible(classLocators.manageClassesButton, 15000);
@@ -413,31 +616,36 @@ await this.page
         } catch (error) {
           lastError = error as Error;
           retries--;
-          
+
           if (retries > 0) {
-            if (this.page.isClosed()) throw new Error('Page closed during openClassManagement');
+            if (this.page.isClosed())
+              throw new Error('Page closed during openClassManagement');
             // Try to expand navigation if there's a menu toggle
-            const navToggle = this.page.locator(
-              'button[aria-label*="menu" i], button[aria-label*="nav" i], button[title*="menu" i], button.mobile-menu-toggle'
-            ).first();
-            
-            const isToggleVisible = await navToggle.isVisible().catch(() => false);
+            const navToggle = this.page
+              .locator(
+                'button[aria-label*="menu" i], button[aria-label*="nav" i], button[title*="menu" i], button.mobile-menu-toggle'
+              )
+              .first();
+
+            const isToggleVisible = await navToggle
+              .isVisible()
+              .catch(() => false);
             if (isToggleVisible) {
               await navToggle.click().catch(() => {});
               await this.page.waitForTimeout(500);
             }
-            
+
             // Re-scroll into view
             await buttonLocator.scrollIntoViewIfNeeded().catch(() => {});
             if (!this.page.isClosed()) await this.page.waitForTimeout(500);
           }
         }
       }
-      
+
       if (lastError && retries === 0) {
         throw lastError;
       }
-      
+
       await this.click(classLocators.manageClassesButton);
       await this.waitForUrl(/classes/i, 30000);
       await this.page.waitForTimeout(2000);
@@ -447,15 +655,15 @@ await this.page
   async viewClassDetails(className: string): Promise<void> {
     await this.openClassManagement();
     await this.waitForLoadState('networkidle');
-    
+
     // Find the class row and click view button
     const classRow = this.page.locator(`text="${className}"`).first();
     await classRow.waitFor({ state: 'visible', timeout: 30000 });
-    
+
     // Find the view button near the class name
     const viewButton = classRow.locator('xpath=ancestor::tr//button').first();
     await viewButton.click({ timeout: 5000 });
-    
+
     await this.waitForLoadState('networkidle');
     await this.expectTextVisible(className);
   }
@@ -463,40 +671,47 @@ await this.page
   async editClassName(oldName: string, newName: string): Promise<void> {
     await this.openClassManagement();
     await this.waitForLoadState('networkidle');
-    
+
     // Find and click the class
     const classRow = this.page.locator(`text="${oldName}"`).first();
     await classRow.waitFor({ state: 'visible', timeout: 30000 });
-    
+
     // Click menu/edit button
-    const menuButton = this.page.locator(classLocators.menuToggleButton).first();
+    const menuButton = this.page
+      .locator(classLocators.menuToggleButton)
+      .first();
     if (await menuButton.isVisible().catch(() => false)) {
       await menuButton.click({ timeout: 5000 });
       await this.click(classLocators.editClassDetailsButton);
     }
-    
+
     await this.waitForVisible(classLocators.classNameInput, 10000);
     await this.getLocator(classLocators.classNameInput).clear();
     await this.fill(classLocators.classNameInput, newName);
-    
+
     await this.click(this.page.getByRole('button', { name: /Update Class/i }));
     await this.expectTextVisible(/updated|successfully/i);
   }
 
-  async addStudentToClass(studentName: string, studentEmail: string): Promise<void> {
+  async addStudentToClass(
+    studentName: string,
+    studentEmail: string
+  ): Promise<void> {
     await this.openClassManagement();
     await this.waitForLoadState('networkidle');
-    
+
     // Click add student button
-    const addStudentButton = this.page.locator(classLocators.addStudentButton).first();
+    const addStudentButton = this.page
+      .locator(classLocators.addStudentButton)
+      .first();
     if (await addStudentButton.isVisible().catch(() => false)) {
       await addStudentButton.click({ timeout: 5000 });
     }
-    
+
     await this.waitForVisible(classLocators.studentNameInput, 10000);
     await this.fill(classLocators.studentNameInput, studentName);
     await this.fill(classLocators.studentEmailInput, studentEmail);
-    
+
     await this.click(classLocators.createStudentButton);
     await this.expectTextVisible(/added|successfully/i);
     await this.expectTextVisible(studentName);
@@ -505,7 +720,7 @@ await this.page
   async verifyClassDisplayed(className: string): Promise<void> {
     await this.openClassManagement();
     await this.waitForLoadState('networkidle');
-    
+
     await this.expectTextVisible(className);
   }
 }

@@ -2,48 +2,50 @@ import {
   IsNotEmpty,
   IsString,
   IsObject,
-  IsArray,
   IsUUID,
-  ValidateNested,
   IsOptional,
+  IsNumber,
+  Min,
+  Max,
+  IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
-export class CreateSimulationReportDto {
-  @IsNotEmpty()
-  @IsUUID('4')
-  student_id!: string;
+/** Payload from the student sim app after a report is created — no blob reload needed. */
+export class StudentReportCompletionDto {
+  @IsOptional()
+  @IsString()
+  reportId?: string;
 
   @IsNotEmpty()
   @IsString()
-  student_name!: string;
+  scenarioId!: string;
 
-  @IsNotEmpty()
-  @IsString()
-  scenario_id!: string;
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  score?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsObject()
-  report_data!: object;
+  scoreJson?: Record<string, unknown>;
 
   @IsOptional()
   @IsString()
-  report_id?: string;
+  studentName?: string;
 
   @IsOptional()
   @IsString()
-  report_key?: string;
+  mode?: string;
 
   @IsOptional()
-  @IsString()
-  report_type?: string;
-}
+  @IsBoolean()
+  isEarlyCompletion?: boolean;
 
-export class BulkCreateSimulationReportDto {
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateSimulationReportDto)
-  reports!: CreateSimulationReportDto[];
+  @IsOptional()
+  @IsBoolean()
+  isForfeited?: boolean;
 }
 
 export interface ClassAttentionMetadata {
@@ -169,4 +171,15 @@ export interface UserTranscriptResponseDto {
   commonActions: CommonActionDto[];
   /** Epoch-ms when the scenario started — used by the client to derive elapsedSeconds */
   scenarioStartMs: number | null;
+}
+
+export class ResyncLmsGradeDto {
+  @ApiProperty({ example: 'b3f1c2d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d' })
+  @IsString()
+  @IsNotEmpty()
+  scenarioId!: string;
+
+  @ApiProperty({ example: '3fa85f64-5717-4562-b3fc-2c963f66afa6' })
+  @IsUUID()
+  studentId!: string;
 }

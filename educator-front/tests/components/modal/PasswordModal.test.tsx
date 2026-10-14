@@ -4,8 +4,24 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import PasswordModal from '../../../src/components/modal/PasswordModal';
 
 vi.mock('../../../src/components/ui/Modal', () => ({
-  default: ({ isOpen, children, title, footer }: { isOpen: boolean; children: React.ReactNode; title?: string; footer?: React.ReactNode }) =>
-    isOpen ? <div role="dialog">{title && <h2>{title}</h2>}{children}{footer}</div> : null,
+  default: ({
+    isOpen,
+    children,
+    title,
+    footer,
+  }: {
+    isOpen: boolean;
+    children: React.ReactNode;
+    title?: string;
+    footer?: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div role="dialog">
+        {title && <h2>{title}</h2>}
+        {children}
+        {footer}
+      </div>
+    ) : null,
 }));
 
 vi.mock('../../../src/components/ui/Button', () => ({
@@ -16,6 +32,7 @@ vi.mock('../../../src/components/ui/Button', () => ({
     type,
     disabled,
     form,
+    className,
   }: {
     children: React.ReactNode;
     onClick?: () => void;
@@ -23,8 +40,15 @@ vi.mock('../../../src/components/ui/Button', () => ({
     type?: string;
     disabled?: boolean;
     form?: string;
+    className?: string;
   }) => (
-    <button type={(type as 'button' | 'submit') ?? 'button'} onClick={onClick} disabled={loading || disabled} form={form}>
+    <button
+      type={(type as 'button' | 'submit') ?? 'button'}
+      onClick={onClick}
+      disabled={loading || disabled}
+      form={form}
+      className={className}
+    >
       {loading ? 'Updating…' : children}
     </button>
   ),
@@ -44,12 +68,26 @@ vi.mock('../../../src/components/ui/Input', () => ({
     placeholder?: string;
     type?: string;
   }) => (
-    <input name={name} value={value} onChange={onChange} placeholder={placeholder} type={type ?? 'text'} />
+    <input
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      type={type ?? 'text'}
+    />
   ),
 }));
 
 vi.mock('../../../src/components/ui/FormField', () => ({
-  default: ({ label, children, error }: { label?: string; children: React.ReactNode; error?: string }) => (
+  default: ({
+    label,
+    children,
+    error,
+  }: {
+    label?: string;
+    children: React.ReactNode;
+    error?: string;
+  }) => (
     <div>
       {label && <label>{label}</label>}
       {children}
@@ -93,17 +131,30 @@ describe('PasswordModal', () => {
     render(<PasswordModal {...defaultProps} />);
     expect(screen.getByPlaceholderText(/old password/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/new password/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/confirm password/i)).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/confirm password/i)
+    ).toBeInTheDocument();
   });
 
   it('shows an Update Password button', () => {
     render(<PasswordModal {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /update password/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /update password/i })
+    ).toBeInTheDocument();
+  });
+
+  it('styles Update Password with the brand primary colour', () => {
+    render(<PasswordModal {...defaultProps} />);
+    const submit = screen.getByRole('button', { name: /update password/i });
+    expect(submit).toHaveClass('bg-primary-500');
+    expect(submit).not.toHaveClass('bg-orange-500');
   });
 
   it('shows a Cancel button', () => {
     render(<PasswordModal {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /cancel|back/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /cancel|back/i })
+    ).toBeInTheDocument();
   });
 
   it('calls closePasswordModal when Cancel is clicked', () => {
@@ -119,13 +170,27 @@ describe('PasswordModal', () => {
   });
 
   it('displays validation error for old password', () => {
-    render(<PasswordModal {...defaultProps} errors={{ oldPassword: 'Old Password is required' }} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('Old Password is required');
+    render(
+      <PasswordModal
+        {...defaultProps}
+        errors={{ oldPassword: 'Old Password is required' }}
+      />
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Old Password is required'
+    );
   });
 
   it('displays validation error for new password', () => {
-    render(<PasswordModal {...defaultProps} errors={{ newPassword: 'New Password is required' }} />);
-    expect(screen.getByRole('alert')).toHaveTextContent('New Password is required');
+    render(
+      <PasswordModal
+        {...defaultProps}
+        errors={{ newPassword: 'New Password is required' }}
+      />
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'New Password is required'
+    );
   });
 
   it('disables Update Password button while submitting', () => {

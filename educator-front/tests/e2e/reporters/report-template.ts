@@ -1,12 +1,17 @@
-import { type SuiteSummary, type ReportData, type TestSummaryRow } from './report-types';
+import {
+  type SuiteSummary,
+  type ReportData,
+  type TestSummaryRow,
+} from './report-types';
 import { REALITYWORKS_LOGO_SRC } from './logo-asset';
 
-const escapeHtml = (value: string): string => value
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const formatGeneratedAt = (generatedAt: string): string => {
   const date = new Date(generatedAt);
@@ -24,11 +29,33 @@ const formatGeneratedAt = (generatedAt: string): string => {
 const renderTestRow = (test: TestSummaryRow): string => {
   const escapedTitle = escapeHtml(test.title);
   const escapedSpecFile = escapeHtml(test.specFile);
-  const escapedWhy = escapeHtml(test.status === 'Passed' ? test.whyPassed : test.whyFailed);
-  const whyLabel = test.status === 'Passed' ? 'WHY IT PASSED' : test.status === 'Failed' ? 'WHY IT FAILED' : 'NOTE';
-  const badgeText = test.status === 'Passed' ? 'PASS' : test.status === 'Failed' ? 'FAIL' : 'SKIP';
-  const badgeClass = test.status === 'Passed' ? 'badge-pass' : test.status === 'Failed' ? 'badge-fail' : 'badge-skip';
-  const rowClass = test.status === 'Passed' ? 'row-pass' : test.status === 'Failed' ? 'row-fail' : 'row-skip';
+  const escapedWhy = escapeHtml(
+    test.status === 'Passed' ? test.whyPassed : test.whyFailed
+  );
+  const whyLabel =
+    test.status === 'Passed'
+      ? 'WHY IT PASSED'
+      : test.status === 'Failed'
+        ? 'WHY IT FAILED'
+        : 'NOTE';
+  const badgeText =
+    test.status === 'Passed'
+      ? 'PASS'
+      : test.status === 'Failed'
+        ? 'FAIL'
+        : 'SKIP';
+  const badgeClass =
+    test.status === 'Passed'
+      ? 'badge-pass'
+      : test.status === 'Failed'
+        ? 'badge-fail'
+        : 'badge-skip';
+  const rowClass =
+    test.status === 'Passed'
+      ? 'row-pass'
+      : test.status === 'Failed'
+        ? 'row-fail'
+        : 'row-skip';
 
   let errorSection = '';
   let recommendedSection = '';

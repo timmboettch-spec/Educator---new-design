@@ -1,5 +1,5 @@
 import { BasePage } from './base/BasePage';
-import { Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 
 export class SimulationPage extends BasePage {
   constructor(page: Page) {

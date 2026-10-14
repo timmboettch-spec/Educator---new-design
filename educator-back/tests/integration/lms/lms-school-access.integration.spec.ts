@@ -8,8 +8,8 @@ import { LmsLookupService } from '../../../src/lms/services/lms-lookup.service';
 import { LmsProvisionService } from '../../../src/lms/services/lms-provision.service';
 import { LmsRosterService } from '../../../src/lms/services/lms-roster.service';
 import { LmsAdapterFactory } from '../../../src/lms/factories/lms-adapter.factory';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { buildTestApp, TEST_USERS } from '../setup/test-app.factory';
+import { Educator } from '../../../src/database/entities';
+import { buildTestApp, TEST_USERS, lmsGradePassbackProviders } from '../setup/test-app.factory';
 
 const SCHOOL_A = '94a55c2b-1c3a-4d71-9024-d6189047e7a8';
 const SCHOOL_B = '3e601b91-349b-4be0-9a2a-1eda43af14b1';
@@ -32,6 +32,8 @@ describe('LMS school access (RWAI-3014)', () => {
     getBySchoolId: jest.fn().mockResolvedValue({ id: 'cfg-1', schoolId: SCHOOL_A }),
     sanitize: jest.fn((config: unknown) => config),
     getOptionalBySchoolId: jest.fn(),
+    upsertConfig: jest.fn(),
+    testConfig: jest.fn(),
   };
 
   const provisionService = {
@@ -40,7 +42,6 @@ describe('LMS school access (RWAI-3014)', () => {
 
   const connectService = {
     previewRoster: jest.fn().mockResolvedValue({ members: [] }),
-    connectClass: jest.fn().mockResolvedValue({ classId: CLASS_ID }),
   };
 
   beforeAll(async () => {
@@ -63,6 +64,7 @@ describe('LMS school access (RWAI-3014)', () => {
             },
           },
         },
+        ...lmsGradePassbackProviders,
       ],
     });
 
@@ -127,7 +129,7 @@ describe('LMS school access (RWAI-3014)', () => {
 
       expect(res.status).toBe(201);
       expect(provisionService.provisionFromLiveClasses).toHaveBeenCalledWith(
-        TEST_USERS.educator.sub,
+        TEST_USERS.educator.educatorId,
         '42',
         SCHOOL_A,
         undefined,
@@ -144,14 +146,13 @@ describe('LMS school access (RWAI-3014)', () => {
       expect(connectService.previewRoster).not.toHaveBeenCalled();
     });
 
-    it('returns 403 for POST /lms/classes/connect with tampered schoolId', async () => {
+    it('returns 404 for POST /lms/classes/connect, so an educator cannot wipe another educator class in the same school', async () => {
       const res = await request(app.getHttpServer())
         .post('/api/lms/classes/connect')
         .set(educatorAuth())
-        .send({ schoolId: SCHOOL_B, classId: CLASS_ID, lmsCourseId: '42', nrpsUrl: NRPS_URL });
+        .send({ schoolId: SCHOOL_A, classId: CLASS_ID, lmsCourseId: '42', nrpsUrl: NRPS_URL });
 
-      expect(res.status).toBe(403);
-      expect(connectService.connectClass).not.toHaveBeenCalled();
+      expect(res.status).toBe(404);
     });
 
     it('allows co-educator secondary school via schoolAssignments', async () => {
@@ -163,6 +164,78 @@ describe('LMS school access (RWAI-3014)', () => {
 
       expect(res.status).toBe(200);
       expect(configService.getBySchoolId).toHaveBeenCalledWith(SCHOOL_B, expect.any(String));
+    });
+  });
+
+  describe('LMS config write is district admin only', () => {
+    const configureBody = {
+      schoolId: SCHOOL_B,
+      lmsType: 'moodle',
+      issuer: 'https://moodle.example',
+      clientId: 'client-1',
+      authEndpoint: 'https://moodle.example/mod/lti/auth.php',
+      tokenEndpoint: 'https://moodle.example/mod/lti/token.php',
+      jwksUrl: 'https://moodle.example/mod/lti/certs.php',
+    };
+
+    it.each(['/api/lms/schools/configure', '/api/lms/educator/configure'])(
+      'returns 403 for an educator on POST %s, even for their own school',
+      async (path) => {
+        const res = await request(app.getHttpServer())
+          .post(path)
+          .set(educatorAuth())
+          .send({ ...configureBody, schoolId: SCHOOL_A });
+
+        expect(res.status).toBe(403);
+        expect(configService.upsertConfig).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(['/api/lms/schools/configure', '/api/lms/educator/configure'])(
+      'saves the config for the requested school when a district admin calls POST %s',
+      async (path) => {
+        configService.upsertConfig.mockResolvedValue({ id: 'cfg-2', schoolId: SCHOOL_B });
+
+        const res = await request(app.getHttpServer())
+          .post(path)
+          .set(districtAdminAuth())
+          .send(configureBody);
+
+        expect(res.status).toBe(201);
+        expect(configService.upsertConfig).toHaveBeenCalledWith(
+          expect.objectContaining({ schoolId: SCHOOL_B }),
+        );
+      },
+    );
+
+    it('returns 403 for an educator on POST /lms/test-config', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/lms/test-config')
+        .set(educatorAuth())
+        .send({ ...configureBody, schoolId: SCHOOL_A, lmsApiToken: 'token' });
+
+      expect(res.status).toBe(403);
+      expect(configService.testConfig).not.toHaveBeenCalled();
+    });
+
+    it('lets a district admin call POST /lms/test-config', async () => {
+      configService.testConfig.mockResolvedValue({ success: true, message: 'ok' });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/lms/test-config')
+        .set(districtAdminAuth())
+        .send(configureBody);
+
+      expect(res.status).toBe(201);
+      expect(configService.testConfig).toHaveBeenCalledWith(SCHOOL_B, expect.any(Object));
+    });
+
+    it('still lets an educator read the school config', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/api/lms/schools/${SCHOOL_A}/config`)
+        .set(educatorAuth());
+
+      expect(res.status).toBe(200);
     });
   });
 

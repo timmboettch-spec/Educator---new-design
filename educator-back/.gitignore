@@ -1,10 +1,9 @@
-﻿# compiled output
+# compiled output
 /dist
 /node_modules
 /build
 
 # Logs
-/logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
@@ -67,7 +66,23 @@ infra/modules/*.json
 # Local provision deployment outputs (az deployment group create -o json)
 .provision-*.json
 
-# Local env backups - must never be committed (contain real credentials)
-.env.bak*
-*.bak-pre-seed
-.env.*.local
+
+
+# Test report HTML output and coverage
+tests/student-backend/api/reports/html/
+tests/student-backend/unit/reports/html/
+tests/student-backend/integration/reports/html/
+tests/student-backend/api/reports/coverage/
+
+
+# Smoke test temp files
+.smoke-runtime.json
+
+#.scratch
+.scratch
+
+#local docs used by developers
+docs-local
+fe-docs
+# Scratch/check scripts
+*.tmp.js

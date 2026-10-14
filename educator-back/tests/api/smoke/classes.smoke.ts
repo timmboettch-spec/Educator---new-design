@@ -85,11 +85,9 @@ describe('Smoke — Classes', () => {
     const token = smokeState.accessToken;
     if (!token) return;
 
-    const res = await agent
-      .get(ENDPOINTS.CLASSES.BASE)
-      .set('Authorization', `Bearer ${token}`);
+    const res = await agent.get(ENDPOINTS.CLASSES.BASE).set('Authorization', `Bearer ${token}`);
     expect([STATUS.OK, STATUS.NOT_FOUND]).toContain(res.status);
-    if (res.status === STATUS.OK) expect(res.body?.status).toBe('SUCCESS');
+    if (res.status === STATUS.OK) expect(res.body?.error).toBeNull();
   });
 
   it('should reject class list without token', async () => {

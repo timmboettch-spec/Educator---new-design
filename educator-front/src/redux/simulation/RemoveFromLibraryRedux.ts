@@ -1,7 +1,13 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import config from '../config';
 import api from '../api';
-import { RootState } from '@/store';
+import { type RootState } from '@/store';
+import { invalidateMyLibraryList } from '../api/myLibrary/myLibraryApi';
+import { clearSimulationLibraryState } from '../dashboard/simulationlibrary/GetSimulationRedux';
 
 export interface LibrarySimulation {
   id: string;
@@ -45,17 +51,29 @@ export const RemoveFromLibraryRequest = createAsyncThunk<
   void,
   { scenario_id: string },
   { rejectValue: string }
->('myLibrary/remove', async ({ scenario_id }, { rejectWithValue }) => {
-  try {
-    const res = await api.delete(`${config.RemoveFromLibraryAPI}/${scenario_id}`,)
-    return res.data;
-  } catch (err: unknown) {
-    const error = err as { response?: { status: number; data?: { message?: string } } };
-    return rejectWithValue(
-      error.response?.data?.message ?? (err instanceof Error ? err.message : 'Unknown error'),
-    );
+>(
+  'myLibrary/remove',
+  async ({ scenario_id }, { rejectWithValue, dispatch }) => {
+    try {
+      const res = await api.delete(
+        `${config.RemoveFromLibraryAPI}/${scenario_id}`
+      );
+      dispatch(invalidateMyLibraryList());
+      // The assign modal's full copy is now out of date: dropped, so it is
+      // loaded again when next needed.
+      dispatch(clearSimulationLibraryState());
+      return res.data;
+    } catch (err: unknown) {
+      const error = err as {
+        response?: { status: number; data?: { message?: string } };
+      };
+      return rejectWithValue(
+        error.response?.data?.message ??
+          (err instanceof Error ? err.message : 'Unknown error')
+      );
+    }
   }
-});
+);
 
 const myLibrarySlice = createSlice({
   name: 'myLibrary',
@@ -79,6 +97,11 @@ export default myLibrarySlice.reducer;
 
 const selectMyLibrary = (state: RootState) => state.RemoveFromLibrary;
 
-export const selectLibraryRemoving = createSelector(selectMyLibrary, (s) => s.removing);
-export const selectLibraryLoading = createSelector(selectMyLibrary, (s) => s.loading);
-
+export const selectLibraryRemoving = createSelector(
+  selectMyLibrary,
+  (s) => s.removing
+);
+export const selectLibraryLoading = createSelector(
+  selectMyLibrary,
+  (s) => s.loading
+);

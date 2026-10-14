@@ -9,7 +9,7 @@
  * Display labels:
  *   avatarEnabled === true  → "AI Only"
  *   avatarEnabled === false → "Manikin"
- *   avatarEnabled === undefined → "Manikin" 
+ *   avatarEnabled === undefined → "Manikin"
  *
  * Do NOT derive simulation type from category, unit_category, or any string matching.
  */
@@ -29,7 +29,9 @@ export const isAISimulation = (avatarEnabled: boolean | undefined): boolean =>
  * avatarEnabled === false → 'Manikin'
  * avatarEnabled === undefined → undefined (hide the field)
  */
-export const getSimulationTypeLabel = (avatarEnabled: boolean | undefined): SimulationType => {
+export const getSimulationTypeLabel = (
+  avatarEnabled: boolean | undefined
+): SimulationType => {
   if (avatarEnabled === true) return 'AI Only';
   if (avatarEnabled === false) return 'Manikin';
   return undefined;
@@ -50,7 +52,9 @@ export const parseAvatarEnabled = (raw: unknown): boolean | undefined => {
  * avatarEnabled === false → 'Manikin'
  * avatarEnabled === undefined → 'Manikin' (default)
  */
-export const getDerivedCategory = (avatarEnabled: boolean | undefined): string | undefined => {
+export const getDerivedCategory = (
+  avatarEnabled: boolean | undefined
+): string | undefined => {
   if (avatarEnabled === true) return 'AI Only';
   return 'Manikin';
 };

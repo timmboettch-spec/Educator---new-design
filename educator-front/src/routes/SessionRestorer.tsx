@@ -14,6 +14,10 @@ import {
 } from '../utils/storage';
 import api from '../redux/api';
 import config from '../redux/config';
+import { buildEducatorProfileCookieUpdates } from '../utils/syncEducatorProfile';
+
+/** Upper bound on the educator profile pre-fetch (see syncProfileFromServer). */
+const PROFILE_SYNC_TIMEOUT_MS = 3000;
 
 function createChannel(): BroadcastChannel | null {
   if (typeof BroadcastChannel === 'undefined') {
@@ -34,34 +38,34 @@ function createChannel(): BroadcastChannel | null {
  * session restore.
  */
 async function syncProfileFromServer(
-  user: Record<string, unknown>,
+  user: Record<string, unknown>
 ): Promise<Record<string, unknown>> {
   // Only educators have school assignments and status that change dynamically.
   const rawRole = user['role'];
   const roleName = (
     typeof rawRole === 'string'
       ? rawRole
-      : (rawRole as { role_name?: string } | null)?.role_name ?? ''
+      : ((rawRole as { role_name?: string } | null)?.role_name ?? '')
   ).toLowerCase();
   if (roleName !== 'educator') return user;
+
+  // Bounded: SessionRestorer awaits this before it can dispatch, and the shared
+  // axios instance sets no timeout. Without an abort a stalled connection would
+  // leave `sessionChecked` false forever, which every route guard waits on.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROFILE_SYNC_TIMEOUT_MS);
 
   try {
     const res = await api.get(`${config.GetEducatorAPI}/profile`, {
       headers: { 'ngrok-skip-browser-warning': 'true' },
+      signal: controller.signal,
     });
 
-    const profile = (res.data?.data ?? res.data) as Record<string, unknown> | undefined;
+    const profile = (res.data?.data ?? res.data) as
+      Record<string, unknown> | undefined;
     if (!profile) return user;
 
-    // Merge only the fields that can change without re-issuing a JWT.
-    const updates: Record<string, unknown> = {};
-    if (Array.isArray(profile['schools'])) updates['schools'] = profile['schools'];
-    if (typeof profile['status'] === 'string') updates['status'] = profile['status'];
-    if (typeof profile['tokens'] === 'number') updates['tokens'] = profile['tokens'];
-    if (typeof profile['full_name'] === 'string') updates['full_name'] = profile['full_name'];
-    if (typeof profile['profile_picture'] === 'string' || profile['profile_picture'] === null) {
-      updates['profile_picture'] = profile['profile_picture'];
-    }
+    const updates = buildEducatorProfileCookieUpdates(profile);
 
     if (Object.keys(updates).length === 0) return user;
 
@@ -73,6 +77,8 @@ async function syncProfileFromServer(
   } catch {
     // Non-fatal — fall back to the stale cookie user rather than blocking.
     return user;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -106,6 +112,13 @@ export default function SessionRestorer() {
     hasRestoredRef.current = true;
 
     const restore = async () => {
+      // `getToken`/`getParsedUser` touch cookies and localStorage, both of which
+      // throw rather than return null when storage access is blocked (a Canvas
+      // third-party iframe, a locked-down private window) or when a cookie value
+      // is malformed. `restore()` is fire-and-forget, so an escaping rejection
+      // would leave `sessionChecked` false and hang every guard on its loader.
+      // A catch, not a finally: the BroadcastChannel path below returns before
+      // it settles, and a finally would resolve the session out from under it.
       const token = getToken();
       const user = getParsedUser();
 
@@ -136,8 +149,8 @@ export default function SessionRestorer() {
         status: 'success',
       });
 
-      const persistent = isRememberMe();          // "Remember Me" cookie
-      const sameTab    = isSessionActive();        // sessionStorage flag (same tab, pre-refresh)
+      const persistent = isRememberMe(); // "Remember Me" cookie
+      const sameTab = isSessionActive(); // sessionStorage flag (same tab, pre-refresh)
       const sameBrowser = isSessionCookieActive(); // session cookie (survives refresh, dies on browser close)
 
       // Fast path: any of the three signals confirms a legitimate session.
@@ -210,9 +223,18 @@ export default function SessionRestorer() {
       }, 300);
     };
 
-    void restore();
+    void restore().catch(() => {
+      // Resolve first: the usual cause of landing here is blocked storage, and
+      // clearAuthData() touches that same storage, so it can throw again.
+      void dispatch(markSessionChecked());
+      markSessionReady();
+      try {
+        clearAuthData();
+      } catch {
+        // Storage is unavailable; there is nothing persisted to clear.
+      }
+    });
   }, [dispatch]);
 
   return null;
 }
-

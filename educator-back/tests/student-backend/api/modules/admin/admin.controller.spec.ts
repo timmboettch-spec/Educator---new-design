@@ -5,8 +5,6 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { AdminModule } from '../../../../../src/student-backend/modules/admin/admin.module';
 import { AdminService } from '../../../../../src/student-backend/modules/admin/admin.service';
-import { JsonDataService } from '../../../../../src/student-backend/data/json-data.service';
-import { ScenarioAuthGuard } from '../../../../../src/student-backend/guards/scenario-auth.guard';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../common/utils/api.helper';
 import { ENDPOINTS } from '../../common/constants/endpoints';
@@ -27,10 +25,7 @@ describe('Admin API (controller)', () => {
     createUnit: jest.fn(),
     updateUnit: jest.fn(),
     deleteUnit: jest.fn(),
-    assignUnitToPermission: jest.fn(),
   };
-
-  const mockJsonDataService = {};
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -38,10 +33,6 @@ describe('Admin API (controller)', () => {
     })
       .overrideProvider(AdminService)
       .useValue(mockAdminService)
-      .overrideProvider(JsonDataService)
-      .useValue(mockJsonDataService)
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
     app = await createTestApp(moduleRef);

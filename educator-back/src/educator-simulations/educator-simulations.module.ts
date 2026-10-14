@@ -1,14 +1,15 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
-import { EducatorSimulation } from './entity/educator-simulation.entity';
+
 import { EducatorSimulationsService } from './educator-simulations.service';
 import { EducatorSimulationsController } from './educator-simulations.controller';
+import { EducatorSimulationPreviewsService } from './educator-simulation-previews.service';
+import { EducatorSimulationPreviewsController } from './educator-simulation-previews.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([EducatorSimulation]), ConfigModule],
-  controllers: [EducatorSimulationsController],
-  providers: [EducatorSimulationsService],
+  imports: [ConfigModule],
+  controllers: [EducatorSimulationsController, EducatorSimulationPreviewsController],
+  providers: [EducatorSimulationsService, EducatorSimulationPreviewsService],
   exports: [EducatorSimulationsService],
 })
 export class EducatorSimulationsModule {}

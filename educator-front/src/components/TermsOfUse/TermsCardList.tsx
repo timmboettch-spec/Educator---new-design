@@ -1,15 +1,27 @@
 import { useEffect } from 'react';
 import TermsCard from './TermsCard';
-import termsOfUseData from '../../../public/assets/TermsAndPolicies/termsOfUseData.json';
-import privacyPolicyData from '../../../public/assets/TermsAndPolicies/termsOfUsePrivacyPolicy.json';
+import termsOfUseDataEn from '../../../public/assets/TermsAndPolicies/termsOfUseData.json';
+import termsOfUseDataEs from '../../../public/assets/TermsAndPolicies/termsOfUseData.es.json';
+import privacyPolicyDataEn from '../../../public/assets/TermsAndPolicies/termsOfUsePrivacyPolicy.json';
+import privacyPolicyDataEs from '../../../public/assets/TermsAndPolicies/termsOfUsePrivacyPolicy.es.json';
 
 interface TermsCardListProps {
   activeSection: number;
   isPrivacyPolicy?: boolean;
 }
 
-const TermsCardList = ({ activeSection, isPrivacyPolicy = false }: TermsCardListProps) => {
-  const data = isPrivacyPolicy ? privacyPolicyData : termsOfUseData;
+const TermsCardList = ({
+  activeSection,
+  isPrivacyPolicy = false,
+}: TermsCardListProps) => {
+  const isEs = localStorage.getItem('app_language')?.toLowerCase() === 'es';
+  const data = isPrivacyPolicy
+    ? isEs
+      ? privacyPolicyDataEs
+      : privacyPolicyDataEn
+    : isEs
+      ? termsOfUseDataEs
+      : termsOfUseDataEn;
   useEffect(() => {
     const sectionId = String(activeSection + 1).padStart(2, '0');
 

@@ -1,9 +1,11 @@
+import { AiGateway } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { LoggerService } from 'src/common/services';
+import type { ICurrentUser } from 'src/common/interfaces';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { ReportsService } from '@/modules/reports/reports.service';
-import { JsonDataService } from '@/data/json-data.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { PpePrivacyService } from '@/modules/reports/ppe-privacy.service';
 import { ClinicalDocumentationService } from '@/modules/reports/clinical-documentation.service';
@@ -11,8 +13,25 @@ import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
-import { of } from 'rxjs';
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
 import type { CreateReportDto } from '@/modules/reports/dto/create-report.dto';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../common/utils/mock-factory';
+
+const reportUser = { userId: 'user-1', type: 'educator' } as ICurrentUser;
 
 describe('ReportsService: Data Model Update', () => {
   let service: ReportsService;
@@ -21,6 +40,43 @@ describe('ReportsService: Data Model Update', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ReportsService,
+        { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: createMockSimulationReportRepository() },
+        {
+          provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+          useValue: createMockStudentSimulationProgressRepository(),
+        },
+        { provide: STUDENT_REPOSITORY, useValue: createMockStudentRepository() },
+        {
+          provide: TRANSCRIPT_REPOSITORY,
+          useValue: { findByBusinessId: jest.fn().mockResolvedValue({ messages: [] }) },
+        },
+        { provide: UNIT_REPOSITORY, useValue: createMockUnitRepository() },
+        {
+          provide: SIMULATION_V2_REPOSITORY,
+          useValue: {
+            findByBusinessId: jest.fn().mockResolvedValue({ title: 'Test', grading: {} }),
+            findByBusinessIdWithChildrenJoined: jest
+              .fn()
+              .mockResolvedValue({ title: 'Test', grading: {} }),
+          },
+        },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn() } },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
         ActionsInterventionsService,
         PpePrivacyService,
         ClinicalDocumentationService,
@@ -37,41 +93,29 @@ describe('ReportsService: Data Model Update', () => {
           },
         },
         {
-          provide: HttpService,
-          useValue: { post: jest.fn().mockReturnValue(of({ data: {} })) },
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
         },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn().mockReturnValue('key') },
-        },
-        {
-          provide: JsonDataService,
           useValue: {
-            getTranscriptById: jest.fn().mockReturnValue({ messages: [] }),
-            getTranscriptByIdFresh: jest.fn().mockResolvedValue({ messages: [] }),
-            getScenarioById: jest.fn().mockReturnValue({ title: 'Test', grading: {} }),
-            getScenarioByIdFresh: jest.fn().mockResolvedValue({ title: 'Test', grading: {} }),
-            getScenarioByIdLocalized: jest.fn().mockResolvedValue({ title: 'Test', grading: {} }),
-            getReportByTranscriptId: jest.fn(),
-            getReportByTranscriptIdFresh: jest.fn(),
-            getReports: jest.fn().mockReturnValue([]),
-            getReportsFresh: jest.fn().mockResolvedValue([]),
-            addReport: jest.fn(),
-            addReportFresh: jest.fn(),
-            generateId: jest.fn().mockReturnValue('r1'),
+            get: jest.fn((key: string) => (key.startsWith('azureBlob.') ? undefined : 'key')),
           },
         },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
         { provide: LifecycleTelemetryService, useValue: {} },
       ],
     }).compile();
 
     service = module.get<ReportsService>(ReportsService);
-    jest
-      .spyOn(service as unknown as Record<string, (...args: unknown[]) => unknown>, 'readReports')
-      .mockReturnValue([]);
-    jest
-      .spyOn(service as unknown as Record<string, (...args: unknown[]) => unknown>, 'writeReports')
-      .mockImplementation(() => {});
     (
       jest.spyOn(
         service as unknown as Record<string, (...args: unknown[]) => unknown>,
@@ -90,7 +134,7 @@ describe('ReportsService: Data Model Update', () => {
       },
     };
 
-    const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+    const result = await service.createReportWithAI(reportUser, dto as unknown as CreateReportDto);
     const vitalsList = (
       result.summaryByCategory as unknown as Record<
         string,

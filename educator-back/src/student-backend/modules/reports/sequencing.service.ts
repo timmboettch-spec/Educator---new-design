@@ -1,14 +1,15 @@
-import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from '@nestjs/common';
+
+import { AiMessageRole } from '../../../common/constants';
+import { AiGateway, type AiQuestionMatchingEvaluation } from '../../../common/interfaces';
+import { LoggerService } from '../../../common/services';
 
 import {
   type Scenario,
   type SequenceAssessmentMethod,
   type SequenceGroupDefinition,
   type SequenceItem,
-} from '../../data/json-data.service';
+} from 'src/common/interfaces/student-scenario.interface';
 
 import { ActionsInterventionsService } from './actions-interventions.service';
 import { type StudentSummary } from './timeline-timing.service';
@@ -152,11 +153,10 @@ interface ResolvedGroupItem {
 
 @Injectable()
 export class SequencingService {
-  private readonly logger = new Logger(SequencingService.name);
   constructor(
-    private readonly configService: ConfigService,
-    private readonly httpService: HttpService,
+    private readonly aiGateway: AiGateway,
     private readonly actionsService: ActionsInterventionsService,
+    private readonly logger: LoggerService,
   ) {}
 
   async evaluateSequencingPrioritization(
@@ -291,7 +291,7 @@ export class SequencingService {
 
       // Use median time of unique instances, or mark as shared-only group
       let representativeTime: number;
-      let hasUniqueItems = false;
+      let hasUniqueItems: boolean;
 
       if (times.length > 0) {
         times.sort((a, b) => a - b);
@@ -2072,7 +2072,6 @@ export class SequencingService {
     const groupId = result.id.startsWith('subgroup_')
       ? result.id.substring('subgroup_'.length)
       : result.id.replace('group_', '');
-    let itemsList = '';
     let itemsListForPoint = ''; // Full list for point display
     let groupLabel = result.label;
     let totalItems = 0;
@@ -2086,13 +2085,6 @@ export class SequencingService {
         actualItemNames = allRefs
           .map((ref) => this.resolveDisplayLabelForRef(ref, scenario))
           .filter((label) => label && label.length > 0); // Filter out empty labels
-
-        // For example (limited to 4 items)
-        const items = actualItemNames.slice(0, 4);
-        itemsList = items.join(', ');
-        if (totalItems > 4) {
-          itemsList += `, and ${totalItems - 4} more item${totalItems - 4 > 1 ? 's' : ''}`;
-        }
 
         // For point display: show items with arrows in strict mode, commas in flexible
         const isStrictMode = result.label.includes('Strict');
@@ -2118,13 +2110,6 @@ export class SequencingService {
             .map((item) => this.resolveDisplayLabelForRef(getItemId(item), scenario))
             .filter((label) => label && label.length > 0); // Filter out empty labels
 
-          // For example text (limited to 4 items)
-          const items = actualItemNames.slice(0, 4);
-          itemsList = items.join(', ');
-          if (totalItems > 4) {
-            itemsList += `, and ${totalItems - 4} more item${totalItems - 4 > 1 ? 's' : ''}`;
-          }
-
           // For point display: show items with arrows in strict mode, commas in flexible
           const isStrictMode = result.label.includes('Strict');
           const separator = isStrictMode ? ' → ' : ', ';
@@ -2139,11 +2124,6 @@ export class SequencingService {
       }
     }
 
-    // Fallback if itemsList is still empty
-    if (!itemsList || itemsList.trim().length === 0) {
-      itemsList = `${totalItems} item${totalItems !== 1 ? 's' : ''}`;
-    }
-
     const isStrict = result.label.includes('Strict');
     const modeDescription = isStrict ? 'in the specified order' : 'in any order';
 
@@ -2152,7 +2132,7 @@ export class SequencingService {
 
     if (result.passed) {
       // For passed results, show item sequence in the point with group name
-      let pointText = '';
+      let pointText: string;
 
       if (hasActualItemNames && actualItemNames.length > 0) {
         const separator = isStrict ? ' → ' : ', ';
@@ -2189,7 +2169,7 @@ export class SequencingService {
       const failures = result.failedReasons.length > 0 ? result.failedReasons : [];
 
       // Build natural context about items - show them clearly
-      let itemsContext = '';
+      let itemsContext: string;
       if (hasActualItemNames && actualItemNames.length > 0) {
         // We have configured item names to show
         const separator = isStrict ? ' → ' : ', ';
@@ -2570,43 +2550,20 @@ export class SequencingService {
     if (requirements.length === 0 || studentMessages.length === 0) {
       return results;
     }
-    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (!openaiApiKey) {
+    if (!this.aiGateway.isConfigured()) {
       return this.deterministicQuestionMatching(requirements, studentMessages);
     }
     try {
       const aiPrompt = `You are a clinical assessment AI evaluating student intent during a nursing simulation.\n\nAnalyze the student's transcript messages to determine if they asked for specific patient information.\n\nCRITICAL RULES:\n- Evaluate INTENT and MEANING, not exact wording\n- ANY question requesting the information counts\n- Accept synonyms, indirect questions, compound questions\n- Return ALL occurrences\n\nREQUIREMENTS:\n${requirements.map((r) => `- ${r.ref} (Label: "${r.label}")\n  Aliases: ${r.aliases.join(', ')}`).join('\n')}\n\nSTUDENT TRANSCRIPT:\n${studentMessages.map((m) => `[${m.elapsedSeconds ?? '?'}s] Student: ${m.text}`).join('\n')}\n\nRETURN ONLY VALID JSON:\n{"evaluations": {"ref": {"occurrences": [{"evidence": "quote", "messageIndex": 0}]}, ...}}`;
-      const response = await firstValueFrom(
-        this.httpService.post<{ choices: Array<{ message: { content: string } }> }>(
-          'https://api.openai.com/v1/chat/completions',
-          {
-            model: this.configService.get<string>('AI_MODEL') ?? 'gpt-4o',
-            messages: [
-              { role: 'system', content: 'Always return valid JSON only.' },
-              { role: 'user', content: aiPrompt },
-            ],
-            temperature: SEQUENCING_AI_TEMPERATURE,
-            max_tokens: SEQUENCING_AI_MAX_TOKENS,
-            response_format: { type: 'json_object' },
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (!content) {
-        return this.deterministicQuestionMatching(requirements, studentMessages);
-      }
-      const parsed = JSON.parse(content) as {
-        evaluations?: Record<
-          string,
-          { occurrences?: Array<{ evidence?: string; messageIndex?: number }> }
-        >;
-      };
+      const parsed = await this.aiGateway.completeJson<AiQuestionMatchingEvaluation>({
+        caller: 'reports.sequencing-question-matching',
+        messages: [
+          { role: AiMessageRole.System, content: 'Always return valid JSON only.' },
+          { role: AiMessageRole.User, content: aiPrompt },
+        ],
+        temperature: SEQUENCING_AI_TEMPERATURE,
+        maxTokens: SEQUENCING_AI_MAX_TOKENS,
+      });
       const evaluations = parsed.evaluations ?? {};
       for (const req of requirements) {
         const ev = evaluations[req.ref];

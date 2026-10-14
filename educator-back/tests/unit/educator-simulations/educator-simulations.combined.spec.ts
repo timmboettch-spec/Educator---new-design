@@ -1,18 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { EducatorSimulationsController } from '../../../src/educator-simulations/educator-simulations.controller';
 import { EducatorSimulationsService } from '../../../src/educator-simulations/educator-simulations.service';
-import { EducatorSimulation } from '../../../src/educator-simulations/entity/educator-simulation.entity';
-import { TutorPatientService } from 'src/common/utils/tutor-patient.service';
+
 import { EducatorSimulationsConstants } from '../../../src/educator-simulations/educator-simulations.constants';
 import type { JwtRequest } from 'src/common/types';
 import type { Response } from 'express';
+import { EducatorSimulation } from 'src/database/entities';
+import { LoggerService } from 'src/common/services';
+import {
+  EDUCATOR_SIMULATION_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
 
 const EDUCATOR_ID = '11111111-1111-1111-1111-111111111111';
 const SCENARIO_ID = 'sim-001';
 
 const makeReq = (userId: string | null): JwtRequest =>
-  ({ user: userId ? { userId, roles: ['Educator'] } : undefined } as unknown as JwtRequest);
+  ({
+    user: userId ? { userId, educatorId: userId, roles: ['Educator'] } : undefined,
+  }) as unknown as JwtRequest;
 
 const mockRow: EducatorSimulation = {
   id: '22222222-2222-2222-2222-222222222222',
@@ -37,15 +44,19 @@ describe('EducatorSimulations (Controller + Service)', () => {
   const repo = {
     findOne: jest.fn(),
     create: jest.fn(),
-    save: jest.fn(),
+    saveMany: jest.fn(),
     find: jest.fn(),
   };
 
-  const tutorPatientService = {
-    clearCache: jest.fn(),
-    getScenarios: jest.fn(),
-    getFreshScenarios: jest.fn(),
-    getUnits: jest.fn(),
+  // Units are read via UnitRepository (src/database/repositories/unit.repository.ts),
+  // not a blob store.
+  const unitRepository = {
+    find: jest.fn().mockResolvedValue([]),
+  };
+
+  const simulationV2Repository = {
+    find: jest.fn().mockResolvedValue([]),
+    findByBusinessId: jest.fn().mockResolvedValue(null),
   };
 
   beforeEach(async () => {
@@ -53,8 +64,20 @@ describe('EducatorSimulations (Controller + Service)', () => {
       controllers: [EducatorSimulationsController],
       providers: [
         EducatorSimulationsService,
-        { provide: getRepositoryToken(EducatorSimulation), useValue: repo },
-        { provide: TutorPatientService, useValue: tutorPatientService },
+        { provide: EDUCATOR_SIMULATION_REPOSITORY, useValue: repo },
+        { provide: UNIT_REPOSITORY, useValue: unitRepository },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: simulationV2Repository },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -66,10 +89,9 @@ describe('EducatorSimulations (Controller + Service)', () => {
 
   describe('addToLibrary', () => {
     it('UNIT: adds new simulation to library', async () => {
-      tutorPatientService.getScenarios.mockResolvedValue([scenario]);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(scenario as never);
       repo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-      repo.create.mockReturnValue(mockRow);
-      repo.save.mockResolvedValue(mockRow);
+      repo.create.mockResolvedValue(mockRow);
 
       const result = await service.addToLibrary(SCENARIO_ID, EDUCATOR_ID);
       expect(result.success).toBe(true);
@@ -77,7 +99,7 @@ describe('EducatorSimulations (Controller + Service)', () => {
     });
 
     it('UNIT: returns not found when scenario does not exist', async () => {
-      tutorPatientService.getScenarios.mockResolvedValue([]);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(null);
 
       const result = await service.addToLibrary('missing', EDUCATOR_ID);
       expect(result.success).toBe(false);
@@ -85,7 +107,7 @@ describe('EducatorSimulations (Controller + Service)', () => {
     });
 
     it('UNIT: returns already in library for active record', async () => {
-      tutorPatientService.getScenarios.mockResolvedValue([scenario]);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(scenario as never);
       repo.findOne.mockResolvedValueOnce(mockRow);
 
       const result = await service.addToLibrary(SCENARIO_ID, EDUCATOR_ID);
@@ -95,14 +117,15 @@ describe('EducatorSimulations (Controller + Service)', () => {
 
     it('REGRESSION: restores soft-deleted record instead of creating a new row', async () => {
       const deletedRow = { ...mockRow, deleted_at: new Date('2024-01-01') };
-      tutorPatientService.getScenarios.mockResolvedValue([scenario]);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(scenario as never);
       repo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(deletedRow);
-      repo.save.mockResolvedValue({ ...deletedRow, deleted_at: null });
+      repo.create.mockResolvedValue({ ...deletedRow, deleted_at: null });
 
       const result = await service.addToLibrary(SCENARIO_ID, EDUCATOR_ID);
       expect(result.success).toBe(true);
-      expect(repo.create).not.toHaveBeenCalled();
-      expect(repo.save).toHaveBeenCalled();
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ id: deletedRow.id, deleted_at: null }),
+      );
     });
 
     it('INTEGRATION: POST /educator-simulations/add-to-library returns SUCCESS', async () => {
@@ -112,7 +135,10 @@ describe('EducatorSimulations (Controller + Service)', () => {
         data: mockRow,
       });
 
-      const result = await controller.addToLibrary({ scenario_id: SCENARIO_ID }, makeReq(EDUCATOR_ID));
+      const result = await controller.addToLibrary(
+        { scenario_id: SCENARIO_ID },
+        makeReq(EDUCATOR_ID),
+      );
       expect(result.status).toBe('SUCCESS');
     });
 
@@ -130,7 +156,7 @@ describe('EducatorSimulations (Controller + Service)', () => {
   describe('removeFromLibrary', () => {
     it('UNIT: soft-deletes active row', async () => {
       repo.findOne.mockResolvedValue(mockRow);
-      repo.save.mockResolvedValue({ ...mockRow, deleted_at: new Date() });
+      repo.create.mockResolvedValue({ ...mockRow, deleted_at: new Date() });
 
       const result = await service.removeFromLibrary(SCENARIO_ID, EDUCATOR_ID);
       expect(result.success).toBe(true);
@@ -160,8 +186,8 @@ describe('EducatorSimulations (Controller + Service)', () => {
   describe('getMyLibrary', () => {
     it('UNIT: returns merged unit + scenario payload', async () => {
       repo.find.mockResolvedValue([mockRow]);
-      tutorPatientService.getUnits.mockResolvedValue([{ id: 'unit-1', name: 'Emergency' }]);
-      tutorPatientService.getFreshScenarios.mockResolvedValue([scenario]);
+      unitRepository.find.mockResolvedValue([{ id: 'unit-1', name: 'Emergency' }]);
+      simulationV2Repository.find.mockResolvedValue([scenario] as never);
 
       const result = await service.getMyLibrary(EDUCATOR_ID);
       expect(result.success).toBe(true);
@@ -178,15 +204,13 @@ describe('EducatorSimulations (Controller + Service)', () => {
 
       const jsonMock = jest.fn();
       const mockRes = { setHeader: jest.fn(), json: jsonMock } as unknown as Response;
-      await controller.getMyLibrary(makeReq(EDUCATOR_ID), undefined, mockRes);
-      expect(jsonMock).toHaveBeenCalledWith(
-        expect.objectContaining({ status: 'SUCCESS' }),
-      );
+      await controller.getMyLibrary(makeReq(EDUCATOR_ID), mockRes);
+      expect(jsonMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'SUCCESS' }));
     });
 
     it('INTEGRATION: throws when user not authenticated', async () => {
       const mockRes = { setHeader: jest.fn(), json: jest.fn() } as unknown as Response;
-      await expect(controller.getMyLibrary(makeReq(null), undefined, mockRes)).rejects.toThrow();
+      await expect(controller.getMyLibrary(makeReq(null), mockRes)).rejects.toThrow();
     });
   });
 
@@ -225,10 +249,7 @@ describe('EducatorSimulations (Controller + Service)', () => {
     });
 
     it('UNIT: returns Set with all library scenario ids for educator', async () => {
-      repo.find.mockResolvedValue([
-        { scenario_id: SCENARIO_ID },
-        { scenario_id: 'sim-002' },
-      ]);
+      repo.find.mockResolvedValue([{ scenario_id: SCENARIO_ID }, { scenario_id: 'sim-002' }]);
 
       const ids = await service.getInLibraryIds(EDUCATOR_ID);
       expect(ids.size).toBe(2);

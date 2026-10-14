@@ -14,7 +14,7 @@ For system architecture, see [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 Only three values live as GitHub repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` (for OIDC).
 
-DB migrations and seeders run **inline at container startup** via the Dockerfile `CMD` (`npm run migration:run && npm run seed:roles && node dist/main.js`). There is no separate migrate Job.
+DB migrations and seeders run **inline at container startup** via the Dockerfile `CMD` (`npm run migration:run && npm run seed:prod && node dist/main.js`). `seed:prod` auto-discovers and runs every seeder file in `src/database/seeders/`. There is no separate migrate Job.
 
 ---
 
@@ -138,20 +138,53 @@ See [KEY-VAULT-VARS.md](./KEY-VAULT-VARS.md) for the full variable catalog and h
 | OIDC SP + federated credentials | **CLI** (`-Action sp`) | One-time per env. |
 | Custom domain DNS + managed cert | **CLI** (`-Action dns`, Porkbun API + `az containerapp hostname add/bind`) | Requires Porkbun API keys. |
 
-### Microsoft Graph mail (cross-env shared)
+### Azure Communication Services mail
 
-### Microsoft Graph mail — original notes (no SMTP)
+> **Superseded Microsoft Graph section**: an earlier revision of this backend
+> sent mail via Microsoft Graph's `sendMail` (`ManagedIdentityCredential`
+> against a Graph `Mail.Send` app-role grant). See
+> [`docs/adr/0001-mail-service-managed-identity.md`](adr/0001-mail-service-managed-identity.md)
+> for the full evolution (including that Graph state) and why it was
+> superseded by ACS below. The `edu-graph-*` KV secrets /
+> `GRAPH_*` env vars are left wired as unused secretRefs for now (see the
+> comment in `infra/modules/containerApp-backend.bicep`) — Container Apps
+> refuses to remove a secret an active revision still references.
 
-The backend sends transactional email via the Microsoft Graph `sendMail` endpoint — there is no SMTP relay. See [`src/mail/mail.service.ts`](../src/mail/mail.service.ts).
+The backend sends transactional email via Azure Communication Services (ACS) Email's REST API — there is no SMTP relay. See [`src/mail/mail.service.ts`](../src/mail/mail.service.ts) and [`infra/modules/acsEmail.bicep`](../infra/modules/acsEmail.bicep).
+
+Auth: `ManagedIdentityCredential`, using this app's own user-assigned identity (the same one already wired for Redis and the App Insights Query API via `AZURE_CLIENT_ID` — see `infra/modules/containerApp-backend.bicep`). The identity's service principal is granted the built-in **"Communication and Email Service Owner"** role directly on the ACS Communication Services resource (Bicep-managed, `infra/modules/acsEmail.bicep`) — no connection string or access key is stored anywhere. Locally (no managed identity available), `MailService` falls back to `DefaultAzureCredential` (e.g. `az login`), which needs the same role granted to your own user/service principal to send for real.
+
+Sender domain per environment — each provisioned as a **CustomerManaged** ACS Email domain (not the free `*.azurecomm.net` `AzureManaged` domain):
+
+| Env | `MAIL_FROM` domain | Notes |
+|-----|---------------------|-------|
+| dev | `dev.rwai.curionn.com` | |
+| qa | `qa.rwai.curionn.com` | |
+| prod | `realityworks.com` | |
+
+A `CustomerManaged` domain starts `Unverified` — Azure computes the exact DNS records it needs (domain-ownership TXT, SPF TXT, two DKIM CNAMEs) only after the Domains resource exists, so they can't be hardcoded in Bicep. After deploying `infra/modules/acsEmail.bicep` for an environment, use [`scripts/Setup-AcsDomain.ps1`](../scripts/Setup-AcsDomain.ps1) to read those records back and write them via the Porkbun API (same provider/credentials as `scripts/Setup-MailDomain.ps1` — shared `akv-all1-all` Key Vault). Run it in dry-run mode first, then with `-Apply`:
+
+```powershell
+.\scripts\Setup-AcsDomain.ps1 -Environment dev
+.\scripts\Setup-AcsDomain.ps1 -Environment dev -Apply -Force   # -Force only needed if the SPF merge step reports a conflict
+```
+
+> **SPF conflict note**: if this domain previously ran Graph/M365 mail (see the superseded section above), it already carries `v=spf1 include:spf.protection.outlook.com ~all`. SPF permits exactly one record per domain, so `Setup-AcsDomain.ps1` merges ACS's required `include:` mechanism into the existing record rather than creating a second one — same conflict-detection/`-Force` pattern as `Setup-MailDomain.ps1`.
+
+> **2026-09-07 naming/domain update**: `acs-rwai-edu-{env}(-mail)` was renamed to `acs-{env}-rwai-edu(-mail)` to match `docs/standards/AZURE-NAMING-CONVENTION.md` (same rename already applied in Crexo-Educator-Backend). dev/qa also moved off the shared `curionn.com` apex onto per-workload subdomains — `dev.rwai.curionn.com` / `qa.rwai.curionn.com` — leaving `realityworks.com` unchanged for prod. New resources have been created, DNS-verified, and linked in Azure under the new names/domains for all three environments; the old `acs-rwai-edu-{env}` resources on `dev.curionn.com`/`qa.curionn.com`/`realityworks.com` are still live and serving the running app until the container apps are re-provisioned to pick up the new ones (separate step, tracked in the PR that introduced this rename).
+
+Verification is asynchronous; check status with:
+```powershell
+az communication email domain show --domain-name <fqdn> --email-service-name acs-<env>-rwai-edu-mail -g ARG-<env>1-rwai --query verificationStates
+```
 
 Inputs:
 
 | Variable | Source | Notes |
 |----------|--------|-------|
-| `MAIL_FROM` | `env-vars` (per env) | Sender mailbox UPN, currently `no-reply@realityworks.com` for all envs. |
-| `GRAPH_TENANT_ID` | `shared-secrets` → `akv-all1-all/GRAPH-TENANT-ID` | Entra tenant ID (`454e3edd-66d1-4e0a-aff2-db5d92eb1c13`, RW Thrive). |
-| `GRAPH_CLIENT_ID` | `shared-secrets` → `akv-all1-all/GRAPH-CLIENT-ID` | App registration `MailerForAzureContainers` (AppId `cf315e73-4b97-4e23-9ae4-f6cabc9e0456`). Single app, shared by dev/qa/prod. |
-| `GRAPH_CLIENT_SECRET` | `shared-secrets` → `akv-all1-all/GRAPH-CLIENT-SECRET` | Client secret on the app registration. Rotate periodically. |
+| `MAIL_FROM` | `env-vars` (per env) | Sender address — see table above. |
+| `ACS_ENDPOINT` | resource-derived (container-env, `infra/modules/acsEmail.bicep`'s `endpoint` output) | `https://acs-<env>-rwai-edu.<region>.communication.azure.com` — passed to `EmailClient(endpoint, credential)`. |
+| `AZURE_CLIENT_ID` | resource-derived (container-env) | This app's user-assigned identity client ID; selects which identity `ManagedIdentityCredential` authenticates as. |
 | `AZURE_STORAGE_CONNECTION_STRING` | per-env Key Vault → `akv{env}1edu/AZURE_STORAGE_CONNECTION_STRING` | Blob storage connection string. Set during `secrets` action or via `az keyvault secret set`. |
 | `AZURE_STORAGE_ACCOUNT` | `env-vars` (per env in `container-spec.json`) | Storage account name — `asadev1realityworksai` / `asaqa1realityworksai` / `asaprod1realityworksai`. |
 | `AZURE_STORAGE_CONTAINER` | `env-vars` (per env in `container-spec.json`) | Blob container name — same value as `AZURE_STORAGE_ACCOUNT` per env. |
@@ -175,80 +208,28 @@ Or re-run the `secrets` action and it will prompt you:
 
 **Local dev** — edit `.env` directly; the values are read at startup via `ConfigService`.
 
-#### App registration `MailerForAzureContainers`
+#### Managed identity RBAC on the ACS resource
 
-Application permissions (admin-consented, tenant-wide):
+No Entra app-role grant needed — `infra/modules/acsEmail.bicep` grants the environment's Container App user-assigned identity (`id-{env}1-rwai-eduback`) the built-in **"Communication and Email Service Owner"** role directly on the `acs-{env}-rwai-edu` Communication Services resource as part of the normal Bicep deploy. Nothing manual to run per environment.
 
-| Permission | Purpose | Notes |
-|------------|---------|-------|
-| `Mail.Send` | Send mail as any mailbox via `/users/{id}/sendMail`. | Required for runtime email. |
-| `MailboxSettings.ReadWrite` | Read/write mailbox settings (used to manage the `no-reply` auto-reply via Graph). | Operational only — can be removed after auto-reply is stable. Was added because Exchange Online PowerShell `Set-MailboxAutoReplyConfiguration` failed with "Identity not found" on the new mailbox. |
-
-> **Scoping note**: both permissions are tenant-wide today. Once **RBAC for Applications** rolls out to this tenant in EAC, the app should be scoped to only the `MailerAppAllowed` distribution group (member: `no-reply@realityworks.com`) using the `Application Mail.Send` role. Until then, treat the client secret as a tenant-wide credential and store/rotate accordingly.
-
-#### `no-reply@realityworks.com` mailbox
-
-| Property | Value |
-|----------|-------|
-| Type | `UserMailbox` (regular licensed mailbox, **not** a shared mailbox — Exchange Online REST PowerShell can no longer create shared mailboxes) |
-| ExchangeGuid | `a8745195-2761-4cb4-98bc-a13627962359` |
-| License | Microsoft 365 Business Premium |
-| Inbound | Unattended — no human reads it |
-| Auto-reply | `alwaysEnabled`, internal + external, points senders to `support@rwthrive.com` |
-
-The auto-reply was set via Microsoft Graph (Exchange Online `Set-MailboxAutoReplyConfiguration` returned "Identity not found" on this mailbox even after Get worked):
-
+If you need to check or re-apply it by hand:
 ```powershell
-# Requires MailboxSettings.ReadWrite Application permission on MailerForAzureContainers.
-$tenant = az keyvault secret show --vault-name akv-all1-all --name GRAPH-TENANT-ID --query value -o tsv
-$client = az keyvault secret show --vault-name akv-all1-all --name GRAPH-CLIENT-ID --query value -o tsv
-$secret = az keyvault secret show --vault-name akv-all1-all --name GRAPH-CLIENT-SECRET --query value -o tsv
-$tok = (Invoke-RestMethod -Method Post `
-    -Uri "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token" `
-    -Body @{client_id=$client;client_secret=$secret;scope='https://graph.microsoft.com/.default';grant_type='client_credentials'}).access_token
-
-$reply = "<p>This mailbox is unattended and not monitored. For assistance, please contact <a href='mailto:support@rwthrive.com'>support@rwthrive.com</a>.</p>"
-$body = @{ automaticRepliesSetting = @{
-    status               = 'alwaysEnabled'
-    externalAudience     = 'all'
-    internalReplyMessage = $reply
-    externalReplyMessage = $reply
-}} | ConvertTo-Json -Depth 6
-
-Invoke-RestMethod -Method Patch `
-    -Uri 'https://graph.microsoft.com/v1.0/users/no-reply@realityworks.com/mailboxSettings' `
-    -Headers @{ Authorization = "Bearer $tok"; 'Content-Type' = 'application/json' } `
-    -Body $body
+$miObjectId = az identity show --name id-<env>1-rwai-eduback --resource-group ARG-<env>1-rwai --query principalId -o tsv
+az role assignment list --assignee $miObjectId --scope "/subscriptions/<sub>/resourceGroups/ARG-<env>1-rwai/providers/Microsoft.Communication/communicationServices/acs-<env>-rwai-edu" -o table
 ```
 
-#### Optional per-mailbox scoping (deferred)
+#### Sender mailboxes
 
-A security distribution group `MailerAppAllowed` (`mailer-app-allowed@realityworks.com`, `RequireSenderAuthenticationEnabled: $true`, sole member `no-reply@realityworks.com`) already exists. When **RBAC for Applications** in the Exchange admin center is available in this tenant, assign the `Application Mail.Send` role to AppId `cf315e73-4b97-4e23-9ae4-f6cabc9e0456` scoped to that group. The legacy `New-ApplicationAccessPolicy` cmdlet has been retired in EXO V3 REST and is no longer usable.
+Unlike Graph/M365, ACS Email doesn't require a real mailbox for the sender address — it sends directly from the verified custom domain, once the sender's local part (`no-reply`) is registered as a `Microsoft.Communication/emailServices/domains/senderUsernames` resource (Bicep-managed, `infra/modules/acsEmail.bicep` — no manual step). See "Azure Communication Services mail" above for the DNS verification steps via `scripts/Setup-AcsDomain.ps1`. No auto-reply/mailboxSettings step is needed either.
 
-#### Smoke test (out-of-cluster)
+#### Smoke test (in-cluster only)
+
+There is no out-of-cluster client-credential flow — `ManagedIdentityCredential` only works from inside an Azure resource carrying that identity. Exec into a running revision (or check application logs after a real send) rather than acquiring a token locally:
 
 ```powershell
-$tenant = az keyvault secret show --vault-name akv-all1-all --name GRAPH-TENANT-ID --query value -o tsv
-$client = az keyvault secret show --vault-name akv-all1-all --name GRAPH-CLIENT-ID --query value -o tsv
-$secret = az keyvault secret show --vault-name akv-all1-all --name GRAPH-CLIENT-SECRET --query value -o tsv
-$tok = (Invoke-RestMethod -Method Post `
-    -Uri "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token" `
-    -Body @{client_id=$client;client_secret=$secret;scope='https://graph.microsoft.com/.default';grant_type='client_credentials'}).access_token
-
-$msg = @{ message = @{
-    subject = 'Graph sendMail smoke test'
-    body    = @{ contentType = 'Text'; content = "Test from $(Get-Date -Format o)" }
-    toRecipients = @(@{ emailAddress = @{ address = 'you@example.com' } })
-}; saveToSentItems = $false } | ConvertTo-Json -Depth 6
-
-Invoke-RestMethod -Method Post `
-    -Uri 'https://graph.microsoft.com/v1.0/users/no-reply@realityworks.com/sendMail' `
-    -Headers @{ Authorization = "Bearer $tok"; 'Content-Type' = 'application/json' } `
-    -Body $msg
-# 202 No Content == success
+az containerapp exec --name aca-<env>1-rwai-eduback --resource-group ARG-<env>1-rwai --command /bin/sh
+# then trigger a code path that calls MailService.sendMail and check the container logs
 ```
-
-Rotating the client secret: generate a new secret on the app registration, store it via `az keyvault secret set --vault-name akv-all1-all --name GRAPH-CLIENT-SECRET --value '<new>'`, then restart the Container App revisions (or re-run `provision`) to pick up the new value.
 
 ---
 

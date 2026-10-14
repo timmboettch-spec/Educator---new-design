@@ -4,6 +4,7 @@ import { UploadsController } from '@/modules/uploads/uploads.controller';
 import { UploadsService } from '@/modules/uploads/uploads.service';
 import { BadRequestException } from '@nestjs/common';
 import { Stream } from 'stream';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 describe('UploadsController', () => {
   let controller: UploadsController;
@@ -39,7 +40,8 @@ describe('UploadsController', () => {
           useValue: mockUploadsService,
         },
       ],
-    }).compile();
+    })
+      .compile();
 
     controller = module.get<UploadsController>(UploadsController);
     service = module.get<UploadsService>(UploadsService);

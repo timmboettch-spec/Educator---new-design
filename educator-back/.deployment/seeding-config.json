@@ -1,22 +1,18 @@
 {
+  "_readme": "The 'seeders' array per environment is descriptive metadata only (a manifest of what's expected to exist in src/database/seeders/). `npm run seed:prod` always auto-discovers and runs every seeder file found there, sequentially, regardless of this list. Only 'enabled'/'autoSeed' are actually consumed by scripts/Deploy-Backend.ps1 to decide whether to run seed:prod at all. See .deployment/SEEDING.md for the safety convention on what may live in that directory.",
   "dev": {
     "enabled": true,
     "autoSeed": true,
     "truncateBeforeSeed": false,
     "seeders": ["roles"],
-    "reason": "Develop environment auto-seeds essential data (roles). Developers can manually run additional seeders as needed.",
-    "manualSeedCommands": [
-      "npm run seed:roles       # Essential - creates District Admin and Educator roles",
-      "npm run seed:schools     # Optional - adds sample schools",
-      "npm run seed:educators   # Optional - adds sample educators"
-    ]
+    "reason": "Develop environment auto-seeds essential data (roles) via seed:prod. Developers needing sample data should use a manual, non-auto-discovered script instead of adding it to src/database/seeders/."
   },
   "qa": {
     "enabled": true,
     "autoSeed": true,
     "truncateBeforeSeed": false,
     "seeders": ["roles"],
-    "reason": "QA environment seeds only essential roles. QA team creates test data via API/UI for realistic testing.",
+    "reason": "QA environment seeds only essential roles via seed:prod. QA team creates test data via API/UI for realistic testing.",
     "notes": "Avoid pre-seeded students/classes to ensure QA tests data creation workflows"
   },
   "prod": {
@@ -24,11 +20,11 @@
     "autoSeed": true,
     "truncateBeforeSeed": false,
     "seeders": ["roles"],
-    "reason": "Production environment seeds ONLY essential roles. All production data must be created via proper admin workflows.",
+    "reason": "Production environment seeds ONLY essential roles via seed:prod. All production data must be created via proper admin workflows.",
     "warnings": [
       "DO NOT pre-populate production data",
       "DO NOT use truncate on production",
-      "Only roles seeder should run automatically"
+      "seed:prod runs every seeder file in src/database/seeders/ unconditionally — never add a sample/demo-data seeder to that directory"
     ]
   }
 }

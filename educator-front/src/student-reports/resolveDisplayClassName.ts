@@ -1,9 +1,9 @@
-const PLACEHOLDER_CLASS_NAMES = new Set(["student", "learner", "n/a"]);
+const PLACEHOLDER_CLASS_NAMES = new Set(['student', 'learner', 'n/a']);
 
 export function resolveDisplayClassName(
   blobClass?: string | null,
   override?: string | null,
-  studentName?: string | null,
+  studentName?: string | null
 ): string | undefined {
   const trimmedOverride = override?.trim();
   if (trimmedOverride) {

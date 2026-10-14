@@ -1,0 +1,97 @@
+{
+  "actions": {
+    "goToDashboard": "Go to Dashboard",
+    "startOver": "Start"
+  },
+  "a11y": {
+    "expandSetupGuide": "Expand setup guide",
+    "collapseSetupGuide": "Collapse setup guide",
+    "otpCode": "Verification code",
+    "otpDigit": "Digit {{index}} of {{total}}",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password"
+  },
+  "multiSelect": {
+    "search": "Search…",
+    "clear": "Clear",
+    "clearSelection": "Clear {{label}}",
+    "clearAll": "Clear all",
+    "loading": "Loading…",
+    "noResults": "No matches found",
+    "selectedCount": "{{count}} {{noun}}",
+    "maxReached": "You can select up to {{max}}",
+    "moreResults": "Showing the first results. Type to search for more.",
+    "loadFailed": "Couldn't load options.",
+    "retry": "Retry",
+    "select": "Select",
+    "selectAll": "Select all",
+    "noData": "No data found",
+    "removeItem": "Remove {{label}}",
+    "clearSelections": "Clear all selections"
+  },
+  "filterPanel": {
+    "close": "Close filters"
+  },
+  "filterChips": {
+    "region": "Active filters",
+    "remove": "Remove {{label}} filter: {{value}}",
+    "clearAll": "Clear All",
+    "clearAllAria": "Clear all filters"
+  },
+  "header": {
+    "portal": {
+      "admin": "Administrator Portal",
+      "educator": "Educator Portal"
+    }
+  },
+  "sidebar": {
+    "primaryNav": "Primary",
+    "studentApp": {
+      "title": "Student App",
+      "open": "Open the student app",
+      "copy": "Copy student app link",
+      "copyLink": "Copy link",
+      "copied": "Copied!",
+      "copyFailed": "Could not copy the link"
+    }
+  },
+  "filterButton": {
+    "open": "Filters",
+    "openWithCount_one": "Filters, {{count}} applied",
+    "openWithCount_other": "Filters, {{count}} applied"
+  },
+  "simulationFilters": {
+    "caption": "Simplify your search with filters",
+    "quickFilters": "Quick filters",
+    "browseBy": "Browse by",
+    "fields": {
+      "learnerLevel": "Learner Level",
+      "targetAudience": "Target Audience",
+      "modality": "Modality",
+      "productName": "Required Product Name",
+      "difficulty": "Difficulty",
+      "unit": "Unit",
+      "duration": "Duration"
+    },
+    "values": {
+      "secondary": "Secondary",
+      "postSecondary": "Post-Secondary",
+      "avatar": "Avatar",
+      "workstation": "Workstation",
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard",
+      "expert": "Expert"
+    },
+    "panel": {
+      "title": "Filter Simulations",
+      "reset": "Reset Filter",
+      "apply": "Apply Filter",
+      "noneApplied": "No filters applied",
+      "selectPlaceholder": "Select {{field}}",
+      "tooManyValues": "Select up to {{count}}",
+      "selected_one": "selected",
+      "selected_other": "selected"
+    }
+  }
+}

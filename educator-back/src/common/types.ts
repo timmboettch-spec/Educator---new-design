@@ -1,5 +1,7 @@
 import { AppStatus } from './utils/messages';
 import { CommonStatus } from './enums/status.enum';
+import { RoleSlug } from './constants';
+import { ICurrentUser } from './interfaces/auth.interface';
 
 export interface ApiResponse<data = string | number | boolean | object | null> {
   status: AppStatus;
@@ -24,8 +26,8 @@ export interface StudentCsvRow {
 }
 
 export interface ReportData {
-  score?: number;
-  totalTimeSeconds?: number;
+  score?: number | null;
+  totalTimeSeconds?: number | null;
   createdAt?: string;
 }
 
@@ -48,8 +50,8 @@ export interface StudentInput {
 
 export interface FormattedUser {
   id: string;
-  email: string;
-  full_name: string;
+  email?: string | null;
+  fullName: string;
   status: CommonStatus;
   role: { id: string; role_name: string } | null;
   parent_id: string | null;
@@ -69,17 +71,22 @@ export interface MappedSimulation {
   unit_name: string | null;
   unit_id: string | null;
   scenario_status: string | null;
+  avatarEnabled: boolean | null;
+  estimated_duration: string | null;
+  difficulty: string | null;
+  learner_level: string | null;
+  purpose: string | null;
 }
 
 export interface FormattedSingleUser {
   id: string;
   email: string;
-  full_name: string;
+  fullName: string;
   status: CommonStatus;
   role: { id: string; role_name: string } | null;
   parent_id: string | null;
   school: { id: string; school_name: string } | null;
-  profile_picture?: string;
+  profilePicture?: string;
 }
 
 export type BulkUploadResult = {
@@ -93,21 +100,15 @@ export interface AuthRequest extends Request {
   user: {
     userId: string;
     email: string;
-    roles?: string[];
+    roles?: RoleSlug[];
   };
 }
+/**
+ * `user` is exactly what `JwtStrategy.validate()` returns — reuse `ICurrentUser` rather than
+ * restating its shape, so a new field added there can't silently go missing at `@Req()` sites.
+ */
 export interface JwtRequest extends Request {
-  user: {
-    userId: string;
-    email?: string;
-    roles?: string[];
-    adminId?: string;
-    type?: string;
-    /** Login code for students (e.g. "REP-PH9N"). Present only on student tokens. */
-    student_id?: string | null;
-    /** Display name for students. Present only on student tokens. */
-    student_name?: string | null;
-  };
+  user: ICurrentUser;
 }
 
 export interface FlatfileRecord {
@@ -126,11 +127,6 @@ export interface FlatfileRecord {
   hw: string;
   start: string;
   end: string;
-}
-
-export interface RedeemCodeEntry {
-  code: string;
-  netsuite_id: string;
 }
 
 export interface EducatorToken {
@@ -173,11 +169,6 @@ export interface FlatfileRecord {
   hw: string;
   start: string;
   end: string;
-}
-
-export interface RedeemCodeEntry {
-  code: string;
-  netsuite_id: string;
 }
 
 export interface EducatorToken {
@@ -218,6 +209,8 @@ export interface ExpressFile {
 
 export interface BlobScenario {
   id: string;
+  /** C1 effective voice, resolved on read; absent on most list items (batch reads skip it). */
+  voiceProfile?: import('./interfaces/voice-profile.interface').IScenarioVoiceProfile | null;
   title: string;
   unitId: string;
   difficulty?: string;
@@ -232,18 +225,34 @@ export interface BlobScenario {
   class?: string;
   language?: string;
   voice?: string;
-  ethnicity?: string;
-  age?: string;
   status?: string; // lowercase — used by other blob scenario files
-  disabled?: boolean;
   avatarEnabled?: boolean;
   actionGroupName?: string;
   actionGroupDescription?: string;
-  assessmentNarrativeExpected?: string;
   estimatedDuration?: string;
   requiresProductSetup?: boolean;
   enableStudentBriefing?: boolean;
-  preBriefPdf?: string;
+  parent_scenario_id?: string;
+  version_number?: number;
+  patientChartMode?: string;
+  simulationStartTime?: string;
+  additionalEquipment?: string;
+  optionalEquipment?: string;
+  setupNotes?: string;
+  topicsAddressed?: string;
+  prebriefScriptPdf?: string;
+  debriefPointsPdf?: string;
+  setupNotesPdf?: string;
+  facilitationNotesPdf?: string;
+  printableSbarPdf?: string;
+  printablePatientChartPdf?: string;
+  sequenceGroupsOrderMode?: string;
+  conversationResponses?: unknown[];
+  sequences?: unknown[];
+  sequenceGroups?: unknown[];
+  teamCommunication?: Record<string, unknown>;
+  orthopedicWorksheet?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   patientData?: {
     name?: string;
     gender?: string;
@@ -287,5 +296,4 @@ export interface BlobUnit {
   category: string;
   imageUrl?: string;
   description?: string;
-  order?: number;
 }

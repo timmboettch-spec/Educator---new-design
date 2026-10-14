@@ -33,8 +33,8 @@ Azure Static Web App (swa-{env}1-rwai-edufront)
 Edge / CDN
 ```
 
-| Branch             | Env  | SWA                     | Custom domain                           | API URL                                   |
-| ------------------ | ---- | ----------------------- | --------------------------------------- | ----------------------------------------- |
+| Branch             | Env  | SWA                       | Custom domain                           | API URL                                   |
+| ------------------ | ---- | ------------------------- | --------------------------------------- | ----------------------------------------- |
 | `development`      | dev  | `swa-dev1-rwai-edufront`  | https://dev.educator.realityworksai.com | https://dev.educatorbe.realityworksai.com |
 | `qualityassurance` | qa   | `swa-qa1-rwai-edufront`   | https://qa.educator.realityworksai.com  | https://qa.educatorbe.realityworksai.com  |
 | `main`             | prod | `swa-prod1-rwai-edufront` | https://educator.realityworksai.com     | https://educatorbe.realityworksai.com     |
@@ -62,12 +62,12 @@ Set Porkbun keys at the User scope so any new shell inherits them:
 
 ## Naming Conventions
 
-| Resource                      | Pattern                  | Example                |
-| ----------------------------- | ------------------------ | ---------------------- |
-| Resource Group                | `ARG-{env}1-rwai`        | `ARG-dev1-rwai`        |
+| Resource                      | Pattern                    | Example                  |
+| ----------------------------- | -------------------------- | ------------------------ |
+| Resource Group                | `ARG-{env}1-rwai`          | `ARG-dev1-rwai`          |
 | Static Web App                | `swa-{env}1-rwai-edufront` | `swa-dev1-rwai-edufront` |
-| Key Vault (shared w/ backend) | `akv{env}1rwai`          | `akvdev1rwai`          |
-| Application Insights          | `appi-all1-rwai`         | `appi-all1-rwai`       |
+| Key Vault (shared w/ backend) | `akv{env}1rwai`            | `akvdev1rwai`            |
+| Application Insights          | `appi-all1-rwai`           | `appi-all1-rwai`         |
 
 ---
 
@@ -156,8 +156,8 @@ Lint gates the build: because `build` has `needs: lint`, it is automatically ski
 
 The triggering branch (`github.ref_name`) or `workflow_dispatch` input determines the environment:
 
-| Source                       | Value → `BUILD_ENV` | API URL                                     | SWA                     |
-| ---------------------------- | ------------------- | ------------------------------------------- | ----------------------- |
+| Source                       | Value → `BUILD_ENV` | API URL                                     | SWA                       |
+| ---------------------------- | ------------------- | ------------------------------------------- | ------------------------- |
 | push to `dev`                | `dev`               | `https://dev.educatorbe.realityworksai.com` | `swa-dev1-rwai-edufront`  |
 | push to `qa`                 | `qa`                | `https://qa.educatorbe.realityworksai.com`  | `swa-qa1-rwai-edufront`   |
 | push to `main`               | `prod`              | `https://educatorbe.realityworksai.com`     | `swa-prod1-rwai-edufront` |
@@ -172,11 +172,11 @@ The triggering branch (`github.ref_name`) or `workflow_dispatch` input determine
 
 **Required GitHub secrets** (the `provision` action populates these):
 
-| Secret                                 | SWA                       |
-| -------------------------------------- | ------------------------- |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`  | `swa-dev1-rwai-edufront`  |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN_QA`   | `swa-qa1-rwai-edufront`   |
-| `AZURE_STATIC_WEB_APPS_API_TOKEN_PROD` | `swa-prod1-rwai-edufront` |
+| Secret                                 | SWA                                             |
+| -------------------------------------- | ----------------------------------------------- |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`  | `swa-dev1-rwai-edufront`                        |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN_QA`   | `swa-qa1-rwai-edufront`                         |
+| `AZURE_STATIC_WEB_APPS_API_TOKEN_PROD` | `swa-prod1-rwai-edufront`                       |
 | `TEAMS_WEBHOOK_URL`                    | Teams Incoming Webhook for deploy notifications |
 
 **Required GitHub variables**:

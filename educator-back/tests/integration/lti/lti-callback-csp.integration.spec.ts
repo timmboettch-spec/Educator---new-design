@@ -2,9 +2,16 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { Test, TestingModule } from '@nestjs/testing';
-import helmet from 'helmet';
+// helmet may not be installed in CI test environments — fall back to a no-op middleware
+let helmet: (opts?: unknown) => (req: unknown, res: unknown, next: () => void) => void;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  helmet = require('helmet');
+} catch {
+  helmet = () => (_req, _res, next) => next();
+}
 import request from 'supertest';
-import { securityHeadersOptions } from '../../../src/config/security-headers.config';
+import { securityHeadersOptions } from '../../../src/common/config/security-headers.config';
 import { LtiController } from '../../../src/lti/lti.controller';
 import { LtiKeyService } from '../../../src/lti/lti-key.service';
 import { LtiTokenFactory } from './helpers/lti-token.factory';

@@ -1,0 +1,193 @@
+{
+  "title": "Mi biblioteca de simulaciones",
+  "searchPlaceholder": "Buscar simulaciones...",
+  "resultCount_one": "{{count}} simulación",
+  "resultCount_other": "{{count}} simulaciones",
+  "view": {
+    "label": "Diseño",
+    "grid": "Vista de cuadrícula",
+    "list": "Vista de lista"
+  },
+  "duration": {
+    "minutes": "minutos",
+    "minute": "minuto",
+    "mins": "min",
+    "min": "min",
+    "hours": "horas",
+    "hour": "hora"
+  },
+  "selection": {
+    "toolbarLabel": "Simulaciones seleccionadas",
+    "selectAll": "Seleccionar todo ({{count}})",
+    "clearAll": "Borrar todo",
+    "selected_one": "{{count}} seleccionada",
+    "selected_other": "{{count}} seleccionadas",
+    "clearSelection": "Borrar selección",
+    "assign_one": "Asignar {{count}} simulación a clase(s)",
+    "assign_other": "Asignar {{count}} simulaciones a clase(s)",
+    "selectSimulation": "Seleccionar {{title}}",
+    "selectAllVisible": "Seleccionar todas las simulaciones mostradas"
+  },
+  "table": {
+    "caption": "Simulaciones en tu biblioteca",
+    "name": "Nombre de la simulación",
+    "learnerLevel": "Nivel del aprendiz",
+    "targetAudience": "Público objetivo",
+    "modality": "Modalidad",
+    "productName": "Nombre del producto",
+    "difficulty": "Dificultad",
+    "duration": "Duración",
+    "action": "Acción",
+    "sortedAscending": "{{label}}, orden ascendente",
+    "sortedDescending": "{{label}}, orden descendente"
+  },
+  "card": {
+    "assignToClass": "Asignar a clase",
+    "moreInfo": "Más información",
+    "aiSeatsRequired": "Asientos IA requeridos",
+    "aiSimulation": "Simulación IA",
+    "removeFromLibrary": "Eliminar de mi biblioteca",
+    "bundlePart": "Parte de tu paquete: no se puede eliminar",
+    "moreInfoAbout": "Más información sobre {{title}}"
+  },
+  "remove": {
+    "confirmTitle": "¿Eliminar de mi biblioteca?",
+    "confirmBody": "¿Estás seguro de que deseas eliminar <name>“{{title}}”</name> de tu biblioteca? Puedes volver a agregarla desde el catálogo de simulaciones en cualquier momento.",
+    "confirm": "Eliminar",
+    "cancel": "Cancelar",
+    "removing": "Eliminando…",
+    "success": "Se eliminó de la biblioteca correctamente",
+    "failed": "No se pudo eliminar de la biblioteca"
+  },
+  "states": {
+    "loading": "Cargando simulaciones",
+    "emptyTitle": "Tu biblioteca está vacía",
+    "emptyBody": "Agrega simulaciones desde el catálogo de simulaciones y aparecerán aquí.",
+    "browseCatalog": "Explorar el catálogo de simulaciones",
+    "noMatchesTitle": "Ninguna simulación coincide con tus filtros",
+    "noMatchesBody": "Intenta quitar un filtro o cambiar tu búsqueda.",
+    "clearFilters": "Borrar filtros",
+    "errorTitle": "Error al cargar las simulaciones",
+    "errorBody": "No pudimos cargar tu biblioteca en este momento. Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo",
+    "endOfList": "Se muestran todas las simulaciones de tu biblioteca.",
+    "loadedMore_one": "Se cargó {{count}} simulación más",
+    "loadedMore_other": "Se cargaron {{count}} simulaciones más"
+  },
+  "assignModal": {
+    "simulationsNoun_one": "simulación",
+    "simulationsNoun_other": "simulaciones",
+    "multipleUnits": "Varias unidades",
+    "partialFailure": "Se crearon {{succeeded}} de {{total}} asignaciones. Las demás no se pudieron asignar.",
+    "details": {
+      "title": "Detalles de la simulación",
+      "difficulty": "Dificultad",
+      "duration": "Duración",
+      "clinicalSetting": "Entorno clínico",
+      "description": "Descripción",
+      "learningObjectives": "Objetivos de aprendizaje"
+    }
+  },
+  "details": {
+    "back": "Volver",
+    "backToLibrary": "Volver a la biblioteca",
+    "backToProducts": "Volver a productos",
+    "backToClassManagement": "Volver a la gestión de clases",
+    "activateLicense": "Activar licencia",
+    "attention": "ATENCIÓN",
+    "triesLeft": "Solo quedan {{count}} intentos",
+    "triesLeftDesc": "Los educadores pueden explorar esta simulación tres veces antes de comprar.",
+    "tiles": {
+      "modality": "Modalidad",
+      "targetAudience": "PÚBLICO OBJETIVO",
+      "difficulty": "DIFICULTAD",
+      "duration": "DURACIÓN",
+      "clinicalSetting": "ENTORNO CLÍNICO",
+      "unit": "UNIDAD"
+    },
+    "modalityValue": {
+      "manikin": "Maniquí",
+      "aiOnly": "Solo IA"
+    },
+    "library": {
+      "add": "Agregar a mi biblioteca",
+      "remove": "Eliminar de mi biblioteca",
+      "addAria": "Agregar a la biblioteca",
+      "removeAria": "Eliminar de la biblioteca",
+      "addedByEducator": "Agregado por el educador",
+      "signInToAdd": "Inicia sesión para agregar a la biblioteca"
+    },
+    "expandAll": "Expandir todo",
+    "collapseAll": "Contraer todo",
+    "sections": {
+      "overview": "Resumen de la simulación",
+      "additionalDetails": "Detalles adicionales",
+      "studentBriefing": "Información al estudiante",
+      "sbar": "Traspaso del Paciente SBAR",
+      "facilitationDocuments": "Documentos de facilitación"
+    },
+    "overviewFields": {
+      "purpose": "Propósito:",
+      "description": "Descripción:",
+      "learningObjective": "Objetivos de aprendizaje:",
+      "learningObjectives": "Objetivos de aprendizaje:",
+      "topicsAddressed": "Temas abordados:"
+    },
+    "additionalFields": {
+      "productName": "Nombre del producto requerido",
+      "additionalEquipment": "Equipo / suministros adicionales necesarios",
+      "optionalEquipment": "Equipo / suministros adicionales opcionales",
+      "setupNotes": "Notas de configuración"
+    },
+    "briefing": {
+      "safeEnvironment": "Creando un entorno de aprendizaje seguro",
+      "facilitatorSupport": "Presencia del facilitador y apoyo al aprendiz",
+      "orientationSpace": "Orientación al espacio de simulación",
+      "orientationEquipment": "Orientación al equipo",
+      "evaluation": "Evaluación y valoración",
+      "rolesExpectations": "Roles y expectativas",
+      "simulationLimitations": "Limitaciones de la simulación",
+      "timeAllotment": "Tiempo asignado",
+      "purpose": "Propósito de la simulación",
+      "learningObjectives": "Objetivos de aprendizaje",
+      "closingReminder": "Recordatorio de cierre"
+    },
+    "sbarFields": {
+      "situation": "Situación",
+      "background": "Antecedentes",
+      "assessment": "Valoración",
+      "recommendation": "Recomendación / Solicitud"
+    },
+    "screenshotAlt": "Captura de pantalla {{number}}",
+    "instructorFacing": "Para el instructor",
+    "studentFacing": "Para el estudiante",
+    "documents": {
+      "setupGuide": "Guía de configuración de la simulación",
+      "simulationDetails": "Documento de detalles de la simulación",
+      "briefingScript": "Guion de sesión informativa de la simulación",
+      "debriefingScript": "Guion de análisis posterior de la simulación",
+      "patientSbar": "Documento SBAR de traspaso del paciente para imprimir",
+      "patientChart": "Historia clínica del paciente para imprimir"
+    },
+    "preparingPdf": "Preparando PDF...",
+    "documentFailed": "No se pudo preparar este documento. Inténtalo de nuevo.",
+    "toast": {
+      "addedToLibrary": "Añadido a Mi biblioteca",
+      "removedFromLibrary": "Eliminado de Mi biblioteca",
+      "failedToAdd": "Error al añadir a la biblioteca",
+      "failedToRemove": "Error al eliminar de la biblioteca",
+      "cannotAddNoScenario": "No se puede añadir a la biblioteca: la simulación no tiene un ID de escenario válido",
+      "failedToResolve": "Error al resolver la simulación por título",
+      "failedToLoadUnitData": "Error al cargar los datos de la unidad",
+      "failedToLoadDetails": "Error al cargar los detalles de la simulación",
+      "unexpectedError": "Error inesperado al cargar los detalles de la simulación"
+    },
+    "loading": "Cargando detalles de la simulación",
+    "notFound": "Simulación no encontrada.",
+    "retry": "Reintentar",
+    "partialError": {
+      "title": "No se pudieron cargar todos los detalles",
+      "body": "El resumen de arriba está disponible, pero el resto de los detalles de esta simulación no se cargó. Revisa tu conexión e inténtalo de nuevo."
+    }
+  }
+}

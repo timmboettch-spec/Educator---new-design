@@ -1,4 +1,8 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -8,6 +12,7 @@ export interface PostSchoolPayload {
   school_name: string;
   status: string;
   user_id: string;
+  google_classroom_enabled?: boolean;
 }
 
 export interface PostSchoolResponse {
@@ -42,7 +47,7 @@ export const PostSchoolRequest = createAsyncThunk<
     const res = await api.post(url, data, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
-      }
+      },
     });
 
     return res.data;
@@ -91,6 +96,15 @@ const PostSchoolSlice = createSlice({
 export const { resetPostSchool } = PostSchoolSlice.actions;
 export default PostSchoolSlice.reducer;
 const selectState = (state: RootState) => state.PostSchool;
-export const selectPostSchoolResponse = createSelector(selectState, (state) => state.response);
-export const selectPostSchoolStatus = createSelector(selectState, (state) => state.status);
-export const selectPostSchoolError = createSelector(selectState, (state) => state.error);
+export const selectPostSchoolResponse = createSelector(
+  selectState,
+  (state) => state.response
+);
+export const selectPostSchoolStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectPostSchoolError = createSelector(
+  selectState,
+  (state) => state.error
+);

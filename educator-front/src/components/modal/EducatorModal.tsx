@@ -7,7 +7,7 @@ import {
   EDUCATOR_MODALS,
   EDUCATOR_PLACEHOLDERS,
 } from '../../utils/messages/educator';
-import { FormikProps } from 'formik';
+import type { FormikProps } from 'formik';
 import { Button } from '../ui/Button';
 
 type EducatorModalProps = {
@@ -56,7 +56,11 @@ export default function EducatorModal({
         <FormField
           label={EDUCATOR_FIELDS.EDUCATOR_NAME}
           required
-          error={formik.touched.full_name ? (formik.errors.full_name as string) : undefined}
+          error={
+            formik.touched.full_name
+              ? (formik.errors.full_name as string)
+              : undefined
+          }
         >
           <Input
             name="full_name"
@@ -66,14 +70,18 @@ export default function EducatorModal({
             disabled={modalMode === 'view'}
             placeholder={EDUCATOR_PLACEHOLDERS.ENTER_NAME}
             className="h-11 rounded-xl bg-transparent border border-gray-200"
-            inputClassName={modalMode === 'view' ? 'text-gray-500 cursor-not-allowed' : ''}
+            inputClassName={
+              modalMode === 'view' ? 'text-gray-400 cursor-not-allowed' : ''
+            }
           />
         </FormField>
 
         <FormField
           label="Tokens"
           required
-          error={formik.touched.tokens ? (formik.errors.tokens as string) : undefined}
+          error={
+            formik.touched.tokens ? (formik.errors.tokens as string) : undefined
+          }
         >
           <Input
             name="tokens"
@@ -84,14 +92,18 @@ export default function EducatorModal({
             disabled={modalMode === 'view'}
             placeholder="Enter Educator Tokens"
             className="h-11 rounded-xl bg-transparent border border-gray-200"
-            inputClassName={modalMode === 'view' ? 'text-gray-500 cursor-not-allowed' : ''}
+            inputClassName={
+              modalMode === 'view' ? 'text-gray-400 cursor-not-allowed' : ''
+            }
           />
         </FormField>
 
         <FormField
           label="Educator Email"
           required
-          error={formik.touched.email ? (formik.errors.email as string) : undefined}
+          error={
+            formik.touched.email ? (formik.errors.email as string) : undefined
+          }
         >
           <Input
             name="email"
@@ -104,8 +116,8 @@ export default function EducatorModal({
             className="h-11 rounded-xl bg-transparent border border-gray-200"
             inputClassName={
               modalMode === 'view'
-                ? 'text-gray-500 cursor-not-allowed'
-                : 'text-gray-500 cursor-not-allowed'
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-gray-400 cursor-not-allowed'
             }
           />
         </FormField>
@@ -113,16 +125,27 @@ export default function EducatorModal({
         <FormField
           label={EDUCATOR_FIELDS.SCHOOL}
           required
-          error={formik.touched.school_id ? (formik.errors.school_id as string) : undefined}
+          error={
+            formik.touched.school_id
+              ? (formik.errors.school_id as string)
+              : undefined
+          }
         >
           <div className="relative">
             <div
-              onClick={() => modalMode !== 'view' && setOpenSchoolDropdown(!openSchoolDropdown)}
+              onClick={() =>
+                modalMode !== 'view' &&
+                setOpenSchoolDropdown(!openSchoolDropdown)
+              }
               className="h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm w-full flex items-center justify-between cursor-pointer"
             >
-              <span className={modalMode === 'view' ? 'text-gray-500' : 'text-gray-700'}>
-                {schools?.find((s) => s.id === formik.values.school_id)?.school_name ||
-                  EDUCATOR_PLACEHOLDERS.SELECT_SCHOOL}
+              <span
+                className={
+                  modalMode === 'view' ? 'text-gray-400' : 'text-gray-700'
+                }
+              >
+                {schools?.find((s) => s.id === formik.values.school_id)
+                  ?.school_name || EDUCATOR_PLACEHOLDERS.SELECT_SCHOOL}
               </span>
             </div>
             {openSchoolDropdown && (
@@ -151,7 +174,9 @@ export default function EducatorModal({
             onChange={formik.handleChange}
             disabled={modalMode === 'view'}
             className={`h-11 px-4 rounded-xl border border-gray-200 bg-white text-sm w-full ${
-              modalMode === 'view' ? 'text-gray-500 cursor-not-allowed' : 'text-gray-700'
+              modalMode === 'view'
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-gray-700'
             }`}
           >
             <option value="ACTIVE">Active</option>
@@ -172,9 +197,11 @@ export default function EducatorModal({
             <Button
               type="submit"
               loading={isSubmitting}
-              className="w-1/2 h-11 rounded-full bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium"
+              className="w-1/2 h-11 rounded-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium"
             >
-              {modalMode === 'create' ? EDUCATOR_BUTTONS.INVITE : EDUCATOR_BUTTONS.UPDATE}
+              {modalMode === 'create'
+                ? EDUCATOR_BUTTONS.INVITE
+                : EDUCATOR_BUTTONS.UPDATE}
             </Button>
           )}
         </div>

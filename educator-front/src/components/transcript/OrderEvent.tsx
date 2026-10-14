@@ -9,7 +9,13 @@ interface OrderEventProps {
 
 const OrderEvent = memo(function OrderEvent({ event }: OrderEventProps) {
   const title = eventField(event, 'title', 'name');
-  const description = eventField(event, 'description', 'text', 'content', 'transcript');
+  const description = eventField(
+    event,
+    'description',
+    'text',
+    'content',
+    'transcript'
+  );
   const extras = extraEntries(event);
 
   return (
@@ -31,7 +37,7 @@ const OrderEvent = memo(function OrderEvent({ event }: OrderEventProps) {
         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 pt-2 border-t border-gray-100">
           {extras.map(([k, v]) => (
             <div key={k} className="text-xs">
-              <span className="text-gray-500">{humanLabel(k)}: </span>
+              <span className="text-gray-400">{humanLabel(k)}: </span>
               <span className="text-gray-700">{v}</span>
             </div>
           ))}

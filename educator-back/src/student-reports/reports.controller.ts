@@ -1,16 +1,17 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 import { StudentReportsService } from './student-reports.service';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { RoleSlug } from 'src/common/constants';
 
 @ApiTags('Student Reports')
 @Controller('reports')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class StudentReportsController {
-  constructor(private readonly service: StudentReportsService) {}
+  constructor(private readonly service: StudentReportsService) { }
 
   @Get('transcript/:transcriptId')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   @ApiOperation({ summary: 'Get report by transcript ID (HS-online shape)' })
   findByTranscriptId(
     @Param('transcriptId') transcriptId: string,
@@ -19,6 +20,7 @@ export class StudentReportsController {
   }
 
   @Get(':id')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   @ApiOperation({ summary: 'Get report by ID with _transcript (HS-online shape)' })
   findById(@Param('id') id: string): ReturnType<StudentReportsService['findReportById']> {
     return this.service.findReportById(id);

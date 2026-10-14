@@ -1,63 +1,33 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import {
+  act,
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import EditSimulationModal from '../../../src/components/class/simulation/EditSimulationModal';
+import i18n from '../../../src/i18n';
+import { EditSimulationModal } from '../../../src/components/class/simulation/EditSimulationModal';
 
-// ---- Mock dispatch ----
-const mockDispatch = vi.fn();
+// ---- Mock the update mutation ----
+const updateClassSimulation = vi.fn();
 
-vi.mock('../../../src/store/hooks', () => ({
-  useAppDispatch: () => mockDispatch,
-  useAppSelector: vi.fn((selector: (state?: unknown) => unknown) => selector()),
+vi.mock('../../../src/redux/api/classSimulations/classSimulationsApi', () => ({
+  useUpdateClassSimulationMutation: () => [updateClassSimulation],
 }));
 
-// ---- Mock redux modules ----
-vi.mock('../../../src/redux/class/UpdateSimRedux', () => ({
-  selectUpdateSimLoading: vi.fn(),
-  selectUpdateSimSuccess: vi.fn(),
-  selectUpdateSimError: vi.fn(),
-  selectUpdateSimResponse: vi.fn(),
-  clearUpdateSimulationState: vi.fn(() => ({ type: 'clear' })),
-  updateSimulationRequest: vi.fn((payload: unknown) => ({ type: 'update', payload })),
-}));
-
-
-vi.mock('../../../src/redux/dashboard/simulationlibrary/addsimulationredux', () => ({
-  fetchSimulationsByUnit: vi.fn(() => ({ type: 'fetchByUnit' })),
-  clearSimulationsByUnit: vi.fn(() => ({ type: 'clearByUnit' })),
-  selectUnitSimulations: vi.fn(),
-  selectUnitSimLoading: vi.fn(),
-  addSimulation: vi.fn((payload: unknown) => ({ type: 'add', payload })),
-  clearAddSimulationState: vi.fn(() => ({ type: 'clearAdd' })),
-  selectAddSimLoading: vi.fn(),
-  selectAddSimSuccess: vi.fn(),
-  selectAddSimError: vi.fn(),
-}));
-
-vi.mock('../../../src/redux/class/Getsimulationbyidredux', () => ({
-  clearSimulationById: vi.fn(() => ({ type: 'clearById' })),
+const toast = vi.hoisted(() => ({
+  success: vi.fn(),
+  error: vi.fn(),
+  info: vi.fn(),
+  warning: vi.fn(),
 }));
 
 vi.mock('../../../src/components/common/Toast', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  toast,
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   default: () => null,
 }));
-
-import {
-  selectUpdateSimLoading,
-  selectUpdateSimSuccess,
-  selectUpdateSimError,
-  selectUpdateSimResponse,
-} from '../../../src/redux/class/UpdateSimRedux';
-
-import {
-  selectUnitSimulations,
-  selectUnitSimLoading,
-  selectAddSimLoading,
-  selectAddSimSuccess,
-  selectAddSimError,
-} from '../../../src/redux/dashboard/simulationlibrary/addsimulationredux';
 
 const defaultProps = {
   sim: {
@@ -79,26 +49,36 @@ const defaultProps = {
     created_at: '2024-01-01',
     email: 'test@example.com',
   },
-  classId: 'class-1',
-  className: 'Class A',
   onClose: vi.fn(),
 };
 
-const setDefaultMocks = () => {
-  vi.mocked(selectUpdateSimLoading).mockReturnValue(false);
-  vi.mocked(selectUpdateSimSuccess).mockReturnValue(false);
-  vi.mocked(selectUpdateSimError).mockReturnValue(null);
-  vi.mocked(selectUpdateSimResponse).mockReturnValue(null);
-  vi.mocked(selectUnitSimulations).mockReturnValue([]);
-  vi.mocked(selectUnitSimLoading).mockReturnValue(false);
-  vi.mocked(selectAddSimLoading).mockReturnValue(false);
-  vi.mocked(selectAddSimSuccess).mockReturnValue(false);
-  vi.mocked(selectAddSimError).mockReturnValue(null);
+const resolveSave = () =>
+  updateClassSimulation.mockReturnValue({
+    unwrap: () =>
+      Promise.resolve({
+        id: 'scenario-1',
+        classId: 'class-1',
+        simulationId: 'sim-id-1',
+      }),
+  });
+
+const rejectSave = (error: unknown) =>
+  updateClassSimulation.mockReturnValue({
+    unwrap: () => Promise.reject(error),
+  });
+
+/** The native date input behind the Start Date field (its labelled control). */
+const startDateInput = () => screen.getByLabelText(/^Start Date/);
+
+const changeStartAndSave = (value: string) => {
+  fireEvent.change(startDateInput(), { target: { value } });
+  fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 };
-describe('SimulationModal (edit mode)', () => {
+
+describe('EditSimulationModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setDefaultMocks();
+    resolveSave();
   });
 
   it('renders edit simulation modal shell', () => {
@@ -110,12 +90,14 @@ describe('SimulationModal (edit mode)', () => {
   it('renders all read-only and date fields', () => {
     render(<EditSimulationModal {...defaultProps} />);
     expect(screen.getByText('Unit')).toBeInTheDocument();
-    expect(screen.getByText('Product Category')).toBeInTheDocument();
+    expect(screen.getByText('Simulation Modality')).toBeInTheDocument();
     expect(screen.getByText('Start Date')).toBeInTheDocument();
     expect(screen.getByText('Due Date')).toBeInTheDocument();
     expect(screen.getByText('Close Date')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /save changes/i })
+    ).toBeInTheDocument();
   });
 
   it('calls onClose when Back button is clicked', () => {
@@ -125,54 +107,180 @@ describe('SimulationModal (edit mode)', () => {
   });
 
   it('shows error toast when Save clicked with no changes made', async () => {
-    const { toast } = await import('../../../src/components/common/Toast');
     render(<EditSimulationModal {...defaultProps} />);
     fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('No changes made.');
     });
+    expect(updateClassSimulation).not.toHaveBeenCalled();
   });
 
-  it('dispatches updateSimulationRequest when a date is changed and Save is clicked', async () => {
+  it('sends the dates, as ISO, to the update API', async () => {
     render(<EditSimulationModal {...defaultProps} />);
 
-    // Modal uses createPortal \u2014 search the full document, not just container
-    const dateInputs = document.querySelectorAll('input[type="date"]');
-    expect(dateInputs.length).toBeGreaterThanOrEqual(1);
-
-    // Change start date to a different value — makes hasChanges = true
-    fireEvent.change(dateInputs[0], { target: { value: '2024-03-01' } });
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    changeStartAndSave('2024-01-02');
 
     await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'update' }),
-      );
+      expect(updateClassSimulation).toHaveBeenCalledWith({
+        id: 'scenario-1',
+        body: {
+          startDate: '2024-01-02',
+          dueDate: '2024-01-05',
+          endDate: '2024-01-10',
+        },
+      });
     });
+  });
+
+  it('clears later dates a new start passes, and blocks the save', async () => {
+    render(<EditSimulationModal {...defaultProps} />);
+
+    // A start after the close date clears the due and close dates.
+    changeStartAndSave('2024-01-11');
+
+    expect(await screen.findByText('Due Date is required')).toBeInTheDocument();
+    expect(screen.getByText('Close Date is required')).toBeInTheDocument();
+    expect(
+      screen.getByText('Start Date must be on or before 01-10-2024')
+    ).toBeInTheDocument();
+    expect(updateClassSimulation).not.toHaveBeenCalled();
+  });
+
+  it('shows the schema message for a date outside its limits', async () => {
+    render(<EditSimulationModal {...defaultProps} />);
+
+    changeStartAndSave('2023-12-31');
+
+    expect(
+      await screen.findByText("Start Date can't be earlier than 01-01-2024")
+    ).toBeInTheDocument();
+    expect(updateClassSimulation).not.toHaveBeenCalled();
+  });
+
+  it('submits with Enter through the form', async () => {
+    render(<EditSimulationModal {...defaultProps} />);
+    fireEvent.change(startDateInput(), { target: { value: '2024-01-02' } });
+
+    const form = document.getElementById('edit-simulation-form');
+    if (!form) throw new Error('Form not rendered');
+    fireEvent.submit(form);
+
+    await waitFor(() => expect(updateClassSimulation).toHaveBeenCalledTimes(1));
   });
 
   it('shows success toast and closes modal when update succeeds', async () => {
-    const { toast } = await import('../../../src/components/common/Toast');
-    vi.mocked(selectUpdateSimSuccess).mockReturnValue(true);
-    vi.mocked(selectUpdateSimResponse).mockReturnValue({ status: 'SUCCESS', message: 'Simulation updated successfully.' });
-
     render(<EditSimulationModal {...defaultProps} />);
+
+    changeStartAndSave('2024-01-02');
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Simulation updated successfully.');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Simulation updated successfully.'
+      );
     });
+    expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('shows API error banner when apiError is set', () => {
-    vi.mocked(selectUpdateSimError).mockReturnValue('Date conflict detected.');
+  it("shows the backend's message when the save is refused", async () => {
+    rejectSave({ status: 400, data: { message: 'Date conflict detected.' } });
     render(<EditSimulationModal {...defaultProps} />);
-    expect(screen.getByText('Date conflict detected.')).toBeInTheDocument();
+
+    changeStartAndSave('2024-01-02');
+
+    expect(
+      await screen.findByText('Date conflict detected.')
+    ).toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('shows Saving loading state on Save button while request is in progress', () => {
-    vi.mocked(selectUpdateSimLoading).mockReturnValue(true);
+  it('falls back to a friendly message when the save fails without one', async () => {
+    rejectSave(new Error('Network Error'));
     render(<EditSimulationModal {...defaultProps} />);
-    expect(screen.getByText('Saving...')).toBeInTheDocument();
+
+    changeStartAndSave('2024-01-02');
+
+    expect(
+      await screen.findByText('Failed to update simulation.')
+    ).toBeInTheDocument();
+  });
+
+  it('locks the dialog while the save is in progress', async () => {
+    updateClassSimulation.mockReturnValue({
+      unwrap: () => new Promise(() => {}),
+    });
+    render(<EditSimulationModal {...defaultProps} />);
+
+    changeStartAndSave('2024-01-02');
+
+    expect(await screen.findByText('Saving...')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /saving/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /back/i })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /back/i }));
+    expect(defaultProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it('shows Spanish copy when the app language is Spanish', async () => {
+    await i18n.changeLanguage('es');
+    try {
+      render(<EditSimulationModal {...defaultProps} />);
+      expect(
+        screen.getByText('Editar asignación de simulación')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /guardar cambios/i })
+      ).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage('en');
+    }
+  });
+
+  it('labels each date input and links its error', async () => {
+    render(<EditSimulationModal {...defaultProps} />);
+
+    for (const label of [/^Start Date/, /^Due Date/, /^Close Date/]) {
+      const input = screen.getByLabelText(label);
+      expect(input).toHaveAttribute('type', 'date');
+      expect(input).toHaveAttribute('aria-required', 'true');
+    }
+    // The MM-DD-YYYY text boxes are visual only.
+    expect(screen.getByDisplayValue('01-01-2024')).toHaveAttribute(
+      'aria-hidden',
+      'true'
+    );
+    expect(screen.getByDisplayValue('01-01-2024')).toHaveAttribute(
+      'tabindex',
+      '-1'
+    );
+
+    changeStartAndSave('2023-12-31');
+
+    const message = await screen.findByText(
+      "Start Date can't be earlier than 01-01-2024"
+    );
+    expect(startDateInput()).toHaveAttribute('aria-invalid', 'true');
+    expect(startDateInput()).toHaveAttribute('aria-describedby', message.id);
+  });
+
+  it('sends one save when Enter is pressed again while saving', async () => {
+    updateClassSimulation.mockReturnValue({
+      unwrap: () => new Promise(() => {}),
+    });
+    render(<EditSimulationModal {...defaultProps} />);
+    const form = document.getElementById('edit-simulation-form');
+    if (!form) throw new Error('Form not rendered');
+
+    changeStartAndSave('2024-01-02');
+    expect(await screen.findByText('Saving...')).toBeInTheDocument();
+
+    // Enter in the read-only Simulation Name field submits the form again.
+    // Formik validates before submitting, so let those submits settle.
+    await act(async () => {
+      fireEvent.submit(form);
+      fireEvent.submit(form);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(updateClassSimulation).toHaveBeenCalledTimes(1);
   });
 });

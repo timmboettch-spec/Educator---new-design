@@ -1,6 +1,6 @@
 /** Blob report id for /api/admin/reports/:id (e.g. report-1783689131884). */
 export function resolveStudentReportBlobId(
-  report: Record<string, unknown> | null | undefined,
+  report: Record<string, unknown> | null | undefined
 ): string {
   if (!report) return '';
 

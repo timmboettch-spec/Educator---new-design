@@ -1,18 +1,23 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
-import { ScenarioAuthGuard } from '../../guards/scenario-auth.guard';
-
 import { ConversationService } from './conversation.service';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { RoleSlug } from 'src/common/constants';
 
 @ApiTags('Student-backend: Conversation')
 @ApiBearerAuth()
-@UseGuards(ScenarioAuthGuard)
 @Controller('conversation')
 export class ConversationController {
-  constructor(private conversationService: ConversationService) {}
+  constructor(private conversationService: ConversationService) { }
 
   @Get('config')
+  @RequiredRoles(
+    RoleSlug.SCENARIO_ADMIN,
+    RoleSlug.EDUCATOR,
+    RoleSlug.DISTRICT_ADMIN,
+    RoleSlug.STUDENT,
+  )
   @ApiOperation({
     summary: 'Get language and voice configuration',
     description: 'Returns available languages and voices for speech synthesis',

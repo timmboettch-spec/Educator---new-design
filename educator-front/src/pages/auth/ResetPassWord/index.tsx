@@ -1,10 +1,10 @@
-'use client';
-
 import loginImage from '@/assets/redeem/RW AI UI orange gradient -07.jpg';
-import { useEffect, useRef, useState } from 'react';
+import { useAuthLanguage } from '@/hooks/useAuthLanguage';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-
+import { useLocation, useNavigate } from 'react-router-dom';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
 import Logo from '../../../components/logo/Logo';
 import { Button } from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
@@ -14,7 +14,7 @@ import {
   ResetPasswordRequest,
   selectResetPasswordStatus,
 } from '../../../redux/auth/ResetPasswordRedux';
-import { useLocation } from 'react-router-dom';
+import { ROUTE_PATHS } from '../../../routes/routePath';
 import { isValidPassword } from '../../../utils/validation';
 import { COMMON_VALIDATION } from '../../../utils/messages/common';
 import {
@@ -25,17 +25,25 @@ import {
 export default function ResetPassWord() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const location = useLocation();
+  const { language } = useAuthLanguage();
+
+  const locale = useMemo(
+    () => (language === 'es' ? loginEs : loginEn),
+    [language]
+  );
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const status = useSelector(selectResetPasswordStatus);
-  const location = useLocation();
-  const token = location.state?.verified_token;
+  const email: string | undefined = location.state?.email;
+  const otp: string | undefined = location.state?.otp;
   const isSubmittingRef = useRef(false);
   const activeToastIdRef = useRef<string | number | undefined>(undefined);
 
   useEffect(() => {
-    if (!token) navigate('/signin');
-  }, [token, navigate]);
+    if (!email || !otp) navigate(ROUTE_PATHS.auth.login);
+  }, [email, otp, navigate]);
 
   const showError = (msg: string) => {
     if (activeToastIdRef.current !== undefined) {
@@ -47,22 +55,52 @@ export default function ResetPassWord() {
   const handleSubmit = async () => {
     if (isSubmittingRef.current) return;
 
-    if (!password) { showError('Password is required'); return; }
-    if (hasUnsafePasswordPattern(password) || hasUnsafePasswordPattern(confirmPassword)) {
-      showError('Password cannot include HTML or script-like content'); return;
+    if (!password) {
+      showError(
+        locale.resetPassword.passwordRequired || 'Password is required'
+      );
+      return;
     }
-    if (!isValidPassword(password)) { showError(COMMON_VALIDATION.PASSWORD_COMPLEXITY); return; }
-    if (password !== confirmPassword) { showError('Password not matched'); return; }
+    if (
+      hasUnsafePasswordPattern(password) ||
+      hasUnsafePasswordPattern(confirmPassword)
+    ) {
+      showError('Password cannot include HTML or script-like content');
+      return;
+    }
+    if (!isValidPassword(password)) {
+      showError(
+        locale.resetPassword.passwordComplexity ||
+          COMMON_VALIDATION.PASSWORD_COMPLEXITY
+      );
+      return;
+    }
+    if (password !== confirmPassword) {
+      showError(
+        locale.resetPassword.passwordMismatch || 'Password not matched'
+      );
+      return;
+    }
+
+    if (!email || !otp) return;
 
     isSubmittingRef.current = true;
     try {
       const res = await dispatch(
-        ResetPasswordRequest({ verified_token: token, new_password: password }),
+        ResetPasswordRequest({ email, otp, newPassword: password })
       ).unwrap();
-      toast.success(res.message || 'Password reset successfully');
-      navigate('/signin');
+      const successMsg =
+        language === 'es'
+          ? locale.resetPassword.passwordResetSuccess ||
+            'Contraseña restablecida con éxito'
+          : res.message ||
+            locale.resetPassword.passwordResetSuccess ||
+            'Password reset successfully';
+      toast.success(successMsg);
+      navigate(ROUTE_PATHS.auth.login);
     } catch (err: unknown) {
-      const msg = (err as { message?: string })?.message || 'Password reset failed';
+      const msg =
+        (err as { message?: string })?.message || 'Password reset failed';
       showError(msg);
     } finally {
       isSubmittingRef.current = false;
@@ -77,50 +115,54 @@ export default function ResetPassWord() {
             <div className="mb-5 flex justify-center">
               <Logo />
             </div>
-            <h2
-              className="text-2xl font-bold mb-6 text-center lg:text-left pb-3"
-              style={{
-                borderBottom: '0.76px solid #E2E1E1',
-                color: '#db8833',
-                fontWeight: 700,
-              }}
-            >
-              RESET PASSWORD
+            <h2 className="text-2xl font-bold mb-6 text-center lg:text-left pb-3 text-primary-500 border-b-[0.76px] border-[#E2E1E1]">
+              {locale.resetPassword.title}
             </h2>
-            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} noValidate className="flex flex-col gap-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSubmit();
+              }}
+              noValidate
+              className="flex flex-col gap-3"
+            >
               <Input
                 name="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(sanitizePasswordForTyping(e.target.value))}
-                placeholder="New Password"
+                onChange={(e) =>
+                  setPassword(sanitizePasswordForTyping(e.target.value))
+                }
+                placeholder={locale.resetPassword.newPasswordPlaceholder}
               />
               <Input
                 name="confirmPassword"
                 type="password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(sanitizePasswordForTyping(e.target.value))}
-                placeholder="Confirm Password"
+                onChange={(e) =>
+                  setConfirmPassword(sanitizePasswordForTyping(e.target.value))
+                }
+                placeholder={locale.resetPassword.confirmPasswordPlaceholder}
               />
               <div className="flex justify-center mt-6 lg:justify-start">
                 <Button
                   type="submit"
                   variant="gradient"
                   loading={status === 'loading'}
-                  loadingText="Signing up..."
+                  loadingText={locale.resetPassword.loadingSubmit}
                 >
-                  Set Password →
+                  {locale.resetPassword.submit}
                 </Button>
               </div>
             </form>
             <p className="mt-5 text-sm text-center text-gray-500">
-              Back to{' '}
+              {locale.resetPassword.backTo}{' '}
               <button
                 type="button"
                 className="font-semibold text-gray-800 hover:underline"
-                onClick={() => navigate('/signin')}
+                onClick={() => navigate(ROUTE_PATHS.auth.login)}
               >
-                Sign In
+                {locale.resetPassword.signIn}
               </button>
             </p>
           </div>

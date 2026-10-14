@@ -1,7 +1,7 @@
-import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from '@nestjs/common';
+
+import { AiGateway } from '../../../common/interfaces';
+import { LoggerService } from '../../../common/services';
 
 // --- Action evaluation constants -------------------------------------------
 /** Cosine/word-overlap similarity threshold above which a response is auto-passed. */
@@ -12,8 +12,6 @@ const KEYWORD_FALLBACK_PASS_THRESHOLD = 0.5;
 const KEYWORD_MIN_WORD_LENGTH = 3;
 /** Minimum word length (chars) required for partial-stem matching in fallback. */
 const KEYWORD_STEM_MATCH_MIN_LENGTH = 4;
-/** OpenAI model used for action-response grading. */
-const ACTION_GRADING_MODEL = 'gpt-3.5-turbo';
 /** Temperature for the action-grading LLM call (low = deterministic). */
 const ACTION_GRADING_TEMPERATURE = 0.1;
 /** Maximum tokens the grading LLM is allowed to return (only "true"/"false"). */
@@ -60,6 +58,7 @@ export interface ScenarioActionDef {
   typeRequirement?: string;
   correct?: string | string[];
   items?: string[];
+  concepts?: Array<{ id: string; description: string; type: string }>;
   idealResponse?: string;
   prompt?: string;
   vitals?: Record<string, string[]>;
@@ -110,18 +109,12 @@ interface ScenarioForScoring {
   grading?: { rubric?: RubricItemLike[] };
 }
 
-interface OpenAIChatResponse {
-  choices?: Array<{ message?: { content?: string } }>;
-}
-
 @Injectable()
 export class ActionsInterventionsService {
-  private readonly logger = new Logger(ActionsInterventionsService.name);
-
   constructor(
-    private httpService: HttpService,
-    private configService: ConfigService,
-  ) {}
+    private readonly aiGateway: AiGateway,
+    private readonly logger: LoggerService,
+  ) { }
 
   /**
    * Deterministic actions analysis based on student summary vs expected actions.
@@ -333,8 +326,8 @@ export class ActionsInterventionsService {
         totalRequiredActions += 1;
       }
 
-      let isActionCorrect = false;
-      let awardedPoints = 0;
+      let isActionCorrect: boolean;
+      let awardedPoints: number;
       const detailEntry: ActionDetail = {
         title: actionDef.title ?? '',
         type: actionDef.type ?? 'single',
@@ -540,11 +533,7 @@ export class ActionsInterventionsService {
       const rawVal =
         attempt.response ?? attempt.Response ?? attempt.selectedItem ?? attempt.SelectedItem ?? '';
       const studentRaw =
-        typeof rawVal === 'string'
-          ? rawVal
-          : typeof rawVal === 'number'
-            ? String(rawVal)
-            : '';
+        typeof rawVal === 'string' ? rawVal : typeof rawVal === 'number' ? String(rawVal) : '';
       const student = studentRaw.toLowerCase().trim();
 
       if (!ideal || !student || student === 'completed') {
@@ -561,8 +550,7 @@ export class ActionsInterventionsService {
       }
 
       try {
-        const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-        if (!openaiApiKey) {
+        if (!this.aiGateway.isConfigured()) {
           return this.keywordFallback(ideal, student);
         }
 
@@ -573,26 +561,13 @@ Student Response: "${student}"
 
 Respond ONLY with "true" if the student's response is correct, or "false" if it is incorrect. Do not provide any other text.`;
 
-        const response = await firstValueFrom(
-          this.httpService.post<OpenAIChatResponse>(
-            'https://api.openai.com/v1/chat/completions',
-            {
-              model: ACTION_GRADING_MODEL,
-              messages: [{ role: 'user', content: prompt }],
-              temperature: ACTION_GRADING_TEMPERATURE,
-              max_tokens: ACTION_GRADING_MAX_TOKENS,
-            },
-            {
-              headers: {
-                Authorization: `Bearer ${openaiApiKey}`,
-                'Content-Type': 'application/json',
-              },
-            },
-          ),
-        );
-
-        const aiResult = response.data?.choices?.[0]?.message?.content?.trim().toLowerCase();
-        return aiResult === 'true';
+        const aiResult = await this.aiGateway.complete({
+          caller: 'reports.action-grading',
+          messages: prompt,
+          temperature: ACTION_GRADING_TEMPERATURE,
+          maxTokens: ACTION_GRADING_MAX_TOKENS,
+        });
+        return aiResult.toLowerCase() === 'true';
       } catch (error) {
         this.logger.error('Error evaluating action response with AI', error);
         return this.keywordFallback(ideal, student);
@@ -842,8 +817,8 @@ Respond ONLY with "true" if the student's response is correct, or "false" if it 
       mandatoryPercentage:
         actionMarks.totalRequiredActions > 0
           ? Number(
-              ((actionMarks.positiveActions / actionMarks.totalRequiredActions) * 100).toFixed(2),
-            )
+            ((actionMarks.positiveActions / actionMarks.totalRequiredActions) * 100).toFixed(2),
+          )
           : null,
     };
 

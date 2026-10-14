@@ -1,31 +1,29 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 import api from '../api';
 
 export interface RedeemPayload {
-  email?: string;
   code: string;
 }
 
 export interface RedeemResponse {
-  id: string;
-  email: string;
-  activationKey: string;
-  activationKeyExpiry: string;
-  isLicenseActive: boolean;
-  deviceLimit: number;
-  tokens: number;
-  deviceId: number[];
-  NetsuiteId: string;
+  /** `user_email` pre-migration. */
+  userEmail?: string;
+  user_email?: string;
+  subscriptions?: unknown[];
 }
 
 export interface ResponseRedeem {
   data: RedeemResponse;
   message: string;
-  status: number;
-  token: string;
+  status?: number;
+  token?: string;
 }
 
 export interface RedeemState {
@@ -97,6 +95,15 @@ const RedeemSlice = createSlice({
 export const { logout, clearRedeemError } = RedeemSlice.actions;
 export default RedeemSlice.reducer;
 const selectState = (state: RootState) => state.Redeem;
-export const selectRedeemResponse = createSelector(selectState, (state) => state.responseRedeem);
-export const selectRedeemStatus = createSelector(selectState, (state) => state.status);
-export const selectRedeemError = createSelector(selectState, (state) => state.error);
+export const selectRedeemResponse = createSelector(
+  selectState,
+  (state) => state.responseRedeem
+);
+export const selectRedeemStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectRedeemError = createSelector(
+  selectState,
+  (state) => state.error
+);

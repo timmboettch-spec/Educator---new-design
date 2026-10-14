@@ -2,37 +2,59 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EducatorsService } from '../../../src/educators/educators.service';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { EducatorSchool } from '../../../src/educators/entity/educator-school.entity';
-import { Schools } from '../../../src/schools/entity/schools.entity';
-import { User } from '../../../src/users/entity/user.entity';
-import { Invite } from '../../../src/invites/entity/invite.entity';
-import { Class } from '../../../src/class/entity/class.entity';
-import { Student } from '../../../src/students/entity/students.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
-import { AzureBlobService } from '../../../src/config/azure-blob.config';
+
+import { AzureBlobService, LoggerService } from '../../../src/common/services';
 import { MailService } from '../../../src/mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 import { NotificationsGateway } from '../../../src/notifications/notifications.gateway';
+import { NotificationsService } from '../../../src/notifications/notifications.service';
 import { CommonStatus } from '../../../src/common/enums/status.enum';
 import { EducatorSessionService } from '../../../src/session/educator-session.service';
-import { TutorPatientService } from '../../../src/common/utils/tutor-patient.service';
+import { InviteTokenService } from '../../../src/invites/invite-token.service';
+import {
+  DistrictAdmin,
+  Educator,
+  EducatorSchool,
+  Schools,
+  Student,
+  UserRole,
+} from 'src/database/entities';
+import {
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  DISTRICT_ADMIN_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  EDUCATOR_SEAT_REQUEST_REPOSITORY,
+  EDUCATOR_SCHOOL_REPOSITORY,
+  INVITE_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  USER_ROLE_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+} from 'src/database/tokens';
 
 const makeSchool = (id: string, name: string): Schools =>
-  ({ id, school_name: name, is_active: true, lms_enabled: false } as Schools);
+  ({ id, school_name: name, is_active: true, lms_enabled: false }) as Schools;
 
 const makeEducator = (overrides: Partial<Educator> = {}): Educator => {
   const e = Object.create(Educator.prototype) as Educator;
   return Object.assign(e, {
     id: 'edu-1',
-    email: 'edu@test.com',
     full_name: 'Edu One',
-    status: CommonStatus.ACTIVE,
     is_active: true,
     tokens: 5,
     school: makeSchool('school-1', 'Alpha School'),
     schoolAssignments: undefined,
-    admin: { id: 'admin-1' } as User,
+    // `Educator.email`/`.status` no longer exist as columns — identity and lifecycle resolve
+    // through the linked `user_roles` row (`userRole.user.email` / `userRole.status`).
+    userRole: {
+      userRoleId: 'ur-1',
+      userId: 'user-1',
+      status: CommonStatus.ACTIVE,
+      user: { id: 'user-1', email: 'edu@test.com' },
+    } as UserRole,
+    // `admin` is a `DistrictAdmin`, keyed by its own `districtAdminId` PK — not a `User`.
+    districtAdminId: 'da-1',
+    admin: { districtAdminId: 'da-1', fullName: 'Admin One' } as DistrictAdmin,
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,
@@ -99,7 +121,6 @@ describe('EducatorsService — multi-school methods', () => {
   const educatorRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
-    save: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     createQueryBuilder: jest.fn(),
@@ -107,13 +128,27 @@ describe('EducatorsService — multi-school methods', () => {
   const educatorSchoolRepo = {
     findOne: jest.fn(),
     count: jest.fn(),
-    save: jest.fn(),
     remove: jest.fn(),
     upsert: jest.fn(),
     create: jest.fn(),
   };
   const schoolRepo = { findOne: jest.fn() };
-  const inviteRepo = { delete: jest.fn(), save: jest.fn(), create: jest.fn() };
+  const inviteRepo = {
+    delete: jest.fn(),
+    deleteByEmail: jest.fn(),
+    deletePendingByEmail: jest.fn(),
+    create: jest.fn(),
+  };
+  const notificationsGateway = {
+    notifyAccountDeleted: jest.fn(),
+    notifyAccountDeactivated: jest.fn(),
+    notifyAdminEducatorLowSeatWarning: jest.fn(),
+    notifyAdminSchoolLowSeatWarning: jest.fn(),
+    notifyEducatorSchoolAdded: jest.fn(),
+    notifyEducatorSchoolRemoved: jest.fn(),
+    notifyEducatorSchoolStatusChanged: jest.fn(),
+    notifyAdminEducatorStatusUpdated: jest.fn(),
+  };
   const txManager = {
     delete: jest.fn().mockResolvedValue({}),
     findOne: jest.fn(),
@@ -131,21 +166,71 @@ describe('EducatorsService — multi-school methods', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EducatorsService,
-        { provide: getRepositoryToken(Educator), useValue: educatorRepo },
-        { provide: getRepositoryToken(EducatorSchool), useValue: educatorSchoolRepo },
-        { provide: getRepositoryToken(User), useValue: { findOne: jest.fn() } },
-        { provide: getRepositoryToken(Schools), useValue: schoolRepo },
-        { provide: getRepositoryToken(Class), useValue: { find: jest.fn().mockResolvedValue([]) } },
+        {
+          provide: InviteTokenService,
+          useValue: {
+            issue: jest.fn().mockReturnValue('mock-invite-token'),
+            buildInviteUrl: jest
+              .fn()
+              .mockReturnValue('http://localhost:5173/signup/mock-invite-token'),
+            resolve: jest.fn(),
+          },
+        },
+        { provide: EDUCATOR_REPOSITORY, useValue: educatorRepo },
+        { provide: EDUCATOR_SEAT_REQUEST_REPOSITORY, useValue: {} },
+        { provide: EDUCATOR_SCHOOL_REPOSITORY, useValue: educatorSchoolRepo },
+        { provide: USER_ROLE_REPOSITORY, useValue: { update: jest.fn(), findById: jest.fn() } },
+        {
+          provide: DISTRICT_ADMIN_REPOSITORY,
+          useValue: { findByUserRoleId: jest.fn(), updateByUserRoleId: jest.fn() },
+        },
+        { provide: SCHOOLS_REPOSITORY, useValue: schoolRepo },
+        { provide: CLASS_REPOSITORY, useValue: { find: jest.fn().mockResolvedValue([]) } },
         { provide: getRepositoryToken(Student), useValue: { update: jest.fn() } },
-        { provide: getRepositoryToken(ClassSimulation), useValue: { update: jest.fn() } },
-        { provide: getRepositoryToken(Invite), useValue: inviteRepo },
-        { provide: AzureBlobService, useValue: { uploadFile: jest.fn(), isConfigured: jest.fn().mockReturnValue(false) } },
+        { provide: CLASS_SIMULATION_REPOSITORY, useValue: { update: jest.fn() } },
+        { provide: INVITE_REPOSITORY, useValue: inviteRepo },
+        {
+          provide: AzureBlobService,
+          useValue: { uploadFile: jest.fn(), isConfigured: jest.fn().mockReturnValue(false) },
+        },
         { provide: DataSource, useValue: dataSource },
         { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('http://localhost') } },
-        { provide: NotificationsGateway, useValue: { notifyAccountDeleted: jest.fn(), notifyAccountDeactivated: jest.fn(), notifyAdminEducatorLowSeatWarning: jest.fn(), notifyAdminSchoolLowSeatWarning: jest.fn(), notifyEducatorSchoolAdded: jest.fn(), notifyEducatorSchoolRemoved: jest.fn(), notifyEducatorSchoolStatusChanged: jest.fn(), notifyAdminEducatorStatusUpdated: jest.fn() } },
-        { provide: EducatorSessionService, useValue: { invalidateEducator: jest.fn().mockResolvedValue(undefined), invalidateBySchool: jest.fn().mockResolvedValue([]) } },
-        { provide: TutorPatientService, useValue: { getReportsByStudentIds: jest.fn().mockResolvedValue({ matched: [], isMatch: false }) } },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('http://localhost') },
+        },
+        {
+          provide: NotificationsGateway,
+          useValue: notificationsGateway,
+        },
+        {
+          provide: NotificationsService,
+          useValue: { isPreferenceEnabled: jest.fn().mockResolvedValue(false) },
+        },
+        {
+          provide: EducatorSessionService,
+          useValue: {
+            invalidateEducator: jest.fn().mockResolvedValue(undefined),
+            invalidateBySchool: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: SIMULATION_REPORT_REPOSITORY,
+          useValue: {
+            findStudentScenarioPairsWithAttempts: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
     service = module.get(EducatorsService);
@@ -157,14 +242,13 @@ describe('EducatorsService — multi-school methods', () => {
     it('does nothing when assignment already exists', async () => {
       educatorSchoolRepo.findOne.mockResolvedValue({ id: 'es-1' });
       await service.ensureEducatorSchoolRow('edu-1', 'school-1');
-      expect(educatorSchoolRepo.save).not.toHaveBeenCalled();
+      expect(educatorSchoolRepo.create).not.toHaveBeenCalled();
     });
 
     it('creates primary assignment when no previous assignments', async () => {
       educatorSchoolRepo.findOne.mockResolvedValue(null);
       educatorSchoolRepo.count.mockResolvedValue(0);
-      educatorSchoolRepo.create.mockReturnValue({ educator: {}, school: {}, is_primary: true });
-      educatorSchoolRepo.save.mockResolvedValue({});
+      educatorSchoolRepo.create.mockResolvedValue({});
       await service.ensureEducatorSchoolRow('edu-1', 'school-1');
       expect(educatorSchoolRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ is_primary: true }),
@@ -174,8 +258,7 @@ describe('EducatorsService — multi-school methods', () => {
     it('creates non-primary assignment when educator already has one school', async () => {
       educatorSchoolRepo.findOne.mockResolvedValue(null);
       educatorSchoolRepo.count.mockResolvedValue(1);
-      educatorSchoolRepo.create.mockReturnValue({ educator: {}, school: {}, is_primary: false });
-      educatorSchoolRepo.save.mockResolvedValue({});
+      educatorSchoolRepo.create.mockResolvedValue({});
       await service.ensureEducatorSchoolRow('edu-1', 'school-2');
       expect(educatorSchoolRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ is_primary: false }),
@@ -199,16 +282,17 @@ describe('EducatorsService — multi-school methods', () => {
 
     it('succeeds and returns updated educator', async () => {
       const eduWithSchools = makeEducator({
-        schoolAssignments: [{ school: makeSchool('school-2', 'B'), is_primary: false } as EducatorSchool],
+        schoolAssignments: [
+          { school: makeSchool('school-2', 'B'), is_primary: false } as EducatorSchool,
+        ],
       });
       educatorRepo.findOne
-        .mockResolvedValueOnce(makeEducator())     // findByIdAndOwner
-        .mockResolvedValueOnce(eduWithSchools);    // final reload
+        .mockResolvedValueOnce(makeEducator()) // findByIdAndOwner
+        .mockResolvedValueOnce(eduWithSchools); // final reload
       schoolRepo.findOne.mockResolvedValue(makeSchool('school-2', 'B'));
       educatorSchoolRepo.findOne.mockResolvedValue(null);
       educatorSchoolRepo.count.mockResolvedValue(1);
-      educatorSchoolRepo.create.mockReturnValue({});
-      educatorSchoolRepo.save.mockResolvedValue({});
+      educatorSchoolRepo.create.mockResolvedValue({});
 
       const result = await service.addSchool('edu-1', 'school-2', 'admin-1');
       expect(result.success).toBe(true);
@@ -232,23 +316,47 @@ describe('EducatorsService — multi-school methods', () => {
     it('promotes next assignment to primary when primary is removed', async () => {
       const remainingAssignment = { id: 'es-2', is_primary: false, school: { id: 'school-2' } };
       educatorRepo.findOne
-        .mockResolvedValueOnce(makeEducator())   // findByIdAndOwner
-        .mockResolvedValueOnce(makeEducator());  // final reload
-      educatorSchoolRepo.findOne.mockResolvedValueOnce({ id: 'es-1', is_primary: true }); // existing assignment
+        .mockResolvedValueOnce(makeEducator()) // findByIdAndOwner
+        .mockResolvedValueOnce(makeEducator()); // final reload
+      educatorSchoolRepo.findOne.mockResolvedValueOnce({
+        id: 'es-1',
+        is_primary: true,
+        school: { id: 'school-1', school_name: 'Test School' },
+      }); // existing assignment
       txManager.findOne.mockResolvedValueOnce(remainingAssignment); // next remaining (inside tx)
       txManager.count.mockResolvedValueOnce(1); // still has one assignment left
 
       await service.removeSchool('edu-1', 'school-1', 'admin-1');
-      expect(txManager.save).toHaveBeenCalledWith(
-        expect.objectContaining({ is_primary: true }),
-      );
+      expect(txManager.save).toHaveBeenCalledWith(expect.objectContaining({ is_primary: true }));
+    });
+
+    it('notifies the educator when another assignment remains', async () => {
+      const remainingAssignment = { id: 'es-2', is_primary: false, school: { id: 'school-2' } };
+      educatorRepo.findOne
+        .mockResolvedValueOnce(makeEducator())
+        .mockResolvedValueOnce(makeEducator());
+      educatorSchoolRepo.findOne.mockResolvedValueOnce({
+        id: 'es-1',
+        is_primary: true,
+        school: { id: 'school-1', school_name: 'Test School' },
+      });
+      txManager.findOne.mockResolvedValueOnce(remainingAssignment);
+      txManager.count.mockResolvedValueOnce(1);
+
+      await service.removeSchool('edu-1', 'school-1', 'admin-1');
+
+      expect(notificationsGateway.notifyEducatorSchoolRemoved).toHaveBeenCalledWith('edu-1');
     });
 
     it('clears legacy school FK when last assignment is removed', async () => {
       educatorRepo.findOne
-        .mockResolvedValueOnce(makeEducator())   // findByIdAndOwner
-        .mockResolvedValueOnce(makeEducator());  // final reload
-      educatorSchoolRepo.findOne.mockResolvedValueOnce({ id: 'es-1', is_primary: true }); // existing
+        .mockResolvedValueOnce(makeEducator()) // findByIdAndOwner
+        .mockResolvedValueOnce(makeEducator()); // final reload
+      educatorSchoolRepo.findOne.mockResolvedValueOnce({
+        id: 'es-1',
+        is_primary: true,
+        school: { id: 'school-1', school_name: 'Test School' },
+      }); // existing
       txManager.findOne.mockResolvedValueOnce(null); // no remaining assignments
       txManager.count.mockResolvedValueOnce(0); // zero left
 
@@ -258,39 +366,52 @@ describe('EducatorsService — multi-school methods', () => {
         ['edu-1'],
       );
     });
+
+    it('also notifies the educator when the last assignment is removed', async () => {
+      educatorRepo.findOne
+        .mockResolvedValueOnce(makeEducator())
+        .mockResolvedValueOnce(makeEducator());
+      educatorSchoolRepo.findOne.mockResolvedValueOnce({
+        id: 'es-1',
+        is_primary: true,
+        school: { id: 'school-1', school_name: 'Test School' },
+      });
+      txManager.findOne.mockResolvedValueOnce(null);
+      txManager.count.mockResolvedValueOnce(0);
+
+      await service.removeSchool('edu-1', 'school-1', 'admin-1');
+
+      expect(notificationsGateway.notifyEducatorSchoolRemoved).toHaveBeenCalledWith('edu-1');
+    });
   });
 });
 
 describe('EducatorSessionService — invalidateBySchool uses junction table', () => {
   let sessionService: EducatorSessionService;
 
-  const rawManyMock = jest.fn();
   const educatorRepo = {
-    createQueryBuilder: jest.fn(),
-    update: jest.fn(),
+    findActiveIdsBySchool: jest.fn(),
+    updateTokenInvalidatedAt: jest.fn().mockResolvedValue(undefined),
     findOne: jest.fn(),
   };
 
-  const makeQb = (): Record<string, jest.Mock> => {
-    const qb: Record<string, jest.Mock> = {};
-    qb.innerJoin = jest.fn().mockReturnValue(qb);
-    qb.where = jest.fn().mockReturnValue(qb);
-    qb.andWhere = jest.fn().mockReturnValue(qb);
-    qb.select = jest.fn().mockReturnValue(qb);
-    qb.getRawMany = rawManyMock;
-    qb.update = jest.fn().mockReturnValue(qb);
-    qb.set = jest.fn().mockReturnValue(qb);
-    qb.whereInIds = jest.fn().mockReturnValue(qb);
-    qb.execute = jest.fn().mockResolvedValue({});
-    return qb;
-  };
-
   beforeEach(async () => {
-    educatorRepo.createQueryBuilder.mockReturnValue(makeQb());
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EducatorSessionService,
-        { provide: getRepositoryToken(Educator), useValue: educatorRepo },
+        { provide: EDUCATOR_REPOSITORY, useValue: educatorRepo },
+        { provide: EDUCATOR_SEAT_REQUEST_REPOSITORY, useValue: {} },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
     sessionService = module.get(EducatorSessionService);
@@ -299,20 +420,20 @@ describe('EducatorSessionService — invalidateBySchool uses junction table', ()
   afterEach(() => jest.clearAllMocks());
 
   it('returns empty array when no educators found for school', async () => {
-    rawManyMock.mockResolvedValue([]);
+    educatorRepo.findActiveIdsBySchool.mockResolvedValue([]);
     const result = await sessionService.invalidateBySchool('school-1');
     expect(result).toEqual([]);
+    expect(educatorRepo.updateTokenInvalidatedAt).not.toHaveBeenCalled();
   });
 
   it('invalidates educators found via junction table query', async () => {
-    rawManyMock.mockResolvedValue([{ id: 'edu-1' }, { id: 'edu-2' }]);
-    const qb = makeQb();
-    qb.execute = jest.fn().mockResolvedValue({});
-    educatorRepo.createQueryBuilder
-      .mockReturnValueOnce(makeQb())   // first call — find educators
-      .mockReturnValueOnce(qb);        // second call — update
+    educatorRepo.findActiveIdsBySchool.mockResolvedValue(['edu-1', 'edu-2']);
 
     const result = await sessionService.invalidateBySchool('school-1');
     expect(result).toEqual(['edu-1', 'edu-2']);
+    expect(educatorRepo.updateTokenInvalidatedAt).toHaveBeenCalledWith(
+      ['edu-1', 'edu-2'],
+      expect.any(Date),
+    );
   });
 });

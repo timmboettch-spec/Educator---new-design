@@ -1,0 +1,62 @@
+name: Trigger Snapshot Job (prod)
+
+# Manual, on-demand run of the weekly snapshot-to-git Container Apps Job.
+# Deliberately its own workflow, separate from deploy-backend.yml — this
+# never runs as a side effect of a normal backend deploy/release, and it
+# only ever targets prod (the snapshot job is only provisioned there; see
+# docs/WEEKLY-SNAPSHOT.md). The job also runs automatically every Thursday
+# via its own native Container Apps schedule trigger — this workflow exists
+# for ad hoc runs (e.g. verifying a fix, or an extra snapshot before/after a
+# data change) without needing local az cli access.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write       # required for OIDC
+  contents: read
+
+env:
+  RESOURCE_GROUP: ARG-prod1-rwai
+  JOB_NAME: acj-prod1-rwai-edusnap
+  SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+
+jobs:
+  trigger:
+    name: Start snapshot job execution
+    runs-on: ubuntu-latest
+    environment: prod   # requires the same reviewer approval as a prod deploy
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Confirm job exists
+        run: |
+          az containerapp job show \
+            --name "${{ env.JOB_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "name" -o tsv
+
+      - name: Start job execution
+        id: start
+        run: |
+          EXECUTION=$(az containerapp job start \
+            --name "${{ env.JOB_NAME }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "name" -o tsv)
+          echo "execution=$EXECUTION" >> "$GITHUB_OUTPUT"
+          echo "Started execution: $EXECUTION"
+
+      - name: Summary
+        run: |
+          {
+            echo "## Snapshot job triggered"
+            echo ""
+            echo "Execution \`${{ steps.start.outputs.execution }}\` started on \`${{ env.JOB_NAME }}\`."
+            echo ""
+            echo "Check status: \`az containerapp job execution list -n ${{ env.JOB_NAME }} -g ${{ env.RESOURCE_GROUP }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

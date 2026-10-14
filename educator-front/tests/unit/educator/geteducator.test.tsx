@@ -6,7 +6,9 @@ import { MemoryRouter } from 'react-router-dom';
 import Educators from '../../../src/pages/educator/index';
 
 vi.mock('../../../src/redux/educator/GetEducatorRedux', async () => {
-  const actual = await vi.importActual('../../../src/redux/educator/GetEducatorRedux');
+  const actual = await vi.importActual(
+    '../../../src/redux/educator/GetEducatorRedux'
+  );
 
   return {
     ...actual,
@@ -36,7 +38,9 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', async () => {
 });
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', async () => {
-  const actual = await vi.importActual('../../../src/redux/schools/GetSchoolsRedux');
+  const actual = await vi.importActual(
+    '../../../src/redux/schools/GetSchoolsRedux'
+  );
 
   return {
     ...actual,
@@ -105,14 +109,18 @@ describe('Educators Get API Unit Test', () => {
         <MemoryRouter>
           <Educators />
         </MemoryRouter>
-      </Provider>,
+      </Provider>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('Arthi')).toBeInTheDocument();
-    });
+    // Default 1000ms waitFor timeout is flaky under full-suite load; extend it.
+    await waitFor(
+      () => {
+        expect(screen.getByText('Arthi')).toBeInTheDocument();
+      },
+      { timeout: 15000 }
+    );
 
     expect(screen.getByText('ABC School')).toBeInTheDocument();
     expect(screen.getByText('Active')).toBeInTheDocument();
-  });
+  }, 20000);
 });

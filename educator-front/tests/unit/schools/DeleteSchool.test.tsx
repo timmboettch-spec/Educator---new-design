@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Schools from '../../../src/pages/schools/index';
@@ -6,7 +12,12 @@ import '@testing-library/jest-dom/vitest';
 
 // ─── shared mock state ────────────────────────────────────────────────────────
 
-const mockSchool = { id: 'school-1', school_name: 'Springfield High', status: 'ACTIVE', user_id: 'u1' };
+const mockSchool = {
+  id: 'school-1',
+  school_name: 'Springfield High',
+  status: 'ACTIVE',
+  user_id: 'u1',
+};
 
 const mockState = {
   School: {
@@ -31,10 +42,12 @@ vi.mock('../../../src/store/hooks', () => ({
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({ type: 'schools/get' })),
   resetSchools: vi.fn(() => ({ type: 'schools/reset' })),
-  selectSchoolResponse: (s: typeof mockState) => s?.School?.responseSchool ?? null,
+  selectSchoolResponse: (s: typeof mockState) =>
+    s?.School?.responseSchool ?? null,
   selectSchoolStatus: (s: typeof mockState) => s?.School?.status ?? 'idle',
 }));
 
@@ -56,8 +69,8 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
     s?.GetEducator?.responseGetEducator?.data ?? { items: [], total: 0 },
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'users/get' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 vi.mock('../../../src/redux/dashboard/admin/DashboardOverviewRedux', () => ({
@@ -67,7 +80,12 @@ vi.mock('../../../src/redux/dashboard/admin/DashboardOverviewRedux', () => ({
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -91,7 +109,9 @@ vi.mock('../../../src/components/common/ListTable', () => ({
             <td>
               {onView && <button onClick={() => onView(row)}>View</button>}
               {onEdit && <button onClick={() => onEdit(row)}>Edit</button>}
-              {onDelete && <button onClick={() => onDelete(row)}>Delete</button>}
+              {onDelete && (
+                <button onClick={() => onDelete(row)}>Delete</button>
+              )}
             </td>
           </tr>
         ))}
@@ -106,7 +126,7 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <Schools />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 
 // ─── tests ────────────────────────────────────────────────────────────────────
@@ -114,7 +134,9 @@ const renderPage = () =>
 describe('Delete School', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDispatch.mockReturnValue({ unwrap: () => Promise.resolve({ message: 'Deleted', success: true }) });
+    mockDispatch.mockReturnValue({
+      unwrap: () => Promise.resolve({ message: 'Deleted', success: true }),
+    });
   });
 
   // ── rendering ──────────────────────────────────────────────────────────────
@@ -122,7 +144,9 @@ describe('Delete School', () => {
   describe('Rendering', () => {
     it('renders school list with delete action per row', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       expect(deleteBtn).toBeInTheDocument();
     });
 
@@ -137,14 +161,18 @@ describe('Delete School', () => {
   describe('Confirmation Dialog — Opens', () => {
     it('opens delete confirmation modal when Delete is clicked', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       expect(await screen.findByRole('dialog')).toBeInTheDocument();
     });
 
     it('renders school name inside the confirmation dialog', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       const dialog = await screen.findByRole('dialog');
       expect(within(dialog).getByText(/Springfield High/i)).toBeInTheDocument();
@@ -152,7 +180,9 @@ describe('Delete School', () => {
 
     it('renders destructive-action warning text in the dialog', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       const dialog = await screen.findByRole('dialog');
       // The modal body must warn that deletion cannot be undone
@@ -162,7 +192,9 @@ describe('Delete School', () => {
 
     it('renders Cancel and Delete/Confirm buttons in the dialog', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       const dialog = await screen.findByRole('dialog');
       const allBtns = within(dialog).queryAllByRole('button');
@@ -175,27 +207,46 @@ describe('Delete School', () => {
   describe('Cancel Without Delete', () => {
     it('closes dialog without dispatching when Cancel/Back is clicked', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       const dialog = await screen.findByRole('dialog');
       const callsBefore = mockDispatch.mock.calls.length;
 
-      const cancelBtn = within(dialog).queryByRole('button', { name: /back|cancel|no/i });
+      const cancelBtn = within(dialog).queryByRole('button', {
+        name: /back|cancel|no/i,
+      });
       if (cancelBtn) {
         fireEvent.click(cancelBtn);
-        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await waitFor(() =>
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        );
         expect(mockDispatch.mock.calls).toHaveLength(callsBefore);
       }
     });
 
     it('school row remains visible in list after cancellation', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
+
       const dialog = await screen.findByRole('dialog');
 
-      const cancelBtn = within(dialog).queryByRole('button', { name: /back|cancel|no/i });
-      if (cancelBtn) fireEvent.click(cancelBtn);
+      const cancelBtn = within(dialog).queryByRole('button', {
+        name: /back|cancel|no/i,
+      });
+
+      expect(cancelBtn).toBeInTheDocument();
+
+      fireEvent.click(cancelBtn!);
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      });
 
       expect(screen.getByText('Springfield High')).toBeInTheDocument();
     });
@@ -206,11 +257,15 @@ describe('Delete School', () => {
   describe('Successful Deletion', () => {
     it('dispatches DeleteSchoolRequest when deletion is confirmed', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       const dialog = await screen.findByRole('dialog');
 
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete|yes/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|delete|yes/i,
+      });
       if (confirmBtn) {
         fireEvent.click(confirmBtn);
         await waitFor(() => expect(mockDispatch).toHaveBeenCalled());
@@ -219,14 +274,21 @@ describe('Delete School', () => {
 
     it('closes dialog after successful delete dispatch', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       const dialog = await screen.findByRole('dialog');
 
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete|yes/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|delete|yes/i,
+      });
       if (confirmBtn) {
         fireEvent.click(confirmBtn);
-        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(), { timeout: 3000 });
+        await waitFor(
+          () => expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+          { timeout: 3000 }
+        );
       }
     });
   });
@@ -238,21 +300,36 @@ describe('Delete School', () => {
       ['500 Internal Server Error', { message: 'Internal Server Error' }],
       ['404 Not Found', { message: 'School not found' }],
       ['403 Forbidden', { message: 'Forbidden' }],
-    ])('school remains in DOM when DeleteSchoolRequest rejects (%s)', async (_label, rejection) => {
-      mockDispatch.mockReturnValueOnce({ unwrap: () => Promise.reject(rejection) });
+    ])(
+      'school remains in DOM when DeleteSchoolRequest rejects (%s)',
+      async (_label, rejection) => {
+        mockDispatch.mockReturnValueOnce({
+          unwrap: () => Promise.reject(rejection),
+        });
 
-      renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      fireEvent.click(deleteBtn);
-      const dialog = await screen.findByRole('dialog');
+        renderPage();
 
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete|yes/i });
-      if (confirmBtn) {
-        fireEvent.click(confirmBtn);
-        await waitFor(() => {}, { timeout: 1500 });
-        expect(screen.getByText('Springfield High')).toBeInTheDocument();
+        const deleteBtn = await screen.findByRole('button', {
+          name: /^Delete$/i,
+        });
+
+        fireEvent.click(deleteBtn);
+
+        const dialog = await screen.findByRole('dialog');
+
+        const confirmBtn = within(dialog).queryByRole('button', {
+          name: /confirm|delete|yes/i,
+        });
+
+        expect(confirmBtn).toBeInTheDocument();
+
+        fireEvent.click(confirmBtn!);
+
+        await waitFor(() => {
+          expect(screen.getByText('Springfield High')).toBeInTheDocument();
+        });
       }
-    });
+    );
   });
 
   // ── modal exclusivity ───────────────────────────────────────────────────────
@@ -260,7 +337,9 @@ describe('Delete School', () => {
   describe('Modal Exclusivity', () => {
     it('does not render multiple open dialogs simultaneously on delete trigger', async () => {
       renderPage();
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
       await screen.findByRole('dialog');
       const dialogs = screen.queryAllByRole('dialog');

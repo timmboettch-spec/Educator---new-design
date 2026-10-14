@@ -17,7 +17,7 @@ Run all smoke tests:
 npm run test:smoke
 ```
 
-Run for Show Report 
+Run for Show Report
 
 ```bash
 npm run test:e2e:report
@@ -35,12 +35,12 @@ tests/e2e/results/ui-smoke-test-report.html
 
 The smoke suite covers:
 
-* Admin Login
-* Subscription Activation
-* School Creation
-* Educator Creation
-* Educator Login
-* Class Creation
+- Admin Login
+- Subscription Activation
+- School Creation
+- Educator Creation
+- Educator Login
+- Class Creation
 
 ## Configuration
 
@@ -52,11 +52,11 @@ playwright.config.ts
 
 ## Tech Stack
 
-* Playwright
-* TypeScript
-* Node.js
-* Mailosaur
-* Custom HTML Reporting
+- Playwright
+- TypeScript
+- Node.js
+- Mailosaur
+- Custom HTML Reporting
 
 ## Project Structure
 

@@ -1,34 +1,63 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 
+import { LoggerService } from '../../../common/services';
+import type { Action, Unit } from 'src/common/interfaces/student-scenario.interface';
 import {
-  JsonDataService,
-  type Action,
-  type Permission,
-  type Scenario,
-  type Unit,
-} from '../../data/json-data.service';
+  SimulationV2,
+  SimulationAction,
+  SimulationGradingRubricItem,
+  SimulationOrder,
+  Unit as UnitEntity,
+} from 'src/database/entities';
+import {
+  SimulationReportRepository,
+  SimulationV2Repository,
+  SimulationV2WithOrderDefinitions,
+  TranscriptRepository,
+  UnitRepository,
+} from 'src/database/repositories';
+import {
+  SIMULATION_REPORT_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
+import { UnitCategory, SimulationStatus } from 'src/common/constants';
+import type { DeepPartial } from 'typeorm';
+import { ISimulationGrading, ReportDetail } from 'src/common/interfaces';
+import { mapRowToReportDetail } from 'src/common/utils/simulation-report.util';
+import { ClassSimulationService } from 'src/class-simulations/class-simulation.service';
+import { VoiceProfilesService } from 'src/voice-profiles/voice-profiles.service';
+import type { IScenarioVoiceProfile } from 'src/common/interfaces/voice-profile.interface';
 
-export interface StudentWithStats {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  key?: string;
-  permission?: Permission;
-  unitsCount: number;
-  scenariosEnrolledCount: number;
-  units: string[];
-}
+const VALID_UNIT_CATEGORIES: string[] = Object.values(UnitCategory);
 
 @Injectable()
 export class AdminService {
-  private readonly logger = new Logger(AdminService.name);
   private static readonly PRODUCT_NAME_MAX_LENGTH = 100;
 
-  constructor(private jsonDataService: JsonDataService) {}
+  constructor(
+    private readonly logger: LoggerService,
+    @Inject(UNIT_REPOSITORY) private readonly unitRepository: UnitRepository,
+    @Inject(SIMULATION_V2_REPOSITORY) private readonly simulationRepository: SimulationV2Repository,
+    @Inject(TRANSCRIPT_REPOSITORY) private readonly transcriptRepository: TranscriptRepository,
+    private readonly classSimulationService: ClassSimulationService,
+    @Inject(SIMULATION_REPORT_REPOSITORY)
+    private readonly simulationReportRepository: SimulationReportRepository,
+    private readonly voiceProfilesService: VoiceProfilesService,
+  ) {}
 
-  getStudents() {
-    return this.jsonDataService.getPermissionsData().permissions;
+  private mapUnitEntityToUnit(entity: UnitEntity): Unit {
+    return {
+      id: entity.id,
+      name: entity.name,
+      imageUrl: entity.imageUrl ?? '',
+      category: entity.category,
+      categories: entity.category ? [entity.category] : undefined,
+      actionGroupName: entity.actionGroupName,
+      actionGroupDescription: entity.actionGroupDescription,
+      actions: (entity.actions as Action[] | undefined) ?? undefined,
+    };
   }
 
   private static normalizeProductName(value: string): string {
@@ -36,7 +65,10 @@ export class AdminService {
     return value.replace(/\s+/g, ' ').trim();
   }
 
-  private validateProductSetup(scenarioData: Partial<Scenario>, previousScenario?: Scenario): void {
+  private validateProductSetup(
+    scenarioData: Partial<SimulationV2>,
+    previousScenario?: SimulationV2 | SimulationV2WithOrderDefinitions,
+  ): void {
     // Normalize incoming Product Name in-place so persisted value is clean
     // for both create and update flows.
     if (scenarioData.productSetup && typeof scenarioData.productSetup.title === 'string') {
@@ -70,204 +102,54 @@ export class AdminService {
     }
   }
 
-  getAllStudentsWithStats(): StudentWithStats[] {
-    const users = this.jsonDataService.getUsers();
-    const permissions = this.jsonDataService.getPermissionsData();
-    const transcripts = this.jsonDataService.getTranscripts();
-    const scenarios = this.jsonDataService.getScenarios();
-
-    // Start with permissions from username-units.json as the source of truth
-    // Each permission entry represents a student
-    const studentsFromPermissions = permissions.permissions.map((permission) => {
-      // Try to find a matching user in users.json by name or email
-      const matchedUser = users.find((u) => {
-        // Match by name (case-insensitive)
-        if (permission.name && u.name.toLowerCase() === permission.name.toLowerCase()) {
-          return true;
-        }
-        // Match by email prefix (if key matches email prefix)
-        if (u.email.split('@')[0].toLowerCase() === permission.key.toLowerCase()) {
-          return true;
-        }
-        // Match by name partial match (first name)
-        if (permission.name) {
-          const permissionFirstName = permission.name.toLowerCase().split(' ')[0];
-          const userNameFirst = u.name.toLowerCase().split(' ')[0];
-          if (permissionFirstName === userNameFirst) {
-            return true;
-          }
-        }
-        return false;
-      });
-
-      // Calculate scenarios enrolled count
-      // Count scenarios that are in the units this permission has access to
-      const scenariosInUnits = scenarios.filter((s) => permission.units.includes(s.unitId)).length;
-
-      // Count transcripts/scenarios the user has actually enrolled in
-      let scenariosEnrolledCount = 0;
-      if (matchedUser) {
-        const userTranscripts = transcripts.filter((t) => t.userId === matchedUser.id);
-        scenariosEnrolledCount = new Set(userTranscripts.map((t) => t.scenarioId)).size;
-      }
-
-      // Use the higher of the two counts (scenarios in units vs actually enrolled)
-      const finalScenariosCount = Math.max(scenariosInUnits, scenariosEnrolledCount);
-
-      return {
-        id: matchedUser?.id ?? `permission-${permission.key}`,
-        name: matchedUser?.name ?? permission.name ?? permission.key,
-        email: matchedUser?.email ?? `${permission.key}@example.com`,
-        role: matchedUser?.role ?? 'student',
-        key: permission.key,
-        permission,
-        unitsCount: permission.units?.length ?? 0,
-        scenariosEnrolledCount: finalScenariosCount,
-        units: permission.units || [],
-      };
-    });
-
-    return studentsFromPermissions;
+  /**
+   * Deliberately bypasses assembleScenarios/simulationToScenario (used by
+   * every other scenario read/write below) — returns real `SimulationV2`
+   * entities straight from SimulationV2Repository.findAllWithChildrenJoined,
+   * not the flat blob-shaped `Scenario` object those build. Each entity's
+   * `actions`/`orders`/`gradingRubricItems` are populated via TypeORM
+   * relations rather than reconstructed from `detail` jsonb, so this is not
+   * a drop-in replacement for a caller expecting the old `Scenario[]` shape.
+   */
+  getAllScenarios(): Promise<SimulationV2WithOrderDefinitions[]> {
+    return this.simulationRepository.findAllWithoutChildrenJoined();
   }
 
-  getAllPermissions() {
-    return this.jsonDataService.getPermissionsData();
-  }
-
-  createOrUpdatePermission(dto: {
-    name?: string;
-    key: string;
-    units: string[];
-    scenarios?: string[];
-    avatars?: string[];
-  }) {
-    const permissionsData = this.jsonDataService.getPermissionsData();
-    const existingIndex = permissionsData.permissions.findIndex(
-      (p) => p.key.toLowerCase() === dto.key.toLowerCase(),
-    );
-
-    // Validate units exist
-    const allUnits = this.jsonDataService.getUnits();
-    const validUnitIds = allUnits.map((u) => u.id);
-    const invalidUnits = dto.units.filter((unitId) => !validUnitIds.includes(unitId));
-
-    if (invalidUnits.length > 0) {
-      throw new NotFoundException(`Invalid unit IDs: ${invalidUnits.join(', ')}`);
-    }
-
-    const permission: Permission = {
-      key: dto.key,
-      units: dto.units,
-      scenarios: dto.scenarios ?? [],
-      avatars: dto.avatars ?? [],
-    };
-
-    if (dto.name) {
-      permission.name = dto.name;
-    }
-
-    if (existingIndex !== -1) {
-      permissionsData.permissions[existingIndex] = permission;
-    } else {
-      permissionsData.permissions.push(permission);
-    }
-
-    this.jsonDataService.updatePermissions(permissionsData.permissions);
-
-    return permission;
-  }
-
-  assignUnitToPermission(key: string, unitId: string, name?: string) {
-    if (!key?.trim()) {
-      throw new BadRequestException('Key is required to assign a unit');
-    }
-
-    const unit = this.jsonDataService.getUnitById(unitId);
-
-    if (!unit) {
-      throw new NotFoundException(`Unit with ID ${unitId} not found`);
-    }
-
-    const permissionsData = this.jsonDataService.getPermissionsData();
-    const normalizedKey = key.toLowerCase();
-
-    let permission = permissionsData.permissions.find((p) => p.key.toLowerCase() === normalizedKey);
-
-    if (!permission) {
-      permission = {
-        key,
-        name,
-        units: [],
-        scenarios: [],
-        avatars: [],
-      };
-      permissionsData.permissions.push(permission);
-    }
-
-    if (!permission.units.includes(unitId)) {
-      permission.units.push(unitId);
-    }
-
-    if (name && !permission.name) {
-      permission.name = name;
-    }
-
-    this.jsonDataService.updatePermissions(permissionsData.permissions);
-
-    return permission;
-  }
-
-  createStudent(dto: { name: string; email: string; key: string; units?: string[] }) {
-    const permissionsData = this.jsonDataService.getPermissionsData();
-
-    // Check if key already exists
-    const existingPermission = permissionsData.permissions.find(
-      (p) => p.key.toLowerCase() === dto.key.toLowerCase(),
-    );
-
-    if (existingPermission) {
-      throw new NotFoundException(`Student with key ${dto.key} already exists`);
-    }
-
-    // Validate units if provided
-    if (dto.units && dto.units.length > 0) {
-      const allUnits = this.jsonDataService.getUnits();
-      const validUnitIds = allUnits.map((u) => u.id);
-      const invalidUnits = dto.units.filter((unitId) => !validUnitIds.includes(unitId));
-
-      if (invalidUnits.length > 0) {
-        throw new NotFoundException(`Invalid unit IDs: ${invalidUnits.join(', ')}`);
-      }
-    }
-
-    const permission: Permission = {
-      key: dto.key,
-      name: dto.name,
-      units: dto.units ?? [],
-      scenarios: [],
-      avatars: [],
-    };
-
-    permissionsData.permissions.push(permission);
-    this.jsonDataService.updatePermissions(permissionsData.permissions);
-
-    return permission;
-  }
-
-  // Scenario Management
-  getAllScenarios() {
-    return this.jsonDataService.getScenarios();
-  }
-
-  async getScenarioById(id: string) {
-    const scenario = await this.jsonDataService.getScenarioByIdEnOnly(id);
-    if (!scenario) {
+  async getScenarioById(id: string): Promise<SimulationV2WithOrderDefinitions> {
+    // Single joined query (same relations-based pattern as
+    // findAllWithChildrenJoined) instead of separate action/order/rubric
+    // lookups — order links stay a second query since the join table
+    // (SimulationOrderLinkedAction) deliberately carries no relation.
+    const sim = await this.simulationRepository.findByBusinessIdWithChildrenJoined(id);
+    if (!sim) {
       throw new NotFoundException(`Scenario with ID ${id} not found`);
     }
-    return scenario;
+    return sim;
   }
 
-  async createScenario(scenarioData: Partial<Scenario>) {
+  /**
+   * The controller-facing read (`GET /admin/scenarios/:id`) — adds C1's
+   * resolved effective voice. `getScenarioById` itself stays undecorated:
+   * it is also called internally by `updateScenario`/`createDraftVersion`/
+   * `publishDraftVersion` as a plain data fetch, where resolving a voice
+   * on every intermediate read would be pure waste.
+   */
+  async getScenarioByIdForController(
+    id: string,
+  ): Promise<
+    Omit<SimulationV2WithOrderDefinitions, 'voiceProfile'> & {
+      voiceProfile: IScenarioVoiceProfile | null;
+    }
+  > {
+    const sim = await this.getScenarioById(id);
+    const voiceProfile = await this.voiceProfilesService.resolveForScenario({
+      voiceProfileId: sim.voiceProfileId,
+      patientData: sim.patientData,
+    });
+    return { ...sim, voiceProfile };
+  }
+
+  async createScenario(scenarioData: Partial<SimulationV2>) {
     // Validate required scenario ID
     if (typeof scenarioData.id !== 'string' || scenarioData.id === '' || !scenarioData.id.trim()) {
       this.logger.warn(`Invalid scenario ID: ${String(scenarioData.id)}`);
@@ -275,7 +157,7 @@ export class AdminService {
     }
 
     // Check if scenario ID already exists
-    const existingScenario = this.jsonDataService.getScenarioById(scenarioData.id);
+    const existingScenario = await this.simulationRepository.findByBusinessId(scenarioData.id);
     if (existingScenario) {
       throw new BadRequestException(
         `Scenario with ID ${scenarioData.id} already exists. Scenario ID must be unique.`,
@@ -283,7 +165,7 @@ export class AdminService {
     }
 
     // Validate scenario title — required only when publishing (not for drafts)
-    const isDraft = scenarioData.status === 'draft';
+    const isDraft = scenarioData.status === SimulationStatus.DRAFT;
     if (!isDraft) {
       if (typeof scenarioData.title !== 'string' || !scenarioData.title.trim()) {
         throw new BadRequestException('Scenario Title is required');
@@ -291,17 +173,12 @@ export class AdminService {
     }
 
     this.validateProductSetup(scenarioData);
+    await this.voiceProfilesService.assertValidForScenarioWrite(scenarioData.voiceProfileId);
 
-    // Only check for duplicate titles when a title is actually provided
-    const normalizedTitle = scenarioData.title?.trim().toLowerCase() ?? '';
-
-    const scenarios = this.jsonDataService.getScenarios();
-
-    if (normalizedTitle) {
-      const existingScenarioWithTitle = scenarios.find(
-        (scenario) => scenario.title?.trim().toLowerCase() === normalizedTitle,
+    if (scenarioData.title) {
+      const existingScenarioWithTitle = await this.simulationRepository.findUniqueByTitle(
+        scenarioData.title,
       );
-
       if (existingScenarioWithTitle) {
         throw new BadRequestException(
           `Scenario with title "${scenarioData.title}" already exists. Scenario title must be unique.`,
@@ -311,19 +188,26 @@ export class AdminService {
 
     // Validate unit exists
     if (scenarioData.unitId) {
-      const unit = this.jsonDataService.getUnitById(scenarioData.unitId);
+      const unit = await this.unitRepository.findByBusinessId(scenarioData.unitId);
       if (!unit) {
         throw new NotFoundException(`Unit with ID ${scenarioData.unitId} not found`);
       }
     }
 
-    const scenario: Scenario = {
+    const scenario: Partial<SimulationV2> = {
       id: scenarioData.id,
       unitId: scenarioData.unitId ?? '',
       title: scenarioData.title ?? '',
       difficulty: scenarioData.difficulty ?? 'Medium',
       avatarEnabled: scenarioData.avatarEnabled ?? false,
-      avatarId: scenarioData.avatarId ?? '',
+      // NULL, not '' — "no avatar" is the absence of a value, and
+      // simulations.avatarId now has a foreign key to avatars.avatar_id.
+      // An empty string is not NULL, so Postgres would look for an avatar
+      // literally named '' and reject the write: saving any scenario without
+      // an avatar would fail. The migration clears the historical '' rows;
+      // this stops new ones being created.
+      avatarId: scenarioData.avatarId?.trim() || null,
+      voiceProfileId: scenarioData.voiceProfileId ?? null,
       contextId: scenarioData.contextId ?? '',
       learnerLevel: scenarioData.learnerLevel ?? '',
       department: scenarioData.department ?? '',
@@ -331,7 +215,6 @@ export class AdminService {
       learningObjective: scenarioData.learningObjective ?? '',
       language: scenarioData.language,
       voice: scenarioData.voice,
-      disabled: scenarioData.disabled ?? false,
       actionGroupName: scenarioData.actionGroupName,
       actionGroupDescription: scenarioData.actionGroupDescription,
       actions: scenarioData.actions ?? [],
@@ -359,13 +242,12 @@ export class AdminService {
         physicalExam: [],
         medications: [],
       },
-      historyPrompts: scenarioData.historyPrompts ?? [],
-      assessmentGuidance: scenarioData.assessmentGuidance,
       learningObjectiveCard: scenarioData.learningObjectiveCard ?? '',
-      phases: scenarioData.phases ?? [],
+      phases: scenarioData.phases,
       availableMedications: scenarioData.availableMedications ?? [],
       conversationResponses: scenarioData.conversationResponses,
       grading: scenarioData.grading,
+      gradingRubricItems: scenarioData.grading?.rubric as unknown as SimulationGradingRubricItem[],
       metadata: scenarioData.metadata,
       requiresProductSetup: scenarioData.requiresProductSetup ?? false,
       productSetup: scenarioData.productSetup,
@@ -376,7 +258,6 @@ export class AdminService {
       sbar: scenarioData.sbar,
       orders: scenarioData.orders ?? [],
       timeline: scenarioData.timeline,
-      actionCategories: scenarioData.actionCategories ?? [],
       simulationStartTime: scenarioData.simulationStartTime,
       additionalEquipment: scenarioData.additionalEquipment,
       optionalEquipment: scenarioData.optionalEquipment,
@@ -390,33 +271,36 @@ export class AdminService {
       printableSbarPdf: scenarioData.printableSbarPdf,
       printablePatientChartPdf: scenarioData.printablePatientChartPdf,
       scenarioImage: scenarioData.scenarioImage,
-      realClinical: scenarioData.realClinical,
-      hsRealClinical: scenarioData.hsRealClinical,
-      psRealClinical: scenarioData.psRealClinical,
       // Persist draft/publish status. Default to 'draft' for new scenarios
       // so they are hidden from students until explicitly published.
-      status: scenarioData.status ?? 'draft',
+      status: scenarioData.status ?? SimulationStatus.DRAFT,
     };
 
     this.logger.log(`Creating scenario: ${scenario.id}`);
 
-    await this.jsonDataService.addScenario(scenario);
-    return scenario;
+    await this.simulationRepository.create(scenario, {
+      lockVoiceProfileId: scenario.voiceProfileId,
+    });
+
+    return this.getScenarioById(scenario.id as string);
   }
 
-  async updateScenario(id: string, updates: Partial<Scenario>) {
-    const existingScenario = this.jsonDataService.getScenarioById(id);
-
-    if (!existingScenario) {
+  async updateScenario(id: string, updates: Partial<SimulationV2>) {
+    const sim = await this.simulationRepository.findByBusinessId(id);
+    if (!sim) {
       throw new NotFoundException(`Scenario with ID ${id} not found`);
     }
+    const existingScenario = await this.getScenarioById(id);
 
     this.validateProductSetup(updates, existingScenario);
+    if (updates.voiceProfileId !== undefined) {
+      await this.voiceProfilesService.assertValidForScenarioWrite(updates.voiceProfileId);
+    }
 
     // DEBUG: Log incoming actions to verify typeRequirement field
     if (updates.actions) {
       this.logger.debug('=== UPDATE SCENARIO ACTIONS DEBUG ===');
-      updates.actions.forEach((action: Action, idx: number) => {
+      updates.actions.forEach((action: SimulationAction, idx: number) => {
         this.logger.debug(
           `Incoming action ${idx}: title="${action.title}", typeRequirement="${action.typeRequirement}", isOptional=${action.isOptional}`,
         );
@@ -425,7 +309,8 @@ export class AdminService {
     }
 
     const isDraftSave =
-      (existingScenario.status ?? 'published') === 'draft' || updates.status === 'draft';
+      ((existingScenario.status as SimulationStatus) ?? SimulationStatus.PUBLISHED) ===
+        SimulationStatus.DRAFT || updates.status === SimulationStatus.DRAFT;
 
     if (!isDraftSave && updates.title !== undefined) {
       if (typeof updates.title !== 'string' || !updates.title.trim()) {
@@ -433,12 +318,12 @@ export class AdminService {
       }
 
       const normalizedTitle = updates.title.trim().toLowerCase();
-      const scenarios = this.jsonDataService.getScenarios();
+      const allSimulations = await this.simulationRepository.find();
 
-      const duplicateTitleScenario = scenarios.find(
+      const duplicateTitleScenario = allSimulations.find(
         (s) =>
           s.id !== id &&
-          s.id !== existingScenario.parent_scenario_id &&
+          s.id !== existingScenario.parentScenarioId &&
           s.title?.trim().toLowerCase() === normalizedTitle,
       );
 
@@ -450,26 +335,82 @@ export class AdminService {
     }
 
     if (!isDraftSave && existingScenario.unitId) {
-      const unit = this.jsonDataService.getUnitById(existingScenario.unitId);
+      const unit = await this.unitRepository.findByBusinessId(existingScenario.unitId);
       if (!unit) {
         throw new NotFoundException(`Unit with ID ${existingScenario.unitId} not found`);
       }
     }
 
-    // Apply updates
-    const updatedData = {
+    // Deep merge for nested objects — preserves the original blob-era updateScenario semantics.
+    const mergedUpdates: Partial<SimulationV2> = {
       ...updates,
-      // disabled: false, // ✔ Always enable scenario after purchase
+      studentBriefing: updates.studentBriefing
+        ? { ...existingScenario.studentBriefing, ...updates.studentBriefing }
+        : updates.studentBriefing,
+      sbar: updates.sbar ? { ...existingScenario.sbar, ...updates.sbar } : updates.sbar,
+      patientData: updates.patientData
+        ? {
+            ...existingScenario.patientData,
+            ...updates.patientData,
+            vitals: updates.patientData.vitals
+              ? { ...existingScenario.patientData?.vitals, ...updates.patientData.vitals }
+              : existingScenario.patientData?.vitals,
+            socialHistory: updates.patientData.socialHistory
+              ? {
+                  ...existingScenario.patientData?.socialHistory,
+                  ...updates.patientData.socialHistory,
+                }
+              : existingScenario.patientData?.socialHistory,
+          }
+        : updates.patientData,
+      aiPatientData: updates.aiPatientData
+        ? { ...existingScenario.aiPatientData, ...updates.aiPatientData }
+        : updates.aiPatientData,
+      grading: updates.grading
+        ? {
+            ...existingScenario.grading,
+            ...updates.grading,
+            components: updates.grading.components
+              ? { ...existingScenario.grading?.components, ...updates.grading.components }
+              : existingScenario.grading?.components,
+          }
+        : updates.grading,
+      productSetup: updates.productSetup
+        ? { ...existingScenario.productSetup, ...updates.productSetup }
+        : updates.productSetup,
+      expectedActions: updates.expectedActions
+        ? { ...existingScenario.expectedActions, ...updates.expectedActions }
+        : updates.expectedActions,
     };
 
-    await this.jsonDataService.updateScenario(id, updatedData);
+    await this.simulationRepository.updateById(sim.simulationId, mergedUpdates, {
+      lockVoiceProfileId: mergedUpdates.voiceProfileId,
+    });
 
-    const savedScenario = this.jsonDataService.getScenarioById(id);
+    const savedScenario = await this.getScenarioById(id);
+    if (savedScenario) {
+      const aiRelevantChanged =
+        existingScenario.avatarEnabled !== savedScenario.avatarEnabled ||
+        existingScenario.department !== savedScenario.department ||
+        existingScenario.unitId !== savedScenario.unitId;
+
+      if (aiRelevantChanged && this.classSimulationService) {
+        try {
+          await this.classSimulationService.recalculateSeatsForSimulationChange(id);
+        } catch (err) {
+          this.logger.error(
+            `[updateScenario] seat recalc failed for scenario ${id}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+    }
 
     // DEBUG: Log saved actions to verify typeRequirement field was persisted
-    if (savedScenario?.actions) {
+    if (savedScenario.actions) {
       this.logger.debug('=== SAVED SCENARIO ACTIONS DEBUG ===');
-      savedScenario.actions.forEach((action: Action, idx: number) => {
+      savedScenario.actions.forEach((action: SimulationAction, idx: number) => {
         this.logger.debug(
           `Saved action ${idx}: title="${action.title}", typeRequirement="${action.typeRequirement}", isOptional=${action.isOptional}`,
         );
@@ -484,12 +425,15 @@ export class AdminService {
     if (typeof id !== 'string' || !id.trim()) {
       throw new BadRequestException('Scenario ID is required');
     }
-    const scenario = this.jsonDataService.getScenarioById(id);
-    if (!scenario) {
+    const sim = await this.simulationRepository.findByBusinessId(id);
+    if (!sim) {
       throw new NotFoundException(`Scenario with ID ${id} not found`);
     }
 
-    await this.jsonDataService.deleteScenario(id);
+    // Hard delete — child tables (actions/orders/order links/rubric items)
+    // CASCADE off simulation_id, matching the old blob delete's semantics
+    // (fully and immediately gone), rather than a soft delete.
+    await this.simulationRepository.delete(sim.simulationId);
     return { message: `Scenario with ID ${id} deleted successfully` };
   }
 
@@ -501,80 +445,98 @@ export class AdminService {
    *
    * Draft ID format: `${parentId}-draft`
    */
-  async createDraftVersion(parentId: string, data: Partial<Scenario>) {
-    const parent = this.jsonDataService.getScenarioById(parentId);
-    if (!parent) {
+  async createDraftVersion(parentId: string, data: Partial<SimulationV2>) {
+    const parentSim = await this.simulationRepository.findByBusinessId(parentId);
+    if (!parentSim) {
       throw new NotFoundException(`Scenario with ID ${parentId} not found`);
     }
-    if ((parent.status ?? 'published') !== 'published') {
+    const parent = await this.getScenarioById(parentId);
+    if (
+      ((parent.status as SimulationStatus) ?? SimulationStatus.PUBLISHED) !==
+      SimulationStatus.PUBLISHED
+    ) {
       throw new BadRequestException(
-        `Only published scenarios can be forked into a draft version (scenario ${parentId} has status "${parent.status ?? 'published'}")`,
+        `Only published scenarios can be forked into a draft version (scenario ${parentId} has status "${parent.status ?? SimulationStatus.PUBLISHED}")`,
       );
     }
 
     const draftId = `${parentId}-draft`;
-    const existingDraft = this.jsonDataService.getScenarioById(draftId);
+    const existingDraftSim =
+      await this.simulationRepository.findByBusinessIdWithChildrenJoined(draftId);
 
-    if (existingDraft) {
+    if (existingDraftSim) {
       // Reuse the existing draft — update it in place.
-      const updates: Partial<Scenario> = {
+      const existingDraft = await this.getScenarioById(draftId);
+      const updates: Partial<SimulationV2> = {
         ...data,
         id: draftId,
-        status: 'draft',
-        parent_scenario_id: parentId,
-        version_number: existingDraft.version_number ?? (parent.version_number ?? 1) + 1,
+        status: SimulationStatus.DRAFT,
+        parentScenarioId: parentId,
+        versionNumber: existingDraft.versionNumber ?? (parent.versionNumber ?? 1) + 1,
       };
-      await this.jsonDataService.updateScenario(draftId, updates);
-      return this.jsonDataService.getScenarioById(draftId);
+      await this.updateScenario(draftId, updates);
+      return this.getScenarioById(draftId);
     }
 
     // Create a fresh draft version linked to the parent.
     // Strip the original id from `data` so we use the derived draftId.
 
-    const { id: _ignored, ...dataWithoutId } = data as Partial<Scenario> & { id?: string };
+    const { id: _ignored, ...dataWithoutId } = data as Partial<SimulationV2> & { id?: string };
 
-    const draft: Scenario = {
+    // `parent.orders` is the frontend-facing OrderDefinition[] shape (see
+    // getScenarioById) — SimulationV2Repository.create() normalizes it back
+    // to real SimulationOrder fields before persisting (see
+    // fromOrderDefinitions in order-definition.util.ts), so it's safe to
+    // pass through as-is.
+    const draft: Partial<SimulationV2> = {
       ...parent,
       ...dataWithoutId,
+      grading: (dataWithoutId.grading
+        ? { ...data.grading, rubric: undefined }
+        : undefined) as unknown as ISimulationGrading,
       id: draftId,
-      status: 'draft',
-      parent_scenario_id: parentId,
-      version_number: (parent.version_number ?? 1) + 1,
+      status: SimulationStatus.DRAFT,
+      parentScenarioId: parentId,
+      versionNumber: (parent.versionNumber ?? 1) + 1,
+      gradingRubricItems: dataWithoutId.grading?.rubric as unknown as SimulationGradingRubricItem[],
+      orders: dataWithoutId.orders ?? (parent.orders as unknown as SimulationOrder[] | undefined),
+      simulationId: undefined,
     };
 
+    // Same check createScenario/updateScenario run: the body can carry any voiceProfileId.
+    await this.voiceProfilesService.assertValidForScenarioWrite(draft.voiceProfileId);
+
     this.logger.log(`Creating draft version "${draftId}" forked from published "${parentId}"`);
-    await this.jsonDataService.addScenario(draft);
-    return draft;
+
+    await this.simulationRepository.create(draft, { lockVoiceProfileId: draft.voiceProfileId });
+    return this.getScenarioById(draftId);
   }
 
   /**
    * Promotes a draft version to published.
    * - Merges the draft's content into the original parent scenario (keeps the original ID).
-   * - Deletes the draft blob entirely — no orphaned records.
-   *
-   * Result:
-   *   en/scenario/{parentId}.json  → status: "published"  (updated with draft content)
-   *   en/scenario/{draftId}.json   → DELETED
+   * - Deletes the draft row entirely — no orphaned records.
    */
-  async publishDraftVersion(draftId: string, data: Partial<Scenario>) {
-    const draft = this.jsonDataService.getScenarioById(draftId);
-    if (!draft) {
+  async publishDraftVersion(draftId: string, data: Partial<SimulationV2>) {
+    const draftSim = await this.simulationRepository.findByBusinessId(draftId);
+    if (!draftSim) {
       throw new NotFoundException(`Draft scenario with ID "${draftId}" not found`);
     }
-    if (draft.status !== 'draft') {
+    const draft = await this.getScenarioById(draftId);
+    if (draft.status !== SimulationStatus.DRAFT) {
       throw new BadRequestException(
-        `Scenario "${draftId}" is not a draft (status: "${draft.status ?? 'published'}")`,
+        `Scenario "${draftId}" is not a draft (status: "${draft.status ?? SimulationStatus.PUBLISHED}")`,
       );
     }
-    if (!draft.parent_scenario_id) {
+    if (!draft.parentScenarioId) {
       throw new BadRequestException(
         `Scenario "${draftId}" has no parent_scenario_id — use the standard publish flow instead`,
       );
     }
 
-    const parentId = draft.parent_scenario_id;
-    const parent = this.jsonDataService.getScenarioById(parentId);
-    if (!parent) {
+    const parentId = draft.parentScenarioId;
+    const parentSim = await this.simulationRepository.findByBusinessIdWithChildrenJoined(parentId);
+    if (!parentSim) {
       throw new NotFoundException(`Parent scenario "${parentId}" not found`);
     }
 
@@ -586,83 +548,96 @@ export class AdminService {
 
     this.validateProductSetup(data, draft);
 
+    // `draft.orders` is the frontend-facing OrderDefinition[] shape (see
+    // getScenarioById) — SimulationV2Repository.updateById() normalizes it
+    // back to real SimulationOrder fields before persisting (see
+    // fromOrderDefinitions in order-definition.util.ts), so it's safe to
+    // pass through as-is when merged onto the parent below.
+
     // Merge draft content (plus any last-minute edits from `data`) onto the
     // parent record, keeping the original ID and setting status = 'published'.
     // Strip versioning meta fields so the parent stays clean.
-
     const {
       id: _id,
-      parent_scenario_id: _pid,
-      version_number: _vn,
+      parentScenarioId: _pid,
+      versionNumber: _vn,
       status: _st,
       ...draftContent
     } = {
       ...draft,
       ...data,
-    } as Scenario & { id: string };
+    } as SimulationV2 & { id: string };
 
-    await this.jsonDataService.updateScenario(parentId, {
+    await this.updateScenario(parentId, {
       ...draftContent,
-      id: parentId,
-      status: 'published',
-      parent_scenario_id: undefined,
-      version_number: undefined,
+      parentScenarioId: null,
+      versionNumber: undefined,
+      status: SimulationStatus.PUBLISHED,
     });
-
-    // Delete the draft blob — no duplicate records remain.
-    this.logger.log(`Deleting draft blob "${draftId}" after promoting to parent "${parentId}"`);
-    await this.jsonDataService.deleteScenario(draftId);
+    this.logger.log(`Deleting draft "${draftId}" after promoting to parent "${parentId}"`);
+    await this.simulationRepository.delete(draftSim.simulationId);
 
     this.logger.log(`Draft "${draftId}" content merged into "${parentId}" and published`);
-    return this.jsonDataService.getScenarioById(parentId);
+    return this.getScenarioById(parentId);
   }
 
   // Unit Management
-  getAllUnits() {
-    const units = this.jsonDataService.getUnits();
-    return units.map((unit) => {
-      const scenarios = this.jsonDataService.getScenariosByUnitId(unit.id);
-      const legacyCategory = unit.category;
-      const resolvedCategories =
-        unit.categories && unit.categories.length > 0
-          ? unit.categories
-          : legacyCategory
-            ? [legacyCategory]
-            : ['AI Only'];
-      const resolvedCategory = legacyCategory ?? resolvedCategories[0];
-      return {
-        ...unit,
-        category: resolvedCategory,
-        categories: resolvedCategories,
-        scenarioCount: scenarios.length,
-        completedCount: unit.completedCount ?? 0,
-      };
+  // NOTE: the `units` table (src/database/entities/unit.entity.ts) only has a single
+  // `category` column, not the `categories: string[]` array this admin editor was built
+  // against. Only the first resolved category is persisted; `categories` below is derived
+  // by wrapping that single value back into an array for API-shape compatibility. Real
+  // multi-category support would need a schema change (e.g. a `categories jsonb` column).
+  async getAllUnits() {
+    const entities = await this.unitRepository.find({
+      order: { name: 'ASC' },
     });
+    return Promise.all(
+      entities.map(async (entity) => {
+        const unit = this.mapUnitEntityToUnit(entity);
+        const simulations = await this.simulationRepository.findByUnitId(unit.id);
+        const legacyCategory = unit.category;
+        const resolvedCategories =
+          unit.categories && unit.categories.length > 0
+            ? unit.categories
+            : legacyCategory
+              ? [legacyCategory]
+              : [UnitCategory.AI_ONLY];
+        const resolvedCategory = legacyCategory ?? resolvedCategories[0];
+        return {
+          ...unit,
+          category: resolvedCategory,
+          categories: resolvedCategories,
+          scenarioCount: simulations.length,
+          completedCount: unit.completedCount ?? 0,
+        };
+      }),
+    );
   }
 
-  getUnitById(id: string) {
-    const unit = this.jsonDataService.getUnitById(id);
-    if (!unit) {
+  async getUnitById(id: string) {
+    const entity = await this.unitRepository.findByBusinessId(id);
+    if (!entity) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
-    const scenarios = this.jsonDataService.getScenariosByUnitId(id);
+    const unit = this.mapUnitEntityToUnit(entity);
+    const simulations = await this.simulationRepository.findByUnitId(id);
     const legacyCategory = unit.category;
     const resolvedCategories =
       unit.categories && unit.categories.length > 0
         ? unit.categories
         : legacyCategory
           ? [legacyCategory]
-          : ['AI Only'];
+          : [UnitCategory.AI_ONLY];
     const resolvedCategory = legacyCategory ?? resolvedCategories[0];
     return {
       ...unit,
       category: resolvedCategory,
       categories: resolvedCategories,
-      scenarioCount: scenarios.length,
+      scenarioCount: simulations.length,
     };
   }
 
-  createUnit(unitData: Partial<Unit>) {
+  async createUnit(unitData: Partial<Unit>) {
     // Validate required ID
     if (!unitData.id?.trim()) {
       throw new BadRequestException('Unit ID is required');
@@ -674,7 +649,7 @@ export class AdminService {
     }
 
     // Check if ID already exists
-    const existingUnit = this.jsonDataService.getUnitById(unitData.id);
+    const existingUnit = await this.unitRepository.findByBusinessId(unitData.id);
     if (existingUnit) {
       throw new BadRequestException(`Unit with ID ${unitData.id} already exists`);
     }
@@ -704,24 +679,23 @@ export class AdminService {
     }
 
     // Check if name already exists (case-insensitive)
-    const normalizedName = unitData.name.trim().toLowerCase();
-    const allUnits = this.jsonDataService.getUnits();
-    const unitWithSameName = allUnits.find((u) => u.name?.trim().toLowerCase() === normalizedName);
+    const unitWithSameName = await this.unitRepository.findUniqueByName(unitData.name);
     if (unitWithSameName) {
       throw new BadRequestException(
         `Unit with name "${unitData.name}" already exists. Unit name must be unique.`,
       );
     }
 
-    // Validate and resolve categories (default to ['AI Only'] if not provided)
+    // Validate and resolve categories (default to [UnitCategory.AI_ONLY] if not provided)
     const resolvedCategories: string[] =
-      unitData.categories && unitData.categories.length > 0 ? unitData.categories : ['AI Only'];
+      unitData.categories && unitData.categories.length > 0
+        ? unitData.categories
+        : [UnitCategory.AI_ONLY];
 
-    const validCategoryOptions = ['AI Only', 'Manikins', 'Trainers'];
-    const invalidCats = resolvedCategories.filter((c) => !validCategoryOptions.includes(c));
+    const invalidCats = resolvedCategories.filter((c) => !VALID_UNIT_CATEGORIES.includes(c));
     if (invalidCats.length > 0) {
       throw new BadRequestException(
-        `Invalid categories: ${invalidCats.join(', ')}. Valid options are: ${validCategoryOptions.join(', ')}.`,
+        `Invalid categories: ${invalidCats.join(', ')}. Valid options are: ${VALID_UNIT_CATEGORIES.join(', ')}.`,
       );
     }
 
@@ -736,12 +710,21 @@ export class AdminService {
       actionGroupDescription: unitData.actionGroupDescription ?? '',
     };
 
-    this.jsonDataService.addUnit(unit);
+    await this.unitRepository.create({
+      id: unit.id,
+      name: unit.name,
+      imageUrl: unit.imageUrl,
+      category: resolvedCategories[0] as UnitCategory,
+      actions: unit.actions,
+      actionGroupName: unit.actionGroupName,
+      actionGroupDescription: unit.actionGroupDescription,
+    });
+
     return unit;
   }
 
-  updateUnit(id: string, updates: Partial<Unit>) {
-    const existingUnit = this.jsonDataService.getUnitById(id);
+  async updateUnit(id: string, updates: Partial<Unit>) {
+    const existingUnit = await this.unitRepository.findByBusinessId(id);
     if (!existingUnit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
@@ -763,12 +746,9 @@ export class AdminService {
         throw new BadRequestException('Unit name can only contain letters, numbers, and spaces.');
       }
 
-      const normalizedName = updates.name.trim().toLowerCase();
-      const allUnits = this.jsonDataService.getUnits();
-      const unitWithSameName = allUnits.find(
-        (u) => u.id !== id && u.name?.trim().toLowerCase() === normalizedName,
-      );
-      if (unitWithSameName) {
+      // Check if name already exists (case-insensitive)
+      const unitWithSameName = await this.unitRepository.findUniqueByName(updates.name);
+      if (unitWithSameName && unitWithSameName.id !== id) {
         throw new BadRequestException(
           `Unit with name "${updates.name}" already exists. Unit name must be unique.`,
         );
@@ -780,135 +760,85 @@ export class AdminService {
       if (updates.categories.length === 0) {
         throw new BadRequestException('At least one category is required');
       }
-      const validCategoryOptions = ['AI Only', 'Manikins', 'Trainers'];
-      const invalidCats = updates.categories.filter((c) => !validCategoryOptions.includes(c));
+      const invalidCats = updates.categories.filter((c) => !VALID_UNIT_CATEGORIES.includes(c));
       if (invalidCats.length > 0) {
         throw new BadRequestException(
-          `Invalid categories: ${invalidCats.join(', ')}. Valid options are: ${validCategoryOptions.join(', ')}.`,
+          `Invalid categories: ${invalidCats.join(', ')}. Valid options are: ${VALID_UNIT_CATEGORIES.join(', ')}.`,
         );
       }
     }
 
-    this.jsonDataService.updateUnit(id, updates);
-    const saved = this.jsonDataService.getUnitById(id);
-    if (!saved) {
+    const dbUpdates: DeepPartial<UnitEntity> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.imageUrl !== undefined) dbUpdates.imageUrl = updates.imageUrl;
+    if (updates.actionGroupName !== undefined) dbUpdates.actionGroupName = updates.actionGroupName;
+    if (updates.actionGroupDescription !== undefined)
+      dbUpdates.actionGroupDescription = updates.actionGroupDescription;
+    if (updates.actions !== undefined) dbUpdates.actions = updates.actions;
+    if (updates.categories !== undefined)
+      dbUpdates.category = updates.categories[0] as UnitCategory;
+    else if (updates.category !== undefined) dbUpdates.category = updates.category as UnitCategory;
+
+    await this.unitRepository.update({ id }, dbUpdates);
+
+    const savedEntity = await this.unitRepository.findByBusinessId(id);
+    if (!savedEntity) {
       throw new NotFoundException(`Unit with ID ${id} not found after update`);
     }
-    return { ...saved, categories: saved.categories ?? ['AI Only'] };
+
+    if (existingUnit.category !== savedEntity.category && this.classSimulationService) {
+      try {
+        await this.classSimulationService.recalculateSeatsForUnitCategoryChange(id);
+      } catch (err) {
+        this.logger.error(
+          `[updateUnit] seat recalc failed for unit ${id}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
+    }
+
+    const saved = this.mapUnitEntityToUnit(savedEntity);
+    return { ...saved, categories: saved.categories ?? [UnitCategory.AI_ONLY] };
   }
 
-  deleteUnit(id: string) {
-    const unit = this.jsonDataService.getUnitById(id);
+  async deleteUnit(id: string) {
+    const unit = await this.unitRepository.findByBusinessId(id);
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
     // Check if unit has scenarios
-    const scenarios = this.jsonDataService.getScenariosByUnitId(id);
-    if (scenarios.length > 0) {
+    const simulations = await this.simulationRepository.findByUnitId(id);
+    if (simulations.length > 0) {
       throw new BadRequestException(
-        `Cannot delete unit ${id}. It has ${scenarios.length} scenario(s) associated with it. Please delete or reassign scenarios first.`,
+        `Cannot delete unit ${id}. It has ${simulations.length} scenario(s) associated with it. Please delete or reassign scenarios first.`,
       );
     }
 
-    this.jsonDataService.deleteUnit(id);
+    await this.unitRepository.softDelete(unit.unitId);
     return { message: `Unit with ID ${id} deleted successfully` };
   }
 
-  async getReportById(id: string) {
-    const report = await this.jsonDataService.getReportByIdFresh(id);
+  async getReportById(id: string): Promise<ReportDetail> {
+    const row = await this.simulationReportRepository.findDetailRowByReportId(id);
 
-    if (!report) {
+    if (!row) {
       throw new NotFoundException(`Report with ID ${id} not found`);
     }
 
-    return report;
+    return mapRowToReportDetail(row);
   }
 
-  // Action Category Management
-  getScenarioCategories(scenarioId: string) {
-    const scenario = this.jsonDataService.getScenarioById(scenarioId);
+  // -----------------------------------------------------------------------
+  // Action Category Management — read-only. Categories are read from the simulation row's
+  // `actionCategories`; there is no dedicated table, and create/update/delete were retired.
+  // -----------------------------------------------------------------------
+  async getScenarioCategories(scenarioId: string) {
+    const scenario = await this.simulationRepository.findOne({ where: { id: scenarioId } });
     if (!scenario) {
       throw new NotFoundException(`Scenario with ID ${scenarioId} not found`);
     }
-    return this.jsonDataService.getActionCategories(scenarioId);
-  }
-
-  async createCategory(
-    scenarioId: string,
-    data: { name: string; description?: string; color?: string },
-  ) {
-    const scenario = this.jsonDataService.getScenarioById(scenarioId);
-    if (!scenario) {
-      throw new NotFoundException(`Scenario with ID ${scenarioId} not found`);
-    }
-
-    if (!data.name?.trim()) {
-      throw new BadRequestException('Category name is required');
-    }
-
-    try {
-      return await this.jsonDataService.createActionCategory(scenarioId, data);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('already exists')) {
-        throw new BadRequestException(message);
-      }
-      throw error;
-    }
-  }
-
-  async updateCategory(
-    scenarioId: string,
-    categoryId: string,
-    updates: { name?: string; description?: string; color?: string },
-  ) {
-    const scenario = this.jsonDataService.getScenarioById(scenarioId);
-    if (!scenario) {
-      throw new NotFoundException(`Scenario with ID ${scenarioId} not found`);
-    }
-
-    if (updates.name !== undefined && !updates.name.trim()) {
-      throw new BadRequestException('Category name cannot be empty');
-    }
-
-    try {
-      return await this.jsonDataService.updateActionCategory(scenarioId, categoryId, updates);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('already exists')) {
-        throw new BadRequestException(message);
-      }
-      if (message.includes('not found')) {
-        throw new NotFoundException(message);
-      }
-      if (message.includes('Cannot modify')) {
-        throw new BadRequestException(message);
-      }
-      throw error;
-    }
-  }
-
-  async deleteCategory(scenarioId: string, categoryId: string) {
-    const scenario = this.jsonDataService.getScenarioById(scenarioId);
-    if (!scenario) {
-      throw new NotFoundException(`Scenario with ID ${scenarioId} not found`);
-    }
-
-    try {
-      await this.jsonDataService.deleteActionCategory(scenarioId, categoryId);
-      return {
-        message: `Category deleted successfully. Actions reassigned to Uncategorized.`,
-      };
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('not found')) {
-        throw new NotFoundException(message);
-      }
-      if (message.includes('Cannot delete')) {
-        throw new BadRequestException(message);
-      }
-      throw error;
-    }
+    return (scenario?.['actionCategories'] ?? []) as unknown as string[];
   }
 }

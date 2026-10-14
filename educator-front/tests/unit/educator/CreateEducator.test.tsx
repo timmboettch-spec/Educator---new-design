@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { vi, describe, it, expect, beforeAll } from 'vitest';
 import { Provider } from 'react-redux';
 
@@ -9,7 +15,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { MemoryRouter } from 'react-router-dom';
 
 import Educators from '../../../src/pages/educator/index';
-import { RootState } from '@/store';
+import { type RootState } from '@/store';
 import type { School } from '../../../src/redux/schools/GetSchoolsRedux';
 
 type DispatchAction = { type?: string; unwrap?: () => Promise<unknown> };
@@ -22,7 +28,8 @@ const mockDispatch = vi.fn((action: DispatchAction) => {
 });
 
 vi.mock('react-redux', async () => {
-  const actual = await vi.importActual<typeof import('react-redux')>('react-redux');
+  const actual =
+    await vi.importActual<typeof import('react-redux')>('react-redux');
 
   return {
     ...actual,
@@ -31,6 +38,7 @@ vi.mock('react-redux', async () => {
 });
 
 vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
+  default: (state = {}, _action?: unknown) => state,
   GetEducatorByUserRequest: vi.fn(() => ({
     type: 'educator/getByUser',
     unwrap: () => Promise.resolve(),
@@ -49,10 +57,12 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   },
   selectGetEducatorStatus: (s: RootState) => s.GetEducator?.status ?? 'idle',
   selectGetEducatorError: (s: RootState) => s.GetEducator?.error ?? null,
-  selectGetEducatorResponse: (s: RootState) => s.GetEducator?.responseGetEducator ?? null,
+  selectGetEducatorResponse: (s: RootState) =>
+    s.GetEducator?.responseGetEducator ?? null,
 }));
 
 vi.mock('../../../src/redux/educator/UpdateEducatorRedux', () => ({
+  default: (state = {}, _action?: unknown) => state,
   UpdateEducatorRequest: vi.fn(() => ({
     type: 'educator/update',
     unwrap: () => Promise.resolve(),
@@ -60,6 +70,7 @@ vi.mock('../../../src/redux/educator/UpdateEducatorRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/educator/CreateEducatorRedux', () => ({
+  default: (state = {}, _action?: unknown) => state,
   InviteEducatorRequest: vi.fn(() => ({
     type: 'educator/invite',
     unwrap: () => Promise.resolve(),
@@ -67,6 +78,7 @@ vi.mock('../../../src/redux/educator/CreateEducatorRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/educator/DeleteEducatorRedux', () => ({
+  default: (state = {}, _action?: unknown) => state,
   DeleteEducatorRequest: vi.fn(() => ({
     type: 'educator/delete',
     unwrap: () => Promise.resolve(),
@@ -74,7 +86,8 @@ vi.mock('../../../src/redux/educator/DeleteEducatorRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({
     type: 'schools/get',
     unwrap: () => Promise.resolve(),
@@ -96,7 +109,12 @@ vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -174,13 +192,15 @@ const renderPage = (overrides: Partial<RootState> = {}) =>
       <MemoryRouter>
         <Educators />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 
 const openCreateModal = async (overrides: Partial<RootState> = {}) => {
   renderPage(overrides);
 
-  const addButton = await screen.findByRole('button', { name: /Add Educator/i });
+  const addButton = await screen.findByRole('button', {
+    name: /Add Educator/i,
+  });
 
   await act(async () => {
     fireEvent.click(addButton);
@@ -192,7 +212,9 @@ const selectSchool = async (schoolName: string) => {
   const allMatches = await screen.findAllByText(schoolName);
 
   const dropdownOption = allMatches.find(
-    (el) => el.className.includes('cursor-pointer') || el.className.includes('hover:bg-orange-50'),
+    (el) =>
+      el.className.includes('cursor-pointer') ||
+      el.className.includes('hover:bg-orange-50')
   );
 
   expect(dropdownOption).toBeTruthy();
@@ -215,7 +237,7 @@ describe('Create Educator', () => {
     expect(
       await screen.findByRole('heading', {
         name: 'Create Educator',
-      }),
+      })
     ).toBeInTheDocument();
   });
 
@@ -265,7 +287,7 @@ describe('Create Educator', () => {
       expect(mockDispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           type: 'educator/invite',
-        }),
+        })
       );
     });
   });
@@ -293,7 +315,8 @@ describe('Create Educator', () => {
     });
 
     const phoneInput =
-      screen.queryByPlaceholderText(/phone/i) || screen.queryByPlaceholderText(/mobile/i);
+      screen.queryByPlaceholderText(/phone/i) ||
+      screen.queryByPlaceholderText(/mobile/i);
 
     if (phoneInput) {
       fireEvent.change(phoneInput, {
@@ -329,7 +352,7 @@ describe('Create Educator', () => {
       expect(
         screen.getByRole('heading', {
           name: 'Create Educator',
-        }),
+        })
       ).toBeInTheDocument();
     });
   });
@@ -338,7 +361,7 @@ describe('Create Educator', () => {
     renderPage();
 
     expect(
-      await screen.findByRole('button', { name: /Add Educator/i }),
+      await screen.findByRole('button', { name: /Add Educator/i })
     ).toBeInTheDocument();
   });
 
@@ -346,7 +369,8 @@ describe('Create Educator', () => {
     const { toast } = await import('../../../src/components/common/Toast');
 
     mockDispatch.mockReturnValue({
-      unwrap: () => Promise.resolve({ message: 'Educator invited successfully' }),
+      unwrap: () =>
+        Promise.resolve({ message: 'Educator invited successfully' }),
     });
 
     await openCreateModal();
@@ -386,12 +410,14 @@ describe('Create Educator', () => {
     });
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Educator invited successfully');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Educator invited successfully'
+      );
     });
 
     await waitFor(() => {
       expect(
-        screen.queryByRole('heading', { name: 'Create Educator' }),
+        screen.queryByRole('heading', { name: 'Create Educator' })
       ).not.toBeInTheDocument();
     });
   });
@@ -401,7 +427,9 @@ describe('Create Educator', () => {
 
     mockDispatch.mockImplementation((action: DispatchAction) => {
       if (action?.type === 'educator/invite') {
-        return { unwrap: () => Promise.reject({ message: 'Something went wrong' }) };
+        return {
+          unwrap: () => Promise.reject({ message: 'Something went wrong' }),
+        };
       }
       return { unwrap: () => Promise.resolve() };
     });
@@ -450,7 +478,7 @@ describe('Create Educator', () => {
 
     await waitFor(() => {
       expect(
-        screen.queryByRole('heading', { name: 'Create Educator' }),
+        screen.queryByRole('heading', { name: 'Create Educator' })
       ).not.toBeInTheDocument();
     });
   });

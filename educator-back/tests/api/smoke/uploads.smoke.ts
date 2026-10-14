@@ -47,9 +47,7 @@ describe('Smoke — Uploads', () => {
     const token = smokeState.accessToken;
     if (!token) return;
 
-    const res = await agent
-      .get(ENDPOINTS.UPLOADS.BASE)
-      .set('Authorization', `Bearer ${token}`);
+    const res = await agent.get(ENDPOINTS.UPLOADS.BASE).set('Authorization', `Bearer ${token}`);
     // Upload base may not be a GET endpoint — any response is acceptable
     expect(res.status).toBeGreaterThanOrEqual(200);
     expect(res.status).toBeLessThan(600);

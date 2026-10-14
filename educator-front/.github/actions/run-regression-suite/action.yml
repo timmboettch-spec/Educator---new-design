@@ -1,4 +1,4 @@
-name: "run-regression-suite"
+name: 'run-regression-suite'
 description: >-
   Aggregated Playwright regression test: Node setup + npm ci + Playwright
   browser install + wait-for-URL + run the test:e2e:regression suite against
@@ -36,9 +36,30 @@ runs:
       shell: bash
       run: npm ci
 
-    - name: Install Playwright browsers
+    # Realityworks-AI/Global-Standards-Policy does not exist, which made
+    # every Smoke/Regression Tests job fail at "Getting action download
+    # info" before any test ran. Cache the browser binary in-repo with
+    # actions/cache instead of relying on an org-wide action.
+    - name: Cache Playwright browsers
+      id: playwright-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+    - name: Install Playwright browser (cache miss)
+      if: steps.playwright-cache.outputs.cache-hit != 'true'
       shell: bash
       run: npx playwright install --with-deps chromium
+
+    # OS-level apt packages (libnss3, etc.) aren't part of the cached
+    # binary path and aren't persisted across runs on the ephemeral
+    # runner, so this still needs to run on a cache hit. apt skips
+    # already-installed packages, so this is a fast no-op otherwise.
+    - name: Install Playwright OS dependencies (cache hit)
+      if: steps.playwright-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: npx playwright install-deps chromium
 
     - name: Wait for frontend to respond
       shell: bash
@@ -64,5 +85,6 @@ runs:
         name: ${{ inputs.artifact-name }}
         path: |
           tests/e2e/reports/
+          tests/e2e/results/reports/html/
           tests/e2e/test-results/
         retention-days: 7

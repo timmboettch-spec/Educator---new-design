@@ -1,4 +1,8 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -28,7 +32,7 @@ export const DeleteEducatorRequest = createAsyncThunk<
   { rejectValue: { message: string } }
 >('educator/delete', async (id, thunkAPI) => {
   try {
-   const res = await api.delete(`${config.DeleteEducatorAPI}/${id}`);
+    const res = await api.delete(`${config.DeleteEducatorAPI}/${id}`);
     return { id, ...res.data };
   } catch (err: unknown) {
     const error = err as {
@@ -81,8 +85,14 @@ const selectState = (state: RootState) => state.DeleteEducator;
 
 export const selectDeleteEducatorResponse = createSelector(
   selectState,
-  (state) => state.responseDeleteEducator,
+  (state) => state.responseDeleteEducator
 );
 
-export const selectDeleteEducatorStatus = createSelector(selectState, (state) => state.status);
-export const selectDeleteEducatorError = createSelector(selectState, (state) => state.error);
+export const selectDeleteEducatorStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectDeleteEducatorError = createSelector(
+  selectState,
+  (state) => state.error
+);

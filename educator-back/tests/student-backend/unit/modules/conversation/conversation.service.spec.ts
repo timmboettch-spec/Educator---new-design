@@ -1,23 +1,20 @@
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { ConversationService } from '@/modules/conversation/conversation.service';
-import { ConversationProviderFactory } from '@/modules/conversation/providers/provider.factory';
-import { JsonDataService } from '@/data/json-data.service';
-import type { ConversationProvider } from '@/modules/conversation/providers/conversation-provider.interface';
+import { AIResponseProvider } from '@/modules/conversation/providers/ai.provider';
+import { LoggerService } from 'src/common/services';
+import { SIMULATION_V2_REPOSITORY } from 'src/database/tokens';
 
 describe('ConversationService - generateResponse', () => {
   let service: ConversationService;
 
-  const mockJsonDataService = {
-    getScenarioById: jest.fn(),
+  const mockSimulationV2Repository = {
+    findByBusinessId: jest.fn(),
   };
 
-  const mockProvider: ConversationProvider = {
+  const mockProvider = {
     generateResponse: jest.fn(),
-  };
-
-  const mockProviderFactory = {
-    createProvider: jest.fn().mockReturnValue(mockProvider),
   };
 
   beforeEach(async () => {
@@ -25,14 +22,28 @@ describe('ConversationService - generateResponse', () => {
       providers: [
         ConversationService,
 
-        // ? IMPORTANT: use CLASS, not string token
         {
-          provide: JsonDataService,
-          useValue: mockJsonDataService,
+          provide: SIMULATION_V2_REPOSITORY,
+          useValue: mockSimulationV2Repository,
         },
         {
-          provide: ConversationProviderFactory,
-          useValue: mockProviderFactory,
+          provide: AIResponseProvider,
+          useValue: mockProvider,
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn() },
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -45,7 +56,7 @@ describe('ConversationService - generateResponse', () => {
   });
 
   it('should return error response when scenario is not found', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue(null);
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue(null);
 
     const result = await service.generateResponse('hello', 'invalid-id');
 
@@ -56,7 +67,7 @@ describe('ConversationService - generateResponse', () => {
   });
 
   it('should return AI response when provider returns valid response', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue({
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue({
       title: 'Test Scenario',
       patientData: {},
       phases: [],
@@ -73,7 +84,7 @@ describe('ConversationService - generateResponse', () => {
   });
 
   it('should fallback to scenario response when AI returns null', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue({
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue({
       title: 'Test Scenario',
       patientData: {},
       phases: [],
@@ -100,7 +111,7 @@ describe('ConversationService - generateResponse', () => {
   });
 
   it('should fallback to common response when scenario response not found', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue({
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue({
       title: 'Test Scenario',
       patientData: {},
       phases: [],
@@ -133,7 +144,7 @@ describe('ConversationService - generateResponse', () => {
   });
 
   it('should fallback to intelligent fallback when no scenario/common response found', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue({
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue({
       title: 'Test Scenario',
       patientData: {},
       phases: [],
@@ -169,7 +180,7 @@ describe('ConversationService - generateResponse', () => {
   });
 
   it('should handle provider error and still fallback', async () => {
-    mockJsonDataService.getScenarioById.mockReturnValue({
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue({
       title: 'Test Scenario',
       patientData: {},
       phases: [],

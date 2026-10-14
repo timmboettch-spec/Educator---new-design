@@ -1,5 +1,10 @@
 export const ReportIcon = () => (
-  <svg viewBox="0 0 40 40" fill="none" className="w-10 h-10" xmlns="http://www.w3.org/2000/svg">
+  <svg
+    viewBox="0 0 40 40"
+    fill="none"
+    className="w-10 h-10"
+    xmlns="http://www.w3.org/2000/svg"
+  >
     <circle cx="20" cy="20" r="20" fill="#FFF3E8" />
     <rect
       x="13"

@@ -1,6 +1,5 @@
-﻿import { Page, expect } from '@playwright/test';
+﻿import { type Page, expect } from '@playwright/test';
 import { schoolLocators } from '../locators/schoolLocators';
-import { commonLocators } from '../locators/commonLocators';
 import { BasePage } from './base/BasePage';
 
 export class SchoolPage extends BasePage {
@@ -15,13 +14,42 @@ export class SchoolPage extends BasePage {
       .first();
   }
 
+  private schoolFormDialog() {
+    return this.page.locator('[role="dialog"]:has(form#school-form)').first();
+  }
+
+  private async openCreateSchoolDialog(): Promise<void> {
+    const addBtn = this.page.locator(schoolLocators.addSchoolButton).first();
+    const isVisible = await addBtn
+      .waitFor({ state: 'visible', timeout: 15000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!isVisible) {
+      await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+      await this.page
+        .waitForLoadState('networkidle', { timeout: 10000 })
+        .catch(() => {});
+      await addBtn.waitFor({ state: 'visible', timeout: 15000 });
+    }
+    await addBtn.evaluate((el) => (el as HTMLElement).click());
+    await this.schoolFormDialog().waitFor({ state: 'visible', timeout: 15000 });
+  }
+
+  private async requestSubmitSchoolForm(): Promise<void> {
+    await this.schoolFormDialog()
+      .locator('#school-form')
+      .evaluate((form) => {
+        (form as HTMLFormElement).requestSubmit();
+      });
+  }
+
   async navigateToSchools(): Promise<void> {
     const currentUrl = this.page.url();
 
     // If already on schools, reload to ensure fresh data (e.g. after a delete).
     if (/school/i.test(currentUrl)) {
       await this.page.reload();
-      await this.waitForLoadState('networkidle');
+      await this.waitForLoadState('networkidle').catch(() => {});
       return;
     }
 
@@ -33,7 +61,9 @@ export class SchoolPage extends BasePage {
     await this.waitForUrl(/school/i, 30000);
     await this.waitForLoadState('load');
     // Brief networkidle wait so React mounts before createSchool clicks Add School
-    await this.page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    await this.page
+      .waitForLoadState('networkidle', { timeout: 5000 })
+      .catch(() => {});
   }
 
   async schoolvalidation(): Promise<void> {
@@ -44,22 +74,51 @@ export class SchoolPage extends BasePage {
   async createSchool(schoolName?: string): Promise<string> {
     const finalName = schoolName ?? `ABC${Math.floor(Math.random() * 100000)}`;
 
-    // JS click reaches React's event handler regardless of any pointer-events overlay
-    await this.page.locator(schoolLocators.addSchoolButton).first()
-      .waitFor({ state: 'visible', timeout: 10000 });
-    await this.page.locator(schoolLocators.addSchoolButton).first()
-      .evaluate(el => (el as HTMLElement).click());
-    await this.waitForVisible(schoolLocators.schoolNameInput);
-    await this.fill(schoolLocators.schoolNameInput, finalName);
-    await this.click(schoolLocators.statusDropdown);
-    await this.page.locator(commonLocators.statusActiveOption).first().click();
-    // Wait for the modal to close — more reliable than networkidle which hangs on websockets
-    const dialog = this.page.locator('[role="dialog"]').first();
-    await this.click(schoolLocators.submitButton);
-    await dialog.waitFor({ state: 'hidden', timeout: 20000 }).catch(() => {});
+    await this.openCreateSchoolDialog();
+    const dialog = this.schoolFormDialog();
+    await dialog.locator('input[name="school_name"]').fill(finalName);
+    // Default Formik status is ACTIVE — no status dropdown interaction (portaled listbox + Escape closes modal).
+
+    // Wait for the POST request itself, not just a response: on the shared
+    // preview a submit has been swallowed (no request, form left as filled), and
+    // a request that fails at the network level never produces a response.
+    const waitForCreateRequest = () =>
+      this.page
+        .waitForRequest(
+          (req) => req.method() === 'POST' && /\/schools\b/i.test(req.url()),
+          { timeout: 15000 }
+        )
+        .catch(() => null);
+    let requestPromise = waitForCreateRequest();
+    await this.requestSubmitSchoolForm();
+    let request = await requestPromise;
+    if (!request) {
+      requestPromise = waitForCreateRequest();
+      await this.requestSubmitSchoolForm();
+      request = await requestPromise;
+    }
+    if (!request) {
+      throw new Error(
+        'Create school form was submitted but no request was sent'
+      );
+    }
+    const response = await request.response();
+    if (!response) {
+      throw new Error(
+        `Create school request failed: ${request.failure()?.errorText ?? 'no response'}`
+      );
+    }
+    if (!response.ok()) {
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `Create school failed (${response.status()}): ${body.slice(0, 300)}`
+      );
+    }
+    await dialog.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
     await this.page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
     await this.page.waitForLoadState('domcontentloaded').catch(() => {});
     // Search by name so pagination does not hide the newly created school
+    await this.waitForListRows();
     const searchBox = this.page.locator('input[placeholder*="Search"]').first();
     if (await searchBox.isVisible({ timeout: 5000 }).catch(() => false)) {
       await searchBox.fill(finalName);
@@ -71,17 +130,15 @@ export class SchoolPage extends BasePage {
   }
 
   async submitCreateSchoolEmptyName(): Promise<void> {
-    await this.page.locator(schoolLocators.addSchoolButton).first()
-      .waitFor({ state: 'visible', timeout: 15000 });
-    await this.page.locator(schoolLocators.addSchoolButton).first()
-      .evaluate(el => (el as HTMLElement).click());
-    await this.waitForVisible(schoolLocators.schoolNameInput, 20000);
-    await this.fill(schoolLocators.schoolNameInput, '');
-    await this.click(schoolLocators.submitButton);
+    await this.openCreateSchoolDialog();
+    const dialog = this.schoolFormDialog();
+    await dialog.locator('input[name="school_name"]').fill('');
+    await this.requestSubmitSchoolForm();
 
-    // Validate that submit is blocked and modal remains open.
     await this.expectTextVisible(/school name.*required|required/i);
-    await this.waitForVisible(schoolLocators.schoolNameInput);
+    await dialog
+      .locator('input[name="school_name"]')
+      .waitFor({ state: 'visible' });
   }
 
   async closeSchoolFormIfOpen(): Promise<void> {
@@ -103,13 +160,20 @@ export class SchoolPage extends BasePage {
 
   async updateSchoolName(oldName: string, newName: string): Promise<void> {
     await this.openSchoolEdit(oldName);
-    await this.fill(schoolLocators.schoolNameInput, newName);
-    await Promise.all([
-      this.page.waitForLoadState('networkidle'),
-      this.click(schoolLocators.submitButton)
-    ]);
+    const dialog = this.schoolFormDialog();
+    await dialog.locator('input[name="school_name"]').fill(newName);
+    const responsePromise = this.page.waitForResponse(
+      (res) =>
+        ['PUT', 'PATCH'].includes(res.request().method()) &&
+        /\/schools\b/i.test(res.url()),
+      { timeout: 60000 }
+    );
+    await this.requestSubmitSchoolForm();
+    await responsePromise.catch(() => null);
+    await dialog.waitFor({ state: 'hidden', timeout: 30000 }).catch(() => {});
 
     // After update the list may re-sort; use the search box to locate the updated name.
+    await this.waitForListRows();
     const searchBox = this.page.locator('input[placeholder*="Search"]').first();
     if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
       await searchBox.fill(newName);
@@ -121,6 +185,7 @@ export class SchoolPage extends BasePage {
 
   async openSchoolEdit(name: string): Promise<void> {
     // Use search to bring the school into view regardless of pagination
+    await this.waitForListRows();
     const searchBox = this.page.locator('input[placeholder*="Search"]').first();
     if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
       await searchBox.fill(name);
@@ -133,20 +198,26 @@ export class SchoolPage extends BasePage {
   }
 
   async submitSchoolEditEmptyName(): Promise<void> {
-    const input = this.page.locator(schoolLocators.schoolNameInput).first();
+    const dialog = this.schoolFormDialog();
+    const input = dialog.locator('input[name="school_name"]');
     await input.waitFor({ state: 'visible' });
-    // fill('') triggers React's onChange so the controlled input registers as empty
     await input.fill('');
     await this.page.waitForTimeout(300);
-    // Click submit directly to avoid waitForOverlayToDisappear blocking inside an open dialog
-    const submitBtn = this.page.locator(schoolLocators.submitButton).first();
-    await submitBtn.waitFor({ state: 'visible' });
-    await submitBtn.click();
+    await this.requestSubmitSchoolForm();
     await this.expectTextVisible(/school name.*required|required/i);
-    await this.waitForVisible(schoolLocators.schoolNameInput);
+    await input.waitFor({ state: 'visible' });
   }
 
   async viewSchool(name: string): Promise<void> {
+    // Search first, as openSchoolEdit does: the list holds 1,000+ schools, and
+    // schoolRow() matches the whole grid, so without narrowing it to this
+    // school the first view icon belongs to whichever school is listed first.
+    await this.waitForListRows();
+    const searchBox = this.page.locator('input[placeholder*="Search"]').first();
+    if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await searchBox.fill(name);
+      await this.page.waitForTimeout(1200); // outlast the 1000ms search debounce
+    }
     const row = this.schoolRow(name);
     await row.waitFor({ state: 'visible', timeout: 30000 });
 
@@ -161,7 +232,10 @@ export class SchoolPage extends BasePage {
     }
   }
 
-  async editSchoolWithValidation(oldName: string, newName: string): Promise<void> {
+  async editSchoolWithValidation(
+    oldName: string,
+    newName: string
+  ): Promise<void> {
     const row = this.schoolRow(oldName);
     await row.waitFor({ state: 'visible', timeout: 30000 });
 
@@ -177,7 +251,7 @@ export class SchoolPage extends BasePage {
     await this.fill(schoolLocators.schoolNameInput, newName);
     await Promise.all([
       this.page.waitForLoadState('networkidle'),
-      this.click(schoolLocators.submitButton)
+      this.click(schoolLocators.submitButton),
     ]);
 
     await this.expectTextVisible(newName);
@@ -185,46 +259,93 @@ export class SchoolPage extends BasePage {
 
   async deleteSchool(name: string): Promise<void> {
     // Use the search box to bring the school to page 1 and wait for debounce.
+    await this.waitForListRows();
     const searchBox = this.page.locator('input[placeholder*="Search"]').first();
     if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
       await searchBox.clear();
       await searchBox.fill(name);
-      await this.page.locator(`span[title="${name}"]`).first()
-        .waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+      await this.page
+        .locator(`span[title="${name}"]`)
+        .first()
+        .waitFor({ state: 'visible', timeout: 8000 })
+        .catch(() => {});
       await this.page.waitForTimeout(1200); // outlast the 1000ms debounce
     }
 
     // Locate the row index via span[title] (only school_name column has this attribute).
     const allSpans = this.page.locator('span[title]');
     const count = await allSpans.count().catch(() => 0);
-    let rowIndex = 0;
+    let rowIndex = -1;
     for (let i = 0; i < count; i++) {
-      const t = await allSpans.nth(i).getAttribute('title').catch(() => '');
-      if (t === name) { rowIndex = i; break; }
+      const t = await allSpans
+        .nth(i)
+        .getAttribute('title')
+        .catch(() => '');
+      if (t === name) {
+        rowIndex = i;
+        break;
+      }
+    }
+    // Never fall back to another row — that would delete a different school
+    // (possibly one a parallel spec depends on).
+    if (rowIndex === -1) {
+      throw new Error(`School "${name}" not found in the list`);
     }
 
-    const deleteTrigger = this.page.locator('button[aria-label="delete"]').nth(rowIndex);
-    const triggerVisible = await deleteTrigger.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+    const deleteTrigger = this.page
+      .locator('button[aria-label="delete"]')
+      .nth(rowIndex);
+    const triggerVisible = await deleteTrigger
+      .waitFor({ state: 'visible', timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
     if (!triggerVisible) {
       throw new Error(`Delete action not visible for school "${name}"`);
     }
 
     await deleteTrigger.click();
 
-    const confirmButton = this.page.getByRole('button', { name: /Yes, Delete|Delete|Confirm/i }).first();
-    // waitFor ensures we catch the confirm button even if it renders slightly after the click.
-    if (await confirmButton.waitFor({ state: 'visible', timeout: 6000 }).then(() => true).catch(() => false)) {
-      await confirmButton.click();
-    }
+    // Scoped to the dialog: page-wide, /Delete/ also matches the rows'
+    // aria-label="delete" trash buttons, which come first in the DOM.
+    const confirmButton = this.page
+      .getByRole('dialog')
+      .getByRole('button', { name: /Yes, Delete|Delete|Confirm/i })
+      .first();
+    await confirmButton.waitFor({ state: 'visible', timeout: 10000 });
+    await confirmButton.click();
 
-    await this.page.getByText(name).first().waitFor({ state: 'hidden', timeout: 30000 });
+    // The shared preview backend can be slow to delete and refetch under
+    // parallel load.
+    await this.page
+      .getByText(name)
+      .first()
+      .waitFor({ state: 'hidden', timeout: 60000 });
   }
 
   async assertSchoolVisible(name: string): Promise<void> {
-    await this.expectTextVisible(name);
+    // Search to scope results — without this, pagination can push the school off the
+    // first page in a dev environment accumulating leftover test data.
+    await this.waitForListRows();
+    const searchBox = this.page.locator('input[placeholder*="Search"]').first();
+    if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await searchBox.clear();
+      await searchBox.fill(name);
+      await this.page.waitForTimeout(1500);
+    }
+    await this.expectTextVisible(name, 30000);
   }
 
   async assertSchoolNotVisible(name: string): Promise<void> {
-    await expect(this.page.getByText(name).first()).not.toBeVisible({ timeout: 30000 });
+    // Search to scope results — span[title] only appears on table row cells, not inputs
+    await this.waitForListRows();
+    const searchBox = this.page.locator('input[placeholder*="Search"]').first();
+    if (await searchBox.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await searchBox.clear();
+      await searchBox.fill(name);
+      await this.page.waitForTimeout(1500);
+    }
+    await expect(
+      this.page.locator(`span[title="${name}"]`).first()
+    ).not.toBeVisible({ timeout: 15000 });
   }
 }

@@ -4,12 +4,29 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from '@nestjs/common';
 import { RedisService } from '../../../src/redis/redis.service';
 import { REDIS_CLIENT, REDIS_DEFAULT_TTL_SECONDS } from '../../../src/redis/redis.constants';
+import { LoggerService } from '../../../src/common/services';
 
-function makeRedisClient(overrides: Partial<Record<string, jest.Mock>> = {}): Record<string, jest.Mock> {
+// RedisService logs via the injected LoggerService rather than its own `new Logger(...)`
+// instance. The tests below assert against `Logger.prototype.warn`/`log` spies, so the
+// mock delegates to a real `Logger` instance to keep those assertions intact.
+const loggerServiceMock = {
+  log: (message: unknown, ...optionalParams: unknown[]) =>
+    new Logger().log(message as string, ...(optionalParams as string[])),
+  warn: (message: unknown, ...optionalParams: unknown[]) =>
+    new Logger().warn(message as string, ...(optionalParams as string[])),
+  error: jest.fn(),
+  debug: jest.fn(),
+  verbose: jest.fn(),
+  fatal: jest.fn(),
+};
+
+function makeRedisClient(
+  overrides: Partial<Record<string, jest.Mock>> = {},
+): Record<string, jest.Mock> {
   return {
-    get:  jest.fn().mockResolvedValue(null),
-    set:  jest.fn().mockResolvedValue('OK'),
-    del:  jest.fn().mockResolvedValue(1),
+    get: jest.fn().mockResolvedValue(null),
+    set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
     keys: jest.fn().mockResolvedValue([]),
     ping: jest.fn().mockResolvedValue('PONG'),
     ...overrides,
@@ -30,8 +47,9 @@ async function buildModule(redis: ReturnType<typeof makeRedisClient> | null): Pr
   const module: TestingModule = await Test.createTestingModule({
     providers: [
       RedisService,
-      { provide: REDIS_CLIENT,   useValue: redis },
-      { provide: ConfigService,  useValue: configService },
+      { provide: REDIS_CLIENT, useValue: redis },
+      { provide: ConfigService, useValue: configService },
+      { provide: LoggerService, useValue: loggerServiceMock },
     ],
   }).compile();
 
@@ -48,7 +66,7 @@ describe('RedisService — integration (fallback behaviour)', () => {
 
   beforeEach(() => {
     warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    logSpy  = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
   });
 
   afterEach(() => jest.restoreAllMocks());
@@ -99,8 +117,9 @@ describe('RedisService — integration (fallback behaviour)', () => {
       await service.get('k2');
       await service.set('k3', 'val');
 
-      const activations = warnSpy.mock.calls.filter((c: unknown[]) =>
-        typeof c[0] === 'string' && c[0].includes('activating in-memory fallback'),
+      const activations = warnSpy.mock.calls.filter(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' && c[0].includes('activating in-memory fallback'),
       );
       expect(activations).toHaveLength(1);
 
@@ -160,8 +179,8 @@ describe('RedisService — integration (fallback behaviour)', () => {
       expect(result1).toBe('from-redis');
       expect(result2).toBe('from-redis');
 
-      const recoveryCalls = logSpy.mock.calls.filter((c: unknown[]) =>
-        typeof c[0] === 'string' && c[0].includes('Connection recovered'),
+      const recoveryCalls = logSpy.mock.calls.filter(
+        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('Connection recovered'),
       );
       expect(recoveryCalls).toHaveLength(1);
 
@@ -170,9 +189,7 @@ describe('RedisService — integration (fallback behaviour)', () => {
 
     it('repopulates Redis on first write after recovery', async () => {
       const redis = makeRedisClient({
-        set: jest.fn()
-          .mockRejectedValueOnce(new Error('down'))
-          .mockResolvedValue('OK'),                 
+        set: jest.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue('OK'),
       });
       const { app, service } = await buildModule(redis);
 
@@ -220,7 +237,7 @@ describe('RedisService — integration (fallback behaviour)', () => {
     it('clears matching keys from both stores when Redis is healthy', async () => {
       const redis = makeRedisClient({
         keys: jest.fn().mockResolvedValue(['blob:a', 'blob:b']),
-        del:  jest.fn().mockResolvedValue(2),
+        del: jest.fn().mockResolvedValue(2),
       });
       const { app, service } = await buildModule(redis);
 
@@ -246,9 +263,7 @@ describe('RedisService — integration (fallback behaviour)', () => {
       await service.set('blob:x', 'val');
       await service.delByPrefix('blob:');
 
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('DEL by prefix'),
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('DEL by prefix'));
 
       await app.close();
     });

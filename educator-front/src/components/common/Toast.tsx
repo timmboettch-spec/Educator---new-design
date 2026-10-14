@@ -5,22 +5,21 @@ import { setPendingToast } from '../../redux/loader/loaderSlice';
 import type { PendingToast } from '../../redux/loader/loaderSlice';
 import { isAppLoaderVisible } from './AppLoader';
 
+import { translateApiMessage } from '../../utils/translateMessage';
+
 type ToastMessage = string | number;
 
 export const SESSION_TOAST_KEY = 'app_pending_toast';
 
-function smartToast(
-  type: PendingToast['type'],
-  message: ToastMessage,
-): void {
-
+function smartToast(type: PendingToast['type'], message: ToastMessage): void {
+  const translatedMessage = translateApiMessage(message);
   const state = store.getState() as { Logout?: { status?: string } };
   const isLogoutCompleted = state.Logout?.status === 'succeeded';
 
   if (isLogoutCompleted) {
     sessionStorage.setItem(
       SESSION_TOAST_KEY,
-      JSON.stringify({ type, message: String(message) }),
+      JSON.stringify({ type, message: translatedMessage })
     );
     return;
   }
@@ -28,21 +27,21 @@ function smartToast(
   sonnerToast.dismiss();
 
   if (isAppLoaderVisible) {
-    store.dispatch(setPendingToast({ type, message: String(message) }));
+    store.dispatch(setPendingToast({ type, message: translatedMessage }));
   } else {
-    sonnerToast[type](message);
+    sonnerToast[type](translatedMessage);
   }
 }
 
 export const toast = {
   success: (message: ToastMessage) => smartToast('success', message),
-  error: (message: ToastMessage) => { sonnerToast.dismiss(); sonnerToast.error(message); },
+  error: (message: ToastMessage) => smartToast('error', message),
   info: (message: ToastMessage) => smartToast('info', message),
   warning: (message: ToastMessage) => smartToast('warning', message),
   dismiss: sonnerToast.dismiss,
   loading: sonnerToast.loading,
   promise: sonnerToast.promise,
-  message: sonnerToast.message,
+  message: (message: ToastMessage) => smartToast('info', message),
   custom: sonnerToast.custom,
 };
 
@@ -65,12 +64,13 @@ const Toast = () => {
         duration: 2000,
         classNames: {
           toast:
-            'group toast !text-neutral-900 group-[.toaster]:bg-white group-[.toaster]:rounded-lg group-[.toaster]:p-5 group-[.toaster]:min-w-[380px] group-[.toaster]:max-w-[420px] group-[.toaster]:border-neutral-100 group-[.toaster]:flex group-[.toaster]:items-center group-[.toaster]:gap-3 group-[.toaster]:relative group-[.toaster]:overflow-hidden',
+            'group toast !text-neutral-900 group-[.toaster]:bg-white group-[.toaster]:rounded-lg group-[.toaster]:p-5 group-[.toaster]:pr-12 group-[.toaster]:min-w-[380px] group-[.toaster]:max-w-[420px] group-[.toaster]:border-neutral-100 group-[.toaster]:flex group-[.toaster]:items-center group-[.toaster]:gap-3 group-[.toaster]:relative group-[.toaster]:overflow-hidden',
           title:
-            '!font-semibold !text-[15px] !text-neutral-900 !m-0 !leading-none !mt-[2px] !opacity-100 !visible',
-          description: '!text-neutral-500 !text-[14px] !leading-snug !mt-1.5 !opacity-100 !visible',
+            '!font-semibold !text-[15px] !text-neutral-900 !m-0 !leading-snug !mt-[2px] !opacity-100 !visible !flex-1 !pr-2',
+          description:
+            '!text-neutral-500 !text-[14px] !leading-snug !mt-1.5 !opacity-100 !visible',
           closeButton:
-            '!absolute !right-3 !inset-y-0 !my-auto !bg-transparent !border-none !text-slate-400 hover:!text-slate-600 transition-colors !opacity-100 !visible !p-0 !w-auto !h-auto',
+            '!absolute !right-3 !inset-y-0 !my-auto !bg-transparent !border-none !text-slate-400 hover:!text-slate-600 transition-colors !opacity-100 !visible !p-0 !w-auto !h-auto !flex-shrink-0',
           success: '[&_.toast-border]:!bg-feedback-success',
           error: '[&_.toast-border]:!bg-feedback-error',
           info: '[&_.toast-border]:!bg-feedback-info',

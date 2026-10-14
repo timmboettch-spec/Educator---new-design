@@ -1,4 +1,5 @@
-import React from 'react';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
 
 interface QuickNavigationProps {
   activeSection: number;
@@ -14,44 +15,20 @@ const QuickNavigation = ({
   isPrivacyPolicy = false,
 }: QuickNavigationProps) => {
   const resolvedScreenType = isPrivacyPolicy ? 'privacyPolicy' : screenType;
+  const language =
+    localStorage.getItem('app_language')?.toLowerCase() === 'es' ? 'es' : 'en';
+  const locale = language === 'es' ? loginEs : loginEn;
 
   const navigationItems =
     resolvedScreenType === 'privacyPolicy'
-      ? [
-          'Information Collection, Use and Sharing',
-          'Your Access to and Control Over Information',
-          'Security',
-          "Using Realityworks' Products",
-          'Registration',
-          'Orders',
-          'Cookies and Analytics',
-          'Links',
-          'Surveys & Contests',
-          'Questions',
-        ]
-      : [
-          'Acceptance of Terms of Use and Amendments',
-          "The Site Editor's Service",
-          'Your Responsibilities and Registration Obligations',
-          'Privacy Policy',
-          'Registration and Password',
-          'Your Conduct',
-          'Submission of Content on the Realityworks Web Site',
-          'Third-Party Services',
-          'Indemnification',
-          'DISCLAIMER OF WARRANTIES',
-          'LIMITATION OF LIABILITY',
-          'Reservation of Rights',
-          'Notification of Copyright Infringement',
-          'Applicable Law',
-          'Miscellaneous Information',
-        ];
+      ? locale.privacyPolicy.navItems
+      : locale.termsOfUse.navItems;
 
   return (
     <div className="w-full bg-white rounded-2xl shadow-[0_2px_10px_rgba(0,0,0,0.08)]">
       <div className="px-3 py-4 border-b border-gray-200 overflow-hidden">
         <h2 className="text-[16px] font-semibold text-[#4B5563]">
-          Quick Navigation
+          {locale.termsOfUse.quickNavigation}
         </h2>
       </div>
 
@@ -60,9 +37,9 @@ const QuickNavigation = ({
           <button
             key={index}
             onClick={() => setActiveSection(index)}
-            className={`w-full text-left px-5 py-4 transition-all duration-200 relative rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:z-10 ${
+            className={`w-full text-left px-5 py-4 transition-all duration-200 relative rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:z-10 ${
               activeSection === index
-                ? 'text-[15px] text-[#F28C28] bg-primary-50'
+                ? 'text-[15px] text-[#F28C28] bg-orange-50'
                 : 'text-[15px] text-[#5E5E5E] hover:bg-gray-50'
             }`}
           >

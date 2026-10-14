@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -48,13 +52,19 @@ export const RequestMoreSeats = createAsyncThunk<
 >('educator/requestMoreSeats', async (payload, thunkAPI) => {
   try {
     const body: RequestSeatsInput = {};
-    if (typeof payload.requested_seats === 'number' && payload.requested_seats > 0) {
+    if (
+      typeof payload.requested_seats === 'number' &&
+      payload.requested_seats > 0
+    ) {
       body.requested_seats = Math.floor(payload.requested_seats);
     }
     if (payload.note && payload.note.trim().length > 0) {
       body.note = payload.note.trim();
     }
-    const res = await api.post<RequestSeatsResponse>(config.RequestSeatsAPI, body);
+    const res = await api.post<RequestSeatsResponse>(
+      config.RequestSeatsAPI,
+      body
+    );
     return res.data;
   } catch (err: unknown) {
     const error = err as {
@@ -88,7 +98,8 @@ const RequestMoreSeatsSlice = createSlice({
       .addCase(RequestMoreSeats.fulfilled, (state, action) => {
         state.status = SUCCEEDED;
         state.response = action.payload;
-        state.lastRequestedAt = action.payload.data?.requestedAt ?? new Date().toISOString();
+        state.lastRequestedAt =
+          action.payload.data?.requestedAt ?? new Date().toISOString();
       })
       .addCase(RequestMoreSeats.rejected, (state, action) => {
         state.status = FAILED;
@@ -103,17 +114,18 @@ export default RequestMoreSeatsSlice.reducer;
 // ── Selectors ──────────────────────────────────────────────────────────────
 
 const selectState = (state: RootState): RequestSeatsState =>
-  (state as RootState & { RequestMoreSeats?: RequestSeatsState }).RequestMoreSeats ?? initialState;
+  (state as RootState & { RequestMoreSeats?: RequestSeatsState })
+    .RequestMoreSeats ?? initialState;
 
 export const selectRequestMoreSeatsStatus = createSelector(
   selectState,
-  (s) => s.status,
+  (s) => s.status
 );
 export const selectRequestMoreSeatsError = createSelector(
   selectState,
-  (s) => s.error,
+  (s) => s.error
 );
 export const selectRequestMoreSeatsResponse = createSelector(
   selectState,
-  (s) => s.response,
+  (s) => s.response
 );

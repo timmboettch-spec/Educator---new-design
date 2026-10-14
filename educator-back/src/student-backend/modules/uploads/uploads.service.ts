@@ -1,9 +1,12 @@
 import * as path from 'path';
 
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, type OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { type Request } from 'express';
 import { memoryStorage } from 'multer';
+
+import { LoggerService } from '../../../common/services';
 
 /** Allowed MIME types for image uploads. */
 const ALLOWED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -18,13 +21,18 @@ const MAX_BLOB_BASE_NAME_LENGTH = 50;
 
 @Injectable()
 export class UploadsService implements OnModuleInit {
-  private readonly logger = new Logger(UploadsService.name);
-  private readonly azureConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING ?? '';
-  private readonly blobContainerName =
-    process.env.AZURE_BLOB_DATA_CONTAINER_NAME ?? 'rwai-data-files';
+  private readonly azureConnectionString: string;
+  private readonly blobContainerName: string;
   private containerClient?: ContainerClient;
 
-  constructor() {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: LoggerService,
+  ) {
+    this.azureConnectionString = this.configService.get<string>('azureBlob.connectionString') ?? '';
+    this.blobContainerName =
+      this.configService.get<string>('azureBlob.uploadsContainer') ?? 'rwai-data-files';
+  }
 
   onModuleInit() {
     if (this.azureConnectionString) {
@@ -44,7 +52,7 @@ export class UploadsService implements OnModuleInit {
     }
   }
 
-  getMulterConfig() {
+  static getMulterConfig() {
     return {
       storage: memoryStorage(),
       fileFilter: (
@@ -65,7 +73,7 @@ export class UploadsService implements OnModuleInit {
     };
   }
 
-  getFileMulterConfig() {
+  static getFileMulterConfig() {
     return {
       storage: memoryStorage(),
       fileFilter: (

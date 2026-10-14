@@ -1,6 +1,6 @@
-import React from "react";
-import loginEn from "../../../locales/auth/login/en.json";
-import loginEs from "../../../locales/auth/login/es.json";
+import React from 'react';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
 
 interface TablePaginationProps {
   currentPage: number;
@@ -20,7 +20,7 @@ const TablePagination: React.FC<TablePaginationProps> = ({
   const from = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
   const to = Math.min(currentPage * itemsPerPage, totalItems);
   const t = (
-    localStorage.getItem("app_language")?.toLowerCase() === "es"
+    localStorage.getItem('app_language')?.toLowerCase() === 'es'
       ? loginEs
       : loginEn
   ).simulationLibrary;
@@ -28,7 +28,7 @@ const TablePagination: React.FC<TablePaginationProps> = ({
   return (
     <div className="flex items-center justify-between px-6 py-4">
       <span className="text-[11px] text-slate-400 uppercase tracking-wide">
-        {t.paginationShowing} {from} {t.paginationTo} {to} {t.paginationOf}{" "}
+        {t.paginationShowing} {from} {t.paginationTo} {to} {t.paginationOf}{' '}
         {totalItems} {t.paginationSimulations}
       </span>
 
@@ -52,7 +52,7 @@ const TablePagination: React.FC<TablePaginationProps> = ({
         </button>
 
         {(() => {
-          const pages: (number | "ellipsis")[] = [];
+          const pages: (number | 'ellipsis')[] = [];
           for (let i = 1; i <= totalPages; i++) {
             if (
               i === 1 ||
@@ -60,12 +60,12 @@ const TablePagination: React.FC<TablePaginationProps> = ({
               (i >= currentPage - 1 && i <= currentPage + 1)
             ) {
               pages.push(i);
-            } else if (pages[pages.length - 1] !== "ellipsis") {
-              pages.push("ellipsis");
+            } else if (pages[pages.length - 1] !== 'ellipsis') {
+              pages.push('ellipsis');
             }
           }
           return pages.map((p, i) =>
-            p === "ellipsis" ? (
+            p === 'ellipsis' ? (
               <span
                 key={`e-${i}`}
                 className="w-8 h-8 flex items-center justify-center text-xs text-slate-400"
@@ -78,13 +78,13 @@ const TablePagination: React.FC<TablePaginationProps> = ({
                 onClick={() => onPageChange(p)}
                 className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-semibold transition-colors ${
                   currentPage === p
-                    ? "bg-primary-500 text-white shadow-sm"
-                    : "border border-slate-200 text-slate-500 hover:bg-slate-50"
+                    ? 'bg-orange-500 text-white shadow-sm'
+                    : 'border border-slate-200 text-slate-500 hover:bg-slate-50'
                 }`}
               >
                 {p}
               </button>
-            ),
+            )
           );
         })()}
 

@@ -30,13 +30,15 @@ const renderRedeemCode = () =>
       <MemoryRouter>
         <RedeemCode />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 
 describe('RedeemCode', () => {
   it('renders the redeem code input step by default', () => {
     renderRedeemCode();
-    expect(screen.getByText(AUTH_MESSAGES.TITLES.ENTER_REDEEM_CODE)).toBeInTheDocument();
+    expect(
+      screen.getByText(AUTH_MESSAGES.TITLES.ENTER_REDEEM_CODE)
+    ).toBeInTheDocument();
   });
 
   it('renders 4 segmented inputs', () => {
@@ -46,15 +48,16 @@ describe('RedeemCode', () => {
 
   it('Active License button is of type submit', () => {
     renderRedeemCode();
-    expect(screen.getByRole('button', { name: /active license/i })).toHaveAttribute(
-      'type',
-      'submit',
-    );
+    expect(
+      screen.getByRole('button', { name: /active license/i })
+    ).toHaveAttribute('type', 'submit');
   });
 
   it('Start Trial button is of type button (not submit)', () => {
     renderRedeemCode();
-    expect(screen.getByRole('button', { name: /start trial/i })).toHaveAttribute('type', 'button');
+    expect(
+      screen.getByRole('button', { name: /start trial/i })
+    ).toHaveAttribute('type', 'button');
   });
 
   it('error message container has role-compatible structure for screen readers', async () => {
@@ -62,7 +65,9 @@ describe('RedeemCode', () => {
     renderRedeemCode();
     await user.click(screen.getByRole('button', { name: /active license/i }));
     await waitFor(() => {
-      const msg = screen.getByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED);
+      const msg = screen.getByText(
+        AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED
+      );
       expect(msg.tagName.toLowerCase()).toBe('p');
     });
   });

@@ -1,5 +1,8 @@
 export { buildTranscriptFromStudentReport } from './buildTranscriptFromStudentReport';
-export type { AssessmentReport, StudentAssessmentReport } from './reportTranscriptApi';
+export type {
+  AssessmentReport,
+  StudentAssessmentReport,
+} from './reportTranscriptApi';
 export {
   fetchReportById,
   fetchScenarioById,

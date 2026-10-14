@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { toast } from '../common/Toast';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
+import { translateApiError } from '../../utils/translateApiError';
 import {
   clearEmailAccessCodeState,
   selectEmailAccessCodeLoading,
@@ -12,14 +15,27 @@ import Modal from '../ui/Modal';
 import Textarea from '../ui/Textarea';
 import type { Student } from '../../types';
 
+type SupportedLang = 'en' | 'es';
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
+
 interface Props {
   class_id: string;
   students?: Student[];
   onClose: () => void;
 }
 
-export default function BulkEmailAccessCodeModal({ class_id, students = [], onClose }: Props) {
+export default function BulkEmailAccessCodeModal({
+  class_id,
+  students = [],
+  onClose,
+}: Props) {
   const dispatch = useAppDispatch();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
   const isLoading = useAppSelector(selectEmailAccessCodeLoading);
 
   const [subject, setSubject] = useState('Student Access Code');
@@ -48,40 +64,58 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
     const availableStudents = students.filter((s) => s.email?.trim());
 
     if (availableStudents.length === 0) {
-      toast.error('No student email addresses available.');
+      toast.error(locale.toast.noStudentEmailsAvailable);
       return;
     }
     try {
       const result = await dispatch(
-        sendEmailAccessCodeRequest({ subject, message, accessCode: true, class_id }),
+        sendEmailAccessCodeRequest({
+          subject,
+          message,
+          accessCode: true,
+          class_id,
+        })
       ).unwrap();
       const sentCount = result.count ?? students.length - missingEmailCount;
-      toast.success(
-        `Email sent successfully to ${sentCount} ${sentCount === 1 ? 'student' : 'students'}.`,
-      );
+      const successTemplate =
+        sentCount === 1
+          ? (locale.toast.emailSentToCountSingular ??
+            'Email sent successfully to {count} student.')
+          : (locale.toast.emailSentToCountPlural ??
+            'Email sent successfully to {count} students.');
+      toast.success(successTemplate.replace('{count}', String(sentCount)));
       dispatch(clearEmailAccessCodeState());
       onClose();
     } catch (err) {
       const error = err as { message?: string };
-      toast.error(error?.message ?? 'Failed to send student codes');
+      toast.error(
+        error?.message
+          ? translateApiError(error.message, language)
+          : locale.toast.failedToSendEmail
+      );
     }
   };
 
   return (
     <>
       {!showConfirm && (
-        <Modal isOpen onClose={onClose} title="Email student Code">
+        <Modal
+          isOpen
+          onClose={onClose}
+          title={locale.bulkAccessCodeModal.title}
+        >
           <div className="flex flex-col gap-4">
             <Input
-              label="Subject"
+              label={locale.emailModal.subject}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Student Code"
+              placeholder={locale.emailModal.subjectPlaceholderCode}
             />
 
             <div className="flex flex-col gap-1">
               <label className="text-sm font-medium">
-                Message <span className="text-red-500">*</span>
+                {locale.emailModal.message}{' '}
+                <span className="text-red-500">*</span>
               </label>
 
               <Textarea
@@ -90,17 +124,19 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                   setMessage(e.target.value);
                   if (e.target.value.trim()) setMessageError('');
                 }}
-                placeholder="Add a message..."
+                placeholder={locale.emailModal.messagePlaceholder}
                 rows={4}
                 textareaClassName="py-2.5"
               />
 
-              {messageError && <p className="text-red-500 text-xs mt-1">{messageError}</p>}
+              {messageError && (
+                <p className="text-red-500 text-xs mt-1">{messageError}</p>
+              )}
             </div>
 
-            <div className="flex items-center gap-2 px-4 py-3 bg-primary-50 border border-primary-200 rounded-2xl">
+            <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border border-orange-200 rounded-2xl">
               <svg
-                className="w-4 h-4 text-primary-400 shrink-0"
+                className="w-4 h-4 text-orange-400 shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -112,8 +148,8 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                   d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20A10 10 0 0012 2z"
                 />
               </svg>
-              <p className="text-xs text-primary-500">
-                Each student will receive their own unique student code via email.
+              <p className="text-xs text-orange-500">
+                {locale.bulkAccessCodeModal.helperText}
               </p>
             </div>
 
@@ -124,7 +160,7 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                 onClick={onClose}
                 disabled={isLoading}
               >
-                Back
+                {locale.emailModal.back}
               </Button>
               <Button
                 variant="gradient"
@@ -132,7 +168,7 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                 onClick={handleSend}
                 disabled={isLoading}
               >
-                Send Via Email
+                {locale.emailModal.sendViaEmail}
               </Button>
             </div>
           </div>
@@ -143,8 +179,8 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
         <Modal
           isOpen
           onClose={onClose}
-          title="Send Email Student Codes"
-          subtitle="Review student availability and confirm before distribution"
+          title={locale.bulkAccessCodeModal.confirmTitle}
+          subtitle={locale.bulkAccessCodeModal.confirmSubtitle}
         >
           <div className="flex flex-col gap-[36px]">
             {missingEmailCount > 0 && (
@@ -161,8 +197,10 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                   />
                 </svg>
                 <p className="text-[13px] leading-[24px] font-medium text-[#374151]">
-                  Action Required: {missingEmailCount} students do not have an email address.
-                  Reports cannot be sent to them.
+                  {locale.bulkAccessCodeModal.actionRequired.replace(
+                    '{count}',
+                    String(missingEmailCount)
+                  )}
                 </p>
               </div>
             )}
@@ -170,7 +208,7 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
             <div className="grid grid-cols-3 gap-[15px] w-[100%] mx-auto">
               <div className="bg-[#F4F4F4] rounded-[16px] py-[20px] flex flex-col items-center justify-center">
                 <span className="text-[12px] tracking-[1.5px] font-semibold text-[#8B7E74]">
-                  TOTAL
+                  {locale.bulkAccessCodeModal.total}
                 </span>
                 <span className="text-[22px] leading-none font-bold text-[#F7931E] mt-[4px]">
                   {students.length}
@@ -179,7 +217,7 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
 
               <div className="bg-[#F4F4F4] rounded-[16px] py-[20px] flex flex-col items-center justify-center">
                 <span className="text-[12px] tracking-[1.5px] font-semibold text-[#8B7E74]">
-                  AVAILABLE
+                  {locale.bulkAccessCodeModal.available}
                 </span>
                 <span className="text-[22px] leading-none font-bold text-[#F7931E] mt-[4px]">
                   {students.length - missingEmailCount}
@@ -188,7 +226,7 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
 
               <div className="border border-[#F5C58A] bg-[#fdf3e8] rounded-[16px] py-[20px] flex flex-col items-center justify-center">
                 <span className="text-[12px] tracking-[1.5px] font-semibold text-[#F7931E]">
-                  MISSING
+                  {locale.bulkAccessCodeModal.missing}
                 </span>
                 <span className="text-[22px] leading-none font-bold text-[#F7931E] mt-[4px]">
                   {missingEmailCount}
@@ -202,7 +240,7 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                 className="w-1/2 h-11 rounded-full text-sm font-medium"
                 onClick={() => setShowConfirm(false)}
               >
-                Cancel
+                {locale.bulkAccessCodeModal.cancel}
               </Button>
 
               <Button
@@ -210,14 +248,17 @@ export default function BulkEmailAccessCodeModal({ class_id, students = [], onCl
                 className="flex-1 h-11 rounded-full text-sm"
                 onClick={executeSend}
                 loading={isLoading}
-                loadingText="Sending..."
+                loadingText={locale.common.sending}
                 disabled={isLoading}
               >
                 <div className="flex items-center justify-center gap-[10px]">
                   <span>
                     {students.length - missingEmailCount > 0
-                      ? `Send to ${students.length - missingEmailCount} Students`
-                      : 'Send Via Email'}
+                      ? locale.bulkAccessCodeModal.sendToCount.replace(
+                          '{count}',
+                          String(students.length - missingEmailCount)
+                        )
+                      : locale.emailModal.sendViaEmail}
                   </span>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"

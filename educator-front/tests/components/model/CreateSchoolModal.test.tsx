@@ -2,8 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FormikProps } from 'formik';
-import { SchoolFormValues } from '../../../src/types';
+import { type FormikProps } from 'formik';
+import { type SchoolFormValues } from '../../../src/types';
 import CreateSchoolModal from '../../../src/components/modal/CreateSchoolModal';
 
 type SelectOption = { value: string; label: string };
@@ -99,7 +99,13 @@ vi.mock('../../../src/components/ui/Button', () => ({
       form={form}
       onClick={onClick}
       disabled={disabled || loading}
-      data-testid={loading ? 'loading-button' : typeof children === 'string' ? children : 'button'}
+      data-testid={
+        loading
+          ? 'loading-button'
+          : typeof children === 'string'
+            ? children
+            : 'button'
+      }
     >
       {loading ? 'Loading...' : children}
     </button>
@@ -144,7 +150,8 @@ vi.mock('../../../src/utils/messages', () => ({
   },
 
   SCHOOL_CONFIRMATIONS: {
-    DELETE: 'Are you sure you want to delete this School? This action cannot be undone.',
+    DELETE:
+      'Are you sure you want to delete this School? This action cannot be undone.',
   },
 
   SCHOOL_FIELDS: {
@@ -176,7 +183,9 @@ const createMockFormik = () => ({
 
   handleBlur: vi.fn(),
 
-  handleSubmit: vi.fn((e?: React.FormEvent<HTMLFormElement>) => e?.preventDefault?.()),
+  handleSubmit: vi.fn((e?: React.FormEvent<HTMLFormElement>) =>
+    e?.preventDefault?.()
+  ),
 
   setFieldValue: vi.fn(),
 });
@@ -206,7 +215,8 @@ const defaultProps = (overrides = {}) => ({
   ...overrides,
 });
 
-const renderModal = (overrides = {}) => render(<CreateSchoolModal {...defaultProps(overrides)} />);
+const renderModal = (overrides = {}) =>
+  render(<CreateSchoolModal {...defaultProps(overrides)} />);
 
 describe('CreateSchoolModal', () => {
   beforeEach(() => {
@@ -229,17 +239,23 @@ describe('CreateSchoolModal', () => {
     renderModal();
 
     expect(screen.getByText('Create School')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter School Name')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter School Name')
+    ).toBeInTheDocument();
     expect(screen.getByTestId('status-select')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /add school/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /add school/i })
+    ).toBeInTheDocument();
   });
 
   it('renders edit mode correctly', () => {
     renderModal({ modalMode: 'edit' });
 
     expect(screen.getByText('Edit School')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /update school/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /update school/i })
+    ).toBeInTheDocument();
   });
 
   it('renders view mode correctly', () => {
@@ -252,9 +268,13 @@ describe('CreateSchoolModal', () => {
     const statusInput = screen.getByDisplayValue('Active');
     expect(statusInput).toBeDisabled();
 
-    expect(screen.queryByRole('button', { name: /add school/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /add school/i })
+    ).not.toBeInTheDocument();
 
-    expect(screen.queryByRole('button', { name: /update school/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /update school/i })
+    ).not.toBeInTheDocument();
   });
 
   it('renders delete modal correctly', () => {
@@ -268,8 +288,8 @@ describe('CreateSchoolModal', () => {
 
     expect(
       screen.getByText(
-        'Are you sure you want to delete this School? This action cannot be undone.',
-      ),
+        'Are you sure you want to delete this School? This action cannot be undone.'
+      )
     ).toBeInTheDocument();
   });
 
@@ -303,7 +323,10 @@ describe('CreateSchoolModal', () => {
       },
     });
 
-    expect(formik.setFieldValue).toHaveBeenCalledWith('school_name', 'New School');
+    expect(formik.setFieldValue).toHaveBeenCalledWith(
+      'school_name',
+      'New School'
+    );
   });
 
   it('calls setFieldValue with trimmed value on blur', () => {
@@ -332,7 +355,10 @@ describe('CreateSchoolModal', () => {
       target: { name: 'school_name', value: 'West\u0000Side' },
     });
 
-    expect(formik.setFieldValue).toHaveBeenCalledWith('school_name', 'WestSide');
+    expect(formik.setFieldValue).toHaveBeenCalledWith(
+      'school_name',
+      'WestSide'
+    );
   });
 
   it('calls setFieldValue', () => {
@@ -408,6 +434,8 @@ describe('CreateSchoolModal', () => {
       formik,
     });
 
-    expect(screen.queryByText('School name is required')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('School name is required')
+    ).not.toBeInTheDocument();
   });
 });

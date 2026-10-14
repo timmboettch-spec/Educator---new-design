@@ -4,20 +4,23 @@ export const InvitesConstants = {
   ROUTES: {
     BASE: 'invites',
     CREATE: 'create',
-    VERIFY: 'verify',
-    GET_DETAILS: ':id',
+    VERIFY_TOKEN: 'verify-token',
+    ACCEPT_INVITE: 'accept-invite',
   },
   SWAGGER: {
     TAG: 'Invites',
     SUMMARY_CREATE: 'Create an educator invite',
-    SUMMARY_VERIFY: 'Verify an invite ID',
+    SUMMARY_VERIFY_TOKEN: 'Verify an invite token is active and not expired',
   },
   // IGNORE ---
   MESSAGES: {
     CREATOR_NOT_FOUND: 'Creator not found',
     USER_EXISTS: 'User with this email already exists',
     INVITE_EXISTS: 'A pending invitation for this email already exists',
+    USER_ALREADY_INVITED: 'This user is already invited',
+    EDUCATOR_ALREADY_REGISTERED: 'This educator is already registered',
     INVITE_SENT: 'Invite sent successfully',
+    EDUCATOR_ACTIVATED: 'Educator activated successfully',
     INVALID_OR_EXPIRED: 'Invalid or expired invite',
     VALID_INVITE: 'Invite is valid',
     INVITE_ALREADY_USED: 'Invite has already been used',
@@ -38,13 +41,11 @@ export const InvitesConstants = {
     CREATOR_ID_EXAMPLE: 'creator-uuid',
   },
 
-  ROLES: {
-    EDUCATOR: 'Educator',
-    DISTRICT_ADMIN: 'District Admin',
-  },
 
   LOG: {
     EMAIL_SEND_FAILED: 'Failed to send invite email:',
+    SEATS_RESTORED_AFTER_CREATE_FAILURE: 'Restored admin seats after invite create failure',
+    SEATS_RESTORE_FAILED: 'Failed to restore admin seats after invite create failure',
   },
 
   EMAIL_DEFAULTS: {

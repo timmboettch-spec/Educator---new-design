@@ -3,37 +3,39 @@
 import loginImage from '@/assets/redeem/RW AI UI orange gradient -07.jpg';
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import Logo from '../../../components/logo/Logo';
 import { Button } from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import {
-  selectSignUpError,
-  selectSignUpStatus,
-  SignUpRequest,
-} from '../../../redux/auth/SignUpRedux';
+  AcceptInviteRequest,
+  logout as logoutAcceptInvite,
+  selectAcceptInviteStatus,
+} from '../../../redux/auth/AcceptInviteRedux';
 import { useAppDispatch } from '../../../store/hooks';
 import { COMMON_VALIDATION } from '../../../utils/messages/common';
 import { VerifyInviteRequest } from '../../../redux/auth/VerifyInviteRedux';
 import { toast } from '../../../components/common/Toast';
 import { isValidPassword } from '../../../utils/validation';
 import {
-  hasUnsafeMarkupOrScriptPattern,
-  hasDisallowedClassNameChars,
-  hasSqlInjectionLikePattern,
-  hasBlockedCodingKeyword,
-  hasCodeLikeSyntaxPattern,
-  hasNameCodeLikePattern,
   hasUnsafePasswordPattern,
-  sanitizeTextForTyping,
-  trimBoundaryWhitespace,
   sanitizePasswordForTyping,
 } from '../../../utils/inputSecurity';
-import { getToken, setAuthData, setSecondaryAuthData } from '@/utils/storage';
+import {
+  clearAuthData,
+  getToken,
+  setAuthData,
+  setSecondaryAuthData,
+} from '@/utils/storage';
 import { getStoredUser } from '@/utils/storage';
 import ConfirmModal from '@/components/modal/ConfirmationModal';
 import { DualRoleSignUpRequest } from '@/redux/auth/DualRoleSignUpRedux';
-import { restoreSession } from '@/redux/auth/LoginRedux';
+import { logout as logoutLogin, restoreSession } from '@/redux/auth/LoginRedux';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
+
+type InviteStatus = 'verifying' | 'ready' | 'unavailable';
 
 const initialFormData = {
   full_name: '',
@@ -47,44 +49,33 @@ const initialFormData = {
 export default function SignUpPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const status = useSelector(selectSignUpStatus);
-  const apiError = useSelector(selectSignUpError);
+  const status = useSelector(selectAcceptInviteStatus);
+  const { t, i18n } = useTranslation('auth');
   const [formData, setFormData] = useState(initialFormData);
   const [validationError, setValidationError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [isOpen, setOpen] = useState(false);
   const { invite_id } = useParams();
-  const SIGNUP_NAME_MAX_LENGTH = 50;
+  const [inviteStatus, setInviteStatus] = useState<InviteStatus>(
+    invite_id ? 'verifying' : 'unavailable'
+  );
   const token = getToken();
   const userData = getStoredUser();
   const user = userData && JSON.parse(userData);
+  const language =
+    localStorage.getItem('app_language')?.toLowerCase() === 'es' ? 'es' : 'en';
+  const locale = language === 'es' ? loginEs : loginEn;
   const isEmail = user?.email;
-  const isAuthenticated = !!token && token !== "undefined" && token !== "null";
+  const isAuthenticated = !!token && token !== 'undefined' && token !== 'null';
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     let sanitized: string | boolean = type === 'checkbox' ? checked : value;
-    if (name === 'full_name' && typeof sanitized === 'string') {
-      sanitized = sanitizeTextForTyping(sanitized, SIGNUP_NAME_MAX_LENGTH)
-        .replace(/^ /, '')
-        .replace(/  +/g, ' ');
-      if (sanitized.length === 1) sanitized = sanitized.toUpperCase();
-      if (
-        hasUnsafeMarkupOrScriptPattern(sanitized as string) ||
-        hasBlockedCodingKeyword(sanitized as string) ||
-        hasCodeLikeSyntaxPattern(sanitized as string) ||
-        hasNameCodeLikePattern(sanitized as string)
-      ) return;
-    } else if (name === 'password' || name === 'confirmPassword') {
+    if (name === 'password' || name === 'confirmPassword') {
       sanitized = sanitizePasswordForTyping(value);
     }
     setFormData((prev) => ({ ...prev, [name]: sanitized }));
   };
-
-  useEffect(() => {
-    if (status === 'succeeded') {
-      navigate('/login', { replace: true });
-    }
-  }, [status]);
 
   useEffect(() => {
     if (invite_id) {
@@ -92,54 +83,52 @@ export default function SignUpPage() {
     }
   }, [invite_id]);
 
+  // Backend messages are English-only, so Spanish users get the translated
+  // fallback instead of untranslated text.
+  const getFailureMessage = (err: unknown) => {
+    const message = (err as { message?: string } | undefined)?.message;
+    return i18n.language === 'es' || !message
+      ? t('invite.acceptFailed')
+      : message;
+  };
+
   const handleVerify = async () => {
     if (!invite_id) {
+      setInviteStatus('unavailable');
       return;
     }
+    setInviteStatus('verifying');
     try {
       const res = await dispatch(
         VerifyInviteRequest({
-          invite_id: invite_id,
-        }),
+          token: invite_id,
+        })
       ).unwrap();
       const email = res.data.email;
       const fullName = res.data.full_name;
       if (isAuthenticated && isEmail === email) {
         setOpen(true);
+      } else if (isAuthenticated && isEmail !== email) {
+        clearAuthData();
       }
       setFormData((prev) => ({
         ...prev,
         email: email,
         full_name: fullName,
       }));
-    } catch (err: unknown) {
-      const msg =
-        (err as { message?: string })?.message ||
-        'This invitation link is invalid or has expired.';
-      toast.error(msg);
-      navigate('/login', { replace: true });
-      return;
+      setInviteStatus('ready');
+    } catch {
+      setInviteStatus('unavailable');
     }
   };
 
   const handleSignup = async () => {
     setValidationError('');
-    const fullName = trimBoundaryWhitespace(formData.full_name);
+    setSubmitError('');
+    if (!invite_id) return;
 
-    if (!formData.full_name || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.password || !formData.confirmPassword) {
       setValidationError(COMMON_VALIDATION.REQUIRED);
-      return;
-    }
-
-    if (
-      hasUnsafeMarkupOrScriptPattern(fullName) ||
-      hasDisallowedClassNameChars(fullName) ||
-      hasSqlInjectionLikePattern(fullName) ||
-      hasBlockedCodingKeyword(fullName) ||
-      hasCodeLikeSyntaxPattern(fullName) ||
-      hasNameCodeLikePattern(fullName)
-    ) {
-      setValidationError('Full name cannot include HTML, script, or code-like content');
       return;
     }
 
@@ -168,17 +157,25 @@ export default function SignUpPage() {
       return;
     }
     try {
+      // Name and email come from the invite itself; accept-invite only needs
+      // the token and the password being set.
       const res = await dispatch(
-        SignUpRequest({
-          full_name: fullName,
-          email: formData.email,
+        AcceptInviteRequest({
+          token: invite_id,
           password: formData.password,
-          invite_id: invite_id || undefined,
-        }),
+        })
       ).unwrap();
-      if (res.message) toast.success(res.message);
+      dispatch(logoutAcceptInvite());
+      // accept-invite no longer signs the user in — they log in with the
+      // password they just set.
+      clearAuthData();
+      dispatch(logoutLogin());
+      toast.success(res.message || locale.toast.inviteAcceptedSignIn);
+      navigate('/login', { replace: true });
     } catch (err: unknown) {
-      toast.error((err as Error)?.message || 'Something went wrong');
+      const message = getFailureMessage(err);
+      setSubmitError(message);
+      toast.error(message);
     }
   };
 
@@ -189,7 +186,7 @@ export default function SignUpPage() {
           full_name: user?.full_name,
           email: user?.email,
           invite_id: invite_id || undefined,
-        }),
+        })
       ).unwrap();
 
       if (
@@ -197,35 +194,35 @@ export default function SignUpPage() {
         res.data?.educator_tokens &&
         res.data?.educator_user
       ) {
-        // Store admin credentials in secondary slot
         setSecondaryAuthData(
           {
             accessToken: res.data.tokens.accessToken,
             csrfToken: '',
           },
           res.data.user,
-          false,
+          false
         );
-
-        // Set educator as primary
         setAuthData(
           {
             accessToken: res.data.educator_tokens.accessToken,
             csrfToken: '',
           },
           res.data.educator_user,
-          false,
+          false
         );
-
-        // Update Redux state to reflect educator role
-        dispatch(restoreSession({
-          data: {
-            tokens: { accessToken: res.data.educator_tokens.accessToken },
-            user: res.data.educator_user as unknown as Record<string, unknown>,
-          },
-          message: '',
-          status: 'success',
-        }));
+        dispatch(
+          restoreSession({
+            data: {
+              tokens: { accessToken: res.data.educator_tokens.accessToken },
+              user: res.data.educator_user as unknown as Record<
+                string,
+                unknown
+              >,
+            },
+            message: '',
+            status: 'success',
+          })
+        );
 
         setOpen(false);
         window.dispatchEvent(new Event('profile-updated'));
@@ -235,10 +232,7 @@ export default function SignUpPage() {
       toast.success(res.message);
       navigate('/login');
     } catch (err: unknown) {
-      toast.error(
-        (err as { message?: string })?.message ||
-        'Something went wrong',
-      );
+      toast.error(getFailureMessage(err));
     }
   };
 
@@ -260,67 +254,112 @@ export default function SignUpPage() {
             <div className="mb-5 flex justify-center">
               <Logo />
             </div>
-            <h2
-              className="text-2xl font-bold mb-6 text-center lg:text-left pb-3"
-              style={{
-                borderBottom: '0.76px solid #E2E1E1',
-                color: '#db8833',
-                fontWeight: 700,
-              }}
-            >
+            <h2 className="text-2xl font-bold mb-6 text-center lg:text-left pb-3 text-primary-500 border-b-[0.76px] border-[#E2E1E1]">
               SIGN UP
             </h2>
-            <div className="flex flex-col gap-3">
-              <Input
-                name="full_name"
-                type="text"
-                value={formData.full_name}
-                onChange={handleChange}
-                placeholder="Full Name *"
-                required
-              />
-              <Input
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="Email *"
-                required
-                disabled
-              />
-              <Input
-                name="password"
-                type="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Password"
-              />
-              <Input
-                name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                placeholder="Confirm Password"
-              />
-            </div>
-
-            {validationError && <p className="mt-2 text-sm text-red-500">{validationError}</p>}
-
-            {apiError && status === 'failed' && (
-              <p className="mt-2 text-sm text-red-500">{apiError}</p>
+            {inviteStatus === 'verifying' && (
+              <p
+                role="status"
+                className="flex items-center gap-3 py-6 text-sm text-gray-500"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-5 w-5 animate-spin rounded-full border-2 border-primary-200 border-t-primary-500"
+                />
+                {t('invite.verifying')}
+              </p>
             )}
 
-            {/* Submit Button */}
-            <div className="flex justify-center mt-6 lg:justify-start">
-              <Button
-                variant="gradient"
-                onClick={handleSignup}
-                loading={status === 'loading'}
-                loadingText="Signing up..."
-              >
-                Sign Up →
-              </Button>
-            </div>
+            {inviteStatus === 'unavailable' && (
+              <div role="alert" className="flex flex-col gap-2 py-2">
+                <h3 className="text-base font-semibold text-gray-800">
+                  {t('invite.unavailableTitle')}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {t('invite.unavailableBody')}
+                </p>
+                <div className="mt-4 flex flex-wrap justify-center gap-3 lg:justify-start">
+                  {invite_id && (
+                    <Button
+                      variant="gradient"
+                      onClick={() => void handleVerify()}
+                    >
+                      {t('invite.retry')}
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    className="rounded-full px-8 text-[16px] font-semibold"
+                    onClick={() => navigate('/login', { replace: true })}
+                  >
+                    {t('invite.goToSignIn')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {inviteStatus === 'ready' && (
+              <>
+                <div className="flex flex-col gap-3">
+                  <Input
+                    name="full_name"
+                    type="text"
+                    value={formData.full_name}
+                    onChange={handleChange}
+                    placeholder="Full Name *"
+                    required
+                    disabled
+                  />
+                  <Input
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Email *"
+                    required
+                    disabled
+                  />
+                  <Input
+                    name="password"
+                    type="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Password"
+                  />
+                  <Input
+                    name="confirmPassword"
+                    type="password"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Confirm Password"
+                  />
+                </div>
+
+                {validationError && (
+                  <p role="alert" className="mt-2 text-sm text-red-500">
+                    {validationError}
+                  </p>
+                )}
+
+                {submitError && (
+                  <p role="alert" className="mt-2 text-sm text-red-500">
+                    {submitError}
+                  </p>
+                )}
+
+                {/* Submit Button */}
+                <div className="flex justify-center mt-6 lg:justify-start">
+                  <Button
+                    variant="gradient"
+                    onClick={handleSignup}
+                    loading={status === 'loading'}
+                    loadingText={locale.signup.loadingSubmit}
+                  >
+                    Sign Up →
+                  </Button>
+                </div>
+              </>
+            )}
 
             {/* Sign In Link */}
             <p className="mt-5 text-sm text-center text-gray-500">
@@ -348,4 +387,3 @@ export default function SignUpPage() {
     </>
   );
 }
-

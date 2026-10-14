@@ -60,15 +60,23 @@ describe('matchDurationFilter', () => {
 
   describe('Complex duration strings', () => {
     it('extracts duration from descriptive text', () => {
-      expect(matchDurationFilter('Estimated time: 25 minutes', '15–30 min')).toBe(true);
-      expect(matchDurationFilter('This simulation takes 10 mins', '<15 min')).toBe(true);
-      expect(matchDurationFilter('Duration: 45 minutes', '30–60 min')).toBe(true);
+      expect(
+        matchDurationFilter('Estimated time: 25 minutes', '15–30 min')
+      ).toBe(true);
+      expect(
+        matchDurationFilter('This simulation takes 10 mins', '<15 min')
+      ).toBe(true);
+      expect(matchDurationFilter('Duration: 45 minutes', '30–60 min')).toBe(
+        true
+      );
     });
   });
 
   describe('Legacy filter support', () => {
     it('supports old filter values for backward compatibility', () => {
-      expect(matchDurationFilter('5 minutes', 'Less than 10 minutes')).toBe(true);
+      expect(matchDurationFilter('5 minutes', 'Less than 10 minutes')).toBe(
+        true
+      );
       expect(matchDurationFilter('15 min', '10–20 minutes')).toBe(true);
       expect(matchDurationFilter('25 minutes', '20–30 minutes')).toBe(true);
       expect(matchDurationFilter('35 min', '30+ minutes')).toBe(true);

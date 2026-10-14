@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from "react";
-import { Copy, Mail } from "lucide-react";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
-import Modal from "../ui/Modal";
-import { toast } from "../common/Toast";
+import React, { useMemo, useState } from 'react';
+import { Copy, Mail } from 'lucide-react';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
+import Modal from '../ui/Modal';
+import { toast } from '../common/Toast';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -16,26 +16,26 @@ const ShareModal: React.FC<ShareModalProps> = ({
   isOpen,
   onClose,
   title,
-  simulationUrl = typeof window !== "undefined" ? window.location.href : "",
+  simulationUrl = typeof window !== 'undefined' ? window.location.href : '',
 }) => {
   const [copied, setCopied] = useState(false);
   const t = (
-    localStorage.getItem("app_language")?.toLowerCase() === "es"
+    localStorage.getItem('app_language')?.toLowerCase() === 'es'
       ? loginEs
       : loginEn
   ).shareModal;
 
   const encodedUrl = useMemo(
     () => encodeURIComponent(simulationUrl),
-    [simulationUrl],
+    [simulationUrl]
   );
   const encodedText = useMemo(
     () => encodeURIComponent(`Check out this simulation: ${title}`),
-    [title],
+    [title]
   );
 
   const openShareWindow = (url: string) => {
-    window.open(url, "_blank", "noopener,noreferrer");
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const copyLink = async (message?: string) => {
@@ -51,20 +51,20 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   const shareToTwitter = () => {
     openShareWindow(
-      `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+      `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`
     );
   };
 
   const shareToFacebook = () => {
     openShareWindow(
-      `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+      `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`
     );
   };
 
   const shareToMail = () => {
     const subject = encodeURIComponent(`Check out this simulation: ${title}`);
     const body = encodeURIComponent(
-      `I found this interesting simulation: ${title}\n\nLink: ${simulationUrl}`,
+      `I found this interesting simulation: ${title}\n\nLink: ${simulationUrl}`
     );
     window.location.href = `mailto:?subject=${subject}&body=${body}`;
   };
@@ -75,7 +75,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   const shareToInstagram = () => {
     openShareWindow(
-      `https://www.instagram.com/?url=${encodedUrl}&text=${encodedText}`,
+      `https://www.instagram.com/?url=${encodedUrl}&text=${encodedText}`
     );
   };
 
@@ -85,17 +85,17 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   const socialOptions = [
     {
-      id: "mail",
+      id: 'mail',
       label: t.labelMail,
       action: shareToMail,
-      badgeClassName: "bg-primary-100",
-      icon: <Mail size={16} className="text-primary-500" aria-hidden="true" />,
+      badgeClassName: 'bg-orange-100',
+      icon: <Mail size={16} className="text-orange-500" aria-hidden="true" />,
     },
     {
-      id: "twitter",
+      id: 'twitter',
       label: t.labelTwitter,
       action: shareToTwitter,
-      badgeClassName: "bg-primary-100",
+      badgeClassName: 'bg-orange-100',
       icon: (
         <img
           src="/assets/login/x-twitter.svg"
@@ -106,10 +106,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
       ),
     },
     {
-      id: "facebook",
+      id: 'facebook',
       label: t.labelFacebook,
       action: shareToFacebook,
-      badgeClassName: "bg-primary-100",
+      badgeClassName: 'bg-orange-100',
       icon: (
         <img
           src="/assets/login/facebook_icon.svg"
@@ -120,10 +120,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
       ),
     },
     {
-      id: "whatsapp",
+      id: 'whatsapp',
       label: t.labelWhatsApp,
       action: shareToWhatsApp,
-      badgeClassName: "bg-primary-100",
+      badgeClassName: 'bg-orange-100',
       icon: (
         <img
           src="/assets/login/whatsapp.svg"
@@ -134,10 +134,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
       ),
     },
     {
-      id: "messenger",
+      id: 'messenger',
       label: t.labelMessenger,
       action: shareToMessenger,
-      badgeClassName: "bg-primary-100",
+      badgeClassName: 'bg-orange-100',
       icon: (
         <img
           src="/assets/login/messenger.svg"
@@ -148,10 +148,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
       ),
     },
     {
-      id: "instagram",
+      id: 'instagram',
       label: t.labelInstagram,
       action: shareToInstagram,
-      badgeClassName: "bg-primary-100",
+      badgeClassName: 'bg-orange-100',
       icon: (
         <img
           src="/assets/login/instagram.svg"
@@ -164,7 +164,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   ];
 
   const iconContainerClassName =
-    "w-5 h-5 flex items-center justify-center [&>img]:w-full [&>img]:h-full [&>img]:object-contain [&>img]:block";
+    'w-5 h-5 flex items-center justify-center [&>img]:w-full [&>img]:h-full [&>img]:object-contain [&>img]:block';
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={t.title}>
@@ -201,8 +201,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
               onClick={() => copyLink()}
               className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${
                 copied
-                  ? "bg-green-100 text-green-700"
-                  : "text-gray-500 hover:bg-gray-100"
+                  ? 'bg-green-100 text-green-700'
+                  : 'text-gray-500 hover:bg-gray-100'
               }`}
               aria-label={t.copyAriaLabel}
               title={t.copyAriaLabel}

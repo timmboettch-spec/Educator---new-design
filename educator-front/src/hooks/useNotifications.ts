@@ -14,6 +14,7 @@ import { clearAuthData, getToken, getParsedUser } from '../utils/storage';
 import { FetchClassesRequest } from '../redux/class/GetClassRedux';
 import { GetEducatorSimulationReports } from '../redux/reports/EducatorReportsRedux';
 import { syncEducatorProfile } from '../utils/syncEducatorProfile';
+import { getEducatorId } from '../utils/normalizeAuthUser';
 
 const EDUCATOR_REFRESH_COOLDOWN_MS = 60_000;
 
@@ -24,7 +25,10 @@ const refreshState: {
   lastCompletedAt: number;
 } = { running: false, needsRerun: false, lastReason: '', lastCompletedAt: 0 };
 
-async function runEducatorRefresh(dispatch: AppDispatch, reason: string): Promise<void> {
+async function runEducatorRefresh(
+  dispatch: AppDispatch,
+  reason: string
+): Promise<void> {
   refreshState.running = true;
   try {
     const parsed = getParsedUser();
@@ -33,12 +37,12 @@ async function runEducatorRefresh(dispatch: AppDispatch, reason: string): Promis
     }
     await dispatch(FetchClassesRequest());
 
-    const educatorId = parsed && typeof parsed['id'] === 'string' ? (parsed['id'] as string) : null;
+    const educatorId = getEducatorId(parsed);
     if (educatorId) {
       await dispatch(GetEducatorSimulationReports({ educatorId }));
     }
   } catch {
-      return;
+    return;
   } finally {
     refreshState.running = false;
     refreshState.lastCompletedAt = Date.now();
@@ -76,12 +80,15 @@ const SOCKET_URL = import.meta.env.VITE_API_URL ?? '';
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 const NOTIFICATION_REFRESH_MIN_GAP_MS = 5_000;
 
-
 const EVENT_TYPE_MAP: Record<string, NotificationType> = {
   'educator-registered': 'EDUCATOR_REGISTERED',
   'tokens-allocated': 'TOKENS_ALLOCATED',
   'class-created': 'CLASS_CREATED',
-  'simulation-assigned': 'SIMULATION_ASSIGNED',
+  'class-transferred': 'CLASS_TRANSFERRED',
+  'class-transferred-source': 'CLASS_TRANSFERRED',
+  'class-transferred-target': 'CLASS_TRANSFERRED',
+  'class-start-date-reminder': 'CLASS_START_DATE_REMINDER',
+  'class-end-date-reminder': 'CLASS_END_DATE_REMINDER',
   'educator-low-seat-warning': 'EDUCATOR_LOW_SEAT_WARNING',
   'token-low-warning': 'EDUCATOR_LOW_SEAT_WARNING',
   'low-seat-warning': 'EDUCATOR_LOW_SEAT_WARNING',
@@ -90,7 +97,10 @@ const EVENT_TYPE_MAP: Record<string, NotificationType> = {
   'educator-seat-request': 'EDUCATOR_SEAT_REQUEST',
   'student-report-available': 'STUDENT_REPORT_AVAILABLE',
   'student-report-completed': 'STUDENT_REPORT_AVAILABLE',
+  'lms-grade-sync-failed': 'LMS_GRADE_SYNC_FAILED',
+  'simulation-start-date-reminder': 'SIMULATION_START_DATE_REMINDER',
   'simulation-due-date-reminder': 'SIMULATION_DUE_DATE_REMINDER',
+  'simulation-end-date-reminder': 'SIMULATION_END_DATE_REMINDER',
   'due-date-reminder': 'SIMULATION_DUE_DATE_REMINDER',
 };
 
@@ -98,16 +108,23 @@ const EVENT_TITLES: Record<string, string> = {
   'educator-registered': 'New Educator Registered',
   'tokens-allocated': 'AI Seats Allocated',
   'class-created': 'Class Created',
-  'simulation-assigned': 'Simulation Assigned',
+  'class-transferred': 'Class Transferred',
+  'class-transferred-source': 'Class Transferred',
+  'class-transferred-target': 'New Class Assigned',
+  'class-start-date-reminder': 'Class Starting Soon',
+  'class-end-date-reminder': 'Class Ending Soon',
   'educator-low-seat-warning': 'Low Educator Seat Warning',
   'token-low-warning': 'Low Educator Seat Warning',
   'low-seat-warning': 'Low Educator Seat Warning',
   'school-low-seat-warning': 'Low School Seat Warning',
   'school-seat-low-warning': 'Low School Seat Warning',
   'educator-seat-request': 'Educator Requested More Seats',
-  'student-report-available': 'Student Report Available',
-  'student-report-completed': 'Student Report Available',
+  'student-report-available': 'Student Reports Available',
+  'student-report-completed': 'Student Reports Available',
+  'lms-grade-sync-failed': 'LMS Grade Sync Failed',
+  'simulation-start-date-reminder': 'Simulation Starting Soon',
   'simulation-due-date-reminder': 'Simulation Due Date Reminder',
+  'simulation-end-date-reminder': 'Simulation Closing Soon',
   'due-date-reminder': 'Simulation Due Date Reminder',
 };
 
@@ -115,28 +132,37 @@ const KNOWN_NOTIFICATION_TYPES: NotificationType[] = [
   'EDUCATOR_REGISTERED',
   'TOKENS_ALLOCATED',
   'CLASS_CREATED',
-  'SIMULATION_ASSIGNED',
+  'CLASS_TRANSFERRED',
   'EDUCATOR_LOW_SEAT_WARNING',
   'SCHOOL_LOW_SEAT_WARNING',
   'EDUCATOR_SEAT_REQUEST',
   'STUDENT_REPORT_AVAILABLE',
+  'LMS_GRADE_SYNC_FAILED',
   'SIMULATION_DUE_DATE_REMINDER',
+  'SIMULATION_START_DATE_REMINDER',
+  'SIMULATION_END_DATE_REMINDER',
+  'CLASS_START_DATE_REMINDER',
+  'CLASS_END_DATE_REMINDER',
   'GENERAL',
 ];
 
 function normalizeSocketNotification(
   event: string,
   data: Record<string, unknown> | undefined,
-  fallbackRecipientType: 'admin' | 'educator',
+  fallbackRecipientType: 'admin' | 'educator'
 ): AppNotification {
   const source = data ?? {};
   const payloadType = String(source.type ?? '').toUpperCase();
-  const type = KNOWN_NOTIFICATION_TYPES.includes(payloadType as NotificationType)
+  const type = KNOWN_NOTIFICATION_TYPES.includes(
+    payloadType as NotificationType
+  )
     ? (payloadType as NotificationType)
-    : EVENT_TYPE_MAP[event] ?? 'GENERAL';
+    : (EVENT_TYPE_MAP[event] ?? 'GENERAL');
 
   const title =
-    (typeof source.title === 'string' && source.title.trim()) || EVENT_TITLES[event] || 'Notification';
+    (typeof source.title === 'string' && source.title.trim()) ||
+    EVENT_TITLES[event] ||
+    'Notification';
   const message =
     (typeof source.message === 'string' && source.message.trim()) || title;
   const metadataFromPayload =
@@ -153,7 +179,8 @@ function normalizeSocketNotification(
     type,
     title,
     message,
-    recipientId: (typeof source.recipientId === 'string' && source.recipientId) || '',
+    recipientId:
+      (typeof source.recipientId === 'string' && source.recipientId) || '',
     recipientType:
       source.recipientType === 'admin' || source.recipientType === 'educator'
         ? source.recipientType
@@ -203,7 +230,11 @@ const normalizeEducatorStatus = (value: unknown): string => {
 };
 
 const extractEducatorId = (payload: Record<string, unknown>): string | null => {
-  const direct = payload.educatorId ?? payload.educator_id ?? payload.userId ?? payload.user_id;
+  const direct =
+    payload.educatorId ??
+    payload.educator_id ??
+    payload.userId ??
+    payload.user_id;
   if (direct !== undefined && direct !== null && String(direct).trim()) {
     return String(direct).trim();
   }
@@ -244,7 +275,10 @@ export function useNotifications(role: RoleLike) {
     if (!token || isRefreshingRef.current) return;
 
     const now = Date.now();
-    if (!force && now - lastRefreshAtRef.current < NOTIFICATION_REFRESH_MIN_GAP_MS) {
+    if (
+      !force &&
+      now - lastRefreshAtRef.current < NOTIFICATION_REFRESH_MIN_GAP_MS
+    ) {
       return;
     }
 
@@ -271,7 +305,7 @@ export function useNotifications(role: RoleLike) {
         isRefreshingRef.current = false;
       });
   };
-  
+
   const initializedRef = useRef(false);
   const activeRoleRef = useRef<string | undefined>(undefined);
 
@@ -287,17 +321,19 @@ export function useNotifications(role: RoleLike) {
     refreshNotifications(true);
   }, [role]);
 
- 
   useEffect(() => {
     const refresh = () => {
-      if (!getToken()) return;  
+      if (!getToken()) return;
       if (document.visibilityState !== 'visible') return;
       if (isRefreshingRef.current) return;
       if (socketConnectedRef.current) return;
       refreshNotifications(true);
     };
 
-    const intervalId = window.setInterval(refresh, NOTIFICATION_POLL_INTERVAL_MS);
+    const intervalId = window.setInterval(
+      refresh,
+      NOTIFICATION_POLL_INTERVAL_MS
+    );
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
 
@@ -309,7 +345,7 @@ export function useNotifications(role: RoleLike) {
   }, [dispatch]);
 
   useEffect(() => {
-    const normalizedRole = normalizeRole(role)
+    const normalizedRole = normalizeRole(role);
     if (socketRef.current && normalizedRole !== activeRoleRef.current) {
       const stale = socketRef.current;
       stale.removeAllListeners();
@@ -327,7 +363,8 @@ export function useNotifications(role: RoleLike) {
 
     const tokenType = getTokenType(token);
     const recipientType: 'admin' | 'educator' =
-      tokenType ?? (normalizedRole?.includes('educator') ? 'educator' : 'admin');
+      tokenType ??
+      (normalizedRole?.includes('educator') ? 'educator' : 'admin');
 
     const socket = io(SOCKET_URL, {
       auth: { token },
@@ -340,10 +377,8 @@ export function useNotifications(role: RoleLike) {
 
     socketRef.current = socket;
 
-    socket.on('connect', () => {
-    });
-    socket.on('disconnect', () => {
-    });
+    socket.on('connect', () => {});
+    socket.on('disconnect', () => {});
 
     socket.on('connect_error', (error: Error) => {
       if (!isAuthSocketError(error?.message)) {
@@ -370,7 +405,11 @@ export function useNotifications(role: RoleLike) {
 
     Object.keys(EVENT_TYPE_MAP).forEach((event) => {
       socket.on(event, (data?: Record<string, unknown>) => {
-        const notification = normalizeSocketNotification(event, data, recipientType);
+        const notification = normalizeSocketNotification(
+          event,
+          data,
+          recipientType
+        );
         dispatch(addNotification(notification));
 
         if (event === 'educator-registered') {
@@ -378,8 +417,12 @@ export function useNotifications(role: RoleLike) {
             if (!data) return;
             const educatorId = extractEducatorId(data);
             if (!educatorId) return;
-            dispatch(updateEducatorStatusInStore({ educatorId, status: 'ACTIVE' }));
-          } catch { return; }
+            dispatch(
+              updateEducatorStatusInStore({ educatorId, status: 'ACTIVE' })
+            );
+          } catch {
+            return;
+          }
         }
 
         if (event === 'educator-status-updated') {
@@ -389,7 +432,9 @@ export function useNotifications(role: RoleLike) {
             if (!educatorId) return;
             const status = normalizeEducatorStatus(data.status);
             dispatch(updateEducatorStatusInStore({ educatorId, status }));
-          } catch { return; }
+          } catch {
+            return;
+          }
         }
       });
     });
@@ -410,8 +455,7 @@ export function useNotifications(role: RoleLike) {
       const currentToken = getToken();
       if (!currentToken || getTokenType(currentToken) !== 'educator') return;
       const parsed = getParsedUser();
-      const educatorId =
-        parsed && typeof parsed['id'] === 'string' ? parsed['id'] : null;
+      const educatorId = getEducatorId(parsed);
       if (educatorId) {
         void dispatch(GetEducatorSimulationReports({ educatorId }));
       }

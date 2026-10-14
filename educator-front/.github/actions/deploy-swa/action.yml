@@ -1,4 +1,4 @@
-name: "deploy-swa"
+name: 'deploy-swa'
 description: >-
   Aggregated Azure Static Web Apps deploy: uploads an already-built `dist/`
   to the given SWA deployment token, optionally to a named preview

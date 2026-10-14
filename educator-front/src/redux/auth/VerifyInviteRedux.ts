@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 
 import type { RootState } from '../../store';
@@ -6,7 +10,8 @@ import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 
 export interface VerifyInvitePayload {
-  invite_id: string;
+  /** The invite token from the `/signup/:invite_id` link. */
+  token: string;
 }
 
 export interface VerifyInviteResponse {
@@ -17,7 +22,8 @@ export interface VerifyInviteResponse {
 export interface ResponseVerifyInvite {
   data: VerifyInviteResponse;
   message: string;
-  status: string;
+  /** Dropped by the new response envelope; still sent by the old one. */
+  status?: string;
 }
 
 export interface VerifyInviteState {
@@ -38,8 +44,7 @@ export const VerifyInviteRequest = createAsyncThunk<
   { rejectValue: { message: string } }
 >('auth/VerifyInvite', async (data, thunkAPI) => {
   try {
-    const url = `${config.VerifyInviteAPI}/${data.invite_id}`;
-    const res = await axios.get(url, {
+    const res = await axios.post(config.VerifyInviteAPI, data, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
       },
@@ -90,9 +95,15 @@ const selectState = (state: RootState) => state.VerifyInvite;
 
 export const selectVerifyInviteResponse = createSelector(
   selectState,
-  (state) => state.responseVerifyInvite,
+  (state) => state.responseVerifyInvite
 );
 
-export const selectVerifyInviteStatus = createSelector(selectState, (state) => state.status);
+export const selectVerifyInviteStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
 
-export const selectVerifyInviteError = createSelector(selectState, (state) => state.error);
+export const selectVerifyInviteError = createSelector(
+  selectState,
+  (state) => state.error
+);

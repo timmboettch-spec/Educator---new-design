@@ -19,9 +19,17 @@ const defaultDashboardData = {
 // Mutable reference — tests can override .current before rendering
 const mockSelectorState = {
   current: {
-    dashboardOverview: { data: { ...defaultDashboardData }, status: 'succeeded', error: null },
+    dashboardOverview: {
+      data: { ...defaultDashboardData },
+      status: 'succeeded',
+      error: null,
+    },
     simulationCompletedCount: {
-      data: { months: [{ label: 'Jan', value: 2 }], total: 2, status: 'succeeded' },
+      data: {
+        months: [{ label: 'Jan', value: 2 }],
+        total: 2,
+        status: 'succeeded',
+      },
     },
     // 'loading' keeps the Bar chart visible (component renders Bar when status=loading)
     adminSimulationsReport: { data: [], status: 'loading', error: null },
@@ -37,35 +45,50 @@ vi.mock('../../../../src/store/hooks', () => ({
 }));
 
 vi.mock('react-redux', () => ({
-  useSelector: (selector: (state: unknown) => unknown) => selector(mockSelectorState.current),
+  useSelector: (selector: (state: unknown) => unknown) =>
+    selector(mockSelectorState.current),
 }));
 
 vi.mock('../../../../src/redux/dashboard/admin/DashboardOverviewRedux', () => ({
   getDashboardOverview: vi.fn(() => ({ type: 'dashboard/getOverview' })),
   selectDashboardOverview: (s: { dashboardOverview: { data: unknown } }) =>
     s.dashboardOverview.data,
-  selectDashboardOverviewStatus: (s: { dashboardOverview: { status: string } }) =>
-    s.dashboardOverview.status,
-  selectDashboardOverviewError: (s: { dashboardOverview: { error: string | null } }) =>
-    s.dashboardOverview.error,
+  selectDashboardOverviewStatus: (s: {
+    dashboardOverview: { status: string };
+  }) => s.dashboardOverview.status,
+  selectDashboardOverviewError: (s: {
+    dashboardOverview: { error: string | null };
+  }) => s.dashboardOverview.error,
 }));
 
-vi.mock('../../../../src/redux/dashboard/admin/SimulationCompletedCountRedux', () => ({
-  getSimulationCompletedCount: vi.fn(() => ({ type: 'dashboard/getSimCount' })),
-  selectSimulationCompletedCount: (s: {
-    simulationCompletedCount: { data: { months: unknown[] } };
-  }) => s.simulationCompletedCount.data,
-  selectSimulationCountTotal: (s: { simulationCompletedCount: { data: { total: number } } }) =>
-    s.simulationCompletedCount.data.total,
-  selectSimulationCountStatus: (s: { simulationCompletedCount: { data: { status: string } } }) =>
-    s.simulationCompletedCount.data.status,
-  SimRange: {},
-}));
+vi.mock(
+  '../../../../src/redux/dashboard/admin/SimulationCompletedCountRedux',
+  () => ({
+    getSimulationCompletedCount: vi.fn(() => ({
+      type: 'dashboard/getSimCount',
+    })),
+    selectSimulationCompletedCount: (s: {
+      simulationCompletedCount: { data: { months: unknown[] } };
+    }) => s.simulationCompletedCount.data,
+    selectSimulationCountTotal: (s: {
+      simulationCompletedCount: { data: { total: number } };
+    }) => s.simulationCompletedCount.data.total,
+    selectSimulationCountStatus: (s: {
+      simulationCompletedCount: { data: { status: string } };
+    }) => s.simulationCompletedCount.data.status,
+    SimRange: {},
+  })
+);
 
 vi.mock('../../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -73,9 +96,17 @@ describe('Admin Dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSelectorState.current = {
-      dashboardOverview: { data: { ...defaultDashboardData }, status: 'succeeded', error: null },
+      dashboardOverview: {
+        data: { ...defaultDashboardData },
+        status: 'succeeded',
+        error: null,
+      },
       simulationCompletedCount: {
-        data: { months: [{ label: 'Jan', value: 2 }], total: 2, status: 'succeeded' },
+        data: {
+          months: [{ label: 'Jan', value: 2 }],
+          total: 2,
+          status: 'succeeded',
+        },
       },
       adminSimulationsReport: { data: [], status: 'loading', error: null },
     };
@@ -145,7 +176,11 @@ describe('Admin Dashboard', () => {
         },
       },
       simulationCompletedCount: {
-        data: { months: [{ label: 'Jan', value: 2 }], total: 2, status: 'succeeded' },
+        data: {
+          months: [{ label: 'Jan', value: 2 }],
+          total: 2,
+          status: 'succeeded',
+        },
       },
       adminSimulationsReport: { data: [], status: 'loading', error: null },
     };
@@ -161,7 +196,7 @@ describe('Admin Dashboard', () => {
 
     await waitFor(() => {
       expect(mockDispatch).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'dashboard/getOverview' }),
+        expect.objectContaining({ type: 'dashboard/getOverview' })
       );
     });
 
@@ -195,7 +230,9 @@ describe('Admin Dashboard', () => {
     render(<Dashboard />);
 
     expect(screen.getByTestId('overview-error')).toBeInTheDocument();
-    expect(screen.getByText('Failed to fetch dashboard overview')).toBeInTheDocument();
+    expect(
+      screen.getByText('Failed to fetch dashboard overview')
+    ).toBeInTheDocument();
   });
 
   it('shows empty/zero progress cards when overview succeeds with no data', () => {
@@ -240,7 +277,11 @@ describe('Admin Dashboard', () => {
     // Step 2: succeeded state with data
     mockSelectorState.current = {
       ...mockSelectorState.current,
-      dashboardOverview: { data: { ...defaultDashboardData }, status: 'succeeded', error: null },
+      dashboardOverview: {
+        data: { ...defaultDashboardData },
+        status: 'succeeded',
+        error: null,
+      },
     };
 
     rerender(<Dashboard />);

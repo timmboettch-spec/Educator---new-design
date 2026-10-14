@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { Logger } from '@nestjs/common';
 import { RedisService } from '../../../src/redis/redis.service';
 import { REDIS_CLIENT, REDIS_DEFAULT_TTL_SECONDS } from '../../../src/redis/redis.constants';
+import { LoggerService } from '../../../src/common/services';
 
-const makeRedis = (overrides: Partial<Record<string, jest.Mock>> = {}): Record<string, jest.Mock> => ({
+const makeRedis = (
+  overrides: Partial<Record<string, jest.Mock>> = {},
+): Record<string, jest.Mock> => ({
   get: jest.fn(),
   set: jest.fn(),
   del: jest.fn(),
@@ -17,12 +19,29 @@ const configService = {
   get: jest.fn().mockReturnValue(undefined),
 } as unknown as ConfigService;
 
-async function buildService(redis: ReturnType<typeof makeRedis> | null): Promise<RedisService> {
+const mockLogger = {
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+  verbose: jest.fn(),
+  fatal: jest.fn(),
+};
+
+const makeConfig = (values: Record<string, unknown> = {}): ConfigService =>
+  ({ get: jest.fn((key: string) => values[key]) }) as unknown as ConfigService;
+
+async function buildService(
+  redis: ReturnType<typeof makeRedis> | null,
+  config: ConfigService = configService,
+): Promise<RedisService> {
   const module: TestingModule = await Test.createTestingModule({
     providers: [
       RedisService,
       { provide: REDIS_CLIENT, useValue: redis },
       { provide: ConfigService, useValue: configService },
+      { provide: ConfigService, useValue: config },
+      { provide: LoggerService, useValue: mockLogger },
     ],
   }).compile();
 
@@ -33,12 +52,12 @@ async function buildService(redis: ReturnType<typeof makeRedis> | null): Promise
 }
 
 describe('RedisService — unit', () => {
-  let warnSpy: jest.SpyInstance;
-  let logSpy: jest.SpyInstance;
+  let warnSpy: jest.Mock;
+  let logSpy: jest.Mock;
 
   beforeEach(() => {
-    warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    logSpy  = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    warnSpy = mockLogger.warn;
+    logSpy = mockLogger.log;
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -113,7 +132,9 @@ describe('RedisService — unit', () => {
       redis.get.mockRejectedValue(new Error('ECONNREFUSED'));
       const result = await svc.get<{ y: number }>('key');
       expect(result).toEqual({ y: 2 });
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('activating in-memory fallback'));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('activating in-memory fallback'),
+      );
     });
 
     it('writes to in-memory when Redis client is null', async () => {
@@ -160,8 +181,9 @@ describe('RedisService — unit', () => {
       await svc.get('k2');
       await svc.get('k3');
 
-      const warnCalls = warnSpy.mock.calls.filter((c: unknown[]) =>
-        typeof c[0] === 'string' && c[0].includes('activating in-memory fallback'),
+      const warnCalls = warnSpy.mock.calls.filter(
+        (c: unknown[]) =>
+          typeof c[0] === 'string' && c[0].includes('activating in-memory fallback'),
       );
       expect(warnCalls).toHaveLength(1);
     });
@@ -175,10 +197,10 @@ describe('RedisService — unit', () => {
 
       redis.get.mockResolvedValue(JSON.stringify('recovered'));
       await svc.get('k1');
-      await svc.get('k1'); 
+      await svc.get('k1');
 
-      const recoveryCalls = logSpy.mock.calls.filter((c: unknown[]) =>
-        typeof c[0] === 'string' && c[0].includes('Connection recovered'),
+      const recoveryCalls = logSpy.mock.calls.filter(
+        (c: unknown[]) => typeof c[0] === 'string' && c[0].includes('Connection recovered'),
       );
       expect(recoveryCalls).toHaveLength(1);
     });
@@ -249,6 +271,108 @@ describe('RedisService — unit', () => {
 
       expect(result).toBeNull();
       jest.spyOn(Date, 'now').mockRestore();
+    });
+  });
+  describe('getDelStrict()', () => {
+    it('returns the parsed value and lets the script delete the key', async () => {
+      const evalMock = jest.fn().mockResolvedValue(JSON.stringify({ nonce: 'n-1' }));
+      const svc = await buildService(makeRedis({ eval: evalMock }));
+
+      await expect(svc.getDelStrict('lti:state:abc')).resolves.toEqual({ nonce: 'n-1' });
+      expect(evalMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns null when the key is absent', async () => {
+      const svc = await buildService(makeRedis({ eval: jest.fn().mockResolvedValue(null) }));
+
+      await expect(svc.getDelStrict('lti:state:missing')).resolves.toBeNull();
+    });
+
+    it('treats a corrupt JSON value as not found instead of throwing', async () => {
+      const svc = await buildService(makeRedis({ eval: jest.fn().mockResolvedValue('{not-json') }));
+
+      await expect(svc.getDelStrict('lti:state:corrupt')).resolves.toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Corrupt JSON'));
+    });
+
+    it('throws when REDIS_HOST is set but the client is null — never falls back', async () => {
+      const svc = await buildService(
+        null,
+        makeConfig({ 'redis.host': 'redis.example.com', 'app.nodeEnv': 'production' }),
+      );
+
+      await expect(svc.getDelStrict('lti:state:abc')).rejects.toThrow(
+        'Redis client is not configured',
+      );
+    });
+  });
+
+  describe('strict methods — in-memory gate', () => {
+    const devConfig = (): ConfigService => makeConfig({ 'app.nodeEnv': 'development' });
+
+    it('stores and one-time-reads in memory when REDIS_HOST is unset in development', async () => {
+      const svc = await buildService(null, devConfig());
+
+      await svc.setStrict('lti:state:abc', { nonce: 'n-1' }, 600);
+
+      await expect(svc.getDelStrict('lti:state:abc')).resolves.toEqual({ nonce: 'n-1' });
+      await expect(svc.getDelStrict('lti:state:abc')).resolves.toBeNull();
+    });
+
+    it('honours TTL expiry on the in-memory path', async () => {
+      jest.useFakeTimers();
+      try {
+        const svc = await buildService(null, devConfig());
+        await svc.setStrict('lti:state:ttl', { nonce: 'n-1' }, 600);
+
+        jest.advanceTimersByTime(601 * 1000);
+
+        await expect(svc.getDelStrict('lti:state:ttl')).resolves.toBeNull();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it.each(['staging', 'production', 'prod', 'anything-unrecognised'])(
+      'throws in %s even with REDIS_HOST unset — fails closed',
+      async (nodeEnv) => {
+        const svc = await buildService(null, makeConfig({ 'app.nodeEnv': nodeEnv }));
+
+        await expect(svc.setStrict('lti:state:abc', { nonce: 'n' }, 600)).rejects.toThrow(
+          'Redis client is not configured',
+        );
+        await expect(svc.getDelStrict('lti:state:abc')).rejects.toThrow(
+          'Redis client is not configured',
+        );
+      },
+    );
+
+    it('throws when REDIS_HOST is set but the client is null, even in development', async () => {
+      const svc = await buildService(
+        null,
+        makeConfig({ 'redis.host': 'redis.example.com', 'app.nodeEnv': 'development' }),
+      );
+
+      await expect(svc.setStrict('lti:state:abc', { nonce: 'n' }, 600)).rejects.toThrow(
+        'Redis client is not configured',
+      );
+      await expect(svc.getDelStrict('lti:state:abc')).rejects.toThrow(
+        'Redis client is not configured',
+      );
+    });
+
+    it('prefers a real client over memory when one is configured', async () => {
+      const setMock = jest.fn().mockResolvedValue('OK');
+      const svc = await buildService(makeRedis({ set: setMock }), devConfig());
+
+      await svc.setStrict('lti:state:abc', { nonce: 'n-1' }, 600);
+
+      expect(setMock).toHaveBeenCalledWith(
+        'lti:state:abc',
+        JSON.stringify({ nonce: 'n-1' }),
+        'EX',
+        600,
+      );
     });
   });
 });

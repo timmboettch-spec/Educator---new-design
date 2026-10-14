@@ -10,7 +10,7 @@ export const RemoveEducatorSchoolRequest = createAsyncThunk<
 >('educator/removeSchool', async ({ educatorId, schoolId }, thunkAPI) => {
   try {
     const res = await api.delete(
-      `${config.UpdateEducatorAPI}/${educatorId}/schools/${schoolId}`,
+      `${config.UpdateEducatorAPI}/${educatorId}/schools/${schoolId}`
     );
     return res.data;
   } catch (err: unknown) {
@@ -53,5 +53,6 @@ const RemoveEducatorSchoolSlice = createSlice({
   },
 });
 
-export const { clearRemoveEducatorSchoolState } = RemoveEducatorSchoolSlice.actions;
+export const { clearRemoveEducatorSchoolState } =
+  RemoveEducatorSchoolSlice.actions;
 export default RemoveEducatorSchoolSlice.reducer;

@@ -18,8 +18,8 @@
 .PARAMETER Action
     The action to perform:
     - provision: Create backend infrastructure
-    - migrate: Run database migrations and auto-seed (if configured)
-    - seed: Manually run database seeders
+    - migrate: Run database migrations and auto-seed via `npm run seed:prod` (if configured) — seed:prod auto-discovers and runs every seeder in src/database/seeders/
+    - seed: Manually run `npm run seed:prod`
     - secrets: Update backend-specific secrets
     - sp: Configure GitHub Actions OIDC authentication (no password rotation needed!)
     - dns: Configure custom domain and DNS records via Porkbun
@@ -1627,22 +1627,20 @@ NODE_ENV=$Environment
             # Auto-seed based on configuration
             if ($Seeding_Enabled -and $Seeding_AutoSeed) {
                 Write-Step "Auto-seeding database for $Environment environment"
-                
-                foreach ($seeder in $Seeding_Seeders) {
-                    Write-Info "Running seeder: $seeder"
-                    npm run "seed:$seeder"
-                    
-                    if ($LASTEXITCODE -eq 0) {
-                        Write-Success "Seeder '$seeder' completed successfully"
-                    } else {
-                        Write-Warning "Seeder '$seeder' completed with errors (this may be normal if data already exists)"
-                    }
+                Write-Info "Running seed:prod (auto-discovers every seeder in src/database/seeders/)"
+
+                npm run seed:prod
+
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Success "Seeding completed successfully"
+                } else {
+                    Write-Warning "Seeding completed with errors (this may be normal if data already exists)"
                 }
-                
+
                 Write-Success "Database seeding completed"
             } else {
                 Write-Info "Auto-seeding disabled for $Environment environment"
-                Write-Info "To manually seed, run: npm run seed:roles"
+                Write-Info "To manually seed, run: npm run seed:prod"
             }
         } else {
             Write-Error "Database migrations failed"
@@ -1663,11 +1661,10 @@ NODE_ENV=$Environment
         if ($EnvSeedingConfig) {
             Write-Info "  Enabled: $($EnvSeedingConfig.enabled)"
             Write-Info "  Auto-Seed: $($EnvSeedingConfig.autoSeed)"
-            Write-Info "  Seeders: $($EnvSeedingConfig.seeders -join ', ')"
+            Write-Info "  Expected seeders (descriptive only — seed:prod runs ALL seeders found in src/database/seeders/): $($EnvSeedingConfig.seeders -join ', ')"
             Write-Info "  Reason: $($EnvSeedingConfig.reason)"
         } else {
             Write-Warning "Seeding config not found. Using defaults."
-            Write-Info "  Seeders: $($Seeding_Seeders -join ', ')"
         }
         
         # Verify PostgreSQL Database exists
@@ -1770,18 +1767,16 @@ NODE_ENV=$Environment
         
         if ($Seeding_Enabled) {
             Write-Step "Running seeders for $Environment"
-            
-            foreach ($seeder in $Seeding_Seeders) {
-                Write-Info "Running seeder: $seeder"
-                npm run "seed:$seeder"
-                
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Success "Seeder '$seeder' completed successfully"
-                } else {
-                    Write-Warning "Seeder '$seeder' completed with errors (this may be normal if data already exists)"
-                }
+            Write-Info "Running seed:prod (auto-discovers every seeder in src/database/seeders/)"
+
+            npm run seed:prod
+
+            if ($LASTEXITCODE -eq 0) {
+                Write-Success "Seeding completed successfully"
+            } else {
+                Write-Warning "Seeding completed with errors (this may be normal if data already exists)"
             }
-            
+
             Write-Success "Database seeding completed"
         } else {
             Write-Warning "Seeding is disabled for the $Environment environment"

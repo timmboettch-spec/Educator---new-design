@@ -42,6 +42,11 @@ export const Messages = {
   INVALID_SCHOOL: 'Invalid school_id',
   INVALID_CLASS: 'Invalid class_id',
   FORBIDDEN: 'You do not have permission to perform this action',
+  TOKEN_REVOKED: 'Token has been revoked',
+  TOKEN_MISSING: 'Authentication token is missing',
+  SCENARIO_ASSIGNMENT_UNAVAILABLE: 'Unable to verify scenario assignment at this time',
+  SCENARIO_NOT_ASSIGNED: 'Scenario not assigned to this student',
+  SCENARIO_LTI_LOCKED: 'You can only launch the simulation linked to your LMS activity',
   SCHOOL_FORBIDDEN: "You don't have permission to edit this school",
   EDUCATOR_FORBIDDEN: "You don't have permission to edit this educator",
   SCHOOL_ADMIN_FETCH_FORBIDDEN: 'You do not have permission to view schools for this admin',
@@ -77,6 +82,8 @@ export const Messages = {
   SUBSCRIPTION_ACTIVATED: 'License activated successfully',
   STUDENT_CODE_REVOKED: 'Student code revoked successfully',
   STUDENT_CODE_REGENERATED: 'Student code regenerated successfully',
+  LTI_STORAGE_UNAVAILABLE: 'LTI handoff storage unavailable. Please retry the launch.',
+  GUIDED_PATH_UPDATE_REQUIRES_FIELD: 'Provide at least one of state or completed to update',
 };
 
 export enum AppStatus {
@@ -87,7 +94,9 @@ export enum AppStatus {
 export enum ErrorTypes {
   UNAUTHORIZED = 'unauthorized',
   FORBIDDEN = 'forbidden',
+  CONFLICT = 'conflict',
   NOT_FOUND = 'notfound',
   BAD_REQUEST = 'bad',
   INTERNAL_SERVER_ERROR = 'internal_server_error',
+  SERVICE_UNAVAILABLE = 'service_unavailable',
 }

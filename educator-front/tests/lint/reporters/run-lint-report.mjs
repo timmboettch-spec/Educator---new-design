@@ -26,10 +26,14 @@ if (lintStatus !== 0) {
 runNpmScript('lint:json');
 
 const nodeCmd = process.platform === 'win32' ? 'node.exe' : 'node';
-const reportResult = spawnSync(nodeCmd, ['tests/lint/reporters/generate-eslint-report.mjs'], {
-  stdio: 'inherit',
-  shell: process.platform === 'win32',
-});
+const reportResult = spawnSync(
+  nodeCmd,
+  ['tests/lint/reporters/generate-eslint-report.mjs'],
+  {
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  }
+);
 
 if (reportResult.error) {
   process.stderr.write(`${String(reportResult.error)}\n`);

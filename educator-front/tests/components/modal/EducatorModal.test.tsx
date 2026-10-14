@@ -4,12 +4,33 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import EducatorModal from '../../../src/components/modal/EducatorModal';
 
 vi.mock('../../../src/components/ui/Modal', () => ({
-  default: ({ isOpen, children, title }: { isOpen: boolean; children: React.ReactNode; title?: string }) =>
-    isOpen ? <div role="dialog">{title && <h2>{title}</h2>}{children}</div> : null,
+  default: ({
+    isOpen,
+    children,
+    title,
+  }: {
+    isOpen: boolean;
+    children: React.ReactNode;
+    title?: string;
+  }) =>
+    isOpen ? (
+      <div role="dialog">
+        {title && <h2>{title}</h2>}
+        {children}
+      </div>
+    ) : null,
 }));
 
 vi.mock('../../../src/components/ui/FormField', () => ({
-  default: ({ label, children, error }: { label?: string; children: React.ReactNode; error?: string }) => (
+  default: ({
+    label,
+    children,
+    error,
+  }: {
+    label?: string;
+    children: React.ReactNode;
+    error?: string;
+  }) => (
     <div>
       {label && <label>{label}</label>}
       {children}
@@ -20,19 +41,44 @@ vi.mock('../../../src/components/ui/FormField', () => ({
 
 vi.mock('../../../src/components/ui/Input', () => ({
   default: ({
-    name, value, onChange, onBlur, placeholder, type, disabled,
+    name,
+    value,
+    onChange,
+    onBlur,
+    placeholder,
+    type,
+    disabled,
   }: {
-    name?: string; value?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void; placeholder?: string;
-    type?: string; disabled?: boolean;
+    name?: string;
+    value?: string;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
+    placeholder?: string;
+    type?: string;
+    disabled?: boolean;
   }) => (
-    <input name={name} value={value} onChange={onChange} onBlur={onBlur}
-      placeholder={placeholder} type={type ?? 'text'} disabled={disabled} />
+    <input
+      name={name}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      placeholder={placeholder}
+      type={type ?? 'text'}
+      disabled={disabled}
+    />
   ),
 }));
 
 vi.mock('../../../src/components/ui/Button', () => ({
-  Button: ({ children, loading, type }: { children: React.ReactNode; loading?: boolean; type?: string }) => (
+  Button: ({
+    children,
+    loading,
+    type,
+  }: {
+    children: React.ReactNode;
+    loading?: boolean;
+    type?: string;
+  }) => (
     <button type={(type as 'submit' | 'button') ?? 'button'} disabled={loading}>
       {loading ? 'Saving…' : children}
     </button>
@@ -40,7 +86,14 @@ vi.mock('../../../src/components/ui/Button', () => ({
 }));
 
 const mockFormik = {
-  values: { full_name: '', email: '', phone_number: '', status: 'ACTIVE', tokens: 0, school_id: '' },
+  values: {
+    full_name: '',
+    email: '',
+    phone_number: '',
+    status: 'ACTIVE',
+    tokens: 0,
+    school_id: '',
+  },
   errors: {},
   touched: {},
   handleChange: vi.fn(),
@@ -85,12 +138,16 @@ describe('EducatorModal', () => {
 
   it('renders the full name input', () => {
     render(<EducatorModal {...defaultProps} />);
-    expect(screen.getByPlaceholderText(/enter educator name/i)).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/enter educator name/i)
+    ).toBeInTheDocument();
   });
 
   it('renders the email input', () => {
     render(<EducatorModal {...defaultProps} />);
-    expect(screen.getByPlaceholderText(/enter educator email/i)).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(/enter educator email/i)
+    ).toBeInTheDocument();
   });
 
   it('renders "Select school" button', () => {
@@ -105,12 +162,16 @@ describe('EducatorModal', () => {
 
   it('shows the Create Educator submit button', () => {
     render(<EducatorModal {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /create educator/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /create educator/i })
+    ).toBeInTheDocument();
   });
 
   it('shows the Update Educator submit button in edit mode', () => {
     render(<EducatorModal {...defaultProps} modalMode="edit" />);
-    expect(screen.getByRole('button', { name: /update educator/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /update educator/i })
+    ).toBeInTheDocument();
   });
 
   it('disables submit button while submitting', () => {
@@ -119,13 +180,19 @@ describe('EducatorModal', () => {
   });
 
   it('shows field-level validation error for full_name', () => {
-    const formik = { ...mockFormik, errors: { full_name: 'Name is required' }, touched: { full_name: true } };
+    const formik = {
+      ...mockFormik,
+      errors: { full_name: 'Name is required' },
+      touched: { full_name: true },
+    };
     render(<EducatorModal {...defaultProps} formik={formik as never} />);
     expect(screen.getByRole('alert')).toHaveTextContent('Name is required');
   });
 
   it('does not show submit button in view mode', () => {
     render(<EducatorModal {...defaultProps} modalMode="view" />);
-    expect(screen.queryByRole('button', { name: /create educator|update educator/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /create educator|update educator/i })
+    ).not.toBeInTheDocument();
   });
 });

@@ -1,8 +1,10 @@
+import { AiGateway } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { LoggerService } from 'src/common/services';
+import type { ICurrentUser } from 'src/common/interfaces';
 import { Test } from '@nestjs/testing';
 import { ReportsService } from '@/modules/reports/reports.service';
-import { JsonDataService } from '@/data/json-data.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { PpePrivacyService } from '@/modules/reports/ppe-privacy.service';
 import { ClinicalDocumentationService } from '@/modules/reports/clinical-documentation.service';
@@ -10,20 +12,73 @@ import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
-import { of } from 'rxjs';
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
 import { computeTimelineAnalysis } from '@/modules/reports/timeline-analysis';
 import type { CreateReportDto } from '@/modules/reports/dto/create-report.dto';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../common/utils/mock-factory';
+
+const reportUser = { userId: 'user-1', type: 'educator' } as ICurrentUser;
 
 describe('Vitals Action-Based - Complete Test Suite', () => {
   let service: ReportsService;
-  let jsonDataService: JsonDataService;
+  let transcriptRepository: { findByBusinessId: jest.Mock };
+  // Drives the SIMULATION_V2_REPOSITORY scenario lookup below.
+  const scenarioLookupMock = jest.fn();
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 
   beforeEach(async () => {
+    scenarioLookupMock.mockReset();
+    transcriptRepository = { findByBusinessId: jest.fn() };
     const module = await Test.createTestingModule({
       providers: [
         ReportsService,
+        { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: createMockSimulationReportRepository() },
+        {
+          provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+          useValue: createMockStudentSimulationProgressRepository(),
+        },
+        { provide: STUDENT_REPOSITORY, useValue: createMockStudentRepository() },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: transcriptRepository },
+        { provide: UNIT_REPOSITORY, useValue: createMockUnitRepository() },
+        {
+          provide: SIMULATION_V2_REPOSITORY,
+          useValue: {
+            findByBusinessId: scenarioLookupMock,
+            findByBusinessIdWithChildrenJoined: scenarioLookupMock,
+          },
+        },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn() } },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
         ActionsInterventionsService,
         PpePrivacyService,
         ClinicalDocumentationService,
@@ -40,37 +95,30 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
           },
         },
         {
-          provide: JsonDataService,
+          provide: ConfigService,
           useValue: {
-            getTranscriptById: jest.fn(),
-            getTranscriptByIdFresh: jest.fn(),
-            getScenarioById: jest.fn(),
-            getScenarioByIdFresh: jest.fn(),
-            getScenarioByIdLocalized: jest.fn(),
-            getUnitById: () => null,
-            getReportByTranscriptId: jest.fn().mockReturnValue(null),
-            getReportByTranscriptIdFresh: jest.fn().mockResolvedValue(null),
-            addReportFresh: jest.fn(),
+            get: (key: string) => (key.startsWith('azureBlob.') ? undefined : 'test-key'),
           },
         },
-        { provide: ConfigService, useValue: { get: () => 'test-key' } },
         {
-          provide: HttpService,
-          useValue: { post: jest.fn().mockReturnValue(of({ data: {} })) },
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
         },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
         { provide: LifecycleTelemetryService, useValue: {} },
       ],
     }).compile();
 
     service = module.get(ReportsService);
-    jsonDataService = module.get(JsonDataService);
 
-    jest
-      .spyOn(service as unknown as Record<string, (...args: unknown[]) => unknown>, 'readReports')
-      .mockReturnValue([]);
-    jest
-      .spyOn(service as unknown as Record<string, (...args: unknown[]) => unknown>, 'writeReports')
-      .mockImplementation(() => {});
     (
       jest.spyOn(
         service as unknown as Record<string, (...args: unknown[]) => unknown>,
@@ -383,15 +431,11 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
           timestamp: '2024-01-01T10:00:31Z',
         },
       ];
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages,
         startedAt: '2024-01-01T10:00:00Z',
       });
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: {},
-      });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: {},
       });
@@ -409,7 +453,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(
         (
@@ -430,15 +477,11 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
     });
 
     it('should log multiple vital measurements', async () => {
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: {},
-      });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: {},
       });
@@ -459,7 +502,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(
         Object.keys(
@@ -474,15 +520,11 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
     });
 
     it('should log repeat vital attempts', async () => {
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: {},
-      });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: {},
       });
@@ -499,7 +541,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(
         (
@@ -512,15 +557,11 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
     });
 
     it('should include timestamp for each vital measurement', async () => {
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: {},
-      });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: {},
       });
@@ -539,7 +580,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(
         (
@@ -651,7 +695,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
 
   describe('Practice Mode', () => {
     it('should process vital signs in practice mode', async () => {
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: { maxScore: 100 },
         actions: [
@@ -663,19 +707,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
           },
         ],
       });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: { maxScore: 100 },
-        actions: [
-          {
-            id: 'v1',
-            title: 'Obtain Vital Signs',
-            type: 'vital',
-            vitals: { hr: [] },
-          },
-        ],
-      });
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
@@ -689,7 +721,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(result).toBeDefined();
       expect(
@@ -705,7 +740,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
 
   describe('Assessment Mode', () => {
     it('should process vital signs in assessment mode', async () => {
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: { maxScore: 100 },
         actions: [
@@ -717,19 +752,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
           },
         ],
       });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: { maxScore: 100 },
-        actions: [
-          {
-            id: 'v1',
-            title: 'Obtain Vital Signs',
-            type: 'vital',
-            vitals: { hr: [] },
-          },
-        ],
-      });
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
@@ -743,7 +766,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(result).toBeDefined();
     });
@@ -751,7 +777,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
 
   describe('Multi-Repeat Workflow', () => {
     it('should handle multiple vital sign attempts', async () => {
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: { maxScore: 100 },
         actions: [
@@ -763,19 +789,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
           },
         ],
       });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: { maxScore: 100 },
-        actions: [
-          {
-            id: 'v1',
-            title: 'Obtain Vital Signs',
-            type: 'vital',
-            vitals: { hr: [] },
-          },
-        ],
-      });
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
@@ -793,7 +807,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(
         (
@@ -808,7 +825,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
 
   describe('No Legacy Tab References', () => {
     it('should not reference legacy vitals tab data', async () => {
-      (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue({
+      scenarioLookupMock.mockResolvedValue({
         title: 'Test',
         grading: { maxScore: 100 },
         actions: [
@@ -820,19 +837,7 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
           },
         ],
       });
-      (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue({
-        title: 'Test',
-        grading: { maxScore: 100 },
-        actions: [
-          {
-            id: 'v1',
-            title: 'Obtain Vital Signs',
-            type: 'vital',
-            vitals: { hr: [] },
-          },
-        ],
-      });
-      (jsonDataService.getTranscriptByIdFresh as jest.Mock).mockResolvedValue({
+      transcriptRepository.findByBusinessId.mockResolvedValue({
         messages: [],
         startedAt: '2024-01-01T10:00:00Z',
       });
@@ -846,7 +851,10 @@ describe('Vitals Action-Based - Complete Test Suite', () => {
         },
       };
 
-      const result = await service.createReportWithAI(dto as unknown as CreateReportDto);
+      const result = await service.createReportWithAI(
+        reportUser,
+        dto as unknown as CreateReportDto,
+      );
 
       expect(
         (

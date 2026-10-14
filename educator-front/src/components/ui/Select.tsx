@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { cn } from "../../lib/utils";
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { cn } from '../../lib/utils';
 
 interface Option {
   label: string;
@@ -26,7 +26,7 @@ export default function SelectField({
   error,
   options,
   value,
-  placeholder = "Select",
+  placeholder = 'Select',
   required,
   onChange,
   disabled,
@@ -34,7 +34,7 @@ export default function SelectField({
 }: SelectFieldProps) {
   const [open, setOpen] = useState(false);
 
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
 
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
@@ -52,11 +52,11 @@ export default function SelectField({
 
   const selectedOption = options.find((o) => o.value === value);
   const selectedLabel =
-    selectedOption?.selectedLabel || selectedOption?.label || "";
+    selectedOption?.selectedLabel || selectedOption?.label || '';
 
   const filteredOptions = searchable
     ? options.filter((opt) =>
-        opt.label.toLowerCase().includes(search.toLowerCase()),
+        opt.label.toLowerCase().includes(search.toLowerCase())
       )
     : options;
 
@@ -72,33 +72,35 @@ export default function SelectField({
       }
     };
 
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const getPosition = (): React.CSSProperties => {
     const el = triggerRef.current;
     if (!el) return {};
     const rect = el.getBoundingClientRect();
-    const dropdownHeight = 232;
+    const itemCount = options.length > 0 ? options.length : 1;
+    const estimatedHeight = Math.min(232, itemCount * 38 + 16);
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
     const openUpward =
-      spaceBelow < dropdownHeight && spaceAbove >= dropdownHeight;
+      spaceBelow < estimatedHeight && spaceAbove >= estimatedHeight;
     return openUpward
       ? {
-          position: "fixed",
+          position: 'fixed',
           bottom: window.innerHeight - rect.top + 6,
           left: rect.left,
           width: rect.width,
-          zIndex: 9999,
+          // Must exceed Modal's z-[99999] — both portal directly to document.body as siblings.
+          zIndex: 100000,
         }
       : {
-          position: "fixed",
+          position: 'fixed',
           top: rect.bottom + 6,
           left: rect.left,
           width: rect.width,
-          zIndex: 9999,
+          zIndex: 100000,
         };
   };
 
@@ -115,11 +117,11 @@ export default function SelectField({
       if (dropdownRef.current && dropdownRef.current.contains(target)) return;
       setDropdownStyle(getPosition());
     };
-    window.addEventListener("resize", onResize);
-    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open]);
 
@@ -136,8 +138,8 @@ export default function SelectField({
       : normalListRef.current;
     if (!activeList) return;
     const el = activeList.children[focusedIndex] as HTMLElement | undefined;
-    if (el && typeof el.scrollIntoView === "function") {
-      el.scrollIntoView({ block: "nearest" });
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest' });
     }
   }, [focusedIndex, open, searchable]);
 
@@ -145,7 +147,7 @@ export default function SelectField({
     if (disabled) return;
     const count = options.length;
     switch (e.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         e.preventDefault();
         if (!open) {
           openDropdown();
@@ -153,37 +155,41 @@ export default function SelectField({
           let next = focusedIndex;
           do {
             next = Math.min(next + 1, count - 1);
-          } while (next < count - 1 && options[next].disabled);
-          if (!options[next].disabled) setFocusedIndex(next);
+          } while (next < count - 1 && options[next]?.disabled);
+          const nextOption = options[next];
+          if (nextOption && !nextOption.disabled) setFocusedIndex(next);
         }
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         e.preventDefault();
         if (open) {
           let prev = focusedIndex;
           do {
             prev = Math.max(prev - 1, 0);
-          } while (prev > 0 && options[prev].disabled);
-          if (!options[prev].disabled) setFocusedIndex(prev);
+          } while (prev > 0 && options[prev]?.disabled);
+          const prevOption = options[prev];
+          if (prevOption && !prevOption.disabled) setFocusedIndex(prev);
         }
         break;
-      case "Enter":
-      case " ":
+      case 'Enter':
+      case ' ': {
         e.preventDefault();
-        if (open && focusedIndex >= 0 && !options[focusedIndex].disabled) {
-          onChange?.(options[focusedIndex].value);
+        const focusedOption = options[focusedIndex];
+        if (open && focusedOption && !focusedOption.disabled) {
+          onChange?.(focusedOption.value);
           setOpen(false);
           setFocusedIndex(-1);
         } else {
           openDropdown();
         }
         break;
-      case "Escape":
+      }
+      case 'Escape':
         e.preventDefault();
         setOpen(false);
         setFocusedIndex(-1);
         break;
-      case "Tab":
+      case 'Tab':
         setOpen(false);
         setFocusedIndex(-1);
         break;
@@ -193,31 +199,33 @@ export default function SelectField({
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const count = filteredOptions.length;
     switch (e.key) {
-      case "ArrowDown":
+      case 'ArrowDown':
         e.preventDefault();
         if (!open) {
           openDropdown();
         } else setFocusedIndex((p) => Math.min(p + 1, count - 1));
         break;
-      case "ArrowUp":
+      case 'ArrowUp':
         e.preventDefault();
         if (open) setFocusedIndex((p) => Math.max(p - 1, 0));
         break;
-      case "Enter":
+      case 'Enter': {
         e.preventDefault();
-        if (open && focusedIndex >= 0) {
-          onChange?.(filteredOptions[focusedIndex].value);
-          setSearch(filteredOptions[focusedIndex].label);
+        const focusedOption = filteredOptions[focusedIndex];
+        if (open && focusedOption) {
+          onChange?.(focusedOption.value);
+          setSearch(focusedOption.label);
           setOpen(false);
           setFocusedIndex(-1);
         }
         break;
-      case "Escape":
+      }
+      case 'Escape':
         e.preventDefault();
         setOpen(false);
         setFocusedIndex(-1);
         break;
-      case "Tab":
+      case 'Tab':
         setOpen(false);
         setFocusedIndex(-1);
         break;
@@ -249,9 +257,9 @@ export default function SelectField({
                 items-center
                 border-2
               `,
-              open ? "border-primary-400" : "border-gray-300",
-              disabled && "bg-gray-100 cursor-not-allowed opacity-60",
-              !open && !disabled && "focus-within:border-primary-400",
+              open ? 'border-primary-400' : 'border-gray-300',
+              disabled && 'bg-gray-100 cursor-not-allowed opacity-60',
+              !open && !disabled && 'focus-within:border-primary-400'
             )}
           >
             <input
@@ -261,7 +269,7 @@ export default function SelectField({
               placeholder={placeholder}
               autoComplete="off"
               onFocus={() => {
-                setSearch("");
+                setSearch('');
                 setFocusedIndex(-1);
                 openDropdown();
               }}
@@ -281,7 +289,7 @@ export default function SelectField({
                 if (open) {
                   setOpen(false);
                 } else {
-                  setSearch("");
+                  setSearch('');
                   openDropdown();
                 }
               }}
@@ -295,8 +303,8 @@ export default function SelectField({
                 stroke="currentColor"
                 strokeWidth="2"
                 className={cn(
-                  "text-gray-500 transition-transform duration-200",
-                  open && "rotate-180",
+                  'text-gray-500 transition-transform duration-200',
+                  open && 'rotate-180'
                 )}
               >
                 <path d="M6 9l6 6 6-6" />
@@ -320,6 +328,12 @@ export default function SelectField({
                   max-h-60
                   overflow-y-auto
                   py-1
+                  [&::-webkit-scrollbar]:w-1.5
+                  [&::-webkit-scrollbar-track]:bg-gray-100
+                  [&::-webkit-scrollbar-track]:rounded-full
+                  [&::-webkit-scrollbar-thumb]:bg-primary-300
+                  [&::-webkit-scrollbar-thumb]:rounded-full
+                  [&::-webkit-scrollbar-thumb:hover]:bg-primary-500
                 "
                 >
                   {filteredOptions.length > 0 ? (
@@ -336,12 +350,12 @@ export default function SelectField({
                         }}
                         onMouseEnter={() => setFocusedIndex(idx)}
                         className={cn(
-                          "px-3 py-2 text-sm cursor-pointer transition-colors",
+                          'px-3 py-2 text-sm cursor-pointer transition-colors',
                           idx === focusedIndex
-                            ? "bg-[#e9e9e9] text-black"
+                            ? 'bg-primary-100 text-primary-700'
                             : value === opt.value
-                              ? "bg-[#5f6060] text-white font-medium"
-                              : "text-gray-800 hover:bg-[#e9e9e9] hover:text-black",
+                              ? 'bg-primary-50 text-primary-500 font-medium'
+                              : 'text-gray-800 hover:bg-primary-50 hover:text-primary-500'
                         )}
                       >
                         {opt.label}
@@ -354,7 +368,7 @@ export default function SelectField({
                   )}
                 </div>
               </div>,
-              document.body,
+              document.body
             )}
         </div>
       ) : (
@@ -389,15 +403,15 @@ export default function SelectField({
     justify-between
     transition-colors
   `,
-              open ? "border-primary-400" : "border-gray-300",
+              open ? 'border-primary-400' : 'border-gray-300',
               !disabled &&
-                "focus:outline-none focus:ring-0 focus:border-primary-400",
+                'focus:outline-none focus:ring-0 focus:border-primary-400'
             )}
           >
             <span
               className={cn(
-                "truncate",
-                value ? "text-gray-900" : "text-gray-500",
+                'truncate',
+                value ? 'text-gray-900' : 'text-gray-500'
               )}
             >
               {value ? selectedLabel : placeholder}
@@ -411,8 +425,8 @@ export default function SelectField({
               stroke="currentColor"
               strokeWidth="2"
               className={cn(
-                "text-gray-500 transition-transform duration-200",
-                open && "rotate-180",
+                'text-gray-500 transition-transform duration-200',
+                open && 'rotate-180'
               )}
             >
               <path d="M6 9l6 6 6-6" />
@@ -435,6 +449,12 @@ export default function SelectField({
                   max-h-60
                   overflow-y-auto
                   py-1
+                  [&::-webkit-scrollbar]:w-1.5
+                  [&::-webkit-scrollbar-track]:bg-gray-100
+                  [&::-webkit-scrollbar-track]:rounded-full
+                  [&::-webkit-scrollbar-thumb]:bg-primary-300
+                  [&::-webkit-scrollbar-thumb]:rounded-full
+                  [&::-webkit-scrollbar-thumb:hover]:bg-primary-500
                 "
                 >
                   {options.length > 0 ? (
@@ -454,14 +474,14 @@ export default function SelectField({
                           if (!opt.disabled) setFocusedIndex(idx);
                         }}
                         className={cn(
-                          "px-3 py-2 text-sm transition-colors",
+                          'px-3 py-2 text-sm transition-colors',
                           opt.disabled
-                            ? "cursor-not-allowed text-gray-300"
+                            ? 'cursor-not-allowed text-gray-300'
                             : idx === focusedIndex
-                              ? "cursor-pointer bg-[#e9e9e9] text-black"
+                              ? 'cursor-pointer bg-primary-100 text-primary-700'
                               : value === opt.value
-                                ? "cursor-pointer bg-[#5f6060] text-white font-medium"
-                                : "cursor-pointer text-gray-800 hover:bg-[#e9e9e9] hover:text-black",
+                                ? 'cursor-pointer bg-primary-50 text-primary-500 font-medium'
+                                : 'cursor-pointer text-gray-800 hover:bg-primary-50 hover:text-primary-500'
                         )}
                       >
                         {opt.label}
@@ -474,7 +494,7 @@ export default function SelectField({
                   )}
                 </div>
               </div>,
-              document.body,
+              document.body
             )}
         </div>
       )}

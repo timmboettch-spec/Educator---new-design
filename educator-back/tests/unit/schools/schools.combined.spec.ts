@@ -1,16 +1,11 @@
+import { Reflector } from '@nestjs/core';
+import { ROLES_KEY } from 'src/common/decorators/required-roles.decorator';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  ForbiddenException,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { SchoolsController } from '../../../src/schools/schools.controller';
 import { SchoolsService } from '../../../src/schools/schools.service';
-import { Schools } from '../../../src/schools/entity/schools.entity';
-import { User } from '../../../src/users/entity/user.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
-import { Invite } from '../../../src/invites/entity/invite.entity';
+
+import { ResponseResult } from 'src/common/class/response.class';
 import { CommonStatus } from 'src/common/enums/status.enum';
 import { JwtRequest } from 'src/common/types';
 import { DataSource } from 'typeorm';
@@ -18,8 +13,19 @@ import { ConfigService } from '@nestjs/config';
 import { EducatorSessionService } from '../../../src/session/educator-session.service';
 import { NotificationsGateway } from '../../../src/notifications/notifications.gateway';
 import { MailService } from '../../../src/mail/mail.service';
+import { Schools, User } from 'src/database/entities';
+import { DatabaseService } from 'src/database/services/database.service';
+import { LoggerService } from 'src/common/services';
+import {
+  CLASS_SIMULATION_REPOSITORY,
+  INVITE_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  USER_REPOSITORY,
+} from 'src/database/tokens';
+import { RoleSlug } from 'src/common/constants';
+import { InviteTokenService } from '../../../src/invites/invite-token.service';
 
-const makeReq = (userId: string, roles: string[]): JwtRequest => {
+const makeReq = (userId: string, roles: RoleSlug[]): JwtRequest => {
   const req = Object.assign(new Request('http://localhost'), { user: { userId, roles } });
   return req;
 };
@@ -40,8 +46,8 @@ const makeSchool = (o: Partial<Schools> = {}): Schools => ({
   ...o,
 });
 
-const districtReq = makeReq('user-1', ['District Admin']);
-const educatorReq = makeReq('user-1', ['Educator']);
+const districtReq = makeReq('user-1', [RoleSlug.DISTRICT_ADMIN]);
+const educatorReq = makeReq('user-1', [RoleSlug.EDUCATOR]);
 
 describe('Schools (Controller + Service)', () => {
   let controller: SchoolsController;
@@ -50,10 +56,9 @@ describe('Schools (Controller + Service)', () => {
   const schoolRepo = {
     findOne: jest.fn(),
     find: jest.fn(),
-    save: jest.fn(),
     remove: jest.fn(),
     create: jest.fn(),
-    createQueryBuilder: jest.fn(),
+    findAllForAdmin: jest.fn(),
   };
   const userRepo = { findOne: jest.fn() };
   const classSimulationRepo = { update: jest.fn() };
@@ -63,6 +68,7 @@ describe('Schools (Controller + Service)', () => {
     save: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
+    deleteByEmail: jest.fn(),
   };
   const mailService = {
     sendMail: jest.fn().mockResolvedValue(undefined),
@@ -71,8 +77,14 @@ describe('Schools (Controller + Service)', () => {
   const configService = {
     get: jest.fn().mockReturnValue(undefined),
   };
+  const notificationsGateway = {
+    notifyEducatorSchoolDeactivated: jest.fn(),
+    notifyEducatorSchoolRemoved: jest.fn(),
+    notifyEducatorSchoolStatusChanged: jest.fn(),
+    notifyAdminEducatorStatusUpdated: jest.fn(),
+  };
 
-  // Chainable query builder mock for queryRunner.manager.createQueryBuilder
+  // Chainable query builder mock for the transaction manager's createQueryBuilder
   const makeQbMock = (): Record<string, jest.Mock> => {
     const qb: Record<string, jest.Mock> = {};
     const chain = (): Record<string, jest.Mock> => qb;
@@ -90,41 +102,46 @@ describe('Schools (Controller + Service)', () => {
     return qb;
   };
 
-  const queryRunner = {
-    connect: jest.fn(),
-    startTransaction: jest.fn(),
-    commitTransaction: jest.fn(),
-    rollbackTransaction: jest.fn(),
-    release: jest.fn(),
-    manager: {
-      update: jest.fn(),
-      find: jest.fn(),
-      findByIds: jest.fn(),
-      createQueryBuilder: jest.fn(),
-      query: jest.fn().mockResolvedValue(undefined),
-    },
+  // Mock EntityManager passed into DatabaseService.runInTransaction's callback.
+  const manager = {
+    update: jest.fn(),
+    find: jest.fn(),
+    findByIds: jest.fn(),
+    save: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    query: jest.fn().mockResolvedValue(undefined),
+  };
+  const databaseService = {
+    runInTransaction: jest.fn((work: (m: typeof manager) => unknown) => work(manager)),
   };
   const dataSource = {
     query: jest.fn().mockResolvedValue([]),
-    createQueryRunner: jest.fn(),
+  };
+  const inviteTokenService = {
+    issue: jest.fn().mockReturnValue('mock-invite-token'),
+    buildInviteUrl: jest
+      .fn()
+      .mockReturnValue('http://localhost:5173/signup/mock-invite-token'),
+    resolve: jest.fn(),
   };
 
   beforeEach(async () => {
-    dataSource.createQueryRunner.mockReturnValue(queryRunner);
-    queryRunner.manager.find.mockResolvedValue([]);
-    queryRunner.manager.findByIds.mockResolvedValue([]);
-    queryRunner.manager.update.mockResolvedValue({});
-    queryRunner.manager.createQueryBuilder.mockReturnValue(makeQbMock());
+    manager.find.mockResolvedValue([]);
+    manager.findByIds.mockResolvedValue([]);
+    manager.update.mockResolvedValue({});
+    manager.save.mockResolvedValue({});
+    manager.createQueryBuilder.mockReturnValue(makeQbMock());
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [SchoolsController],
       providers: [
         SchoolsService,
-        { provide: getRepositoryToken(Schools), useValue: schoolRepo },
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(ClassSimulation), useValue: classSimulationRepo },
-        { provide: getRepositoryToken(Invite), useValue: inviteRepo },
+        { provide: SCHOOLS_REPOSITORY, useValue: schoolRepo },
+        { provide: USER_REPOSITORY, useValue: userRepo },
+        { provide: CLASS_SIMULATION_REPOSITORY, useValue: classSimulationRepo },
+        { provide: INVITE_REPOSITORY, useValue: inviteRepo },
         { provide: DataSource, useValue: dataSource },
+        { provide: DatabaseService, useValue: databaseService },
         {
           provide: EducatorSessionService,
           useValue: {
@@ -132,9 +149,21 @@ describe('Schools (Controller + Service)', () => {
             invalidateBySchool: jest.fn().mockResolvedValue([]),
           },
         },
-        { provide: NotificationsGateway, useValue: { notifyEducatorSchoolDeactivated: jest.fn() } },
+        { provide: NotificationsGateway, useValue: notificationsGateway },
         { provide: MailService, useValue: mailService },
         { provide: ConfigService, useValue: configService },
+        { provide: InviteTokenService, useValue: inviteTokenService },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
     controller = module.get(SchoolsController);
@@ -145,18 +174,10 @@ describe('Schools (Controller + Service)', () => {
 
   describe('create', () => {
     it('UNIT: creates school successfully', async () => {
-      schoolRepo.create.mockReturnValue(makeSchool());
-      schoolRepo.save.mockResolvedValue(makeSchool());
+      schoolRepo.create.mockResolvedValue(makeSchool());
       schoolRepo.findOne.mockResolvedValue(makeSchool());
       const result = await service.create('user-1', { school_name: 'Test School' });
       expect(result.success).toBe(true);
-    });
-
-    it('UNIT: returns failure when save returns array', async () => {
-      schoolRepo.create.mockReturnValue(makeSchool());
-      schoolRepo.save.mockResolvedValue([makeSchool()]);
-      const result = await service.create('user-1', { school_name: 'X' });
-      expect(result.success).toBe(false);
     });
 
     it('INTEGRATION: throws ForbiddenException for non-District Admin', async () => {
@@ -190,8 +211,7 @@ describe('Schools (Controller + Service)', () => {
     it('INTEGRATION: creates successfully', async () => {
       userRepo.findOne.mockResolvedValue(makeUser());
       schoolRepo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(makeSchool());
-      schoolRepo.create.mockReturnValue(makeSchool());
-      schoolRepo.save.mockResolvedValue(makeSchool());
+      schoolRepo.create.mockResolvedValue(makeSchool());
       const result = await controller.create({ school_name: 'Test School' }, districtReq);
       expect(result.data).toBeDefined();
     });
@@ -199,13 +219,7 @@ describe('Schools (Controller + Service)', () => {
 
   describe('findAll', () => {
     it('UNIT: returns schools for user', async () => {
-      const qb = {
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([makeSchool()]),
-      };
-      schoolRepo.createQueryBuilder.mockReturnValue(qb);
+      schoolRepo.findAllForAdmin.mockResolvedValue([makeSchool()]);
       const result = await service.findAll('user-1');
       expect(result.success).toBe(true);
       expect(result.data).toHaveLength(1);
@@ -221,18 +235,23 @@ describe('Schools (Controller + Service)', () => {
   });
 
   describe('findByAdmin', () => {
-    it('INTEGRATION: throws when non-owner and not Super Admin', async () => {
-      await expect(controller.findByAdmin({ adminId: 'other' }, educatorReq)).rejects.toThrow();
+    // Per ADR-0006 this is enforced by @RequiredRoles on the route, evaluated by the global
+    // AuthGuard before the handler runs — a direct controller call in a unit test bypasses the
+    // guard, so the declaration is what's assertable here. Runtime enforcement is proved in
+    // tests/integration/auth/route-coverage.integration.spec.ts.
+    it('declares @RequiredRoles(DISTRICT_ADMIN) on findByAdmin, so a non-admin never reaches it', () => {
+      const roles = new Reflector().getAllAndOverride<RoleSlug[]>(ROLES_KEY, [
+        SchoolsController.prototype.findByAdmin as () => unknown,
+        SchoolsController,
+      ]);
+      expect(roles).toEqual([RoleSlug.DISTRICT_ADMIN]);
     });
 
-    it('INTEGRATION: Super Admin can fetch any admin schools', async () => {
-      const superReq = makeReq('super-1', ['Super Admin']);
-      jest
-        .spyOn(service, 'findAll')
-        .mockResolvedValue({ success: true, message: 'Fetched', data: [] });
-      const result = await controller.findByAdmin({ adminId: 'other' }, superReq);
-      expect(result.data).toBeDefined();
-    });
+    // A roleless caller is rejected by the guard, not the handler: there is no "Super Admin"
+    // bypass anywhere in the RoleSlug model (only DISTRICT_ADMIN/SCENARIO_ADMIN/EDUCATOR/STUDENT
+    // exist), and @RequiredRoles(DISTRICT_ADMIN) above admits no one else whatever adminId they
+    // ask for. The declaration assertion above covers it; the guard's own refusal of an
+    // unmatched role is covered in tests/unit/guards/auth.guard.spec.ts.
   });
 
   describe('findOne', () => {
@@ -259,7 +278,7 @@ describe('Schools (Controller + Service)', () => {
   describe('update', () => {
     it('UNIT: updates school name', async () => {
       const updated = makeSchool({ school_name: 'New' });
-      schoolRepo.save.mockResolvedValue(updated);
+      schoolRepo.create.mockResolvedValue(updated);
       schoolRepo.findOne.mockResolvedValue(updated);
       const result = await service.update(makeSchool(), { school_name: 'New' });
       expect(result.data?.school_name).toBe('New');
@@ -276,7 +295,7 @@ describe('Schools (Controller + Service)', () => {
       schoolRepo.findOne
         .mockResolvedValueOnce(makeSchool())
         .mockResolvedValueOnce(makeSchool({ school_name: 'New' }));
-      schoolRepo.save.mockResolvedValue(makeSchool({ school_name: 'New' }));
+      schoolRepo.create.mockResolvedValue(makeSchool({ school_name: 'New' }));
       const result = await controller.update(
         { id: 'school-1' },
         { school_name: 'New' },
@@ -284,14 +303,100 @@ describe('Schools (Controller + Service)', () => {
       );
       expect((result.data as Schools).school_name).toBe('New');
     });
+
+    it('REGRESSION: deactivation notifies educators returned by the active-educator lookup', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        { educator_id: 'edu-survivor-1' },
+        { educator_id: 'edu-survivor-2' },
+      ]);
+      const school = makeSchool({ status: CommonStatus.ACTIVE });
+      schoolRepo.findOne.mockResolvedValue(school);
+
+      await service.update(school, { status: CommonStatus.INACTIVE });
+
+      expect(notificationsGateway.notifyEducatorSchoolStatusChanged).toHaveBeenCalledWith(
+        'edu-survivor-1',
+      );
+      expect(notificationsGateway.notifyEducatorSchoolStatusChanged).toHaveBeenCalledWith(
+        'edu-survivor-2',
+      );
+      expect(notificationsGateway.notifyEducatorSchoolStatusChanged).toHaveBeenCalledTimes(2);
+    });
+
+    it('REGRESSION: reactivation notifies educators with an activated (not deactivated) status', async () => {
+      // 1st dataSource.query call = reactivateEducatorsForActiveSchool's lookup (none to restore).
+      // 2nd call = the notification-target lookup in the statusChanged block below.
+      dataSource.query
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ educator_id: 'edu-1' }]);
+      const school = makeSchool({ status: CommonStatus.INACTIVE });
+      schoolRepo.findOne.mockResolvedValue(school);
+
+      await service.update(school, { status: CommonStatus.ACTIVE });
+
+      expect(notificationsGateway.notifyEducatorSchoolStatusChanged).toHaveBeenCalledWith('edu-1');
+    });
+
+    it('REGRESSION: reactivation clears the never-registered educator\'s old invites before re-inviting', async () => {
+      dataSource.query.mockResolvedValueOnce([
+        {
+          id: 'edu-1',
+          full_name: 'Pending Educator',
+          admin_user_id: null,
+          user_role_id: 'ur-1',
+          v2_password: null,
+          v2_email: 'edu@test.com',
+          districtAdminFullName: null,
+        },
+      ]);
+      inviteRepo.create.mockResolvedValueOnce({ id: 'invite-1' });
+      const school = makeSchool({ status: CommonStatus.INACTIVE });
+      schoolRepo.findOne.mockResolvedValue(school);
+
+      await service.update(school, { status: CommonStatus.ACTIVE });
+
+      expect(inviteRepo.deleteByEmail).toHaveBeenCalledWith('edu@test.com');
+      expect(inviteRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ email: 'edu@test.com' }),
+      );
+    });
   });
 
   describe('remove', () => {
     it('UNIT: removes school', async () => {
       const result = await service.remove(makeSchool());
-      expect(result.success).toBe(true);
+      expect(result).toBeInstanceOf(ResponseResult);
       expect(result.data).toBeNull();
-      expect(queryRunner.commitTransaction).toHaveBeenCalled();
+      expect(databaseService.runInTransaction).toHaveBeenCalled();
+    });
+
+    it('REGRESSION: notifies every affected educator, including those deactivated by the deletion', async () => {
+      const qb = manager.createQueryBuilder();
+      // 1st getRawMany call inside remove() = onlySchoolRows (educators to deactivate)
+      // 2nd getRawMany call = allAffectedRows (every educator linked to the school)
+      (qb.getRawMany as jest.Mock)
+        .mockResolvedValueOnce([{ educatorId: 'edu-deactivated' }])
+        .mockResolvedValueOnce([{ educatorId: 'edu-deactivated' }, { educatorId: 'edu-survivor' }]);
+      manager.find.mockResolvedValueOnce([
+        {
+          id: 'edu-deactivated',
+          full_name: 'Deactivated Educator',
+          admin: { userRole: { userId: 'admin-1' } },
+        },
+      ]);
+
+      const school = makeSchool();
+      await service.remove(school);
+
+      expect(notificationsGateway.notifyEducatorSchoolRemoved).toHaveBeenCalledWith('edu-survivor');
+      expect(notificationsGateway.notifyEducatorSchoolRemoved).toHaveBeenCalledWith('edu-deactivated');
+      expect(notificationsGateway.notifyEducatorSchoolRemoved).toHaveBeenCalledTimes(2);
+      expect(notificationsGateway.notifyAdminEducatorStatusUpdated).toHaveBeenCalledWith(
+        'admin-1',
+        'edu-deactivated',
+        'Deactivated Educator',
+        CommonStatus.INACTIVE,
+      );
     });
 
     it('INTEGRATION: throws ForbiddenException when user not found', async () => {
@@ -314,7 +419,7 @@ describe('Schools (Controller + Service)', () => {
       schoolRepo.findOne.mockResolvedValue(makeSchool());
       const result = await controller.remove({ id: 'school-1' }, districtReq);
       expect(result.data).toBeNull();
-      expect(queryRunner.commitTransaction).toHaveBeenCalled();
+      expect(databaseService.runInTransaction).toHaveBeenCalled();
     });
   });
 
@@ -322,8 +427,7 @@ describe('Schools (Controller + Service)', () => {
     it('create: uses req.user.userId when dto.user_id not provided', async () => {
       userRepo.findOne.mockResolvedValue(makeUser());
       schoolRepo.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(makeSchool());
-      schoolRepo.create.mockReturnValue(makeSchool());
-      schoolRepo.save.mockResolvedValue(makeSchool());
+      schoolRepo.create.mockResolvedValue(makeSchool());
       const spy = jest.spyOn(service, 'findUserById');
       await controller.create({ school_name: 'X' }, districtReq);
       expect(spy).toHaveBeenCalledWith('user-1');
@@ -332,7 +436,7 @@ describe('Schools (Controller + Service)', () => {
     it('update: status unchanged when not in dto', async () => {
       const school = makeSchool();
       schoolRepo.findOne.mockResolvedValueOnce(school).mockResolvedValueOnce(school);
-      schoolRepo.save.mockResolvedValue(school);
+      schoolRepo.create.mockResolvedValue(school);
       const result = await controller.update(
         { id: 'school-1' },
         { school_name: 'Only Name' },

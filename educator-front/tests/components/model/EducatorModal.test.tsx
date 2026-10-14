@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, test, expect, vi } from 'vitest';
-import { FormikProps } from 'formik';
+import { type FormikProps } from 'formik';
 import EducatorModal from '../../../src/components/modal/EducatorModal';
 
 interface EducatorFormValues {
@@ -54,11 +54,15 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
-    expect(screen.getByPlaceholderText('Enter Educator Tokens')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter Educator Email')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter Educator Tokens')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter Educator Email')
+    ).toBeInTheDocument();
     expect(screen.getAllByText('Create Educator')[0]).toBeInTheDocument();
   });
 
@@ -73,7 +77,7 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
     expect(screen.getByText('Update Educator')).toBeInTheDocument();
@@ -90,7 +94,7 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
     expect(container.firstChild).toBeNull();
@@ -107,7 +111,7 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
     fireEvent.click(screen.getByText('Back'));
@@ -126,7 +130,7 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
     fireEvent.click(screen.getByText('ABC School'));
@@ -145,7 +149,7 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
     fireEvent.click(screen.getByText('XYZ School'));
@@ -164,7 +168,7 @@ describe('EducatorModal', () => {
         setOpenSchoolDropdown={mockSetOpenSchoolDropdown}
         isSubmitting={false}
         formik={mockFormik as FormikProps<EducatorFormValues>}
-      />,
+      />
     );
 
     fireEvent.click(screen.getByText('Update Educator'));

@@ -5,11 +5,32 @@ import Educators from '../../../src/pages/educator/index';
 import '@testing-library/jest-dom';
 
 vi.mock('../../../src/components/ui/DropdownMenu', () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onSelect, disabled, className }: { children: React.ReactNode; onSelect?: () => void; disabled?: boolean; className?: string }) => (
-    <button type="button" onClick={() => onSelect?.()} disabled={disabled} className={className}>
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    disabled,
+    className,
+  }: {
+    children: React.ReactNode;
+    onSelect?: () => void;
+    disabled?: boolean;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onSelect?.()}
+      disabled={disabled}
+      className={className}
+    >
       {children}
     </button>
   ),
@@ -30,7 +51,12 @@ const mockReduxState = {
     responseGetEducator: {
       data: {
         items: [
-          { id: 'edu-1', full_name: 'Jane Doe', school_name: 'Springfield High', status: 'ACTIVE' },
+          {
+            id: 'edu-1',
+            full_name: 'Jane Doe',
+            school_name: 'Springfield High',
+            status: 'ACTIVE',
+          },
         ],
         total: 1,
       },
@@ -46,11 +72,13 @@ const mockReduxState = {
 };
 
 vi.mock('react-redux', async () => {
-  const actual = await vi.importActual<typeof import('react-redux')>('react-redux');
+  const actual =
+    await vi.importActual<typeof import('react-redux')>('react-redux');
   return {
     ...actual,
     useDispatch: () => mockDispatch,
-    useSelector: (selector: (state: typeof mockReduxState) => unknown) => selector(mockReduxState),
+    useSelector: (selector: (state: typeof mockReduxState) => unknown) =>
+      selector(mockReduxState),
   };
 });
 
@@ -58,14 +86,20 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   GetEducatorByUserRequest: vi.fn(() => ({ type: 'get' })),
   clearGetEducatorState: vi.fn(() => ({ type: 'educator/clearGet' })),
   selectGetEducatorsData: (s: {
-    GetEducator: { responseGetEducator?: { data?: { items?: unknown[]; total?: number } } };
+    GetEducator: {
+      responseGetEducator?: { data?: { items?: unknown[]; total?: number } };
+    };
   }) => ({
     items: s.GetEducator.responseGetEducator?.data?.items ?? [],
     total: s.GetEducator.responseGetEducator?.data?.total ?? 0,
   }),
-  selectGetEducatorStatus: (s: { GetEducator: { status: string } }) => s.GetEducator.status,
-  selectGetEducatorError: (s: { GetEducator: { error: string | null } }) => s.GetEducator.error,
-  selectGetEducatorResponse: (s: { GetEducator: { responseGetEducator?: unknown } }) => s.GetEducator.responseGetEducator ?? null,
+  selectGetEducatorStatus: (s: { GetEducator: { status: string } }) =>
+    s.GetEducator.status,
+  selectGetEducatorError: (s: { GetEducator: { error: string | null } }) =>
+    s.GetEducator.error,
+  selectGetEducatorResponse: (s: {
+    GetEducator: { responseGetEducator?: unknown };
+  }) => s.GetEducator.responseGetEducator ?? null,
 }));
 
 vi.mock('../../../src/redux/educator/UpdateEducatorRedux', () => ({
@@ -90,17 +124,24 @@ vi.mock('../../../src/redux/educator/DeleteEducatorRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({ type: 'schools/get' })),
   selectSchools: (s: { getSchools: { responseGetSchools: unknown[] } }) =>
     s.getSchools.responseGetSchools,
-  selectSchoolStatus: (s: { getSchools: { status: string } }) => s.getSchools.status,
+  selectSchoolStatus: (s: { getSchools: { status: string } }) =>
+    s.getSchools.status,
 }));
 
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -109,7 +150,7 @@ describe('Delete Educator', () => {
     render(
       <MemoryRouter>
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument();

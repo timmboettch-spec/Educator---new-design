@@ -1,11 +1,32 @@
+import { createPrivateKey, createSign, generateKeyPairSync } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
+import { OutboundHttpClient } from '../../../src/common/services';
+import { createOutboundHttpStub } from '../helpers/outbound-http.stub';
 import { LtiJwtService } from '../../../src/lti/lti-jwt.service';
 import { LmsConfigService } from '../../../src/lms/services/lms-config.service';
-import { LmsSchoolConfig } from '../../../src/lms/entity/lms-school-config.entity';
+
 import { LmsConfigStatus, LmsToolType, LmsType } from '../../../src/common/enums/lms.enum';
 import * as jose from 'jose';
-import type { JWTPayload } from 'jose';
+import type { JWTPayload, JWK } from 'jose';
+import { LmsSchoolConfig } from 'src/database/entities';
+import { LoggerService } from '../../../src/common/services';
+
+function signRs256Jwt(
+  payload: Record<string, unknown>,
+  privateKeyPem: string,
+  kid: string,
+): string {
+  const header = { alg: 'RS256', kid, typ: 'JWT' };
+  const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const signingInput = `${headerB64}.${payloadB64}`;
+  const signer = createSign('RSA-SHA256');
+  signer.update(signingInput);
+  signer.end();
+  const signature = signer.sign(createPrivateKey(privateKeyPem), 'base64url');
+  return `${signingInput}.${signature}`;
+}
 
 function mockJwtVerifyResult(payload: JWTPayload): Awaited<ReturnType<typeof jose.jwtVerify>> {
   return {
@@ -47,9 +68,21 @@ describe('LtiJwtService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LtiJwtService,
+        { provide: OutboundHttpClient, useValue: createOutboundHttpStub().client },
         {
           provide: LmsConfigService,
           useValue: mockLmsConfigService,
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -181,6 +214,46 @@ describe('LtiJwtService', () => {
       expect(lmsConfigService.findByIssuer.mock.calls).toEqual([['https://moodle.test.edu']]);
     });
 
+    it('should accept Canvas-style numeric aud when expected client id is a string', async () => {
+      const canvasConfig = {
+        ...mockSchoolConfig,
+        lmsType: LmsType.CANVAS,
+        issuer: 'http://canvas.docker',
+        clientId: '10000000000002',
+        jwksUrl: 'http://canvas.docker/api/lti/security/jwks',
+      };
+      lmsConfigService.findByIssuer.mockResolvedValue(canvasConfig);
+
+      const validPayload = {
+        iss: 'http://canvas.docker',
+        sub: 'canvas-user-1',
+        aud: 10000000000002,
+        azp: '10000000000002',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        'https://purl.imsglobal.org/spec/lti/claim/message_type': 'LtiResourceLinkRequest',
+        'https://purl.imsglobal.org/spec/lti/claim/version': '1.3.0',
+      };
+
+      const header = { alg: 'RS256', kid: 'test-kid' };
+      const validToken = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(validPayload)).toString('base64url')}.fakesignature`;
+
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockResolvedValue(mockJwtVerifyResult(validPayload as unknown as JWTPayload));
+
+      const result = await service.verifyIdToken(validToken, undefined, '10000000000002');
+
+      expect(result.sub).toBe('canvas-user-1');
+      expect(jose.jwtVerify).toHaveBeenCalledWith(
+        validToken,
+        expect.anything() as jose.JWTVerifyGetKey,
+        expect.not.objectContaining({
+          audience: expect.anything() as string,
+        }) as jose.JWTVerifyOptions,
+      );
+    });
+
     it('should reject JWT with wrong deployment_id when expected deployment is configured', async () => {
       const configWithDeployment = {
         ...mockSchoolConfig,
@@ -202,10 +275,43 @@ describe('LtiJwtService', () => {
       const header = { alg: 'RS256', kid: 'test-kid' };
       const fakeToken = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(payloadWithWrongDeployment)).toString('base64url')}.fakesignature`;
 
-      jest.spyOn(jose, 'jwtVerify').mockResolvedValue(mockJwtVerifyResult(payloadWithWrongDeployment));
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockResolvedValue(mockJwtVerifyResult(payloadWithWrongDeployment));
 
       await expect(
         service.verifyIdToken(fakeToken, undefined, undefined, 'expected-deployment'),
+      ).rejects.toThrow('Deployment ID mismatch');
+    });
+
+    it('should reject JWT missing deployment_id when expected deployment is configured', async () => {
+      lmsConfigService.findByIssuer.mockResolvedValue({
+        ...mockSchoolConfig,
+        issuer: 'https://canvas.test.instructure.com',
+        deploymentId: '7:d8f3a2b1c0e9',
+        jwksUrl: 'https://canvas.test.instructure.com/api/lti/security/jwks',
+      });
+
+      const payloadMissingDeployment = {
+        iss: 'https://canvas.test.instructure.com',
+        sub: 'canvas-user-1',
+        aud: ['10000000000001'],
+        azp: '10000000000001',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        'https://purl.imsglobal.org/spec/lti/claim/message_type': 'LtiResourceLinkRequest',
+        'https://purl.imsglobal.org/spec/lti/claim/version': '1.3.0',
+      };
+
+      const header = { alg: 'RS256', kid: 'test-kid' };
+      const fakeToken = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(payloadMissingDeployment)).toString('base64url')}.fakesignature`;
+
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockResolvedValue(mockJwtVerifyResult(payloadMissingDeployment));
+
+      await expect(
+        service.verifyIdToken(fakeToken, undefined, undefined, '7:d8f3a2b1c0e9'),
       ).rejects.toThrow('Deployment ID mismatch');
     });
 
@@ -230,7 +336,9 @@ describe('LtiJwtService', () => {
       const header = { alg: 'RS256', kid: 'test-kid' };
       const validToken = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(payloadWithCorrectDeployment)).toString('base64url')}.fakesignature`;
 
-      jest.spyOn(jose, 'jwtVerify').mockResolvedValue(mockJwtVerifyResult(payloadWithCorrectDeployment));
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockResolvedValue(mockJwtVerifyResult(payloadWithCorrectDeployment));
 
       const result = await service.verifyIdToken(
         validToken,
@@ -260,11 +368,86 @@ describe('LtiJwtService', () => {
       const header = { alg: 'RS256', kid: 'test-kid' };
       const validToken = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(payloadWithoutDeployment)).toString('base64url')}.fakesignature`;
 
-      jest.spyOn(jose, 'jwtVerify').mockResolvedValue(mockJwtVerifyResult(payloadWithoutDeployment));
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockResolvedValue(mockJwtVerifyResult(payloadWithoutDeployment));
 
       const result = await service.verifyIdToken(validToken);
 
       expect(result).toEqual(payloadWithoutDeployment);
+    });
+
+    it('should fall back to Node crypto for local Canvas JWKS with RSA <2048', async () => {
+      // Canvas Docker often ships 512-bit LTI keys that jose rejects.
+      const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 512 });
+      const privateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+      const jwk = publicKey.export({ format: 'jwk' }) as JWK;
+      jwk.kid = 'canvas-local-kid';
+      jwk.alg = 'RS256';
+      jwk.use = 'sig';
+
+      const canvasConfig = {
+        ...mockSchoolConfig,
+        lmsType: LmsType.CANVAS,
+        issuer: 'http://canvas.docker',
+        clientId: '10000000000002',
+        jwksUrl: 'http://canvas.docker/api/lti/security/jwks',
+        lmsBaseUrl: 'http://canvas.docker',
+      };
+      lmsConfigService.findByIssuer.mockResolvedValue(canvasConfig);
+
+      const validPayload = {
+        iss: 'http://canvas.docker',
+        sub: 'canvas-user-1',
+        aud: '10000000000002',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        'https://purl.imsglobal.org/spec/lti/claim/message_type': 'LtiResourceLinkRequest',
+        'https://purl.imsglobal.org/spec/lti/claim/version': '1.3.0',
+      };
+      const validToken = signRs256Jwt(validPayload, privateKeyPem, 'canvas-local-kid');
+
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockRejectedValue(new Error('RS256 requires key modulusLength to be 2048 bits or larger'));
+
+      const fetchMock = jest.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ keys: [jwk] }),
+      });
+      const originalFetch = global.fetch;
+      global.fetch = fetchMock;
+
+      try {
+        const result = await service.verifyIdToken(validToken, undefined, '10000000000002');
+
+        expect(result.sub).toBe('canvas-user-1');
+        expect(fetchMock).toHaveBeenCalledWith('http://canvas.docker/api/lti/security/jwks');
+      } finally {
+        global.fetch = originalFetch;
+      }
+    });
+
+    it('should not fall back for Moodle when jose rejects weak RSA keys', async () => {
+      lmsConfigService.findByIssuer.mockResolvedValue(mockSchoolConfig);
+
+      const payload = {
+        iss: 'https://moodle.test.edu',
+        sub: 'user123',
+        aud: 'test-client-id',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        iat: Math.floor(Date.now() / 1000),
+        'https://purl.imsglobal.org/spec/lti/claim/message_type': 'LtiResourceLinkRequest',
+        'https://purl.imsglobal.org/spec/lti/claim/version': '1.3.0',
+      };
+      const header = { alg: 'RS256', kid: 'test-kid' };
+      const token = `${Buffer.from(JSON.stringify(header)).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.fakesignature`;
+
+      jest
+        .spyOn(jose, 'jwtVerify')
+        .mockRejectedValue(new Error('RS256 requires key modulusLength to be 2048 bits or larger'));
+
+      await expect(service.verifyIdToken(token)).rejects.toThrow(/modulusLength/);
     });
   });
 });

@@ -1,15 +1,15 @@
-import React, { useEffect } from "react";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
+import React, { useEffect } from 'react';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
 import {
   fetchSimulationsByUnit,
   selectUnitSimLoading,
   selectUnitSimulations,
-} from "../../redux/dashboard/simulationlibrary/addsimulationredux";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import type { Simulation } from "../../types/simulation.types";
-import Modal from "../ui/Modal";
-import { isAISimulation, getDerivedCategory } from "@/utils/simulationType";
+} from '../../redux/dashboard/simulationlibrary/addsimulationredux';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
+import type { Simulation } from '../../types/simulation.types';
+import Modal from '../ui/Modal';
+import { isAISimulation, getDerivedCategory } from '@/utils/simulationType';
 
 interface MyLibraryModalProps {
   simulation: Simulation;
@@ -18,17 +18,17 @@ interface MyLibraryModalProps {
 }
 
 const DIFFICULTY_STYLES: Record<string, string> = {
-  Easy: "bg-green-50 text-green-600",
-  Medium: "bg-amber-50 text-amber-600",
-  Hard: "bg-red-50 text-red-500",
-  Expert: "bg-purple-50 text-purple-600",
+  Easy: 'bg-green-50 text-green-600',
+  Medium: 'bg-amber-50 text-amber-600',
+  Hard: 'bg-red-50 text-red-500',
+  Expert: 'bg-purple-50 text-purple-600',
 };
 
 const LEVEL_STYLES: Record<string, string> = {
-  Beginner: "bg-sky-50 text-sky-600",
-  Intermediate: "bg-blue-50 text-blue-600",
-  Advanced: "bg-indigo-50 text-indigo-600",
-  Expert: "bg-purple-50 text-purple-600",
+  Beginner: 'bg-sky-50 text-sky-600',
+  Intermediate: 'bg-blue-50 text-blue-600',
+  Advanced: 'bg-indigo-50 text-indigo-600',
+  Expert: 'bg-purple-50 text-purple-600',
 };
 
 const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
@@ -65,7 +65,7 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
               alt={simulation.title}
               className="w-full h-full object-cover"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).style.display = "none";
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
               }}
             />
           </div>
@@ -74,16 +74,16 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
         {/* Category + badges */}
         <div className="flex flex-wrap items-center gap-2 mb-3">
           {getDerivedCategory(
-            (simulation as unknown as Record<string, unknown>)
-              .avatarEnabled as boolean | undefined,
+            (simulation as unknown as Record<string, unknown>).avatarEnabled as
+              boolean | undefined
           ) && (
-              <span className="inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-sky-100 text-sky-600 border border-sky-200">
-                {getDerivedCategory(
-                  (simulation as unknown as Record<string, unknown>)
-                    .avatarEnabled as boolean | undefined,
-                )}
-              </span>
-            )}
+            <span className="inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-sky-100 text-sky-600 border border-sky-200">
+              {getDerivedCategory(
+                (simulation as unknown as Record<string, unknown>)
+                  .avatarEnabled as boolean | undefined
+              )}
+            </span>
+          )}
           {simulation.duration && (
             <span className="inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
               {simulation.duration}
@@ -91,25 +91,45 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
           )}
           {isAISimulation(
             (simulation as unknown as Record<string, unknown>).avatarEnabled as
-            | boolean
-            | undefined,
+              boolean | undefined
           ) && (
-              <span className="inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-primary-50 text-primary-500 border border-primary-200">
-                AI Seats Required
-              </span>
-            )}
+            <span className="inline-block text-[11px] font-medium px-3 py-1 rounded-full bg-orange-50 text-orange-500 border border-orange-200">
+              AI Seats Required
+            </span>
+          )}
           {simulation.difficulty && (
             <span
-              className={`inline-block text-[11px] font-medium px-3 py-1 rounded-full ${DIFFICULTY_STYLES[simulation.difficulty] ?? "bg-slate-50 text-slate-500"}`}
+              className={`inline-block text-[11px] font-medium px-3 py-1 rounded-full ${DIFFICULTY_STYLES[simulation.difficulty] ?? 'bg-slate-50 text-slate-500'}`}
             >
-              {simulation.difficulty}
+              {(() => {
+                const isEs =
+                  typeof window !== 'undefined' &&
+                  localStorage.getItem('app_language')?.toLowerCase() === 'es';
+                const lower = simulation.difficulty.toLowerCase();
+                if (lower === 'easy') return isEs ? 'Fácil' : 'Easy';
+                if (lower === 'medium') return isEs ? 'Medio' : 'Medium';
+                if (lower === 'hard') return isEs ? 'Difícil' : 'Hard';
+                if (lower === 'expert') return isEs ? 'Experto' : 'Expert';
+                return simulation.difficulty;
+              })()}
             </span>
           )}
           {simulation.learnerLevel && (
             <span
-              className={`inline-block text-[11px] font-medium px-3 py-1 rounded-full ${LEVEL_STYLES[simulation.learnerLevel] ?? "bg-slate-50 text-slate-500"}`}
+              className={`inline-block text-[11px] font-medium px-3 py-1 rounded-full ${LEVEL_STYLES[simulation.learnerLevel] ?? 'bg-slate-50 text-slate-500'}`}
             >
-              {simulation.learnerLevel}
+              {(() => {
+                const isEs =
+                  typeof window !== 'undefined' &&
+                  localStorage.getItem('app_language')?.toLowerCase() === 'es';
+                const lower = simulation.learnerLevel.toLowerCase();
+                if (lower === 'beginner')
+                  return isEs ? 'Principiante' : 'Beginner';
+                if (lower === 'intermediate')
+                  return isEs ? 'Intermedio' : 'Intermediate';
+                if (lower === 'advanced') return isEs ? 'Avanzado' : 'Advanced';
+                return simulation.learnerLevel;
+              })()}
             </span>
           )}
           {simulation.targetAudience &&
@@ -149,7 +169,7 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
                     key={`${objective}-${idx}`}
                     className="flex items-start gap-2 text-sm text-slate-600"
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0 inline-block mt-2" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0 inline-block mt-2" />
                     <span>{objective}</span>
                   </li>
                 ))}
@@ -191,7 +211,7 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
         <div className="mb-5">
           <a
             href={`/simulationdetails/${encodeURIComponent(String(simulation.simulation_id || simulation.id))}`}
-            className="inline-flex items-center text-sm font-semibold text-primary-500 hover:text-primary-600 hover:underline"
+            className="inline-flex items-center text-sm font-semibold text-orange-500 hover:text-orange-600 hover:underline"
           >
             View Full Simulation Details in Simulation Catalog
           </a>
@@ -213,7 +233,7 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
                   key={sim.id}
                   className="flex items-center gap-2 text-sm text-slate-600"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-400 shrink-0 inline-block" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0 inline-block" />
                   {sim.title}
                 </li>
               ))}
@@ -229,13 +249,13 @@ const MyLibraryModal: React.FC<MyLibraryModalProps> = ({
               onClose();
               onAssign(
                 String(simulation.id),
-                '', // Category no longer sourced from units
+                '' // Category no longer sourced from units
               );
             }}
-            className="px-6 py-2.5 bg-primary-500 text-white text-sm font-semibold rounded-full hover:bg-primary-600 transition-colors shadow-sm"
+            className="px-6 py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-full hover:bg-orange-600 transition-colors shadow-sm"
           >
             {
-              (localStorage.getItem("app_language")?.toLowerCase() === "es"
+              (localStorage.getItem('app_language')?.toLowerCase() === 'es'
                 ? loginEs
                 : loginEn
               ).simulationCard.assignToClass

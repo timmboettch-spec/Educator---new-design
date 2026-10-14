@@ -1,32 +1,44 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-import { LmsStudentMapping } from '../entity/lms-student-mapping.entity';
-import { LmsClassMapping } from '../entity/lms-class-mapping.entity';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+
 import { StudentProfileLookup } from '../interfaces/lms.interfaces';
+import { LoggerService } from '../../common/services';
 import { LmsConfigService } from './lms-config.service';
 import { LmsConnectService } from './lms-connect.service';
 import { LmsRosterService } from './lms-roster.service';
-import { Student } from 'src/students/entity/students.entity';
-import { Class } from 'src/class/entity/class.entity';
+
 import { CommonStatus } from 'src/common/enums/status.enum';
-import { Educator } from 'src/educators/entity/educator.entity';
+import { redactCode, redactCodes } from 'src/common/utils/redact.util';
+import { Class } from 'src/database/entities';
+import {
+  CLASS_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  LMS_CLASS_MAPPING_REPOSITORY,
+  LMS_STUDENT_MAPPING_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  ClassRepository,
+  EducatorRepository,
+  LmsClassMappingRepository,
+  LmsStudentMappingRepository,
+  StudentRepository,
+} from 'src/database/repositories';
 
 export interface LmsClassStudentLookupResult {
   studentCode: string | null;
   classFound: boolean;
+  classId?: string | null;
 }
 
 export interface StudentLaunchResolution {
   schoolId: string | null;
   studentCode: string | null;
   courseScopedClassFound: boolean;
+  classId?: string | null;
 }
 
 @Injectable()
 export class LmsLookupService {
-  private readonly logger = new Logger(LmsLookupService.name);
-
   private normalizeLmsClassId(rawClassId: string): string {
     const raw = String(rawClassId ?? '').trim();
     if (!raw) return '';
@@ -45,12 +57,20 @@ export class LmsLookupService {
   }
 
   constructor(
-    @InjectRepository(LmsStudentMapping)
-    private readonly studentMappingRepo: Repository<LmsStudentMapping>,
+    @Inject(LMS_STUDENT_MAPPING_REPOSITORY)
+    private readonly studentMappingRepo: LmsStudentMappingRepository,
+    @Inject(LMS_CLASS_MAPPING_REPOSITORY)
+    private readonly classMappingRepo: LmsClassMappingRepository,
+    @Inject(STUDENT_REPOSITORY)
+    private readonly studentRepo: StudentRepository,
+    @Inject(CLASS_REPOSITORY)
+    private readonly classRepo: ClassRepository,
+    @Inject(EDUCATOR_REPOSITORY)
+    private readonly educatorRepo: EducatorRepository,
     private readonly configService: LmsConfigService,
     private readonly connectService: LmsConnectService,
     private readonly rosterService: LmsRosterService,
-    private readonly dataSource: DataSource,
+    private readonly logger: LoggerService,
   ) {}
 
   /**
@@ -95,6 +115,7 @@ export class LmsLookupService {
             schoolId,
             studentCode: lookup.studentCode,
             courseScopedClassFound: true,
+            classId: lookup.classId ?? null,
           };
         }
       }
@@ -128,11 +149,12 @@ export class LmsLookupService {
           schoolId: match.schoolId,
           studentCode: match.studentCode,
           courseScopedClassFound,
+          classId: null, // School-wide fallback doesn't have class context
         };
       }
     }
 
-    return { schoolId: null, studentCode: null, courseScopedClassFound };
+    return { schoolId: null, studentCode: null, courseScopedClassFound, classId: null };
   }
 
   async lookupStudentProfile(
@@ -148,7 +170,7 @@ export class LmsLookupService {
       throw new NotFoundException(`No LMS mapping found for student code ${studentCode}`);
     }
 
-    const config = await this.configService.getBySchoolId(schoolId);
+    const config = await this.configService.getActiveBySchoolId(schoolId);
     const classMapping = await this.connectService.getClassMapping(classId);
     const roster = await this.rosterService.fetchRoster(config, classMapping.nrpsUrl);
 
@@ -185,16 +207,7 @@ export class LmsLookupService {
 
     const lmsIdNumeric = String(Number(lmsUserId));
 
-    const classes = await this.dataSource
-      .getRepository(Class)
-      .createQueryBuilder('c')
-      .innerJoin('c.educator', 'e')
-      .innerJoin('e.school', 'sch')
-      .where('sch.id = :schoolId', { schoolId })
-      .andWhere('c.lms_class_id IS NOT NULL')
-      .andWhere("c.lms_class_id <> ''")
-      .andWhere('c.is_active = true')
-      .getMany();
+    const classes = await this.classRepo.findLmsLinkedActiveForSchool(schoolId);
 
     this.logger.debug(
       `[findStudentByConstructedCode] Checking ${classes.length} LMS-linked classes for lmsUserId: ${lmsUserId}`,
@@ -205,13 +218,13 @@ export class LmsLookupService {
       if (!prefix) continue;
 
       const candidateCode = `${prefix}-${lmsIdNumeric}`;
-      const student = await this.dataSource.manager.findOne(Student, {
+      const student = await this.studentRepo.findOne({
         where: { student_id: candidateCode, is_active: true },
       });
 
       if (student?.student_id) {
         this.logger.log(
-          `[findStudentByConstructedCode] Matched student code: ${student.student_id} (class: ${cls.id})`,
+          `[findStudentByConstructedCode] Matched student code: ${redactCode(student.student_id)} (class: ${cls.id})`,
         );
 
         try {
@@ -219,7 +232,7 @@ export class LmsLookupService {
             where: { lmsUserId, schoolId },
           });
           if (!existingMapping) {
-            await this.studentMappingRepo.save({
+            await this.studentMappingRepo.create({
               schoolId,
               classId: cls.id!,
               lmsUserId,
@@ -244,7 +257,7 @@ export class LmsLookupService {
       return null;
     }
 
-    const classMapping = await this.dataSource.manager.findOne(LmsClassMapping, {
+    const classMapping = await this.classMappingRepo.findOne({
       where: {
         lmsCourseId: String(lmsCourseId),
         schoolId,
@@ -252,7 +265,7 @@ export class LmsLookupService {
     });
 
     if (classMapping?.classId) {
-      const mappedClass = await this.dataSource.manager.findOne(Class, {
+      const mappedClass = await this.classRepo.findOne({
         where: {
           id: classMapping.classId,
           is_active: true,
@@ -263,19 +276,70 @@ export class LmsLookupService {
       }
     }
 
-    return this.dataSource
-      .getRepository(Class)
-      .createQueryBuilder('c')
-      .innerJoin('c.educator', 'e')
-      .innerJoin('e.school', 'sch')
-      .where('sch.id = :schoolId', { schoolId })
-      .andWhere('c.lms_class_reference = :lmsCourseId', {
-        lmsCourseId: String(lmsCourseId),
-      })
-      .andWhere('c.is_active = true')
-      .orderBy('c.updated_at', 'DESC')
-      .addOrderBy('c.created_at', 'DESC')
-      .getOne();
+    return this.classRepo.findActiveByLmsCourseReferenceForSchool(String(lmsCourseId), schoolId);
+  }
+
+  /**
+   * Resolve RW class for Deep Linking by LMS course id.
+   * Prefers the session school, then falls back across schools on the same issuer.
+   */
+  async resolveClassForDeepLinking(args: {
+    lmsCourseIds: string[];
+    issuer: string;
+    preferredSchoolId?: string;
+  }): Promise<{ rwClass: Class; schoolId: string } | null> {
+    const courseIds = [...new Set(args.lmsCourseIds.map((id) => String(id).trim()).filter(Boolean))];
+    if (courseIds.length === 0) {
+      return null;
+    }
+
+    if (args.preferredSchoolId) {
+      for (const courseId of courseIds) {
+        const rwClass = await this.findActiveClassByLmsCourseId(courseId, args.preferredSchoolId);
+        if (rwClass) {
+          return { rwClass, schoolId: args.preferredSchoolId };
+        }
+      }
+    }
+
+    const issuerSchoolIds = new Set(
+      (await this.configService.listEducatorConfigsByIssuer(args.issuer))
+        .map((config) => config.schoolId?.trim())
+        .filter((schoolId): schoolId is string => Boolean(schoolId)),
+    );
+
+    for (const courseId of courseIds) {
+      const mappings = await this.classMappingRepo.findByLmsCourseId(courseId);
+      for (const mapping of mappings) {
+        if (!issuerSchoolIds.has(mapping.schoolId)) {
+          continue;
+        }
+        const rwClass = await this.classRepo.findOne({
+          where: { id: mapping.classId, is_active: true },
+        });
+        if (rwClass) {
+          this.logger.log(
+            `[resolveClassForDeepLinking] Matched courseId=${courseId} to classId=${rwClass.id} schoolId=${mapping.schoolId}`,
+          );
+          return { rwClass, schoolId: mapping.schoolId };
+        }
+      }
+
+      for (const schoolId of issuerSchoolIds) {
+        const rwClass = await this.classRepo.findActiveByLmsCourseReferenceForSchool(
+          courseId,
+          schoolId,
+        );
+        if (rwClass) {
+          this.logger.log(
+            `[resolveClassForDeepLinking] Matched courseId=${courseId} via lms_class_reference classId=${rwClass.id} schoolId=${schoolId}`,
+          );
+          return { rwClass, schoolId };
+        }
+      }
+    }
+
+    return null;
   }
 
   async findStudentCodeByLmsClassAndUserId(
@@ -300,7 +364,7 @@ export class LmsLookupService {
     );
 
     try {
-      const classMapping = await this.dataSource.manager.findOne(LmsClassMapping, {
+      const classMapping = await this.classMappingRepo.findOne({
         where: {
           lmsCourseId: String(lmsCourseId),
           schoolId,
@@ -311,7 +375,7 @@ export class LmsLookupService {
       let classResolvedViaMapping = false;
 
       if (classMapping?.classId) {
-        classData = await this.dataSource.manager.findOne(Class, {
+        classData = await this.classRepo.findOne({
           where: {
             id: classMapping.classId,
             is_active: true,
@@ -323,19 +387,10 @@ export class LmsLookupService {
       }
 
       if (!classData) {
-        classData = await this.dataSource
-          .getRepository(Class)
-          .createQueryBuilder('c')
-          .innerJoin('c.educator', 'e')
-          .innerJoin('e.school', 'sch')
-          .where('sch.id = :schoolId', { schoolId })
-          .andWhere('c.lms_class_reference = :lmsCourseId', {
-            lmsCourseId: String(lmsCourseId),
-          })
-          .andWhere('c.is_active = true')
-          .orderBy('c.updated_at', 'DESC')
-          .addOrderBy('c.created_at', 'DESC')
-          .getOne();
+        classData = await this.classRepo.findActiveByLmsCourseReferenceForSchool(
+          String(lmsCourseId),
+          schoolId,
+        );
       }
 
       this.logger.debug(
@@ -355,7 +410,7 @@ export class LmsLookupService {
         `[findStudentCodeByLmsClassAndUserId] Resolved class for lmsCourseId ${lmsCourseId}: ${classData.id}`,
       );
 
-      const mapping = await this.dataSource.manager.findOne(LmsStudentMapping, {
+      const mapping = await this.studentMappingRepo.findOne({
         where: {
           classId: classData.id,
           lmsUserId: String(lmsUserId),
@@ -364,11 +419,12 @@ export class LmsLookupService {
 
       if (mapping?.studentCode) {
         this.logger.log(
-          `[findStudentCodeByLmsClassAndUserId] Found mapping: ${mapping.studentCode}`,
+          `[findStudentCodeByLmsClassAndUserId] Found mapping: ${redactCode(mapping.studentCode)}`,
         );
         return {
           studentCode: mapping.studentCode,
           classFound: true,
+          classId: classData.id,
         };
       }
 
@@ -377,7 +433,7 @@ export class LmsLookupService {
         : String(lmsUserId);
       const suffix = `-${numericUserId}`;
 
-      const activeStudents = await this.dataSource.manager.find(Student, {
+      const activeStudents = await this.studentRepo.find({
         where: {
           class: { id: classData.id },
           is_active: true,
@@ -390,15 +446,16 @@ export class LmsLookupService {
 
       if (activeMatch?.student_id) {
         this.logger.log(
-          `[findStudentCodeByLmsClassAndUserId] Found active student by suffix match: ${activeMatch.student_id}`,
+          `[findStudentCodeByLmsClassAndUserId] Found active student by suffix match: ${redactCode(activeMatch.student_id)}`,
         );
         return {
           studentCode: activeMatch.student_id,
           classFound: true,
+          classId: classData.id,
         };
       }
 
-      const inactiveStudents = await this.dataSource.manager.find(Student, {
+      const inactiveStudents = await this.studentRepo.find({
         where: {
           class: { id: classData.id },
           is_active: false,
@@ -413,13 +470,14 @@ export class LmsLookupService {
         inactiveMatch.is_active = true;
         inactiveMatch.deleted_at = null;
         inactiveMatch.status = CommonStatus.ACTIVE;
-        await this.dataSource.manager.save(Student, inactiveMatch);
+        await this.studentRepo.create(inactiveMatch);
         this.logger.log(
-          `[findStudentCodeByLmsClassAndUserId] Reactivated inactive student by suffix match: ${inactiveMatch.student_id}`,
+          `[findStudentCodeByLmsClassAndUserId] Reactivated inactive student by suffix match: ${redactCode(inactiveMatch.student_id)}`,
         );
         return {
           studentCode: inactiveMatch.student_id,
           classFound: true,
+          classId: classData.id,
         };
       }
 
@@ -430,6 +488,7 @@ export class LmsLookupService {
       return {
         studentCode: null,
         classFound: true,
+        classId: classData.id,
       };
     } catch (error) {
       this.logger.error(
@@ -469,36 +528,15 @@ export class LmsLookupService {
       return null;
     }
 
-    const params: Record<string, string> = { schoolId };
-    const predicates: string[] = [];
-    let index = 0;
-    for (const suffix of suffixes) {
-      const key = `suffix${index}`;
-      predicates.push(`s.student_id LIKE :${key}`);
-      params[key] = `%${suffix}`;
-      index += 1;
-    }
+    const suffixList = Array.from(suffixes);
 
-    const whereSuffix = `(${predicates.join(' OR ')})`;
-
-    const activeMatch = await this.dataSource
-      .getRepository(Student)
-      .createQueryBuilder('s')
-      .innerJoinAndSelect('s.class', 'c')
-      .innerJoin('s.educator', 'e')
-      .innerJoin('e.school', 'sch')
-      .where('sch.id = :schoolId', { schoolId })
-      .andWhere('s.is_active = true')
-      .andWhere(whereSuffix, params)
-      .orderBy('s.updated_at', 'DESC')
-      .addOrderBy('s.created_at', 'DESC')
-      .getOne();
+    const activeMatch = await this.studentRepo.findActiveBySuffixInSchool(schoolId, suffixList);
 
     if (activeMatch?.student_id) {
       try {
         const existingM = await this.studentMappingRepo.findOne({ where: { lmsUserId, schoolId } });
         if (!existingM && activeMatch.class?.id) {
-          await this.studentMappingRepo.save({
+          await this.studentMappingRepo.create({
             schoolId,
             classId: activeMatch.class.id,
             lmsUserId,
@@ -509,22 +547,12 @@ export class LmsLookupService {
         /* best-effort */
       }
       this.logger.log(
-        `[findStudentCodeByLmsUserIdInSchool] Matched active student by suffix: ${activeMatch.student_id} (school: ${schoolId})`,
+        `[findStudentCodeByLmsUserIdInSchool] Matched active student by suffix: ${redactCode(activeMatch.student_id)} (school: ${schoolId})`,
       );
       return activeMatch.student_id;
     }
 
-    const inactiveMatch = await this.dataSource
-      .getRepository(Student)
-      .createQueryBuilder('s')
-      .innerJoinAndSelect('s.class', 'c')
-      .innerJoin('s.educator', 'e')
-      .innerJoin('e.school', 'sch')
-      .where('sch.id = :schoolId', { schoolId })
-      .andWhere(whereSuffix, params)
-      .orderBy('s.updated_at', 'DESC')
-      .addOrderBy('s.created_at', 'DESC')
-      .getOne();
+    const inactiveMatch = await this.studentRepo.findBySuffixInSchool(schoolId, suffixList);
 
     if (!inactiveMatch?.student_id) {
       this.logger.warn(
@@ -537,13 +565,13 @@ export class LmsLookupService {
       inactiveMatch.is_active = true;
       inactiveMatch.deleted_at = null;
       inactiveMatch.status = CommonStatus.ACTIVE;
-      await this.dataSource.manager.save(Student, inactiveMatch);
+      await this.studentRepo.create(inactiveMatch);
     }
 
     try {
       const existingM = await this.studentMappingRepo.findOne({ where: { lmsUserId, schoolId } });
       if (!existingM && inactiveMatch.class?.id) {
-        await this.studentMappingRepo.save({
+        await this.studentMappingRepo.create({
           schoolId,
           classId: inactiveMatch.class.id,
           lmsUserId,
@@ -554,7 +582,7 @@ export class LmsLookupService {
       /* best-effort */
     }
     this.logger.log(
-      `[findStudentCodeByLmsUserIdInSchool] Matched inactive student by suffix and reactivated: ${inactiveMatch.student_id} (school: ${schoolId})`,
+      `[findStudentCodeByLmsUserIdInSchool] Matched inactive student by suffix and reactivated: ${redactCode(inactiveMatch.student_id)} (school: ${schoolId})`,
     );
     return inactiveMatch.student_id;
   }
@@ -585,26 +613,9 @@ export class LmsLookupService {
       return null;
     }
 
-    const params: Record<string, string> = {};
-    const predicates: string[] = [];
-    let index = 0;
-    for (const suffix of suffixes) {
-      const key = `globalSuffix${index}`;
-      predicates.push(`s.student_id LIKE :${key}`);
-      params[key] = `%${suffix}`;
-      index += 1;
-    }
-    const whereSuffix = `(${predicates.join(' OR ')})`;
+    const suffixList = Array.from(suffixes);
 
-    const activeMatches = await this.dataSource
-      .getRepository(Student)
-      .createQueryBuilder('s')
-      .innerJoinAndSelect('s.class', 'c')
-      .where('s.is_active = true')
-      .andWhere(whereSuffix, params)
-      .orderBy('s.updated_at', 'DESC')
-      .addOrderBy('s.created_at', 'DESC')
-      .getMany();
+    const activeMatches = await this.studentRepo.findActiveBySuffixGlobal(suffixList);
 
     const distinctActiveCodes = Array.from(
       new Set(activeMatches.map((s) => s.student_id).filter((v): v is string => !!v)),
@@ -619,7 +630,7 @@ export class LmsLookupService {
               where: { lmsUserId, schoolId: schoolIdForMapping },
             });
             if (!existingM) {
-              await this.studentMappingRepo.save({
+              await this.studentMappingRepo.create({
                 schoolId: schoolIdForMapping,
                 classId: selected.class.id,
                 lmsUserId,
@@ -631,7 +642,7 @@ export class LmsLookupService {
           }
         }
         this.logger.log(
-          `[findStudentCodeByLmsUserIdGlobally] Matched unique active student by suffix: ${selected.student_id}`,
+          `[findStudentCodeByLmsUserIdGlobally] Matched unique active student by suffix: ${redactCode(selected.student_id)}`,
         );
         return selected.student_id;
       }
@@ -639,19 +650,12 @@ export class LmsLookupService {
 
     if (distinctActiveCodes.length > 1) {
       this.logger.warn(
-        `[findStudentCodeByLmsUserIdGlobally] Ambiguous active matches for lmsUserId: ${lmsUserId}; candidates: ${distinctActiveCodes.join(', ')}`,
+        `[findStudentCodeByLmsUserIdGlobally] Ambiguous active matches for lmsUserId: ${lmsUserId}; candidates: ${redactCodes(distinctActiveCodes)}`,
       );
       return null;
     }
 
-    const allMatches = await this.dataSource
-      .getRepository(Student)
-      .createQueryBuilder('s')
-      .innerJoinAndSelect('s.class', 'c')
-      .where(whereSuffix, params)
-      .orderBy('s.updated_at', 'DESC')
-      .addOrderBy('s.created_at', 'DESC')
-      .getMany();
+    const allMatches = await this.studentRepo.findBySuffixGlobal(suffixList);
 
     const distinctAllCodes = Array.from(
       new Set(allMatches.map((s) => s.student_id).filter((v): v is string => !!v)),
@@ -660,7 +664,7 @@ export class LmsLookupService {
     if (distinctAllCodes.length !== 1) {
       if (distinctAllCodes.length > 1) {
         this.logger.warn(
-          `[findStudentCodeByLmsUserIdGlobally] Ambiguous inactive/global matches for lmsUserId: ${lmsUserId}; candidates: ${distinctAllCodes.join(', ')}`,
+          `[findStudentCodeByLmsUserIdGlobally] Ambiguous inactive/global matches for lmsUserId: ${lmsUserId}; candidates: ${redactCodes(distinctAllCodes)}`,
         );
       } else {
         this.logger.warn(
@@ -679,7 +683,7 @@ export class LmsLookupService {
       selected.is_active = true;
       selected.deleted_at = null;
       selected.status = CommonStatus.ACTIVE;
-      await this.dataSource.manager.save(Student, selected);
+      await this.studentRepo.create(selected);
     }
 
     if (schoolIdForMapping && selected.class?.id) {
@@ -688,7 +692,7 @@ export class LmsLookupService {
           where: { lmsUserId, schoolId: schoolIdForMapping },
         });
         if (!existingM) {
-          await this.studentMappingRepo.save({
+          await this.studentMappingRepo.create({
             schoolId: schoolIdForMapping,
             classId: selected.class.id,
             lmsUserId,
@@ -700,7 +704,7 @@ export class LmsLookupService {
       }
     }
     this.logger.log(
-      `[findStudentCodeByLmsUserIdGlobally] Matched unique student by global suffix: ${selected.student_id}`,
+      `[findStudentCodeByLmsUserIdGlobally] Matched unique student by global suffix: ${redactCode(selected.student_id)}`,
     );
     return selected.student_id;
   }
@@ -718,7 +722,7 @@ export class LmsLookupService {
 
     if (!mapping) {
       const educatorIds = (
-        await this.dataSource.manager.find(Educator, {
+        await this.educatorRepo.find({
           where: { school: { id: schoolId } },
           select: ['id'],
           relations: ['school'],
@@ -728,16 +732,14 @@ export class LmsLookupService {
         .filter(Boolean);
 
       if (educatorIds.length > 0) {
-        mapping = await this.studentMappingRepo
-          .createQueryBuilder('m')
-          .where('m.lms_user_id = :lmsUserId', { lmsUserId })
-          .andWhere('m.school_id IN (:...educatorIds)', { educatorIds })
-          .orderBy('m.updated_at', 'DESC')
-          .getOne();
+        mapping = await this.studentMappingRepo.findLatestByLmsUserIdAndSchoolIds(
+          lmsUserId,
+          educatorIds,
+        );
 
         if (mapping) {
           mapping.schoolId = schoolId;
-          await this.studentMappingRepo.save(mapping);
+          await this.studentMappingRepo.create(mapping);
         }
       }
     }
@@ -765,7 +767,7 @@ export class LmsLookupService {
     const normalizedMappedCode = normalizeLegacyCode(mapping.studentCode);
     if (normalizedMappedCode && normalizedMappedCode !== mapping.studentCode) {
       const oldCode = mapping.studentCode;
-      const existingNormalizedGlobal = await this.dataSource.manager.findOne(Student, {
+      const existingNormalizedGlobal = await this.studentRepo.findOne({
         where: { student_id: normalizedMappedCode },
         relations: ['class', 'educator'],
       });
@@ -775,26 +777,26 @@ export class LmsLookupService {
           existingNormalizedGlobal.is_active = true;
           existingNormalizedGlobal.deleted_at = null;
           existingNormalizedGlobal.status = CommonStatus.ACTIVE;
-          await this.dataSource.manager.save(Student, existingNormalizedGlobal);
+          await this.studentRepo.create(existingNormalizedGlobal);
         }
         mapping.studentCode = normalizedMappedCode;
-        await this.studentMappingRepo.save(mapping);
+        await this.studentMappingRepo.create(mapping);
         return normalizedMappedCode;
       }
 
-      const legacyStudent = await this.dataSource.manager.findOne(Student, {
+      const legacyStudent = await this.studentRepo.findOne({
         where: { student_id: oldCode },
       });
       if (legacyStudent) {
         legacyStudent.student_id = normalizedMappedCode;
-        await this.dataSource.manager.save(Student, legacyStudent);
+        await this.studentRepo.create(legacyStudent);
       }
 
       mapping.studentCode = normalizedMappedCode;
-      await this.studentMappingRepo.save(mapping);
+      await this.studentMappingRepo.create(mapping);
     }
 
-    const activeStudent = await this.dataSource.manager.findOne(Student, {
+    const activeStudent = await this.studentRepo.findOne({
       where: {
         student_id: mapping.studentCode,
         is_active: true,
@@ -804,7 +806,7 @@ export class LmsLookupService {
       return mapping.studentCode;
     }
 
-    const existingStudent = await this.dataSource.manager.findOne(Student, {
+    const existingStudent = await this.studentRepo.findOne({
       where: { student_id: mapping.studentCode },
       relations: ['class', 'educator'],
     });
@@ -813,11 +815,11 @@ export class LmsLookupService {
       existingStudent.is_active = true;
       existingStudent.deleted_at = null;
       existingStudent.status = CommonStatus.ACTIVE;
-      await this.dataSource.manager.save(Student, existingStudent);
+      await this.studentRepo.create(existingStudent);
       return mapping.studentCode;
     }
 
-    const classStudents = await this.dataSource.manager.find(Student, {
+    const classStudents = await this.studentRepo.find({
       where: { class: { id: mapping.classId }, is_active: true },
     });
 
@@ -831,7 +833,7 @@ export class LmsLookupService {
 
     if (bySuffix?.student_id) {
       mapping.studentCode = bySuffix.student_id;
-      await this.studentMappingRepo.save(mapping);
+      await this.studentMappingRepo.create(mapping);
       return bySuffix.student_id;
     }
 
@@ -839,7 +841,7 @@ export class LmsLookupService {
       return null;
     }
 
-    const classData = await this.dataSource.manager.findOne(Class, {
+    const classData = await this.classRepo.findOne({
       where: { id: mapping.classId, is_active: true },
       relations: ['educator'],
     });
@@ -848,7 +850,7 @@ export class LmsLookupService {
       return mapping.studentCode;
     }
 
-    const student = this.dataSource.manager.create(Student, {
+    await this.studentRepo.create({
       student_id: mapping.studentCode,
       student_name: undefined,
       email: undefined,
@@ -857,10 +859,9 @@ export class LmsLookupService {
       class: classData,
       educator: classData.educator,
     });
-    await this.dataSource.manager.save(Student, student);
 
     classData.total_no_of_students = (classData.total_no_of_students ?? 0) + 1;
-    await this.dataSource.manager.save(Class, classData);
+    await this.classRepo.create(classData);
 
     return mapping.studentCode;
   }

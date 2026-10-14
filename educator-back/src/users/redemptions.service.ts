@@ -1,17 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
-import { Redemption } from './entity/redemption.entity';
-import { User } from './entity/user.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { EntityManager } from 'typeorm';
+
 import { SubscriptionSummary } from 'src/common/types';
+import { DistrictAdmin, Redemption, User, UserRole } from 'src/database/entities';
+import { REDEMPTION_REPOSITORY } from 'src/database/tokens';
+import { RedemptionRepository } from 'src/database/repositories';
+import { DatabaseService } from 'src/database/services/database.service';
+import { RoleSlug } from 'src/common/constants';
+import { UserWithDistrictAdminProfile } from 'src/common/interfaces';
 
 @Injectable()
 export class RedemptionsService {
   constructor(
-    @InjectRepository(Redemption)
-    private readonly redemptionRepo: Repository<Redemption>,
-    private readonly dataSource: DataSource,
-  ) {}
+    @Inject(REDEMPTION_REPOSITORY)
+    private readonly redemptionRepo: RedemptionRepository,
+    private readonly databaseService: DatabaseService,
+  ) { }
 
   async saveRedemption(
     user: User,
@@ -21,7 +25,7 @@ export class RedemptionsService {
     lineItems: object[],
     aiSeatsGranted: number,
   ): Promise<Redemption> {
-    const redemption = this.redemptionRepo.create({
+    return this.redemptionRepo.create({
       user,
       redeem_code: redeemCode,
       sales_order: salesOrder,
@@ -29,8 +33,6 @@ export class RedemptionsService {
       line_items: lineItems,
       ai_seats_granted: aiSeatsGranted,
     });
-
-    return this.redemptionRepo.save(redemption);
   }
 
   async findByRedeemCode(redeemCode: string): Promise<Redemption | null> {
@@ -52,6 +54,36 @@ export class RedemptionsService {
     });
   }
 
+  /**
+   * `isLicenseActive`/`subscriptions` no longer live on `User` — they moved to `DistrictAdmin`
+   * (district-admin-plan.md). Every account reaching this method is expected to already have a
+   * linked District Admin role assignment (backfilled by Phase 2's migration).
+   */
+  private async activateDistrictAdminSubscriptions(
+    manager: EntityManager,
+    userId: string,
+    subscriptions: SubscriptionSummary[],
+  ): Promise<UserWithDistrictAdminProfile | null> {
+    const userRepo = manager.getRepository(User);
+    const userRoleRepo = manager.getRepository(UserRole);
+    const districtAdminRepo = manager.getRepository(DistrictAdmin);
+
+    const user = await userRepo.findOne({ where: { id: userId } });
+    if (!user) return null;
+
+    const userRole = await userRoleRepo.findOne({
+      where: { userId, role: { slug: RoleSlug.DISTRICT_ADMIN } },
+    });
+    if (!userRole) return null;
+
+    await districtAdminRepo.update(
+      { userRoleId: userRole.userRoleId },
+      { isLicenseActive: true, subscriptions },
+    );
+
+    return { user, isLicenseActive: true, subscriptions };
+  }
+
   async redeemAndActivateUser(params: {
     userId: string;
     redeemCode: string;
@@ -60,8 +92,8 @@ export class RedemptionsService {
     lineItems: object[];
     aiSeatsGranted: number;
     subscriptions: SubscriptionSummary[];
-  }): Promise<User | null> {
-    return this.dataSource.transaction(async (manager) => {
+  }): Promise<UserWithDistrictAdminProfile | null> {
+    return this.databaseService.runInTransaction(async (manager) => {
       const userRepo = manager.getRepository(User);
       const redemptionRepo = manager.getRepository(Redemption);
 
@@ -81,23 +113,16 @@ export class RedemptionsService {
 
       await redemptionRepo.save(redemption);
 
-      user.is_license_active = true;
-      user.subscriptions = params.subscriptions;
-      return userRepo.save(user);
+      return this.activateDistrictAdminSubscriptions(manager, params.userId, params.subscriptions);
     });
   }
 
   async activateUserSubscriptions(
     userId: string,
     subscriptions: SubscriptionSummary[],
-  ): Promise<User | null> {
-    return this.dataSource.transaction(async (manager) => {
-      const userRepo = manager.getRepository(User);
-      const user = await userRepo.findOne({ where: { id: userId } });
-      if (!user) return null;
-      user.is_license_active = true;
-      user.subscriptions = subscriptions;
-      return userRepo.save(user);
-    });
+  ): Promise<UserWithDistrictAdminProfile | null> {
+    return this.databaseService.runInTransaction(async (manager) =>
+      this.activateDistrictAdminSubscriptions(manager, userId, subscriptions),
+    );
   }
 }

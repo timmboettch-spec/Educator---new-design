@@ -49,7 +49,7 @@ describe('ShareModal', () => {
         onClose={onClose}
         title="Simulation A"
         simulationUrl="https://example.com/simulation/1"
-      />,
+      />
     );
 
   beforeEach(() => {
@@ -76,7 +76,9 @@ describe('ShareModal', () => {
     expect(screen.getByText('Messenger')).toBeInTheDocument();
     expect(screen.getByText('Instagram')).toBeInTheDocument();
     expect(screen.getByText('Page Link')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('https://example.com/simulation/1')).toBeInTheDocument();
+    expect(
+      screen.getByDisplayValue('https://example.com/simulation/1')
+    ).toBeInTheDocument();
   });
 
   it('does not render when closed', () => {
@@ -93,7 +95,7 @@ describe('ShareModal', () => {
     expect(openSpy).toHaveBeenCalledWith(
       expect.stringContaining('https://twitter.com/intent/tweet?'),
       '_blank',
-      'noopener,noreferrer',
+      'noopener,noreferrer'
     );
   });
 
@@ -105,7 +107,7 @@ describe('ShareModal', () => {
     expect(openSpy).toHaveBeenCalledWith(
       expect.stringContaining('https://wa.me/?text='),
       '_blank',
-      'noopener,noreferrer',
+      'noopener,noreferrer'
     );
   });
 
@@ -115,8 +117,12 @@ describe('ShareModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Messenger' }));
 
     await waitFor(() => {
-      expect(writeTextSpy).toHaveBeenCalledWith('https://example.com/simulation/1');
-      expect(toastSuccess).toHaveBeenCalledWith('Link copied. Paste it in Messenger to share.');
+      expect(writeTextSpy).toHaveBeenCalledWith(
+        'https://example.com/simulation/1'
+      );
+      expect(toastSuccess).toHaveBeenCalledWith(
+        'Link copied. Paste it in Messenger to share.'
+      );
     });
   });
 
@@ -126,7 +132,9 @@ describe('ShareModal', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Copy page link' }));
 
     await waitFor(() => {
-      expect(writeTextSpy).toHaveBeenCalledWith('https://example.com/simulation/1');
+      expect(writeTextSpy).toHaveBeenCalledWith(
+        'https://example.com/simulation/1'
+      );
       expect(toastSuccess).toHaveBeenCalledWith('Link copied to clipboard');
     });
   });

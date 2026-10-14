@@ -9,7 +9,6 @@ import {
   UploadedFile,
   BadRequestException,
   HttpCode,
-  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
@@ -21,20 +20,21 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 
-import { JwtAuthGuard } from '../../guards/jwt-auth.guard';
 
 import { UploadsService } from './uploads.service';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { RoleSlug } from 'src/common/constants';
 
 @ApiTags('Student-backend: Uploads')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('uploads')
 export class UploadsController {
-  constructor(private uploadsService: UploadsService) {}
+  constructor(private uploadsService: UploadsService) { }
 
   @Post('image')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.SCENARIO_ADMIN, RoleSlug.EDUCATOR, RoleSlug.DISTRICT_ADMIN)
   @HttpCode(200)
-  @UseInterceptors(FileInterceptor('file', new UploadsService().getMulterConfig()))
+  @UseInterceptors(FileInterceptor('file', UploadsService.getMulterConfig()))
   @ApiOperation({ summary: 'Upload an image file' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -82,8 +82,9 @@ export class UploadsController {
   }
 
   @Post('file')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.SCENARIO_ADMIN, RoleSlug.EDUCATOR, RoleSlug.DISTRICT_ADMIN)
   @HttpCode(200)
-  @UseInterceptors(FileInterceptor('file', new UploadsService().getFileMulterConfig()))
+  @UseInterceptors(FileInterceptor('file', UploadsService.getFileMulterConfig()))
   @ApiOperation({ summary: 'Upload a document file (PDF)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -131,6 +132,7 @@ export class UploadsController {
   }
 
   @Delete('file')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.SCENARIO_ADMIN, RoleSlug.EDUCATOR, RoleSlug.DISTRICT_ADMIN)
   @HttpCode(200)
   @ApiOperation({ summary: 'Delete an uploaded file' })
   @ApiResponse({

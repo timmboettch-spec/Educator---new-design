@@ -9,29 +9,48 @@ import type { Student } from '../../../src/types/Class_types';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual =
+    await vi.importActual<typeof import('react-router-dom')>(
+      'react-router-dom'
+    );
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
 vi.mock('../../../src/store/hooks', async () => {
-  const actual = await vi.importActual<typeof import('../../../src/store/hooks')>(
-    '../../../src/store/hooks',
-  );
+  const actual = await vi.importActual<
+    typeof import('../../../src/store/hooks')
+  >('../../../src/store/hooks');
   return {
     ...actual,
     useAppDispatch: () => vi.fn(),
     useAppSelector: (selector: (s: unknown) => unknown) => {
-      return selector({ GetClass: { viewedReportIds: [] } } as unknown as Parameters<typeof selector>[0]);
+      return selector({
+        GetClass: { viewedReportIds: [] },
+      } as unknown as Parameters<typeof selector>[0]);
     },
   };
 });
 
 const mockStudents: Student[] = [
-  { student_id: 'STU001', user_id: 'uuid-user-1', student_name: 'Alice', email: 'alice@test.com', score: null },
-  { student_id: 'STU002', user_id: 'uuid-user-2', student_name: 'Bob', email: 'bob@test.com', score: null },
+  {
+    student_id: 'STU001',
+    user_id: 'uuid-user-1',
+    student_name: 'Alice',
+    email: 'alice@test.com',
+    score: null,
+  },
+  {
+    student_id: 'STU002',
+    user_id: 'uuid-user-2',
+    student_name: 'Bob',
+    email: 'bob@test.com',
+    score: null,
+  },
 ];
 
-const makeReport = (overrides: Partial<SimulationReportItem> = {}): SimulationReportItem => ({
+const makeReport = (
+  overrides: Partial<SimulationReportItem> = {}
+): SimulationReportItem => ({
   id: 'report-1',
   key: 'key-1',
   userId: 'uuid-user-1',
@@ -60,7 +79,9 @@ const defaultProps = {
 };
 
 const renderModal = (overrides: Partial<typeof defaultProps> = {}) =>
-  renderWithProviders(<ClassActionReportsModal {...defaultProps} {...overrides} />);
+  renderWithProviders(
+    <ClassActionReportsModal {...defaultProps} {...overrides} />
+  );
 
 describe('ClassActionReportsModal', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -87,7 +108,9 @@ describe('ClassActionReportsModal', () => {
       renderModal({ reports: [] });
       expect(screen.getByText('No reports found')).toBeInTheDocument();
       expect(
-        screen.getByText('Completed simulation reports for this class will appear here.'),
+        screen.getByText(
+          'Completed simulation reports for this class will appear here.'
+        )
       ).toBeInTheDocument();
     });
 
@@ -149,6 +172,13 @@ describe('ClassActionReportsModal', () => {
       expect(screen.getByText('New')).toBeInTheDocument();
     });
 
+    it('shows — and no New badge for a blank simulation name', () => {
+      const report = makeReport({ isNew: true, scenarioTitle: '   ' });
+      renderModal({ reports: [report] });
+      expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+      expect(screen.queryByText('New')).not.toBeInTheDocument();
+    });
+
     it('does not render New badge for seen reports', () => {
       const report = makeReport({ isNew: false });
       renderModal({ reports: [report] });
@@ -158,13 +188,17 @@ describe('ClassActionReportsModal', () => {
 
   describe('Mode badge', () => {
     it('renders Assessment badge', () => {
-      const report = makeReport({ mode: 'assessment' } as SimulationReportItem & { mode: string });
+      const report = makeReport({
+        mode: 'assessment',
+      } as SimulationReportItem & { mode: string });
       renderModal({ reports: [report] });
       expect(screen.getByText('Assessment')).toBeInTheDocument();
     });
 
     it('renders Practice badge', () => {
-      const report = makeReport({ mode: 'practice' } as SimulationReportItem & { mode: string });
+      const report = makeReport({ mode: 'practice' } as SimulationReportItem & {
+        mode: string;
+      });
       renderModal({ reports: [report] });
       expect(screen.getByText('Practice')).toBeInTheDocument();
     });
@@ -208,7 +242,7 @@ describe('ClassActionReportsModal', () => {
         '/report-detail',
         expect.objectContaining({
           state: expect.objectContaining({ backPath: '/classes' }),
-        }),
+        })
       );
     });
 

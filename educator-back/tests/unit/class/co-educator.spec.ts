@@ -1,20 +1,32 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { DataSource, EntityManager, Repository } from 'typeorm';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { DataSource } from 'typeorm';
 import { ClassesService } from '../../../src/class/classes.service';
-import { Class } from '../../../src/class/entity/class.entity';
-import { ClassEducator } from '../../../src/class/entity/class-educator.entity';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { Student } from '../../../src/students/entity/students.entity';
-import { EducatorSchool } from '../../../src/educators/entity/educator-school.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
+
 import { ClassSimulationService } from '../../../src/class-simulations/class-simulation.service';
 import { LmsProvisionService } from '../../../src/lms/services/lms-provision.service';
+import { LmsConfigService } from '../../../src/lms/services/lms-config.service';
+import { LmsAssignmentService } from '../../../src/lms/services/lms-assignment.service';
+import { LoggerService } from '../../../src/common/services';
+import { Class, ClassEducator } from 'src/database/entities';
+import {
+  CLASS_EDUCATOR_REPOSITORY,
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  EDUCATOR_SCHOOL_REPOSITORY,
+  GOOGLE_COURSE_MAPPING_REPOSITORY,
+  GOOGLE_STUDENT_MAPPING_REPOSITORY,
+  LMS_CLASS_MAPPING_REPOSITORY,
+  LMS_STUDENT_MAPPING_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import type { ClassEducatorRepository, ClassRepository } from 'src/database/repositories';
 
 describe('ClassesService - Co-Educator', () => {
   let service: ClassesService;
-  let classRepo: Repository<Class>;
-  let classEducatorRepo: Repository<ClassEducator>;
+  let classRepo: ClassRepository;
+  let classEducatorRepo: ClassEducatorRepository;
   let dataSource: DataSource;
 
   const mockClassId = 'class-123';
@@ -26,16 +38,7 @@ describe('ClassesService - Co-Educator', () => {
       providers: [
         ClassesService,
         {
-          provide: getRepositoryToken(Class),
-          useValue: {
-            findOne: jest.fn(),
-            create: jest.fn(),
-            save: jest.fn(),
-            createQueryBuilder: jest.fn(),
-          },
-        },
-        {
-          provide: getRepositoryToken(ClassEducator),
+          provide: CLASS_REPOSITORY,
           useValue: {
             findOne: jest.fn(),
             create: jest.fn(),
@@ -43,22 +46,50 @@ describe('ClassesService - Co-Educator', () => {
           },
         },
         {
-          provide: getRepositoryToken(Student),
+          provide: CLASS_EDUCATOR_REPOSITORY,
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn(),
+            save: jest.fn(),
+          },
+        },
+        {
+          provide: STUDENT_REPOSITORY,
           useValue: {},
         },
         {
-          provide: getRepositoryToken(Educator),
+          provide: EDUCATOR_REPOSITORY,
           useValue: {},
         },
         {
-          provide: getRepositoryToken(ClassSimulation),
+          provide: SIMULATION_REPORT_REPOSITORY,
           useValue: {},
         },
         {
-          provide: getRepositoryToken(EducatorSchool),
+          provide: CLASS_SIMULATION_REPOSITORY,
+          useValue: {},
+        },
+        {
+          provide: EDUCATOR_SCHOOL_REPOSITORY,
           useValue: {
             findOne: jest.fn(),
           },
+        },
+        {
+          provide: GOOGLE_COURSE_MAPPING_REPOSITORY,
+          useValue: { deleteByClassId: jest.fn().mockResolvedValue(0) },
+        },
+        {
+          provide: GOOGLE_STUDENT_MAPPING_REPOSITORY,
+          useValue: { deleteByClassId: jest.fn().mockResolvedValue(0) },
+        },
+        {
+          provide: LMS_CLASS_MAPPING_REPOSITORY,
+          useValue: { findOne: jest.fn(), create: jest.fn(), delete: jest.fn() },
+        },
+        {
+          provide: LMS_STUDENT_MAPPING_REPOSITORY,
+          useValue: { findOne: jest.fn(), create: jest.fn(), delete: jest.fn() },
         },
         {
           provide: DataSource,
@@ -78,12 +109,31 @@ describe('ClassesService - Co-Educator', () => {
           provide: LmsProvisionService,
           useValue: {},
         },
+        {
+          provide: LmsConfigService,
+          useValue: {},
+        },
+        {
+          provide: LmsAssignmentService,
+          useValue: {},
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<ClassesService>(ClassesService);
-    classRepo = module.get<Repository<Class>>(getRepositoryToken(Class));
-    classEducatorRepo = module.get<Repository<ClassEducator>>(getRepositoryToken(ClassEducator));
+    classRepo = module.get<ClassRepository>(CLASS_REPOSITORY);
+    classEducatorRepo = module.get<ClassEducatorRepository>(CLASS_EDUCATOR_REPOSITORY);
     dataSource = module.get<DataSource>(DataSource);
   });
 
@@ -96,8 +146,7 @@ describe('ClassesService - Co-Educator', () => {
         isPrimary: false,
       } as ClassEducator;
 
-      jest.spyOn(classEducatorRepo, 'create').mockReturnValue(mockClassEducator);
-      jest.spyOn(classEducatorRepo, 'save').mockResolvedValue(mockClassEducator);
+      jest.spyOn(classEducatorRepo, 'create').mockResolvedValue(mockClassEducator);
 
       await service.addEducatorToClass(mockClassId, mockEducatorId2, false);
 
@@ -106,7 +155,6 @@ describe('ClassesService - Co-Educator', () => {
         educatorId: mockEducatorId2,
         isPrimary: false,
       });
-      expect(classEducatorRepo.save).toHaveBeenCalledWith(mockClassEducator);
     });
 
     it('should not add duplicate educator to class_educators', async () => {
@@ -118,12 +166,10 @@ describe('ClassesService - Co-Educator', () => {
 
       jest.spyOn(classEducatorRepo, 'findOne').mockResolvedValue(existing);
       jest.spyOn(classEducatorRepo, 'create');
-      jest.spyOn(classEducatorRepo, 'save');
 
       await service.addEducatorToClass(mockClassId, mockEducatorId2, false);
 
       expect(classEducatorRepo.create).not.toHaveBeenCalled();
-      expect(classEducatorRepo.save).not.toHaveBeenCalled();
     });
 
     it('should promote educator to primary if requested', async () => {
@@ -134,12 +180,12 @@ describe('ClassesService - Co-Educator', () => {
       } as ClassEducator;
 
       jest.spyOn(classEducatorRepo, 'findOne').mockResolvedValue(existing);
-      jest.spyOn(classEducatorRepo, 'save').mockResolvedValue({ ...existing, isPrimary: true });
+      jest.spyOn(classEducatorRepo, 'create').mockResolvedValue({ ...existing, isPrimary: true });
 
       await service.addEducatorToClass(mockClassId, mockEducatorId2, true);
 
       expect(existing.isPrimary).toBe(true);
-      expect(classEducatorRepo.save).toHaveBeenCalledWith(existing);
+      expect(classEducatorRepo.create).toHaveBeenCalledWith(existing);
     });
   });
 

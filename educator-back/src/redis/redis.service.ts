@@ -1,7 +1,14 @@
-import { Inject, Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
-import { REDIS_BLOB_KEY_PREFIX, REDIS_CLIENT, REDIS_DEFAULT_TTL_SECONDS } from './redis.constants';
+import { REDIS_CLIENT, REDIS_DEFAULT_TTL_SECONDS, isInMemoryAllowed } from './redis.constants';
+import { LoggerService } from '../common/services/logger.service';
+
+const GET_DEL_SCRIPT = `
+  local value = redis.call('GET', KEYS[1])
+  if value then redis.call('DEL', KEYS[1]) end
+  return value
+`;
 
 interface MemoryCacheEntry {
   value: unknown;
@@ -10,7 +17,6 @@ interface MemoryCacheEntry {
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
-  private readonly logger = new Logger(RedisService.name);
   private cacheFlushTimer: NodeJS.Timeout | null = null;
   private inFallbackMode = false;
 
@@ -19,6 +25,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis | null,
     private readonly configService: ConfigService,
+    private readonly logger: LoggerService,
   ) {}
 
   onModuleInit(): void {
@@ -42,7 +49,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn('[Redis] No client configured — running in in-memory fallback mode.');
     }
     const intervalMs = this.ttlSeconds * 1000;
-    this.cacheFlushTimer = setInterval(() => void this.flushBlobCache(), intervalMs);
+    this.cacheFlushTimer = setInterval(() => void this.evictExpiredMemoryEntries(), intervalMs);
   }
 
   onModuleDestroy(): void {
@@ -52,22 +59,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async flushBlobCache(): Promise<void> {
-    if (this.redis) {
-      try {
-        const keys = await this.redis.keys(`${REDIS_BLOB_KEY_PREFIX}*`);
-        if (keys.length > 0) {
-          await this.redis.del(...keys);
-        }
-      } catch (err) {
-        this.logger.warn(
-          `[Redis] flushBlobCache failed — falling back to in-memory eviction. Reason: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      }
-    }
-
+  private evictExpiredMemoryEntries(): void {
     const now = Date.now();
     for (const [key, entry] of this.memoryCache.entries()) {
       if (now >= entry.expiresAt) {
@@ -77,9 +69,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   private get ttlSeconds(): number {
-    const raw = this.configService.get<string>('REDIS_CACHE_TTL_SECONDS');
-    const parsed = raw ? parseInt(raw, 10) : NaN;
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : REDIS_DEFAULT_TTL_SECONDS;
+    const raw = this.configService.get<number>('redis.cacheTtlSeconds');
+    return raw !== undefined && Number.isFinite(raw) && raw > 0 ? raw : REDIS_DEFAULT_TTL_SECONDS;
   }
 
   private memoryGet<T>(key: string): T | null {
@@ -129,6 +120,47 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       }
     }
     this.memorySet(key, value, expiry);
+  }
+
+  private get strictMemoryFallbackAllowed(): boolean {
+    if (this.configService.get<string>('redis.host')) {
+      return false;
+    }
+    return isInMemoryAllowed(this.configService.get<string>('app.nodeEnv'));
+  }
+
+  async setStrict(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+    if (!this.redis && this.strictMemoryFallbackAllowed) {
+      this.memorySet(key, value, ttlSeconds);
+      return;
+    }
+    await this.requireRedis().set(key, JSON.stringify(value), 'EX', ttlSeconds);
+  }
+
+  async getDelStrict<T>(key: string): Promise<T | null> {
+    if (!this.redis && this.strictMemoryFallbackAllowed) {
+      const value = this.memoryGet<T>(key);
+      this.memoryDel(key);
+      return value;
+    }
+
+    const raw = (await this.requireRedis().eval(GET_DEL_SCRIPT, 1, key)) as string | null;
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      this.logger.error(`[Redis] Corrupt JSON at "${key}" — treating as not found.`);
+      return null;
+    }
+  }
+
+  private requireRedis(): Redis {
+    if (!this.redis) {
+      throw new Error('Redis client is not configured');
+    }
+    return this.redis;
   }
 
   async del(key: string): Promise<void> {
@@ -233,6 +265,12 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         const value = await this.redis.incr(key);
         if (value === 1) {
           await this.redis.expire(key, ttlSeconds);
+        } else {
+          // Guard against orphaned keys that have no TTL (e.g. from a crashed previous run)
+          const remaining = await this.redis.ttl(key);
+          if (remaining < 0) {
+            await this.redis.expire(key, ttlSeconds);
+          }
         }
         return value;
       } catch (err) {
@@ -243,5 +281,35 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const next = current + 1;
     this.memorySet(key, next, ttlSeconds);
     return next;
+  }
+
+  /** Appends one or more values to a Redis list. Falls back to a JSON array in memory. */
+  async rpush(key: string, ...values: string[]): Promise<void> {
+    if (this.redis) {
+      try {
+        await this.redis.rpush(key, ...values);
+        return;
+      } catch (err) {
+        this.activateFallback('RPUSH', key, err);
+      }
+    }
+    const existing = this.memoryGet<string[]>(key) ?? [];
+    this.memorySet(key, [...existing, ...values], 0);
+  }
+
+  /** Returns and removes all members of a Redis list. Falls back to in-memory. */
+  async lrangeAndDel(key: string): Promise<string[]> {
+    if (this.redis) {
+      try {
+        const values = await this.redis.lrange(key, 0, -1);
+        if (values.length > 0) await this.redis.del(key);
+        return values;
+      } catch (err) {
+        this.activateFallback('LRANGE', key, err);
+      }
+    }
+    const values = this.memoryGet<string[]>(key) ?? [];
+    this.memoryCache.delete(key);
+    return values;
   }
 }

@@ -77,13 +77,12 @@ export const SearchBar = ({
         <Button
           variant="ghost"
           size="icon"
-          aria-label="Clear search"
-          className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 active:bg-transparent"
+          className="absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 hover:bg-transparent focus:outline-none focus:ring-0 focus-visible:ring-0 active:bg-transparent"
           onClick={handleClear}
           disabled={disabled}
           onMouseDown={(e) => e.preventDefault()}
         >
-          <X className="h-4 w-4" aria-hidden="true" style={{ color: '#6b7280' }} />
+          <X className="h-4 w-4" style={{ color: '#9ca3af' }} />
         </Button>
       )}
     </div>

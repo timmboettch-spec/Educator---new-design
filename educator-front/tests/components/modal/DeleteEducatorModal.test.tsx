@@ -4,8 +4,13 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import DeleteEducatorModal from '../../../src/components/modal/DeleteEducatorModal';
 
 vi.mock('../../../src/components/ui/Modal', () => ({
-  default: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) =>
-    isOpen ? <div role="dialog">{children}</div> : null,
+  default: ({
+    isOpen,
+    children,
+  }: {
+    isOpen: boolean;
+    children: React.ReactNode;
+  }) => (isOpen ? <div role="dialog">{children}</div> : null),
 }));
 
 vi.mock('../../../src/components/ui/Button', () => ({
@@ -59,7 +64,9 @@ describe('DeleteEducatorModal', () => {
 
   it('shows a Delete Educator button', () => {
     render(<DeleteEducatorModal {...defaultProps} />);
-    expect(screen.getByRole('button', { name: /delete educator/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /delete educator/i })
+    ).toBeInTheDocument();
   });
 
   it('calls setIsDeleteModalOpen(false) when Back is clicked', () => {

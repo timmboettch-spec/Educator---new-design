@@ -24,7 +24,7 @@ describe('Smoke — Units', () => {
       .get(ENDPOINTS.SIMULATIONS.BY_UNIT(smokeState.scenarioId))
       .set('Authorization', `Bearer ${token}`);
     expect([STATUS.OK, STATUS.NOT_FOUND]).toContain(res.status);
-    if (res.status === STATUS.OK) expect(res.body?.status).toBe('SUCCESS');
+    if (res.status === STATUS.OK) expect(res.body?.error).toBeNull();
   });
 
   it('should reject unit details without token', async () => {

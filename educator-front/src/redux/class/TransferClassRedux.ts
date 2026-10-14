@@ -59,7 +59,7 @@ export const TransferClassRequest = createAsyncThunk<
       payload,
       {
         headers: { 'ngrok-skip-browser-warning': 'true' },
-      },
+      }
     );
     return res.data;
   } catch (err: unknown) {
@@ -105,12 +105,15 @@ const TransferClassSlice = createSlice({
 export const { resetTransferState } = TransferClassSlice.actions;
 
 export const selectTransferClassStatus = (state: RootState) =>
-  (state as RootState & { TransferClass?: TransferClassState }).TransferClass?.status ?? 'idle';
+  (state as RootState & { TransferClass?: TransferClassState }).TransferClass
+    ?.status ?? 'idle';
 
 export const selectTransferClassError = (state: RootState) =>
-  (state as RootState & { TransferClass?: TransferClassState }).TransferClass?.error ?? null;
+  (state as RootState & { TransferClass?: TransferClassState }).TransferClass
+    ?.error ?? null;
 
 export const selectTransferClassLastAudit = (state: RootState) =>
-  (state as RootState & { TransferClass?: TransferClassState }).TransferClass?.lastAudit ?? null;
+  (state as RootState & { TransferClass?: TransferClassState }).TransferClass
+    ?.lastAudit ?? null;
 
 export default TransferClassSlice.reducer;

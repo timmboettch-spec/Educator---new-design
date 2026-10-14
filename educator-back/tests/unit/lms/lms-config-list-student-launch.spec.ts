@@ -1,14 +1,16 @@
+import { OutboundHttpClient } from 'src/common/services';
 import { Test } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
 import { LmsConfigService } from '../../../src/lms/services/lms-config.service';
-import { LmsSchoolConfig } from '../../../src/lms/entity/lms-school-config.entity';
-import { Schools } from '../../../src/schools/entity/schools.entity';
+import { LmsAuthService } from '../../../src/lms/services/lms-auth.service';
+import { LmsSchoolConfig } from '../../../src/database/entities';
+import { LMS_SCHOOL_CONFIG_REPOSITORY, SCHOOLS_REPOSITORY } from '../../../src/database/tokens';
+import { LmsSchoolConfigRepository } from '../../../src/database/repositories';
 import { LmsConfigStatus, LmsToolType } from '../../../src/common/enums/lms.enum';
+import { LoggerService } from '../../../src/common/services';
 
 describe('LmsConfigService.listStudentLaunchConfigs', () => {
   let service: LmsConfigService;
-  let configRepo: jest.Mocked<Repository<LmsSchoolConfig>>;
+  let configRepo: jest.Mocked<Pick<LmsSchoolConfigRepository, 'find' | 'findOne' | 'create'>>;
 
   const buildConfig = (overrides?: Partial<LmsSchoolConfig>): LmsSchoolConfig =>
     ({
@@ -28,35 +30,41 @@ describe('LmsConfigService.listStudentLaunchConfigs', () => {
       providers: [
         LmsConfigService,
         {
-          provide: getRepositoryToken(LmsSchoolConfig),
+          provide: LMS_SCHOOL_CONFIG_REPOSITORY,
           useValue: {
             find: jest.fn(),
             findOne: jest.fn(),
-            save: jest.fn(),
             create: jest.fn(),
           },
         },
         {
-          provide: getRepositoryToken(Schools),
+          provide: SCHOOLS_REPOSITORY,
           useValue: {
             findOne: jest.fn(),
+            update: jest.fn(),
           },
         },
         {
-          provide: DataSource,
+          provide: LoggerService,
           useValue: {
-            manager: {
-              update: jest.fn(),
-            },
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
           },
         },
+        {
+          provide: LmsAuthService,
+          useValue: { getAccessToken: jest.fn() },
+        },
+        { provide: OutboundHttpClient, useValue: { fetch: jest.fn() } },
       ],
     }).compile();
 
     service = module.get<LmsConfigService>(LmsConfigService);
-    configRepo = module.get(getRepositoryToken(LmsSchoolConfig)) as jest.Mocked<
-      Repository<LmsSchoolConfig>
-    >;
+    configRepo = module.get(LMS_SCHOOL_CONFIG_REPOSITORY);
   });
 
   afterEach(() => {
@@ -99,7 +107,37 @@ describe('LmsConfigService.listStudentLaunchConfigs', () => {
       expect(result).toHaveLength(2);
     });
 
-    it('returns empty array when clientId has no issuer matches (no issuer-only fallback)', async () => {
+    it('falls back to issuer-only lookup when student tool clientId differs from stored configs', async () => {
+      const educatorConfigs = [
+        buildConfig({
+          id: 'cfg-a',
+          toolType: LmsToolType.EDUCATOR,
+          clientId: 'educator-client',
+          schoolId: 'school-a',
+        }),
+        buildConfig({
+          id: 'cfg-b',
+          toolType: LmsToolType.EDUCATOR,
+          clientId: 'educator-client',
+          schoolId: 'school-b',
+        }),
+      ];
+
+      configRepo.find
+        .mockResolvedValueOnce([]) // STUDENT clientId lookup
+        .mockResolvedValueOnce([]) // STUDENT issuer fallback
+        .mockResolvedValueOnce([]) // EDUCATOR clientId lookup
+        .mockResolvedValueOnce(educatorConfigs); // EDUCATOR issuer fallback
+
+      const result = await service.listStudentLaunchConfigs(
+        'https://moodle.test.edu',
+        'student-tool-client',
+      );
+
+      expect(result).toEqual(educatorConfigs);
+    });
+
+    it('returns empty array when clientId and issuer both miss', async () => {
       configRepo.find.mockResolvedValue([]);
 
       const result = await service.listStudentLaunchConfigs(
@@ -107,21 +145,6 @@ describe('LmsConfigService.listStudentLaunchConfigs', () => {
         'client-123',
       );
 
-      expect(configRepo.find).toHaveBeenCalledTimes(2);
-      expect(configRepo.find).toHaveBeenNthCalledWith(1, {
-        where: {
-          clientId: 'client-123',
-          toolType: LmsToolType.STUDENT,
-          status: LmsConfigStatus.ACTIVE,
-        },
-      });
-      expect(configRepo.find).toHaveBeenNthCalledWith(2, {
-        where: {
-          clientId: 'client-123',
-          toolType: LmsToolType.EDUCATOR,
-          status: LmsConfigStatus.ACTIVE,
-        },
-      });
       expect(result).toEqual([]);
     });
 

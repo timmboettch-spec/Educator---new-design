@@ -4,9 +4,8 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { ScenariosController } from '../../../../../src/student-backend/modules/scenarios/scenarios.controller';
 import { ScenariosService } from '../../../../../src/student-backend/modules/scenarios/scenarios.service';
-import { JsonDataService } from '../../../../../src/student-backend/data/json-data.service';
-import { ScenarioAuthGuard } from '../../../../../src/student-backend/guards/scenario-auth.guard';
-import { ScenarioAssignmentGuard } from '../../../../../src/student-backend/modules/scenarios/guards/scenario-assignment.guard';
+import { AutomationAccessService } from 'src/common/services/automation-access.service';
+import { SIMULATION_V2_REPOSITORY, UNIT_REPOSITORY } from 'src/database/tokens';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiGet } from '../../common/utils/api.helper';
 import { ENDPOINTS } from '../../common/constants/endpoints';
@@ -32,29 +31,33 @@ describe('Scenarios API — HTTP contract', () => {
     { id: 'scenario-002', title: 'Scenario 2', unitId: 'unit-001' },
   ];
 
-  const mockJsonDataService = {
-    getDefaultScenario: jest.fn(),
-    getScenarioByIdFresh: jest.fn(),
-    getScenarios: jest.fn(),
-    getScenariosByUnitId: jest.fn(),
-    getScenarioById: jest.fn(),
-    getUnitById: jest.fn(),
-    getTranscriptsByUserId: jest.fn(),
-    getAllScenariosLocalized: jest.fn(),
-    getScenariosByUnitIdLocalized: jest.fn(),
-    getScenarioByIdLocalized: jest.fn(),
+  const mockSimulationV2Repository = {
+    find: jest.fn(),
+    findByUnitId: jest.fn(),
+    findByBusinessId: jest.fn(),
+  };
+
+  const mockUnitRepository = {
+    findByBusinessId: jest.fn(),
+    find: jest.fn().mockResolvedValue([]),
   };
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       controllers: [ScenariosController],
-      providers: [ScenariosService, { provide: JsonDataService, useValue: mockJsonDataService }],
-    })
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScenarioAssignmentGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+      providers: [
+        ScenariosService,
+        {
+          provide: AutomationAccessService,
+          useValue: {
+            filterRecords: jest.fn((records) => records),
+            canAccessRecord: jest.fn(() => true),
+          },
+        },
+        { provide: UNIT_REPOSITORY, useValue: mockUnitRepository },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: mockSimulationV2Repository },
+      ],
+    }).compile();
 
     app = await createTestApp(moduleRef);
   });
@@ -65,16 +68,10 @@ describe('Scenarios API — HTTP contract', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockJsonDataService.getUnitById.mockReturnValue(mockUnit);
-    mockJsonDataService.getScenarios.mockReturnValue(mockScenarios);
-    mockJsonDataService.getScenarioById.mockReturnValue(mockScenario);
-    mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(mockScenario);
-    mockJsonDataService.getScenariosByUnitId.mockReturnValue(mockScenarios);
-    mockJsonDataService.getDefaultScenario.mockReturnValue(mockScenario);
-    mockJsonDataService.getTranscriptsByUserId.mockReturnValue([]);
-    mockJsonDataService.getAllScenariosLocalized.mockResolvedValue(mockScenarios);
-    mockJsonDataService.getScenariosByUnitIdLocalized.mockResolvedValue(mockScenarios);
-    mockJsonDataService.getScenarioByIdLocalized.mockResolvedValue(mockScenario);
+    mockSimulationV2Repository.find.mockResolvedValue(mockScenarios);
+    mockSimulationV2Repository.findByUnitId.mockResolvedValue(mockScenarios);
+    mockSimulationV2Repository.findByBusinessId.mockResolvedValue(mockScenario);
+    mockUnitRepository.findByBusinessId.mockResolvedValue(mockUnit);
   });
 
   // ─── GET /scenarios — array shape ─────────────────────────────────────────────
@@ -108,31 +105,6 @@ describe('Scenarios API — HTTP contract', () => {
         id: 'scenario-001',
         title: 'Test Scenario',
       });
-    });
-  });
-
-  // ─── GET /scenarios/unit/:unitId ──────────────────────────────────────────────
-
-  describe('GET /scenarios/unit/:unitId', () => {
-    it('returns only scenarios belonging to that unit', async () => {
-      const res = await apiGet(app, ENDPOINTS.SCENARIOS.BY_UNIT('unit-001'));
-
-      expect(res.status).toBe(STATUS.OK);
-      expect(Array.isArray(res.body)).toBe(true);
-      for (const item of res.body) {
-        expect(item.unitId).toBe('unit-001');
-      }
-    });
-  });
-
-  // ─── GET /scenarios/default ───────────────────────────────────────────────────
-
-  describe('GET /scenarios/default', () => {
-    it('returns a scenario object', async () => {
-      const res = await apiGet(app, ENDPOINTS.SCENARIOS.DEFAULT);
-
-      expect(res.status).toBe(STATUS.OK);
-      expect(res.body).toHaveProperty('id');
     });
   });
 });

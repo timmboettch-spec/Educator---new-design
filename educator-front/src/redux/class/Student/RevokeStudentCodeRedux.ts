@@ -1,5 +1,9 @@
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
 import config from '../../config';
@@ -27,20 +31,22 @@ export const RevokeStudentCodeRequest = createAsyncThunk(
   'student/revokeCode',
   async (id: string, thunkAPI) => {
     try {
-      const res = await api.put(`${config.StudentAPI}/revoke-code/${id}`,
-        {
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-        },);
+      const res = await api.put(`${config.StudentAPI}/revoke-code/${id}`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
       return res.data;
     } catch (err: unknown) {
-      const error = err as { response?: { status: number; data?: { message?: string } } };
+      const error = err as {
+        response?: { status: number; data?: { message?: string } };
+      };
       return thunkAPI.rejectWithValue({
-        message: error.response?.data?.message || 'Failed to revoke Student code',
+        message:
+          error.response?.data?.message || 'Failed to revoke Student code',
       });
     }
-  },
+  }
 );
 
 const revokeStudentCodeSlice = createSlice({
@@ -64,12 +70,13 @@ const revokeStudentCodeSlice = createSlice({
         (state, action: PayloadAction<RevokeStudentCodeResponse>) => {
           state.status = SUCCEEDED;
           state.response = action.payload;
-        },
+        }
       )
       .addCase(RevokeStudentCodeRequest.rejected, (state, action) => {
         state.status = FAILED;
         state.error =
-          (action.payload as { message?: string })?.message || 'Failed to revoke Student code';
+          (action.payload as { message?: string })?.message ||
+          'Failed to revoke Student code';
       });
   },
 });
@@ -77,14 +84,18 @@ const revokeStudentCodeSlice = createSlice({
 export const { clearRevokeStudentCodeState } = revokeStudentCodeSlice.actions;
 export default revokeStudentCodeSlice.reducer;
 
-const selectRevokeStudentCodeState = (state: RootState) => state.RevokeStudentCode;
+const selectRevokeStudentCodeState = (state: RootState) =>
+  state.RevokeStudentCode;
 
 export const selectRevokeCodeLoading = createSelector(
   selectRevokeStudentCodeState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );
 export const selectRevokeCodeSuccess = createSelector(
   selectRevokeStudentCodeState,
-  (s) => s.status === SUCCEEDED,
+  (s) => s.status === SUCCEEDED
 );
-export const selectRevokeCodeError = createSelector(selectRevokeStudentCodeState, (s) => s.error);
+export const selectRevokeCodeError = createSelector(
+  selectRevokeStudentCodeState,
+  (s) => s.error
+);

@@ -1,6 +1,10 @@
 import type { ExportSource } from '@/types';
 
-export function getMetaLines(source: ExportSource, fromDate: string, toDate: string): string[][] {
+export function getMetaLines(
+  source: ExportSource,
+  fromDate: string,
+  toDate: string
+): string[][] {
   if (source.type === 'sim') {
     return [
       ['Simulation', source.simName ?? ''],

@@ -1,7 +1,13 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import config from '../config';
 import api from '../api';
-import { RootState } from '@/store';
+import { type RootState } from '@/store';
+import { invalidateMyLibraryList } from '../api/myLibrary/myLibraryApi';
+import { clearSimulationLibraryState } from '../dashboard/simulationlibrary/GetSimulationRedux';
 
 export interface LibrarySimulation {
   id: string;
@@ -45,21 +51,34 @@ export const AddToLibraryRequest = createAsyncThunk<
   void,
   { scenario_id: string; unit_id: string },
   { rejectValue: string }
->('myLibrary/add', async ({ scenario_id, unit_id }, { rejectWithValue }) => {
-  try {
-      const res = await api.post(config.AddToLibraryAPI, { scenario_id, unit_id });
+>(
+  'myLibrary/add',
+  async ({ scenario_id, unit_id }, { rejectWithValue, dispatch }) => {
+    try {
+      const res = await api.post(config.AddToLibraryAPI, {
+        scenario_id,
+        unit_id,
+      });
+      dispatch(invalidateMyLibraryList());
+      // The assign modal's full copy is now out of date: dropped, so it is
+      // loaded again when next needed.
+      dispatch(clearSimulationLibraryState());
       return res.data;
-  } catch (err: unknown) {
-    const error = err as {
-      response?: { status: number; data?: { message?: string; error?: string } };
-    };
-    return rejectWithValue(
-      error.response?.data?.message ??
-        error.response?.data?.error ??
-        (err instanceof Error ? err.message : 'Unknown error'),
-    );
+    } catch (err: unknown) {
+      const error = err as {
+        response?: {
+          status: number;
+          data?: { message?: string; error?: string };
+        };
+      };
+      return rejectWithValue(
+        error.response?.data?.message ??
+          error.response?.data?.error ??
+          (err instanceof Error ? err.message : 'Unknown error')
+      );
+    }
   }
-});
+);
 
 const myLibrarySlice = createSlice({
   name: 'myLibrary',
@@ -75,7 +94,7 @@ const myLibrarySlice = createSlice({
       })
       .addCase(AddToLibraryRequest.rejected, (state) => {
         state.adding = false;
-      })
+      });
   },
 });
 
@@ -83,5 +102,11 @@ export default myLibrarySlice.reducer;
 
 const selectMyLibrary = (state: RootState) => state.AddToLibrary;
 
-export const selectLibraryAdding = createSelector(selectMyLibrary, (s) => s.adding);
-export const selectLibraryLoading = createSelector(selectMyLibrary, (s) => s.loading);
+export const selectLibraryAdding = createSelector(
+  selectMyLibrary,
+  (s) => s.adding
+);
+export const selectLibraryLoading = createSelector(
+  selectMyLibrary,
+  (s) => s.loading
+);

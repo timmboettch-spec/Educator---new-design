@@ -56,15 +56,24 @@ const loaderSlice = createSlice({
   },
 });
 
-export const { setLoading, setLoggingOut, incrementApiRequest, decrementApiRequest, setPendingToast, clearPendingToast } =
-  loaderSlice.actions;
+export const {
+  setLoading,
+  setLoggingOut,
+  incrementApiRequest,
+  decrementApiRequest,
+  setPendingToast,
+  clearPendingToast,
+} = loaderSlice.actions;
 
 export const selectIsLoading = (state: RootState) => state.loader.isLoading;
 
-export const selectIsLoggingOut = (state: RootState) => state.loader.isLoggingOut;
+export const selectIsLoggingOut = (state: RootState) =>
+  state.loader.isLoggingOut;
 
-export const selectApiRequestCount = (state: RootState) => state.loader.apiRequestCount;
+export const selectApiRequestCount = (state: RootState) =>
+  state.loader.apiRequestCount;
 
-export const selectPendingToast = (state: RootState) => state.loader.pendingToast;
+export const selectPendingToast = (state: RootState) =>
+  state.loader.pendingToast;
 
 export default loaderSlice.reducer;

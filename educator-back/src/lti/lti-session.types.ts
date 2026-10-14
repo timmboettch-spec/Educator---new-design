@@ -1,4 +1,6 @@
-export type LtiSessionAudience = 'educator' | 'student';
+import { DeepLinkingSettings } from './interfaces/deep-linking.interface';
+
+export type LtiSessionAudience = 'educator' | 'student' | 'deep_linking';
 
 /** LTI launch metadata stored with the one-time code for audit and validation. */
 export interface LtiLaunchContext {
@@ -13,10 +15,9 @@ interface LtiSessionBase {
   userId: string | null;
   schoolId: string | null;
   ltiContext: LtiLaunchContext;
-  createdAt: number;
-  expiresAt: number;
 }
 
+/** RW portal tokens only — LMS NRPS/AGS OAuth is never written into the Redis session. */
 export interface EducatorLtiSessionPayload extends LtiSessionBase {
   audience: 'educator';
   accessToken: string;
@@ -27,7 +28,8 @@ export interface EducatorLtiSessionPayload extends LtiSessionBase {
   lmsCourseName: string;
   provisioningStatus: string;
   courseSource: string;
-  lmsAccessToken?: string; // OAuth access token for NRPS/AGS API calls
+  /** Optional deep link after educator LTI/GC session exchange (e.g. /simulationdetails/:id). */
+  redirectPath?: string | null;
 }
 
 export interface StudentLtiSessionPayload extends LtiSessionBase {
@@ -37,16 +39,23 @@ export interface StudentLtiSessionPayload extends LtiSessionBase {
   className: string | null;
   accessToken: string | null;
   studentData: Record<string, unknown>;
+  ltiLaunchContext?: {
+    resourceLinkId?: string;
+    simulationId?: string;
+  };
 }
 
-export type LtiSessionPayload = EducatorLtiSessionPayload | StudentLtiSessionPayload;
+/** Deep Linking session payload for content selection flow */
+export interface DeepLinkingSessionPayload {
+  audience: 'deep_linking';
+  issuer: string;
+  schoolId: string;
+  classId: string | null;
+  courseTitle: string | null;
+  deepLinkingSettings: DeepLinkingSettings;
+  deploymentId: string;
+  clientId: string;
+  payload: Record<string, unknown>; // Full launch payload for debugging
+}
 
-export type CreateEducatorLtiSessionInput = Omit<
-  EducatorLtiSessionPayload,
-  'createdAt' | 'expiresAt'
->;
-export type CreateStudentLtiSessionInput = Omit<
-  StudentLtiSessionPayload,
-  'createdAt' | 'expiresAt'
->;
-export type CreateLtiSessionInput = CreateEducatorLtiSessionInput | CreateStudentLtiSessionInput;
+export type LtiSessionPayload = EducatorLtiSessionPayload | StudentLtiSessionPayload | DeepLinkingSessionPayload;

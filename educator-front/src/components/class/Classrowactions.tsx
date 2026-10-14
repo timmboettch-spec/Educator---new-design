@@ -1,18 +1,25 @@
-import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
-import ClassEmailReportModal from "../../components/class/BulkEmailReportModal";
-import StudentEmailAccessCodeModal from "../../components/class/ClassEmailAccesscode";
-import ExportReportModal from "../../components/class/simulation/ExportReportModal";
-import ExportTranscriptModal from "../../components/class/simulation/ExportTranscriptModal";
-import ClassActionReportsModal from "./ClassActionReportsModal";
-import type { Class, ClassWithStudents } from "../../types/Class_types";
-import { computeClassStatus } from "../../utils/classUtils";
-import { useAppSelector, useAppDispatch } from "../../store/hooks";
-import { selectEducatorReports } from "../../redux/reports/EducatorReportsRedux";
-import { MarkReportViewed } from "../../redux/class/SimsCompletedreportsRedux";
-import { markReportUnviewed } from "../../redux/class/GetClassRedux";
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import ClassEmailReportModal from '../../components/class/BulkEmailReportModal';
+import StudentEmailAccessCodeModal from '../../components/class/ClassEmailAccesscode';
+import ExportReportModal from '../../components/class/simulation/ExportReportModal';
+import ExportTranscriptModal from '../../components/class/simulation/ExportTranscriptModal';
+import ClassActionReportsModal from './ClassActionReportsModal';
+import type { Class, ClassWithStudents } from '../../types/Class_types';
+import { computeClassStatus } from '../../utils/classUtils';
+import { useAppSelector } from '../../store/hooks';
+import { selectEducatorReports } from '../../redux/reports/EducatorReportsRedux';
+import { useBulkReportReview } from '../../hooks/useBulkReportReview';
+import { SimulationReportSelectorType } from '../../redux/api/reports/reports.types';
+import {
+  CommonStatus,
+  SELECTABLE_CLASS_STATUSES,
+  type SelectableClassStatus,
+  StudentCodesExportFormat,
+} from '../../redux/api/classes/classes.types';
+import { useStudentCodesExport } from '../../hooks/useStudentCodesExport';
+import { PrintClassStudentCodesModal } from './PrintClassStudentCodesModal';
 
 interface ClassRowActionsProps {
   row: ClassWithStudents;
@@ -24,9 +31,8 @@ interface ClassRowActionsProps {
   onDelete: (row: ClassWithStudents) => void;
   onStatusChange: (
     row: ClassWithStudents,
-    status: NonNullable<Class["status"]>,
+    status: NonNullable<Class['status']>
   ) => void;
-  onPrint: (row: ClassWithStudents) => void;
   onAIInsights: (row: ClassWithStudents) => void;
   defaultViewModalOpen?: boolean;
 }
@@ -39,16 +45,11 @@ export default function ClassRowActions({
   onEdit,
   onDelete,
   onStatusChange,
-  onPrint,
   defaultViewModalOpen = false,
 }: ClassRowActionsProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const t = (
-    localStorage.getItem("app_language")?.toLowerCase() === "es"
-      ? loginEs
-      : loginEn
-  ).classRowActions;
+  const { t } = useTranslation('classManagement');
   const [dropdownPos, setDropdownPos] = useState<{
     top?: number;
     bottom?: number;
@@ -56,7 +57,7 @@ export default function ClassRowActions({
   } | null>(null);
 
   const dateStatus = computeClassStatus(row.start_date, row.end_date);
-  const isDateActive = dateStatus === "ACTIVE";
+  const isDateActive = dateStatus === 'ACTIVE';
 
   const allReports = useAppSelector(selectEducatorReports);
   const classStudentIds = new Set<string>();
@@ -65,40 +66,45 @@ export default function ClassRowActions({
     if (s.student_id) classStudentIds.add(s.student_id);
   }
   const classReports = allReports.filter(
-    (r) => r.userId != null && classStudentIds.has(r.userId),
+    (r) => r.userId != null && classStudentIds.has(r.userId)
   );
-  const dispatch = useAppDispatch();
-  const classReportIds = classReports
-    .map((r) => r.id)
-    .filter((id): id is string => Boolean(id));
-  const handleMarkAllReviewed = () => {
-    if (classReportIds.length)
-      void dispatch(
-        MarkReportViewed({ reportId: classReportIds, classId: String(row.id) }),
-      );
+
+  const { t: tRow } = useTranslation('classManagement');
+  const { review } = useBulkReportReview();
+
+  const handleMarkAll = (reviewed: boolean) => {
     onMenuToggle(null);
-  };
-  const handleMarkAllUnreviewed = () => {
-    if (classReportIds.length)
-      dispatch(
-        markReportUnviewed({
-          reportId: classReportIds,
-          classId: String(row.id),
-        }),
-      );
-    onMenuToggle(null);
+    void review({
+      type: SimulationReportSelectorType.CLASS,
+      ids: [row.id],
+      reviewed,
+      classId: String(row.id),
+    });
   };
 
-  const statusOptions: {
-    label: string;
-    value: NonNullable<Class["status"]>;
-    disabled?: boolean;
-  }[] = [
-    { label: t.statusActive, value: "ACTIVE", disabled: !isDateActive },
-    { label: t.statusDraft, value: "DRAFT" },
-    { label: t.statusInactive, value: "INACTIVE" },
-    { label: t.statusArchived, value: "ARCHIEVED" },
-  ];
+  const { exportStudentCodes, printStudentCodes, cancelExport, isExporting } =
+    useStudentCodesExport();
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
+  const handleExportStudentCodes = (format: StudentCodesExportFormat) => {
+    onMenuToggle(null);
+    void exportStudentCodes({
+      classId: row.id,
+      className: row.class_name,
+      format,
+    });
+  };
+
+  const statusLabels: Record<SelectableClassStatus, string> = {
+    [CommonStatus.ACTIVE]: t('rowActions.statusActive'),
+    [CommonStatus.INACTIVE]: t('rowActions.statusInactive'),
+    [CommonStatus.ARCHIEVED]: t('rowActions.statusArchived'),
+  };
+  const statusOptions = SELECTABLE_CLASS_STATUSES.map((status) => ({
+    label: statusLabels[status],
+    value: status,
+    disabled: status === CommonStatus.ACTIVE && !isDateActive,
+  }));
 
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showAccessCodeModal, setShowAccessCodeModal] = useState(false);
@@ -108,10 +114,6 @@ export default function ClassRowActions({
   const [statusSubmenuStyle, setStatusSubmenuStyle] =
     useState<React.CSSProperties>({});
   const [showStatusSubmenu, setShowStatusSubmenu] = useState(false);
-  // Which side the Class Status submenu opens on, so the caret can point at it.
-  const [statusSubmenuSide, setStatusSubmenuSide] = useState<"left" | "right">(
-    "right",
-  );
   const statusButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleToggleMenu = () => {
@@ -120,61 +122,6 @@ export default function ClassRowActions({
     } else {
       onMenuToggle(row.id);
     }
-  };
-
-  // Position + open the Class Status submenu (shared by hover, click, keyboard).
-  const openStatusSubmenu = () => {
-    const rect = statusButtonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const SUBMENU_WIDTH = 160;
-    const SUBMENU_HEIGHT = statusOptions.length * 36 + 16;
-    const spaceRight = window.innerWidth - rect.right;
-    const spaceBelow = window.innerHeight - rect.top;
-    const opensRight = spaceRight >= SUBMENU_WIDTH;
-    setStatusSubmenuSide(opensRight ? "right" : "left");
-    const horizontal: React.CSSProperties = opensRight
-      ? { left: "100%" }
-      : { right: "100%" };
-    const vertical: React.CSSProperties =
-      spaceBelow >= SUBMENU_HEIGHT ? { top: 0 } : { bottom: 0 };
-    setStatusSubmenuStyle({
-      position: "absolute",
-      width: SUBMENU_WIDTH,
-      ...horizontal,
-      ...vertical,
-    });
-    setShowStatusSubmenu(true);
-  };
-
-  // Export a CSV of this class's student codes, with class/school/date metadata
-  // and a blank column for the educator to note a name per code.
-  const handleExportCodesCsv = () => {
-    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const dateOnly = (d?: string) => String(d ?? "").split("T")[0];
-    const generated = new Date().toLocaleDateString("en-US");
-    const meta = [
-      ["Class Name", row.class_name],
-      ["School", row.school_name],
-      ["Start Date", dateOnly(row.start_date)],
-      ["End Date", dateOnly(row.end_date)],
-      ["Generated", generated],
-    ]
-      .map(([k, v]) => `${esc(k)},${esc(v)}`)
-      .join("\n");
-    const header = `${esc("Student Code")},${esc("Student Name")}`;
-    const body = (row.students ?? [])
-      .map((s) => `${esc(s.student_id)},${esc("")}`)
-      .join("\n");
-    const csv = `${meta}\n\n${header}\n${body}\n`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const safeName = (row.class_name ?? "class").replace(/[^\w-]+/g, "_").slice(0, 60);
-    a.href = url;
-    a.download = `student-codes-${safeName}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    onMenuToggle(null);
   };
 
   useEffect(() => {
@@ -193,7 +140,7 @@ export default function ClassRowActions({
               bottom: window.innerHeight - rect.top + 6,
               right: window.innerWidth - rect.right,
             }
-          : { top: rect.bottom + 6, right: window.innerWidth - rect.right },
+          : { top: rect.bottom + 6, right: window.innerWidth - rect.right }
       );
     } else {
       setDropdownPos(null);
@@ -206,8 +153,8 @@ export default function ClassRowActions({
       onMenuToggle(null);
       setDropdownPos(null);
     };
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, [openMenuId, row.id, onMenuToggle]);
 
   useEffect(() => {
@@ -225,12 +172,12 @@ export default function ClassRowActions({
     };
 
     const timer = setTimeout(() => {
-      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener('mousedown', handleClickOutside);
     }, 0);
 
     return () => {
       clearTimeout(timer);
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [openMenuId, row.id, onMenuToggle, onStatusToggle]);
 
@@ -238,40 +185,40 @@ export default function ClassRowActions({
     if (openMenuId !== row.id || !dropdownPos) return;
     const rafId = requestAnimationFrame(() => {
       const first = dropdownRef.current?.querySelector<HTMLElement>(
-        "button:not([disabled])",
+        'button:not([disabled])'
       );
       first?.focus();
     });
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!dropdownRef.current) return;
-      if (e.key === "Escape") {
+      if (e.key === 'Escape') {
         e.preventDefault();
         onMenuToggle(null);
         buttonRef.current?.focus();
         return;
       }
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
         e.preventDefault();
         const focusable = Array.from(
           dropdownRef.current.querySelectorAll<HTMLElement>(
-            "button:not([disabled])",
-          ),
+            'button:not([disabled])'
+          )
         );
         if (!focusable.length) return;
         const idx = focusable.indexOf(document.activeElement as HTMLElement);
-        if (e.key === "ArrowDown") {
+        if (e.key === 'ArrowDown') {
           focusable[idx < focusable.length - 1 ? idx + 1 : 0]?.focus();
         } else {
           focusable[idx > 0 ? idx - 1 : focusable.length - 1]?.focus();
         }
         return;
       }
-      if (e.key === "Tab") {
+      if (e.key === 'Tab') {
         const focusable = Array.from(
           dropdownRef.current.querySelectorAll<HTMLElement>(
-            "button:not([disabled])",
-          ),
+            'button:not([disabled])'
+          )
         );
         if (!focusable.length) return;
         const first = focusable[0];
@@ -279,21 +226,21 @@ export default function ClassRowActions({
         if (e.shiftKey) {
           if (document.activeElement === first) {
             e.preventDefault();
-            last.focus();
+            last?.focus();
           }
         } else {
           if (document.activeElement === last) {
             e.preventDefault();
-            first.focus();
+            first?.focus();
           }
         }
       }
     };
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       cancelAnimationFrame(rafId);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [openMenuId, row.id, dropdownPos, onMenuToggle]);
 
@@ -306,16 +253,16 @@ export default function ClassRowActions({
       >
         <button
           ref={buttonRef}
-          onClick={handleToggleMenu}
-          aria-label="Class actions"
+          type="button"
+          aria-label={tRow('rowActions.menuLabel')}
           aria-haspopup="menu"
           aria-expanded={openMenuId === row.id}
+          onClick={handleToggleMenu}
           className="flex items-center gap-1 p-2 rounded-full hover:bg-gray-100"
         >
           {[0, 1, 2].map((d) => (
             <span
               key={d}
-              aria-hidden="true"
               className="w-1.5 h-1.5 rounded-full bg-gray-500 inline-block"
             />
           ))}
@@ -333,7 +280,7 @@ export default function ClassRowActions({
               }}
               className="fixed bg-white border border-gray-200 rounded-xl shadow-xl min-w-[200px] py-2 z-[9999] flex flex-col"
             >
-              {row.status !== "INACTIVE" ? (
+              {row.status !== 'INACTIVE' ? (
                 <>
                   <button
                     onClick={() => {
@@ -342,11 +289,10 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.editClassDetails}
+                    {t('rowActions.editClassDetails')}
                   </button>
 
-                  {/* Student-code group: Email → Export CSV → Print */}
-                  {row.status === "ACTIVE" &&
+                  {row.status === 'ACTIVE' &&
                     row.students &&
                     row.students[0]?.email && (
                       <button
@@ -356,30 +302,32 @@ export default function ClassRowActions({
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
-                        {t.emailStudentCode}
+                        {t('rowActions.emailStudentCode')}
                       </button>
                     )}
+
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExportCodesCsv();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    onClick={() =>
+                      handleExportStudentCodes(StudentCodesExportFormat.CSV)
+                    }
+                    disabled={isExporting}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed"
                   >
-                    Export Student Codes (CSV)
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPrint(row);
-                      onMenuToggle(null);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    {t.printStudentCode}
+                    {tRow('rowActions.exportStudentCodes')}
                   </button>
 
-                  {/* Reports group */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowPrintModal(true);
+                      onMenuToggle(null);
+                    }}
+                    disabled={isExporting}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed"
+                  >
+                    {t('rowActions.printStudentCode')}
+                  </button>
+
                   <button
                     onClick={() => {
                       setShowViewModal(true);
@@ -387,8 +335,9 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.viewReport}
+                    {tRow('rowActions.viewReport')}
                   </button>
+
                   <button
                     onClick={() => {
                       setShowExportModal(true);
@@ -396,8 +345,9 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.exportReport}
+                    {tRow('rowActions.exportReport')}
                   </button>
+
                   <button
                     onClick={() => {
                       setShowTranscriptModal(true);
@@ -405,19 +355,20 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.exportTranscripts}
+                    {tRow('rowActions.exportTranscripts')}
                   </button>
+
                   <button
-                    onClick={handleMarkAllReviewed}
+                    onClick={() => handleMarkAll(true)}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    Mark All Reports Reviewed
+                    {tRow('rowActions.markAllReviewed')}
                   </button>
                   <button
-                    onClick={handleMarkAllUnreviewed}
+                    onClick={() => handleMarkAll(false)}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    Mark All Reports Unreviewed
+                    {tRow('rowActions.markAllUnreviewed')}
                   </button>
                 </>
               ) : (
@@ -429,33 +380,32 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.editClassDetails}
+                    {t('rowActions.editClassDetails')}
                   </button>
-
                   {row.students && row.students[0]?.email && (
                     <button
                       disabled
                       className="w-full text-left px-4 py-2 text-sm text-gray-300 cursor-not-allowed"
                     >
-                      {t.emailStudentCode}
+                      {t('rowActions.emailStudentCode')}
                     </button>
                   )}
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExportCodesCsv();
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    onClick={() =>
+                      handleExportStudentCodes(StudentCodesExportFormat.CSV)
+                    }
+                    disabled={isExporting}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:text-gray-300 disabled:cursor-not-allowed"
                   >
-                    Export Student Codes (CSV)
+                    {tRow('rowActions.exportStudentCodes')}
                   </button>
+
                   <button
                     disabled
                     className="w-full text-left px-4 py-2 text-sm text-gray-300 cursor-not-allowed"
                   >
-                    {t.printStudentCode}
+                    {t('rowActions.printStudentCode')}
                   </button>
-
                   <button
                     onClick={() => {
                       setShowViewModal(true);
@@ -463,7 +413,7 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.viewReport}
+                    {tRow('rowActions.viewReport')}
                   </button>
                   <button
                     onClick={() => {
@@ -472,8 +422,9 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.exportReport}
+                    {tRow('rowActions.exportReport')}
                   </button>
+
                   <button
                     onClick={() => {
                       setShowTranscriptModal(true);
@@ -481,19 +432,20 @@ export default function ClassRowActions({
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    {t.exportTranscripts}
+                    {tRow('rowActions.exportTranscripts')}
                   </button>
+
                   <button
-                    onClick={handleMarkAllReviewed}
+                    onClick={() => handleMarkAll(true)}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    Mark All Reports Reviewed
+                    {tRow('rowActions.markAllReviewed')}
                   </button>
                   <button
-                    onClick={handleMarkAllUnreviewed}
+                    onClick={() => handleMarkAll(false)}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    Mark All Reports Unreviewed
+                    {tRow('rowActions.markAllUnreviewed')}
                   </button>
                 </>
               )}
@@ -501,41 +453,34 @@ export default function ClassRowActions({
               <div className="border-t border-gray-100 relative">
                 <button
                   ref={statusButtonRef}
-                  aria-haspopup="menu"
-                  aria-expanded={showStatusSubmenu}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (showStatusSubmenu) {
-                      setShowStatusSubmenu(false);
-                      return;
-                    }
-                    openStatusSubmenu();
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseEnter={() => {
+                    const rect =
+                      statusButtonRef.current?.getBoundingClientRect();
+                    if (!rect) return;
+                    const SUBMENU_WIDTH = 160;
+                    const SUBMENU_HEIGHT = statusOptions.length * 36 + 16;
+                    const spaceRight = window.innerWidth - rect.right;
+                    const spaceBelow = window.innerHeight - rect.top;
+                    const horizontal: React.CSSProperties =
+                      spaceRight >= SUBMENU_WIDTH
+                        ? { left: '100%' }
+                        : { right: '100%' };
+                    const vertical: React.CSSProperties =
+                      spaceBelow >= SUBMENU_HEIGHT ? { top: 0 } : { bottom: 0 };
+                    setStatusSubmenuStyle({
+                      position: 'absolute',
+                      width: SUBMENU_WIDTH,
+                      ...horizontal,
+                      ...vertical,
+                    });
+                    setShowStatusSubmenu(true);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape" && showStatusSubmenu) {
-                      e.stopPropagation();
-                      setShowStatusSubmenu(false);
-                    }
-                  }}
-                  onMouseEnter={openStatusSubmenu}
                   onMouseLeave={() => setShowStatusSubmenu(false)}
                   className="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  {t.classStatus}
-                  <span
-                    className={`text-gray-500 inline-block transition-transform duration-150 ${
-                      (
-                        showStatusSubmenu
-                          ? statusSubmenuSide === "right"
-                          : statusSubmenuSide === "left"
-                      )
-                        ? "rotate-180"
-                        : ""
-                    }`}
-                    aria-hidden="true"
-                  >
-                    ▸
-                  </span>
+                  {t('rowActions.classStatus')}
+                  <span className="text-gray-400">◂</span>
                 </button>
                 {showStatusSubmenu && (
                   <div
@@ -558,10 +503,10 @@ export default function ClassRowActions({
                         }}
                         className={`w-full text-left px-4 py-2 text-sm ${
                           opt.disabled
-                            ? "text-gray-300 cursor-not-allowed"
+                            ? 'text-gray-300 cursor-not-allowed'
                             : row.status === opt.value
-                              ? "text-primary-500 font-medium hover:bg-gray-50"
-                              : "text-gray-700 hover:bg-gray-50"
+                              ? 'text-primary-500 font-medium hover:bg-gray-50'
+                              : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
                         {opt.label}
@@ -576,68 +521,86 @@ export default function ClassRowActions({
                   onDelete(row);
                   onMenuToggle(null);
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-red-500 hover:text-red-600 hover:bg-gray-50"
+                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
               >
-                Delete Class
+                {tRow('rowActions.delete')}
               </button>
             </div>,
-            document.body,
+            document.body
           )}
 
-      {showViewModal && (
-        <ClassActionReportsModal
-          classId={row.id}
+        <PrintClassStudentCodesModal
+          isOpen={showPrintModal}
+          onClose={() => {
+            // Closing while it loads (Back, X or Escape) cancels it and its print window.
+            cancelExport();
+            setShowPrintModal(false);
+          }}
           className={row.class_name}
-          reports={classReports}
-          students={row.students ?? []}
-          isClassInactive={row.status?.toUpperCase() === "ARCHIEVED"}
-          onClose={() => setShowViewModal(false)}
-        />
-      )}
-
-      {showExportModal && (
-        <ExportReportModal
-          source={{
-            type: "class",
-            classId: row.id,
-            className: row.class_name,
-            startDate: row.start_date,
-            endDate: row.end_date,
+          isPrinting={isExporting}
+          onPrint={() => {
+            // Stays open after printing, as before, so the educator can print again.
+            void printStudentCodes({
+              classId: row.id,
+              className: row.class_name,
+            });
           }}
-          students={row.students ?? []}
-          onClose={() => setShowExportModal(false)}
         />
-      )}
 
-      {showTranscriptModal && (
-        <ExportTranscriptModal
-          source={{
-            type: "class",
-            classId: row.id,
-            className: row.class_name,
-            startDate: row.start_date,
-            endDate: row.end_date,
-          }}
-          students={row.students ?? []}
-          onClose={() => setShowTranscriptModal(false)}
-        />
-      )}
+        {showViewModal && (
+          <ClassActionReportsModal
+            classId={row.id}
+            className={row.class_name}
+            reports={classReports}
+            students={row.students ?? []}
+            isClassInactive={row.status?.toUpperCase() === 'ARCHIEVED'}
+            onClose={() => setShowViewModal(false)}
+          />
+        )}
 
-      {showEmailModal && (
-        <ClassEmailReportModal
-          classId={row.id}
-          onClose={() => setShowEmailModal(false)}
-        />
-      )}
+        {showExportModal && (
+          <ExportReportModal
+            source={{
+              type: 'class',
+              classId: row.id,
+              className: row.class_name,
+              startDate: row.start_date,
+              endDate: row.end_date,
+            }}
+            students={row.students ?? []}
+            onClose={() => setShowExportModal(false)}
+          />
+        )}
 
-      {showAccessCodeModal && (
-        <StudentEmailAccessCodeModal
-          class_id={row.id}
-          students={row.students ?? []}
-          onClose={() => setShowAccessCodeModal(false)}
-        />
-      )}
-    </div>
+        {showTranscriptModal && (
+          <ExportTranscriptModal
+            source={{
+              type: 'class',
+              classId: row.id,
+              className: row.class_name,
+              startDate: row.start_date,
+              endDate: row.end_date,
+            }}
+            students={row.students ?? []}
+            onClose={() => setShowTranscriptModal(false)}
+          />
+        )}
+
+        {showEmailModal && (
+          <ClassEmailReportModal
+            classId={row.id}
+            onClose={() => setShowEmailModal(false)}
+          />
+        )}
+
+        {showAccessCodeModal && (
+          <StudentEmailAccessCodeModal
+            class_id={row.id}
+            students={row.students ?? []}
+            onClose={() => setShowAccessCodeModal(false)}
+          />
+        )}
+      </div>
     </>
   );
 }

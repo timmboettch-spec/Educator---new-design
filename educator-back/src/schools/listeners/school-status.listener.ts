@@ -1,16 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { SchoolStatusChangedEvent } from '../../common/events/school-status-changed.event';
 import { EducatorSessionService } from '../../session/educator-session.service';
 import { NotificationsGateway } from '../../notifications/notifications.gateway';
 import { CommonStatus } from '../../common/enums/status.enum';
+import { LoggerService } from '../../common/services';
 
 @Injectable()
 export class SchoolStatusListener {
-  private readonly logger = new Logger(SchoolStatusListener.name);
-
   constructor(
     private readonly educatorSessionService: EducatorSessionService,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly logger: LoggerService,
   ) {}
 
   async handleSchoolStatusChanged(event: SchoolStatusChangedEvent): Promise<void> {

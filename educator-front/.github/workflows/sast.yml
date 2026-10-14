@@ -1,4 +1,4 @@
-name: "SAST · Security"
+name: 'SAST · Security'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Static Application Security Testing
@@ -35,20 +35,33 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
-      result:   ${{ steps.scan.outputs.result }}
+      result: ${{ steps.scan.outputs.result }}
       findings: ${{ steps.scan.outputs.findings }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # Version-pinned so the cache key is stable — a curl-to-latest binary
+      # isn't cacheable by definition. Bump the version string in both steps
+      # below to upgrade.
+      - name: Cache Gitleaks binary
+        id: cache-gitleaks
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/gitleaks
+          key: gitleaks-${{ runner.os }}-8.30.1
+
       - name: Install Gitleaks
+        if: steps.cache-gitleaks.outputs.cache-hit != 'true'
         run: |
           curl -sSfL \
             https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
             | tar -xz gitleaks
           sudo mv gitleaks /usr/local/bin/gitleaks
-          gitleaks version
+
+      - name: Verify Gitleaks
+        run: gitleaks version
 
       - name: Detect secrets (diff since base)
         id: scan
@@ -103,17 +116,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
-      result:   ${{ steps.scan.outputs.result }}
+      result: ${{ steps.scan.outputs.result }}
       critical: ${{ steps.scan.outputs.critical }}
-      high:     ${{ steps.scan.outputs.high }}
+      high: ${{ steps.scan.outputs.high }}
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned to a specific tag (was unpinned "latest", which floats and
+      # can't be cached meaningfully) so the cache key below stays valid
+      # across runs. Bump the version string in both steps below to upgrade —
+      # aquasecurity prunes GitHub Releases for old tags (v0.58.1 was removed,
+      # which is why this pin must track a tag that still has release assets).
+      - name: Cache Trivy binary
+        id: cache-trivy
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/trivy
+          key: trivy-${{ runner.os }}-0.74.0
+
       - name: Install Trivy
+        if: steps.cache-trivy.outputs.cache-hit != 'true'
         run: |
           curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-            | sh -s -- -b /usr/local/bin
-          trivy --version
+            | sh -s -- -b /usr/local/bin v0.74.0
+
+      - name: Verify Trivy
+        run: trivy --version
 
       - name: Run Trivy filesystem scan
         id: scan
@@ -219,9 +247,9 @@ jobs:
       - name: Upsert sticky PR comment
         uses: ./.github/actions/pr-sticky-comment
         with:
-          header:       sast-security
-          body:         ${{ steps.body.outputs.body }}
-          branch:       ${{ github.event_name == 'push' && github.ref_name || '' }}
+          header: sast-security
+          body: ${{ steps.body.outputs.body }}
+          branch: ${{ github.event_name == 'push' && github.ref_name || '' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # ── 3. Teams alert — Adaptive Card on failure only ─────────────────────────
@@ -253,7 +281,7 @@ jobs:
           TV_HIGH: ${{ needs.trivy.outputs.high || '0' }}
           COMMIT_MSG: ${{ github.event.head_commit.message }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_TITLE:  ${{ github.event.pull_request.title }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             SUBJECT="PR #${{ github.event.pull_request.number }}"
@@ -307,11 +335,11 @@ jobs:
       - name: Send Teams Adaptive Card
         uses: ./.github/actions/teams-notify
         with:
-          webhook-url:    ${{ secrets.TEAMS_SAST_WEBHOOK_URL }}
-          github-login:   ${{ steps.payload.outputs.author }}
-          headline:       🚨 Educator Frontend SAST · Security Issue Detected in ${{ steps.payload.outputs.subject }}
-          style:          attention
-          subtitle:       ${{ steps.payload.outputs.subtitle }}
+          webhook-url: ${{ secrets.TEAMS_SAST_WEBHOOK_URL }}
+          github-login: ${{ steps.payload.outputs.author }}
+          headline: 🚨 Educator Frontend SAST · Security Issue Detected in ${{ steps.payload.outputs.subject }}
+          style: attention
+          subtitle: ${{ steps.payload.outputs.subtitle }}
           mention-suffix: ' — please review your SAST security findings.'
-          facts-json:     ${{ steps.payload.outputs.facts }}
-          actions-json:   ${{ steps.payload.outputs.actions }}
+          facts-json: ${{ steps.payload.outputs.facts }}
+          actions-json: ${{ steps.payload.outputs.actions }}

@@ -1,13 +1,4 @@
-import {
-  IsBoolean,
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUUID,
-  IsUrl,
-  ValidateNested,
-} from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID, IsUrl } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { LmsToolType, LmsType } from 'src/common/enums/lms.enum';
 
@@ -105,43 +96,98 @@ export class ConfigureLmsDto {
   moodleWsToken?: string;
 }
 
-export class StudentMappingInputDto {
-  @ApiProperty()
-  @IsString()
-  lmsUserId!: string;
-
-  @ApiProperty()
-  @IsString()
-  studentCode!: string;
-}
-
-export class ConnectClassDto {
-  @ApiProperty({ format: 'uuid' })
+/** All fields optional — merge with saved school config for pre/post-save tests. Never persists. */
+export class TestLmsConfigDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
   @IsUUID()
-  schoolId!: string;
+  schoolId?: string;
 
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID()
-  classId!: string;
+  @ApiPropertyOptional({ enum: LmsType })
+  @IsOptional()
+  @IsEnum(LmsType)
+  lmsType?: LmsType;
 
-  @ApiProperty()
-  @IsString()
-  lmsCourseId!: string;
+  @ApiPropertyOptional({
+    enum: LmsToolType,
+    default: LmsToolType.EDUCATOR,
+    description: 'LTI tool type: educator or student. Defaults to educator.',
+  })
+  @IsOptional()
+  @IsEnum(LmsToolType)
+  toolType?: LmsToolType;
+
+  @ApiPropertyOptional({ example: 'http://localhost' })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  issuer?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  lmsContextId?: string;
+  clientId?: string;
 
-  @ApiProperty({ description: 'NRPS memberships URL from the LMS course tool' })
-  @IsUrl({ require_tld: false })
-  nrpsUrl!: string;
-
-  @ApiPropertyOptional({ type: [StudentMappingInputDto] })
+  @ApiPropertyOptional()
   @IsOptional()
-  @ValidateNested({ each: true })
-  @Type(() => StudentMappingInputDto)
-  mappings?: StudentMappingInputDto[];
+  @IsString()
+  deploymentId?: string;
+
+  @ApiPropertyOptional({ example: 'https://lms.example.edu/oidc/auth' })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  authEndpoint?: string;
+
+  @ApiPropertyOptional({ example: 'https://lms.example.edu/oidc/token' })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  tokenEndpoint?: string;
+
+  @ApiPropertyOptional({ example: 'https://lms.example.edu/oidc/jwks' })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  jwksUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  platformPrivateKeyPem?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  platformKeyId?: string;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  sharePii?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'LMS base URL for API/WS ping',
+    example: 'https://realitywork.moodlecloud.com',
+  })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  lmsBaseUrl?: string;
+
+  /** @deprecated Use lmsBaseUrl */
+  @ApiPropertyOptional({ deprecated: true })
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  moodleUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'LMS API token (Moodle WS token or Canvas API key)',
+  })
+  @IsOptional()
+  @IsString()
+  lmsApiToken?: string;
+
+  /** @deprecated Use lmsApiToken */
+  @ApiPropertyOptional({ deprecated: true })
+  @IsOptional()
+  @IsString()
+  moodleWsToken?: string;
 }
 
 export class LmsRosterPreviewQueryDto {

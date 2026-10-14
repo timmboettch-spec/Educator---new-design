@@ -1,38 +1,53 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 import ForgotPassWord from '../../../src/pages/auth/ForgotPassWord/index';
+import { toast } from '../../../src/components/common/Toast';
 
 // ─────────────────────────────────────────────────────────────
 // Hoisted mocks
 // ─────────────────────────────────────────────────────────────
 
-const { mockNavigate, mockDispatch, mockForgotPasswordRequest, mockResetError, mockIsValidEmail } =
-  vi.hoisted(() => ({
-    mockNavigate: vi.fn(),
-    mockDispatch: vi.fn(),
+const {
+  mockNavigate,
+  mockDispatch,
+  mockForgotPasswordRequest,
+  mockResetError,
+  mockIsValidEmail,
+} = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  mockDispatch: vi.fn(),
 
-    mockForgotPasswordRequest: vi.fn((payload) => ({
-      type: 'auth/ForgotPassword',
-      payload,
-    })),
+  mockForgotPasswordRequest: vi.fn((payload) => ({
+    type: 'auth/ForgotPassword',
+    payload,
+  })),
 
-    mockResetError: vi.fn(() => ({
-      type: 'auth/resetError',
-    })),
+  mockResetError: vi.fn(() => ({
+    type: 'auth/resetError',
+  })),
 
-    mockIsValidEmail: vi.fn(),
-  }));
+  mockIsValidEmail: vi.fn(),
+}));
 
 // ─────────────────────────────────────────────────────────────
 // Router mock
 // ─────────────────────────────────────────────────────────────
 
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual =
+    await vi.importActual<typeof import('react-router-dom')>(
+      'react-router-dom'
+    );
 
   return {
     ...actual,
@@ -60,8 +75,9 @@ vi.mock('../../../src/redux/auth/ForgotPasswordRedux', () => ({
   selectForgotPasswordStatus: (state: { ForgotPassword: { status: string } }) =>
     state.ForgotPassword.status,
 
-  selectForgotPasswordError: (state: { ForgotPassword: { error: string | null } }) =>
-    state.ForgotPassword.error,
+  selectForgotPasswordError: (state: {
+    ForgotPassword: { error: string | null };
+  }) => state.ForgotPassword.error,
 }));
 
 // ─────────────────────────────────────────────────────────────
@@ -95,7 +111,7 @@ const buildStore = (
   overrides: {
     status?: string;
     error?: string | null;
-  } = {},
+  } = {}
 ) =>
   configureStore({
     reducer: {
@@ -112,17 +128,18 @@ const renderPage = (
   storeOverrides: {
     status?: string;
     error?: string | null;
-  } = {},
+  } = {}
 ) =>
   render(
     <Provider store={buildStore(storeOverrides)}>
       <MemoryRouter>
         <ForgotPassWord />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 
-const getValidationErrorEl = () => document.querySelector('p.text-red-500') as HTMLElement | null;
+const getValidationErrorEl = () =>
+  document.querySelector('p.text-red-500') as HTMLElement | null;
 
 // ─────────────────────────────────────────────────────────────
 // Tests
@@ -137,9 +154,7 @@ describe('ForgotPassWord', () => {
     mockDispatch.mockReturnValue({
       unwrap: () =>
         Promise.resolve({
-          data: {
-            reset_token: 'tok123',
-          },
+          data: {},
           message: 'OTP sent successfully',
         }),
     });
@@ -175,7 +190,7 @@ describe('ForgotPassWord', () => {
       expect(
         screen.getByRole('button', {
           name: /sign in/i,
-        }),
+        })
       ).toBeInTheDocument();
     });
   });
@@ -223,7 +238,7 @@ describe('ForgotPassWord', () => {
         fireEvent.click(
           screen.getByRole('button', {
             name: /send otp/i,
-          }),
+          })
         );
       });
 
@@ -247,7 +262,7 @@ describe('ForgotPassWord', () => {
         fireEvent.click(
           screen.getByRole('button', {
             name: /send otp/i,
-          }),
+          })
         );
       });
 
@@ -269,7 +284,7 @@ describe('ForgotPassWord', () => {
         fireEvent.click(
           screen.getByRole('button', {
             name: /send otp/i,
-          }),
+          })
         );
       });
 
@@ -301,7 +316,7 @@ describe('ForgotPassWord', () => {
         status: 'loading',
       });
 
-      expect(screen.getByText('Signing up...')).toBeInTheDocument();
+      expect(screen.getByText('Sending...')).toBeInTheDocument();
     });
 
     it('navigates to otp verify on successful submission', async () => {
@@ -317,7 +332,7 @@ describe('ForgotPassWord', () => {
         fireEvent.click(
           screen.getByRole('button', {
             name: /send otp/i,
-          }),
+          })
         );
       });
 
@@ -328,7 +343,7 @@ describe('ForgotPassWord', () => {
 
         expect(mockNavigate).toHaveBeenCalledWith('/otpverify', {
           state: {
-            token: 'tok123',
+            email: 'user@example.com',
           },
         });
       });
@@ -354,13 +369,49 @@ describe('ForgotPassWord', () => {
         fireEvent.click(
           screen.getByRole('button', {
             name: /send otp/i,
-          }),
+          })
         );
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Email not found')).toBeInTheDocument();
+        expect(toast.error).toHaveBeenCalledWith('Server error');
       });
+    });
+
+    it('shows the failed request inline and clears it when the email changes', async () => {
+      mockDispatch.mockReturnValue({
+        unwrap: () => Promise.reject(new Error('Server error')),
+      });
+
+      renderPage({ status: 'failed' });
+
+      const emailInput = screen.getByPlaceholderText('Email');
+      fireEvent.change(emailInput, { target: { value: 'user@example.com' } });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send otp/i }));
+      });
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Server error'
+      );
+
+      fireEvent.change(emailInput, { target: { value: 'other@example.com' } });
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('announces the validation error and links it to the email field', async () => {
+      mockIsValidEmail.mockReturnValue(false);
+      renderPage();
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /send otp/i }));
+      });
+
+      const alert = await screen.findByRole('alert');
+      const emailInput = screen.getByPlaceholderText('Email');
+      expect(emailInput).toHaveAttribute('aria-invalid', 'true');
+      expect(emailInput).toHaveAttribute('aria-describedby', alert.id);
     });
   });
 
@@ -375,7 +426,7 @@ describe('ForgotPassWord', () => {
       expect(
         screen.getByRole('button', {
           name: /send otp/i,
-        }),
+        })
       ).toBeInTheDocument();
     });
 
@@ -388,7 +439,10 @@ describe('ForgotPassWord', () => {
     it('email input has correct type', () => {
       renderPage();
 
-      expect(screen.getByPlaceholderText('Email')).toHaveAttribute('type', 'email');
+      expect(screen.getByPlaceholderText('Email')).toHaveAttribute(
+        'type',
+        'email'
+      );
     });
 
     it('renders responsive layout', () => {
@@ -397,16 +451,16 @@ describe('ForgotPassWord', () => {
       expect(screen.getByText('FORGOT PASSWORD')).toBeInTheDocument();
     });
 
-    it('sign in button navigates to signin page', () => {
+    it('sign in button navigates to the login page', () => {
       renderPage();
 
       fireEvent.click(
         screen.getByRole('button', {
           name: /sign in/i,
-        }),
+        })
       );
 
-      expect(mockNavigate).toHaveBeenCalledWith('/signin');
+      expect(mockNavigate).toHaveBeenCalledWith('/login');
     });
   });
 });

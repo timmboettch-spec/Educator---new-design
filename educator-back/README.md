@@ -5,20 +5,21 @@ NestJS REST API for the Educator App, deployed to Azure Container Apps with Post
 ## Quick start (local)
 
 ```bash
-pnpm install
+npm install
 cp .env.example .env   # then fill in DB_* and JWT_SECRET
-pnpm run migration:run
-pnpm run start:dev
+npm run migration:run:dev
+npm run start:dev
 ```
 
-API runs on `http://localhost:3000`. Health check: `GET /health`.
+API runs on `http://localhost:3000` (routes are prefixed with `/api`). Health checks: `GET /healthz` (liveness) and `GET /readyz` (readiness).
 
 ## Tests
 
 ```bash
-pnpm test           # unit
-pnpm run test:e2e   # e2e
-pnpm run test:cov   # coverage
+npm test                 # unit
+npm run test:unit        # unit (root app + student-backend)
+npm run test:integration # integration (needs a real Postgres)
+npm run test:e2e         # e2e
 ```
 
 ## Deployment

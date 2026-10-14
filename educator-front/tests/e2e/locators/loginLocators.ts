@@ -4,5 +4,5 @@ export const loginLocators = {
   redeemInput2: '#redeem-2',
   redeemInput3: '#redeem-3',
   activeLicenseButton: 'button:has-text("Active License")',
-  otpInput: '#otp-0'
+  otpInput: '#otp-0',
 };

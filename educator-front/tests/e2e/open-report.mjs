@@ -7,8 +7,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const type = process.argv[2] === 'regression' ? 'regression' : 'smoke';
-const fileName = type === 'regression' ? 'ui-regression-test-report.html' : 'ui-smoke-test-report.html';
-const reportPath = path.join(ROOT, 'tests', 'e2e', 'results', 'reports', 'html', fileName);
+const fileName =
+  type === 'regression'
+    ? 'ui-regression-test-report.html'
+    : 'ui-smoke-test-report.html';
+const reportPath = path.join(
+  ROOT,
+  'tests',
+  'e2e',
+  'results',
+  'reports',
+  'html',
+  fileName
+);
 
 const platform = process.platform;
 let command;

@@ -1,0 +1,33 @@
+{
+  "viewSwitcher": {
+    "label": "View Simulations",
+    "all": "All",
+    "favorites": "Favorites",
+    "packs": "Sim Packs",
+    "units": "Units"
+  },
+  "groups": {
+    "packName": "{{level}} {{modality}} Simulation Pack",
+    "simulationCount_one": "{{count}} simulation",
+    "simulationCount_other": "{{count}} simulations",
+    "view": "View",
+    "viewAria": "View {{name}}",
+    "addToLibrary": "Add all of {{name}} to My Library",
+    "removeFromLibrary": "Remove all of {{name}} from My Library"
+  },
+  "empty": {
+    "allTitle": "No Data Found",
+    "favoritesTitle": "No favorite simulations yet",
+    "favoritesBody": "Add simulations to your favorites by clicking the heart icon on any simulation card.",
+    "unitsTitle": "No Data Found"
+  },
+  "card": {
+    "addToLibrary": "Add {{title}} to My Library",
+    "removeFromLibrary": "Remove {{title}} from My Library"
+  },
+  "groupPage": {
+    "back": "Back",
+    "searchPlaceholder": "Search...",
+    "empty": "No simulations found."
+  }
+}

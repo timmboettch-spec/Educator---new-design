@@ -1,9 +1,18 @@
 import { useDispatch } from 'react-redux';
 import { toast } from '../../../components/common/Toast';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
 import { DeleteSimulationRequest } from '../../../redux/class/DeleteSimulationRedux';
 import type { AppDispatch } from '../../../store';
 import Modal from '../../ui/Modal';
-import { SimulationItem } from '@/types';
+import { type SimulationItem } from '@/types';
+
+type SupportedLang = 'en' | 'es';
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
 
 interface Props {
   sim: SimulationItem;
@@ -12,14 +21,21 @@ interface Props {
   onDeleted: () => void;
 }
 
-export default function DeleteSimulationModal({ sim, classId, onClose, onDeleted }: Props) {
+export default function DeleteSimulationModal({
+  sim,
+  classId,
+  onClose,
+  onDeleted,
+}: Props) {
   const dispatch = useDispatch<AppDispatch>();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
 
   const handleDelete = async () => {
     try {
       const targetSimulationId = sim.id ?? sim.simulation_id;
       if (!targetSimulationId) {
-        toast.error('Something went wrong while deleting');
+        toast.error(locale.toast.somethingWentWrong);
         return;
       }
 
@@ -27,20 +43,22 @@ export default function DeleteSimulationModal({ sim, classId, onClose, onDeleted
         DeleteSimulationRequest({
           simId: targetSimulationId,
           classId,
-          avatarEnabled: (sim as unknown as Record<string, unknown>).avatarEnabled as boolean | undefined,
+          avatarEnabled: (sim as unknown as Record<string, unknown>)
+            .avatarEnabled as boolean | undefined,
           startDate: sim.start_date,
-        }),
+        })
       );
       if (DeleteSimulationRequest.fulfilled.match(resultAction)) {
-        toast.success('Simulation deleted successfully!');
+        toast.success(locale.toast.simulationDeletedSuccessfully);
         onDeleted();
         onClose();
       } else {
-        const msg = (resultAction.payload as string) || 'Something went wrong while deleting';
+        const msg =
+          (resultAction.payload as string) || locale.toast.somethingWentWrong;
         toast.error(msg);
       }
     } catch {
-      toast.error('Something went wrong while deleting');
+      toast.error(locale.toast.somethingWentWrong);
     }
   };
 
@@ -61,7 +79,7 @@ export default function DeleteSimulationModal({ sim, classId, onClose, onDeleted
           <button
             type="button"
             onClick={handleDelete}
-            className="flex-1 py-3 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors"
+            className="flex-1 py-3 rounded-full bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition-colors"
           >
             Delete Sim Assignment
           </button>
@@ -74,8 +92,10 @@ export default function DeleteSimulationModal({ sim, classId, onClose, onDeleted
         </div>
         <p className="text-sm text-gray-500 leading-relaxed">
           Are you sure you want to delete{' '}
-          <span className="font-semibold text-gray-700">{sim.simulation_title}</span>? This action
-          cannot be undone.
+          <span className="font-semibold text-gray-700">
+            {sim.simulation_title}
+          </span>
+          ? This action cannot be undone.
           <br />
           This will remove access to all reports.
         </p>

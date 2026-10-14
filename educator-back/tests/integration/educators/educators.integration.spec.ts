@@ -1,23 +1,30 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { EducatorsController } from '../../../src/educators/educators.controller';
 import { EducatorsService } from '../../../src/educators/educators.service';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { EducatorSchool } from '../../../src/educators/entity/educator-school.entity';
-import { User } from '../../../src/users/entity/user.entity';
-import { Schools } from '../../../src/schools/entity/schools.entity';
-import { Class } from '../../../src/class/entity/class.entity';
-import { Student } from '../../../src/students/entity/students.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
-import { Invite } from '../../../src/invites/entity/invite.entity';
-import { AzureBlobService } from '../../../src/config/azure-blob.config';
+
+import { AzureBlobService } from '../../../src/common/services';
 import { MailService } from '../../../src/mail/mail.service';
 import { NotificationsGateway } from '../../../src/notifications/notifications.gateway';
-import { TutorPatientService } from '../../../src/common/utils/tutor-patient.service';
+import { NotificationsService } from '../../../src/notifications/notifications.service';
+import { EducatorSessionService } from '../../../src/session/educator-session.service';
+import { InviteTokenService } from '../../../src/invites/invite-token.service';
 import { CommonStatus } from '../../../src/common/enums/status.enum';
 import { buildTestApp, TEST_USERS } from '../setup/test-app.factory';
+import { expectErrorEnvelope, expectLegacySuccessBody } from '../setup/error-envelope.util';
+import { DistrictAdmin, Educator, Schools, UserRole } from 'src/database/entities';
+import {
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  DISTRICT_ADMIN_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  EDUCATOR_SCHOOL_REPOSITORY,
+  EDUCATOR_SEAT_REQUEST_REPOSITORY,
+  INVITE_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+} from 'src/database/tokens';
 
 type TestBody = {
   status?: string;
@@ -46,22 +53,30 @@ const asArray = (value: unknown): unknown[] => {
   throw new Error('Expected value to be an array');
 };
 
-const expectStatus = (res: request.Response, expected: string): void => {
-  const body = parseBody(res);
-  expect(body.status).toBe(expected);
-};
-
 const makeEducator = (o: Partial<Educator> = {}): Educator =>
   ({
     id: '550e8400-e29b-41d4-a716-446655440101',
-    email: 'edu@test.com',
     full_name: 'Test Educator',
-    status: CommonStatus.ACTIVE,
     is_active: true,
     tokens: 10,
     created_at: new Date(),
     updated_at: new Date(),
-    admin: { id: TEST_USERS.districtAdmin.sub } as User,
+    // `Educator.email`/`.status` no longer exist as columns — identity and lifecycle resolve
+    // through the linked `user_roles` row (`userRole.user.email` / `userRole.status`).
+    userRole: {
+      userRoleId: 'ur-1',
+      userId: 'user-1',
+      status: CommonStatus.ACTIVE,
+      user: { id: 'user-1', email: 'edu@test.com' },
+    } as UserRole,
+    // `admin` is a `DistrictAdmin` keyed by its own `districtAdminId` PK; the admin's
+    // `users.id` hangs off its `userRole`, which is what admin-scoped lookups match on.
+    districtAdminId: 'da-1',
+    admin: {
+      districtAdminId: 'da-1',
+      userRoleId: 'da-ur-1',
+      userRole: { userRoleId: 'da-ur-1', userId: TEST_USERS.districtAdmin.sub },
+    } as DistrictAdmin,
     school: { id: 'school-1', school_name: 'Test School' } as Schools,
     ...o,
   }) as Educator;
@@ -83,16 +98,19 @@ describe('Educators (Integration)', () => {
   const educatorRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
-    save: jest.fn(),
-    remove: jest.fn(),
     create: jest.fn(),
+    update: jest.fn().mockResolvedValue(1),
   };
-  const userRepo = { findOne: jest.fn() };
   const schoolRepo = { findOne: jest.fn() };
   const classRepo = { find: jest.fn(), findOne: jest.fn() };
-  const studentRepo = { find: jest.fn(), findOne: jest.fn() };
   const classSimulationRepo = { find: jest.fn(), findOne: jest.fn() };
-  const inviteRepo = { findOne: jest.fn(), delete: jest.fn(), save: jest.fn(), create: jest.fn() };
+  const inviteRepo = {
+    findOne: jest.fn(),
+    delete: jest.fn(),
+    deleteByEmail: jest.fn(),
+    deletePendingByEmail: jest.fn(),
+    create: jest.fn(),
+  };
   const azureBlobService = {
     uploadFile: jest.fn(),
     isConfigured: jest.fn().mockReturnValue(false),
@@ -109,25 +127,58 @@ describe('Educators (Integration)', () => {
       controllers: [EducatorsController],
       providers: [
         EducatorsService,
-        { provide: getRepositoryToken(Educator), useValue: educatorRepo },
         {
-          provide: getRepositoryToken(EducatorSchool),
+          provide: InviteTokenService,
+          useValue: {
+            issue: jest.fn().mockReturnValue('mock-invite-token'),
+            buildInviteUrl: jest
+              .fn()
+              .mockReturnValue('http://localhost:5173/signup/mock-invite-token'),
+            resolve: jest.fn(),
+          },
+        },
+        { provide: EDUCATOR_REPOSITORY, useValue: educatorRepo },
+        {
+          provide: EDUCATOR_SCHOOL_REPOSITORY,
           useValue: { findOne: jest.fn(), count: jest.fn(), create: jest.fn(), save: jest.fn() },
         },
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(Schools), useValue: schoolRepo },
-        { provide: getRepositoryToken(Class), useValue: classRepo },
-        { provide: getRepositoryToken(Student), useValue: studentRepo },
-        { provide: getRepositoryToken(ClassSimulation), useValue: classSimulationRepo },
-        { provide: getRepositoryToken(Invite), useValue: inviteRepo },
+        {
+          provide: EDUCATOR_SEAT_REQUEST_REPOSITORY,
+          useValue: {
+            createWithinCooldown: jest.fn(),
+            hardDeleteById: jest.fn(),
+          },
+        },
+        { provide: SCHOOLS_REPOSITORY, useValue: schoolRepo },
+        { provide: CLASS_REPOSITORY, useValue: classRepo },
+        { provide: CLASS_SIMULATION_REPOSITORY, useValue: classSimulationRepo },
+        { provide: INVITE_REPOSITORY, useValue: inviteRepo },
+        {
+          provide: DISTRICT_ADMIN_REPOSITORY,
+          useValue: { findByUserRoleId: jest.fn(), updateByUserRoleId: jest.fn() },
+        },
         { provide: AzureBlobService, useValue: azureBlobService },
         { provide: DataSource, useValue: dataSource },
         { provide: MailService, useValue: mailService },
         { provide: NotificationsGateway, useValue: notificationsGateway },
         {
-          provide: TutorPatientService,
+          provide: NotificationsService,
           useValue: {
-            getReportsByStudentIds: jest.fn().mockResolvedValue({ matched: [], isMatch: false }),
+            isPreferenceEnabled: jest.fn().mockResolvedValue(false),
+            getEmailFrequency: jest.fn().mockResolvedValue('immediate'),
+          },
+        },
+        {
+          provide: EducatorSessionService,
+          useValue: {
+            invalidateEducator: jest.fn().mockResolvedValue(undefined),
+            isTokenInvalidated: jest.fn().mockResolvedValue(false),
+          },
+        },
+        {
+          provide: SIMULATION_REPORT_REPOSITORY,
+          useValue: {
+            findStudentScenarioPairsWithAttempts: jest.fn().mockResolvedValue([]),
           },
         },
       ],
@@ -152,7 +203,7 @@ describe('Educators (Integration)', () => {
         .expect(200)
         .expect((res) => {
           const body = parseBody(res);
-          expect(body.status).toBe('SUCCESS');
+          expectLegacySuccessBody(res);
           expect(Array.isArray(body.data)).toBe(true);
         });
     });
@@ -182,7 +233,7 @@ describe('Educators (Integration)', () => {
         .expect((res) => {
           const body = parseBody(res);
           const data = asRecord(body.data);
-          expect(body.status).toBe('SUCCESS');
+          expectLegacySuccessBody(res);
           expect(data.id).toBe(EDUCATOR_ID);
         });
     });
@@ -195,7 +246,7 @@ describe('Educators (Integration)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
     });
 
@@ -216,7 +267,7 @@ describe('Educators (Integration)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200)
         .expect((res) => {
-          expectStatus(res, 'SUCCESS');
+          expectLegacySuccessBody(res);
         });
     });
 
@@ -227,17 +278,18 @@ describe('Educators (Integration)', () => {
         .expect(401);
     });
 
-    it('INTEGRATION: returns 200 when Super Admin fetches any admin educators', async () => {
+    it('INTEGRATION: returns 401 when a different district admin fetches another admin educators', async () => {
+      // There is no "Super Admin" bypass in the v2 model (auth-guard-v2.md confirms the old
+      // `'Super Admin'` string check was dead code, never seeded) — `findByAdmin`'s ownership
+      // check (`req.user.userId !== adminId`) applies uniformly to every district admin,
+      // including this second, otherwise-identical admin account.
       educatorRepo.find.mockResolvedValue([]);
       const superToken = signToken(TEST_USERS.superAdmin);
 
       return request(httpServer())
         .get(`/api/educators/admin/${ANY_ADMIN_ID}`)
         .set('Authorization', `Bearer ${superToken}`)
-        .expect(200)
-        .expect((res) => {
-          expectStatus(res, 'SUCCESS');
-        });
+        .expect(401);
     });
   });
 
@@ -258,14 +310,14 @@ describe('Educators (Integration)', () => {
         .send({ full_name: 'Updated' })
         .expect(404)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
     });
 
     it('INTEGRATION: returns 200 when educator updated successfully', async () => {
       const updated = makeEducator({ full_name: 'Updated Name' });
-      educatorRepo.findOne.mockResolvedValueOnce(makeEducator()).mockResolvedValueOnce(updated);
-      educatorRepo.save.mockResolvedValue(updated);
+      educatorRepo.findOne.mockResolvedValue(updated);
+      educatorRepo.create.mockResolvedValue(updated);
 
       return request(httpServer())
         .put(`/api/educators/${TEST_USERS.districtAdmin.sub}`)
@@ -273,7 +325,7 @@ describe('Educators (Integration)', () => {
         .send({ full_name: 'Updated Name' })
         .expect(200)
         .expect((res) => {
-          expectStatus(res, 'SUCCESS');
+          expectLegacySuccessBody(res);
         });
     });
   });
@@ -303,6 +355,7 @@ describe('Educators (Integration)', () => {
           save: jest.fn().mockResolvedValue({}),
           query: jest.fn().mockResolvedValue([]),
           update: jest.fn().mockResolvedValue({}),
+          delete: jest.fn().mockResolvedValue({}),
         };
         await cb(manager);
       });
@@ -312,7 +365,7 @@ describe('Educators (Integration)', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200)
         .expect((res) => {
-          expectStatus(res, 'SUCCESS');
+          expectLegacySuccessBody(res);
         });
     });
   });

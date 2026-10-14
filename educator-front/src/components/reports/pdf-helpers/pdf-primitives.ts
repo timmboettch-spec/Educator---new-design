@@ -12,9 +12,9 @@
  * Phase 2 of Student → Educator transcript PDF parity port.
  */
 
-import type jsPDF from "jspdf";
+import type jsPDF from 'jspdf';
 
-import { sanitizePdfText } from "../../../utils/sanitizePdf";
+import { sanitizePdfText } from '../../../utils/sanitizePdf';
 
 import {
   C_BRAND,
@@ -23,20 +23,20 @@ import {
   C_WHITE,
   type RGB,
   type SpeakerIconType,
-} from "./pdf-constants";
+} from './pdf-constants';
 
 // ─── Page geometry (matches Student PDF exactly) ─────────────────────────────
 
-export const PAGE_W         = 210; // A4 width  (mm)
-export const PAGE_H         = 297; // A4 height (mm)
-export const MARGIN_L       = 14;
-export const MARGIN_R       = 14;
-export const CONTENT_W      = PAGE_W - MARGIN_L - MARGIN_R;
-export const FOOTER_Y       = PAGE_H - 10;
+export const PAGE_W = 210; // A4 width  (mm)
+export const PAGE_H = 297; // A4 height (mm)
+export const MARGIN_L = 14;
+export const MARGIN_R = 14;
+export const CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R;
+export const FOOTER_Y = PAGE_H - 10;
 /** Clear vertical space above the footer for card content. */
 export const CONTENT_BOTTOM = PAGE_H - 18;
 /** Y position where content starts on a new page (below the 14mm header + 10mm gap). */
-export const CONTENT_TOP    = 24;
+export const CONTENT_TOP = 24;
 
 // ─── Rendering state (mutable, passed between helpers) ───────────────────────
 
@@ -67,10 +67,10 @@ export interface PdfRenderState {
 }
 
 export function createRenderState(reportId: string): PdfRenderState {
-  const generatedDate = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
+  const generatedDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
   });
   return {
     yPosition: CONTENT_TOP,
@@ -102,7 +102,7 @@ export const setText = (pdf: jsPDF, rgb: RGB): void => {
  * before every `pdf.addPage()` invocation.
  */
 export function drawFooter(pdf: jsPDF, state: PdfRenderState): void {
-  pdf.setFont("helvetica", "normal");
+  pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
   setText(pdf, C_TEXT_MUTED);
   const footerLeft = sanitizePdfText(`Full User Transcript  ${state.reportId}`);
@@ -123,12 +123,12 @@ export function drawFooter(pdf: jsPDF, state: PdfRenderState): void {
  */
 export function drawPageHeader(pdf: jsPDF, state: PdfRenderState): void {
   setFill(pdf, C_BRAND);
-  pdf.rect(0, 0, PAGE_W, 14, "F");
+  pdf.rect(0, 0, PAGE_W, 14, 'F');
   setText(pdf, C_WHITE);
-  pdf.setFont("helvetica", "bold");
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(12);
-  pdf.text(sanitizePdfText("Full User Transcript"), MARGIN_L, 9);
-  pdf.setFont("helvetica", "normal");
+  pdf.text(sanitizePdfText('Full User Transcript'), MARGIN_L, 9);
+  pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
   const rightMeta = sanitizePdfText(`Generated ${state.generatedDate}`);
   const rw = pdf.getTextWidth(rightMeta);
@@ -138,7 +138,13 @@ export function drawPageHeader(pdf: jsPDF, state: PdfRenderState): void {
 
   if (state.activeCardBg) {
     setFill(pdf, state.activeCardBg);
-    pdf.rect(MARGIN_L, CONTENT_TOP, CONTENT_W, CONTENT_BOTTOM - CONTENT_TOP + 6, "F");
+    pdf.rect(
+      MARGIN_L,
+      CONTENT_TOP,
+      CONTENT_W,
+      CONTENT_BOTTOM - CONTENT_TOP + 6,
+      'F'
+    );
   }
 }
 
@@ -153,7 +159,7 @@ export function drawPageHeader(pdf: jsPDF, state: PdfRenderState): void {
 export function ensureSpace(
   pdf: jsPDF,
   state: PdfRenderState,
-  needed: number,
+  needed: number
 ): void {
   if (state.yPosition + needed > CONTENT_BOTTOM) {
     drawFooter(pdf, state);
@@ -181,15 +187,15 @@ export function drawClockBadge(
   textColor: RGB,
   bgColor: RGB,
   borderColor: RGB,
-  drawAtY?: number,
+  drawAtY?: number
 ): number {
   const fontSize = 9;
-  const padX     = 3;
-  const padY     = 1.8;
-  const iconD    = 3.2;
-  const iconGap  = 1.8;
+  const padX = 3;
+  const padY = 1.8;
+  const iconD = 3.2;
+  const iconGap = 1.8;
 
-  pdf.setFont("helvetica", "bold");
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(fontSize);
   const label = sanitizePdfText(time);
   const tw = pdf.getTextWidth(label);
@@ -200,14 +206,14 @@ export function drawClockBadge(
   setFill(pdf, bgColor);
   setDraw(pdf, borderColor);
   pdf.setLineWidth(0.3);
-  pdf.roundedRect(MARGIN_L, ry, bw, bh, 1.5, 1.5, "FD");
+  pdf.roundedRect(MARGIN_L, ry, bw, bh, 1.5, 1.5, 'FD');
 
-  const iconR  = iconD / 2;
+  const iconR = iconD / 2;
   const iconCX = MARGIN_L + padX + iconR;
   const iconCY = ry + bh / 2;
   setDraw(pdf, textColor);
   pdf.setLineWidth(0.25);
-  pdf.circle(iconCX, iconCY, iconR, "S");
+  pdf.circle(iconCX, iconCY, iconR, 'S');
   // Minute hand up + hour hand right.
   pdf.line(iconCX, iconCY, iconCX, iconCY - iconR + 0.4);
   pdf.line(iconCX, iconCY, iconCX + iconR - 0.5, iconCY);
@@ -232,22 +238,30 @@ export function drawSpeakerIcon(
   cx: number,
   cy: number,
   sz: number,
-  color: RGB,
+  color: RGB
 ): void {
   setFill(pdf, color);
   setDraw(pdf, color);
   pdf.setLineWidth(0.3);
   switch (iconType) {
-    case "user": {
-      const headR  = sz * 0.24;
+    case 'user': {
+      const headR = sz * 0.24;
       const headCY = cy - sz * 0.14;
-      pdf.circle(cx, headCY, headR, "F");
+      pdf.circle(cx, headCY, headR, 'F');
       const bw = sz * 0.62;
       const bh = sz * 0.3;
-      pdf.roundedRect(cx - bw / 2, headCY + headR + sz * 0.04, bw, bh, bw / 4, bw / 4, "F");
+      pdf.roundedRect(
+        cx - bw / 2,
+        headCY + headR + sz * 0.04,
+        bw,
+        bh,
+        bw / 4,
+        bw / 4,
+        'F'
+      );
       break;
     }
-    case "activity": {
+    case 'activity': {
       pdf.setLineWidth(0.4);
       const y0 = cy;
       pdf.line(cx - sz * 0.5, y0, cx - sz * 0.22, y0);
@@ -257,25 +271,25 @@ export function drawSpeakerIcon(
       pdf.line(cx + sz * 0.22, y0, cx + sz * 0.5, y0);
       break;
     }
-    case "message": {
+    case 'message': {
       const bx = cx - sz * 0.4;
       const by = cy - sz * 0.38;
       const bw = sz * 0.8;
       const bh = sz * 0.6;
-      pdf.roundedRect(bx, by, bw, bh, 0.8, 0.8, "S");
+      pdf.roundedRect(bx, by, bw, bh, 0.8, 0.8, 'S');
       pdf.line(bx + sz * 0.1, by + bh, bx, by + bh + sz * 0.22);
       pdf.line(bx, by + bh + sz * 0.22, bx + sz * 0.32, by + bh);
       break;
     }
-    case "clipboard": {
+    case 'clipboard': {
       const bx = cx - sz * 0.33;
       const by = cy - sz * 0.36;
       const bw = sz * 0.66;
       const bh = sz * 0.68;
-      pdf.roundedRect(bx, by + sz * 0.09, bw, bh - sz * 0.04, 0.5, 0.5, "S");
+      pdf.roundedRect(bx, by + sz * 0.09, bw, bh - sz * 0.04, 0.5, 0.5, 'S');
       const cw = sz * 0.3;
       const ch = sz * 0.14;
-      pdf.roundedRect(cx - cw / 2, by, cw, ch, ch / 2, ch / 2, "S");
+      pdf.roundedRect(cx - cw / 2, by, cw, ch, ch / 2, ch / 2, 'S');
       const lx1 = bx + sz * 0.1;
       const lx2 = bx + bw - sz * 0.1;
       pdf.line(lx1, by + bh * 0.38, lx2, by + bh * 0.38);
@@ -283,13 +297,13 @@ export function drawSpeakerIcon(
       pdf.line(lx1, by + bh * 0.72, lx2 - sz * 0.14, by + bh * 0.72);
       break;
     }
-    case "filetext": {
-      const bx   = cx - sz * 0.32;
-      const by   = cy - sz * 0.4;
-      const bw   = sz * 0.64;
-      const bh   = sz * 0.78;
+    case 'filetext': {
+      const bx = cx - sz * 0.32;
+      const by = cy - sz * 0.4;
+      const bw = sz * 0.64;
+      const bh = sz * 0.78;
       const fold = sz * 0.18;
-      pdf.roundedRect(bx, by, bw, bh, 0.4, 0.4, "S");
+      pdf.roundedRect(bx, by, bw, bh, 0.4, 0.4, 'S');
       pdf.line(bx + bw - fold, by, bx + bw - fold, by + fold);
       pdf.line(bx + bw - fold, by + fold, bx + bw, by + fold);
       const lx1 = bx + sz * 0.1;
@@ -299,9 +313,9 @@ export function drawSpeakerIcon(
       pdf.line(lx1, by + bh * 0.74, lx2 - sz * 0.14, by + bh * 0.74);
       break;
     }
-    case "info": {
-      pdf.circle(cx, cy, sz * 0.44, "S");
-      pdf.circle(cx, cy - sz * 0.17, sz * 0.06, "F");
+    case 'info': {
+      pdf.circle(cx, cy, sz * 0.44, 'S');
+      pdf.circle(cx, cy - sz * 0.17, sz * 0.06, 'F');
       pdf.setLineWidth(0.4);
       pdf.line(cx, cy - sz * 0.04, cx, cy + sz * 0.22);
       break;
@@ -329,25 +343,25 @@ export function drawPill(
   textColor: RGB,
   bgColor: RGB,
   borderColor: RGB,
-  opts: PillOptions = {},
+  opts: PillOptions = {}
 ): { width: number; height: number } {
   const fontSize = opts.fontSize ?? 7.5;
-  const padX     = 2.8;
-  const padY     = 1.3;
+  const padX = 2.8;
+  const padY = 1.3;
 
-  pdf.setFont("helvetica", opts.bold !== false ? "bold" : "normal");
+  pdf.setFont('helvetica', opts.bold !== false ? 'bold' : 'normal');
   pdf.setFontSize(fontSize);
-  const text    = sanitizePdfText(label.toUpperCase());
-  const tw      = pdf.getTextWidth(text);
-  const bh      = fontSize * 0.42 + padY * 2;
-  const iconSz  = opts.iconType ? bh * 0.72 : 0;
+  const text = sanitizePdfText(label.toUpperCase());
+  const tw = pdf.getTextWidth(text);
+  const bh = fontSize * 0.42 + padY * 2;
+  const iconSz = opts.iconType ? bh * 0.72 : 0;
   const iconGap = opts.iconType ? 1.6 : 0;
-  const bw      = padX + iconSz + iconGap + tw + padX;
+  const bw = padX + iconSz + iconGap + tw + padX;
 
   setFill(pdf, bgColor);
   setDraw(pdf, borderColor);
   pdf.setLineWidth(0.25);
-  pdf.roundedRect(x, y, bw, bh, bh / 2, bh / 2, "FD");
+  pdf.roundedRect(x, y, bw, bh, bh / 2, bh / 2, 'FD');
 
   if (opts.iconType) {
     const iconCX = x + padX + iconSz / 2;
@@ -372,7 +386,7 @@ export function drawStatusPill(
   y: number,
   textColor: RGB,
   bgColor: RGB,
-  borderColor: RGB,
+  borderColor: RGB
 ): { width: number; height: number } {
   return drawPill(pdf, label, x, y, textColor, bgColor, borderColor, {
     fontSize: 7,

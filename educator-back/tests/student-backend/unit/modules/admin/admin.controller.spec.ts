@@ -2,7 +2,9 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { AdminController } from '@/modules/admin/admin.controller';
 import { AdminService } from '@/modules/admin/admin.service';
-import type { Action } from '@/data/json-data.service';
+// Scenario-level actions endpoints are commented out
+// (src/student-backend/modules/admin/admin.controller.ts) — the tests below
+// that exercised them are disabled to match.
 
 describe('AdminController UI/Unit Tests', () => {
   let controller: AdminController;
@@ -13,10 +15,6 @@ describe('AdminController UI/Unit Tests', () => {
     createCategory: jest.fn(),
     updateUnit: jest.fn(),
     deleteUnit: jest.fn(),
-    assignUnitToPermission: jest.fn(),
-    getAllStudentsWithStats: jest.fn(),
-    getAllPermissions: jest.fn(),
-    createStudent: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -39,6 +37,7 @@ describe('AdminController UI/Unit Tests', () => {
     expect(controller).toBeDefined();
   });
 
+  /*
   describe('createScenarioAction', () => {
     it('should create an action with feedback fields', async () => {
       const scenarioId = 'scenario-1';
@@ -190,4 +189,5 @@ describe('AdminController UI/Unit Tests', () => {
       );
     });
   });
+  */
 });

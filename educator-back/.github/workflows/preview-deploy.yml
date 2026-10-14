@@ -7,7 +7,7 @@ name: Branch Preview Environment
 #   • aca-deploy   — OIDC + ACR build + Bicep deploy + wait-health (+ smoke)
 #   • teams-notify — mention-resolve + Adaptive Card, one step
 # Deployed via infra/preview-deploy.bicep (reuses the container-app module, so
-# the preview inherits the Redis sidecar + all env/secret wiring). Scales to
+# the preview inherits the managed Redis creds + all env/secret wiring). Scales to
 # zero when idle. Teardown on branch delete / PR close.
 # =============================================================================
 
@@ -25,6 +25,7 @@ on:
       - 'release/**'
     paths:
       - 'src/**'
+      - 'tests/**'
       - 'Dockerfile'
       - 'package*.json'
       - 'tsconfig*.json'
@@ -37,6 +38,11 @@ on:
   pull_request:
     types: [closed]
     branches: [main, qa, dev]
+
+  # Daily backstop: drops per-branch preview databases whose preview app no longer
+  # exists (missed delete event, failed cleanup). See sweep-orphan-preview-dbs.
+  schedule:
+    - cron: '0 3 * * *'
 
   workflow_dispatch:
     inputs:
@@ -59,7 +65,16 @@ env:
   ACR_RG: ARG-all1-rwai
   IMAGE_NAME: educator-backend
   RESOURCE_GROUP: ARG-dev1-rwai
+  AZ_PREFIX: rwai
+  APP: edu
   SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+  # Domain passed to run-api-test-suite's test-email-domain input, which
+  # builds TEST_EMAIL_ADDRESS=test@<domain> for tests/api/utils/env.ts's
+  # testEmail() — same repo-level Actions variable as deploy-backend.yml's
+  # TEST_EMAIL_DOMAIN (not a secret, so a repo variable rather than Key
+  # Vault). Single source of truth for this workflow instead of a per-job
+  # literal.
+  TEST_EMAIL_DOMAIN: ${{ vars.TEST_EMAIL_DOMAIN }}
 
 jobs:
   deploy-preview:
@@ -67,8 +82,15 @@ jobs:
     if: |
       github.event_name != 'delete'
       && github.event_name != 'pull_request'
+      && github.event_name != 'schedule'
       && !(github.event_name == 'create' && github.ref_type == 'tag')
+    # Waits for preview-db-check: it creates + migrates + seeds this branch's own
+    # preview database (educator_p_<slug>_<hash>), which the preview app runs
+    # against (infra/preview-deploy.bicep), so the app must not boot (and run its
+    # own boot-time migrations) until that's done.
+    needs: [preview-db-check]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment: dev
     outputs:
       backend_url: ${{ steps.url.outputs.backend_url }}
@@ -76,7 +98,7 @@ jobs:
       branch_slug: ${{ steps.names.outputs.branch_slug }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set preview names
         id: names
@@ -113,7 +135,7 @@ jobs:
           image-name:      ${{ env.IMAGE_NAME }}
           image-tag:       ${{ steps.names.outputs.image_tag }}
           bicep-template:  infra/preview-deploy.bicep
-          bicep-params:    previewAppName=${{ steps.names.outputs.backend_app }} backendImageTag=${{ steps.names.outputs.image_tag }}
+          bicep-params:    previewAppName=${{ steps.names.outputs.backend_app }} backendImageTag=${{ steps.names.outputs.image_tag }} previewDbName=${{ needs.preview-db-check.outputs.db_name }}
           container-app:   ${{ steps.names.outputs.backend_app }}
           resource-group:  ${{ env.RESOURCE_GROUP }}
           run-smoke:       'false'   # blocking smoke runs as its own required-check job below
@@ -121,6 +143,169 @@ jobs:
       - name: Expose preview URL
         id: url
         run: echo "backend_url=https://${{ steps.deploy.outputs.app-fqdn }}" >> "$GITHUB_OUTPUT"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Per-branch preview database: creates (drop + create, so always empty) a
+  # dedicated database `educator_p_<slug>_<hash>` on the dev Postgres server —
+  # same slug/hash as the preview app name — then replays every migration and
+  # runs the seeders, the same order as the deploy pipeline's migrate Container Apps Job (migrate.sh && seed.sh).
+  # deploy-preview then points the preview app at THIS database
+  # (dbNameOverride in infra/preview-deploy.bicep), so each branch gets its own
+  # schema and data: no clobbering between branches, and never educator_dev.
+  # cleanup-preview drops the database on branch delete / PR close.
+  #
+  # Blocking: a failing migration fails this job. Seeders log and continue on
+  # their own errors (src/database/seeders/index.ts), so the seed step greps
+  # the output for "Error running seeder" and fails on it.
+  #
+  # Uses the dev server's admin login (edu-db-username/password from Key Vault),
+  # which can CREATE/DROP DATABASE. Password-auth for now: github-actions-sp is
+  # not yet a DB admin on the dev server (see src/database/postgres-entra-auth.ts).
+  # ─────────────────────────────────────────────────────────────────────────────
+  preview-db-check:
+    name: Migration + seed dry-run (per-branch preview DB)
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    # Seeding the empty DB pulls units/simulations from Blob and takes ~8-10 min.
+    timeout-minutes: 25
+    environment: dev
+    outputs:
+      db_name: ${{ steps.dbname.outputs.db_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - name: Set preview database name
+        id: dbname
+        env:
+          DISPATCH_BRANCH_INPUT: ${{ github.event.inputs.branch }}
+          REF_NAME:               ${{ github.ref_name }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "$DISPATCH_BRANCH_INPUT" ]; then
+            BRANCH="$DISPATCH_BRANCH_INPUT"
+          else
+            BRANCH="$REF_NAME"
+          fi
+          BRANCH_LOWER=$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]')
+          HASH=$(echo -n "$BRANCH_LOWER" | sha256sum | cut -c1-4)
+          # Must match the slug logic in deploy-preview / cleanup-preview exactly.
+          SLUG=$(echo "$BRANCH_LOWER" | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g' | cut -c1-10 | sed 's/-$//')
+          # Postgres identifiers: lowercase letters/digits/underscore only.
+          echo "db_name=educator_p_$(echo "${SLUG}" | tr '-' '_')_${HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Fetch dev DB connection details from Key Vault
+        id: kv
+        run: |
+          KV="akvdev1${{ env.AZ_PREFIX }}"
+          DB_HOST=$(az keyvault secret show --vault-name "$KV" --name edu-db-host --query value -o tsv)
+          DB_USERNAME=$(az keyvault secret show --vault-name "$KV" --name edu-db-username --query value -o tsv)
+          DB_PASSWORD=$(az keyvault secret show --vault-name "$KV" --name edu-db-password --query value -o tsv)
+          # Each secret is masked by its own bare `echo` BEFORE being written
+          # anywhere (incl. $GITHUB_OUTPUT/$GITHUB_ENV) — a workflow command
+          # inside a redirected block isn't parsed, so the raw value would leak.
+          echo "::add-mask::$DB_PASSWORD"
+          STORAGE_CONNECTION_STRING=$(az keyvault secret show --vault-name "$KV" --name edu-azure-storage-connection-string --query value -o tsv)
+          echo "::add-mask::$STORAGE_CONNECTION_STRING"
+          BLOB_CONTAINER_NAME=$(az keyvault secret show --vault-name "$KV" --name edu-azure-blob-container-name --query value -o tsv)
+          {
+            echo "db-host=$DB_HOST"
+            echo "db-username=$DB_USERNAME"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "DB_PASSWORD=$DB_PASSWORD"
+            echo "AZURE_STORAGE_CONNECTION_STRING=$STORAGE_CONNECTION_STRING"
+            echo "AZURE_BLOB_CONTAINER_NAME=$BLOB_CONTAINER_NAME"
+          } >> "$GITHUB_ENV"
+
+      - name: Resolve dev Postgres server + resource group
+        id: pg
+        run: |
+          echo "server=psql-dev1-${{ env.AZ_PREFIX }}-${{ env.APP }}" >> "$GITHUB_OUTPUT"
+          echo "rg=ARG-dev1-${{ env.AZ_PREFIX }}" >> "$GITHUB_OUTPUT"
+
+      # The dev server's firewall only allows Azure-service IPs, so open a rule
+      # scoped to just this runner's public IP, removed unconditionally below.
+      - name: Open firewall for this runner
+        id: fw
+        run: |
+          RUNNER_IP=$(curl -sf https://api.ipify.org)
+          RULE_NAME="gha-preview-${{ github.run_id }}-${{ github.run_attempt }}"
+          az postgres flexible-server firewall-rule create \
+            --server-name "${{ steps.pg.outputs.server }}" \
+            --resource-group "${{ steps.pg.outputs.rg }}" \
+            --name "$RULE_NAME" \
+            --start-ip-address "$RUNNER_IP" \
+            --end-ip-address "$RUNNER_IP" \
+            --only-show-errors
+          echo "rule-name=$RULE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Drop + create (not just reset the schema) so the branch starts from a truly
+      # empty database. WITH (FORCE) disconnects this branch's own still-running
+      # preview app, which reconnects once deploy-preview redeploys it.
+      - name: Recreate this branch's preview database
+        env:
+          PGPASSWORD: ${{ env.DB_PASSWORD }}
+          PREVIEW_DB: ${{ steps.dbname.outputs.db_name }}
+        run: |
+          case "$PREVIEW_DB" in educator_p_*) ;; *) echo "::error::Refusing to touch database '$PREVIEW_DB' (not an educator_p_* preview DB)"; exit 1;; esac
+          psql "host=${{ steps.kv.outputs.db-host }} port=5432 dbname=postgres user=${{ steps.kv.outputs.db-username }} sslmode=require" \
+            -v ON_ERROR_STOP=1 \
+            -c "DROP DATABASE IF EXISTS \"$PREVIEW_DB\" WITH (FORCE)" \
+            -c "CREATE DATABASE \"$PREVIEW_DB\""
+
+      - name: Run migrations against the preview database
+        env:
+          DB_HOST:      ${{ steps.kv.outputs.db-host }}
+          DB_PORT:      '5432'
+          DB_USERNAME:  ${{ steps.kv.outputs.db-username }}
+          DB_NAME:      ${{ steps.dbname.outputs.db_name }}
+          ALLOW_NONSSL: 'false'
+        run: npm run migration:run:dev
+
+      - name: Build (seed:prod runs the compiled seeders)
+        run: npm run build
+
+      - name: Run seeders against the preview database
+        env:
+          DB_HOST:      ${{ steps.kv.outputs.db-host }}
+          DB_PORT:      '5432'
+          DB_USERNAME:  ${{ steps.kv.outputs.db-username }}
+          DB_NAME:      ${{ steps.dbname.outputs.db_name }}
+          ALLOW_NONSSL: 'false'
+        run: |
+          set -o pipefail
+          npm run seed:prod 2>&1 | tee seed.log
+          if grep -q "Error running seeder" seed.log; then
+            echo "::error::One or more seeders failed — see 'Error running seeder' in the log above."
+            exit 1
+          fi
+
+      - name: Close firewall for this runner
+        if: always() && steps.fw.outputs.rule-name != ''
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --server-name "${{ steps.pg.outputs.server }}" \
+            --resource-group "${{ steps.pg.outputs.rg }}" \
+            --name "${{ steps.fw.outputs.rule-name }}" \
+            --yes --only-show-errors || true
 
   # WARNING-ONLY CHECK — does not block merge.
   # 1. Curls the preview /health (no Azure auth needed: it hits the public
@@ -137,10 +322,10 @@ jobs:
   #    merge. Needs tests/api/utils/env.ts's BASE_URL override (added
   #    alongside this) to target the preview instead of silently falling
   #    back to the shared dev backend.
-  # Note: previews share the DEV Postgres instance (see infra/preview-deploy.bicep
-  # header) — same as deploy-backend.yml's existing test-api runs against dev
-  # today, so this doesn't introduce new shared-data risk, just runs the same
-  # create/cleanup suite more often. module-executor.js's own cleanup module
+  # Note: each preview runs against its own per-branch database on the dev
+  # Postgres server (dbNameOverride in infra/preview-deploy.bicep), NOT
+  # educator_dev — so this suite's create/cleanup data never lands in real dev
+  # data, and never collides with another branch's preview. module-executor.js's own cleanup module
   # (step 9) is what keeps that safe; a failure before cleanup runs can still
   # leave test data behind, same pre-existing risk as the main pipeline.
   preview-smoke-test:
@@ -148,6 +333,7 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'push' }}
     needs: [deploy-preview]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       total:        ${{ steps.summary.outputs.total }}
       passed:       ${{ steps.summary.outputs.passed }}
@@ -160,7 +346,20 @@ jobs:
           [ "${{ needs.deploy-preview.result }}" = "success" ] || {
             echo "::error::No preview to smoke-test (deploy-preview: ${{ needs.deploy-preview.result }})."; exit 1; }
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
+      # deploy-preview's aca-deploy call runs with run-smoke=false (this job's
+      # test suite below is the real smoke check), so wait-health there only
+      # confirms the ACA *revision* reports Healthy — it does not guarantee
+      # the Node process is actually ready (DB pool init, cold start after
+      # scale-to-zero). Warm it up here so the suite doesn't race that.
+      - name: Warm up preview instance
+        run: |
+          URL="${{ needs.deploy-preview.outputs.backend_url }}/health"
+          echo "Warming up: $URL"
+          curl --fail --silent --show-error --retry 12 --retry-delay 6 \
+            --retry-connrefused --retry-all-errors "$URL" \
+            || echo "::warning::Preview warm-up did not succeed before timeout; proceeding to test suite anyway"
 
       - name: Run API test suite against the preview
         id: summary
@@ -168,6 +367,7 @@ jobs:
         uses: ./.github/actions/run-api-test-suite
         with:
           base-url:           ${{ needs.deploy-preview.outputs.backend_url }}/api
+          test-email-domain:  ${{ env.TEST_EMAIL_DOMAIN }}
           artifact-json-name: preview-api-test-results-${{ needs.deploy-preview.outputs.branch_slug }}
           artifact-html-name: preview-api-html-report-${{ needs.deploy-preview.outputs.branch_slug }}
           label:              preview
@@ -195,11 +395,12 @@ jobs:
     if: ${{ !cancelled() && github.event_name == 'push' }}
     needs: [deploy-preview, preview-smoke-test]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       # Needed so ./.github/actions/pr-sticky-comment (a local composite
       # action) resolves.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build comment body
         id: body
@@ -244,9 +445,10 @@ jobs:
     if: ${{ always() && github.event_name == 'push' && vars.TEAMS_PREVIEW_NOTIFICATIONS_ENABLED == 'true' }}
     needs: [deploy-preview, preview-smoke-test]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Post Teams card
         uses: ./.github/actions/teams-notify
         with:
@@ -279,16 +481,44 @@ jobs:
               {"type":"Action.OpenUrl","title":"${{ needs.deploy-preview.result == 'success' && 'Open Preview' || 'View deploy logs' }}","url":"${{ needs.deploy-preview.result == 'success' && needs.deploy-preview.outputs.backend_url || format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}"}
             ]
 
+  # Preview is deployed with minReplicasOverride=1 (infra/preview-deploy.bicep)
+  # so the smoke-test job above doesn't race a cold start. Once that job is
+  # done there's no more reason to keep a replica warm — scale to 0 so an
+  # idle preview isn't billed until the next push / branch delete. Runs
+  # regardless of smoke-test outcome (always()); skipped entirely if the
+  # deploy itself never produced an app.
+  scale-down-preview:
+    name: Scale preview to zero
+    if: ${{ always() && needs.deploy-preview.result == 'success' }}
+    needs: [deploy-preview, preview-smoke-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: dev
+    steps:
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+      - name: Scale preview min replicas to zero
+        run: |
+          az containerapp update \
+            --name "${{ needs.deploy-preview.outputs.backend_app }}" \
+            --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --min-replicas 0
+
   cleanup-preview:
     name: Cleanup preview
     if: |
       (github.event_name == 'delete' && github.event.ref_type == 'branch')
       || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: dev
     steps:
       - name: Azure login (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
@@ -310,6 +540,7 @@ jobs:
           SLUG=$(echo "$BRANCH_LOWER" | sed 's/[^a-z0-9]/-/g' | sed 's/-\+/-/g' | sed 's/^-\|-$//g' | cut -c1-10 | sed 's/-$//')
           echo "backend_app=aca-p-${SLUG}-${HASH}-eduback" >> "$GITHUB_OUTPUT"
           echo "branch_slug=${SLUG}-${HASH}"               >> "$GITHUB_OUTPUT"
+          echo "db_name=educator_p_$(echo "${SLUG}" | tr '-' '_')_${HASH}" >> "$GITHUB_OUTPUT"
       - name: Delete preview app + image tags
         run: |
           az containerapp delete --name "${{ steps.names.outputs.backend_app }}" \
@@ -319,4 +550,107 @@ jobs:
           for TAG in $(az acr repository show-tags --name "${{ env.ACR_NAME }}" --repository "${{ env.IMAGE_NAME }}" \
             --query "[?starts_with(@, 'prev-${SLUG}-')]" -o tsv 2>/dev/null || true); do
             az acr repository delete --name "${{ env.ACR_NAME }}" --image "${{ env.IMAGE_NAME }}:$TAG" --yes 2>/dev/null || true
+          done
+
+      # Drop this branch's preview database. Best-effort (continue-on-error): a DB
+      # drop failing must not block app/image cleanup above. Same firewall-rule
+      # dance as preview-db-check, since the dev server only allows Azure IPs.
+      - name: Drop preview database
+        continue-on-error: true
+        env:
+          PREVIEW_DB: ${{ steps.names.outputs.db_name }}
+        run: |
+          case "$PREVIEW_DB" in educator_p_*) ;; *) echo "Refusing to drop '$PREVIEW_DB' (not an educator_p_* preview DB)"; exit 1;; esac
+          KV="akvdev1${{ env.AZ_PREFIX }}"
+          DB_HOST=$(az keyvault secret show --vault-name "$KV" --name edu-db-host --query value -o tsv)
+          DB_USERNAME=$(az keyvault secret show --vault-name "$KV" --name edu-db-username --query value -o tsv)
+          DB_PASSWORD=$(az keyvault secret show --vault-name "$KV" --name edu-db-password --query value -o tsv)
+          echo "::add-mask::$DB_PASSWORD"
+          SERVER="psql-dev1-${{ env.AZ_PREFIX }}-${{ env.APP }}"
+          RG="ARG-dev1-${{ env.AZ_PREFIX }}"
+          RULE="gha-preview-cleanup-${{ github.run_id }}-${{ github.run_attempt }}"
+          RUNNER_IP=$(curl -sf https://api.ipify.org)
+          az postgres flexible-server firewall-rule create --server-name "$SERVER" --resource-group "$RG" \
+            --name "$RULE" --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" --only-show-errors
+          PGPASSWORD="$DB_PASSWORD" psql "host=$DB_HOST port=5432 dbname=postgres user=$DB_USERNAME sslmode=require" \
+            -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$PREVIEW_DB\" WITH (FORCE)" || DROP_FAILED=1
+          az postgres flexible-server firewall-rule delete --server-name "$SERVER" --resource-group "$RG" \
+            --name "$RULE" --yes --only-show-errors || true
+          if [ -n "$DROP_FAILED" ]; then
+            echo "::warning::Could not drop preview database '$PREVIEW_DB' — the daily sweep-orphan-preview-dbs job will retry."
+            exit 1
+          fi
+
+  # Backstop for cleanup-preview: a branch-delete event can be missed (delete
+  # events run the workflow from the default branch) or the drop can fail, which
+  # would leave educator_p_* databases behind forever. Daily, list every
+  # educator_p_* database and drop the ones with no matching preview app
+  # (aca-p-<slug>-<hash>-eduback -> educator_p_<slug_with_underscores>_<hash>).
+  # Skipped while any preview run is in flight: preview-db-check creates the
+  # database BEFORE deploy-preview creates the app, so sweeping mid-run would drop
+  # a database that is about to be used.
+  sweep-orphan-preview-dbs:
+    name: Sweep orphaned preview databases
+    if: ${{ github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - name: Skip if a preview run is in flight
+        id: busy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          N=$(gh api "repos/${{ github.repository }}/actions/workflows/preview-deploy.yml/runs?status=in_progress" --jq '.total_count')
+          Q=$(gh api "repos/${{ github.repository }}/actions/workflows/preview-deploy.yml/runs?status=queued" --jq '.total_count')
+          # This sweep run itself is one of the in-progress runs.
+          if [ "$((N - 1 + Q))" -gt 0 ]; then
+            echo "Other preview runs are active — skipping sweep."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Azure login (OIDC)
+        if: steps.busy.outputs.skip != 'true'
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Drop databases with no preview app
+        if: steps.busy.outputs.skip != 'true'
+        run: |
+          KV="akvdev1${{ env.AZ_PREFIX }}"
+          DB_HOST=$(az keyvault secret show --vault-name "$KV" --name edu-db-host --query value -o tsv)
+          DB_USERNAME=$(az keyvault secret show --vault-name "$KV" --name edu-db-username --query value -o tsv)
+          DB_PASSWORD=$(az keyvault secret show --vault-name "$KV" --name edu-db-password --query value -o tsv)
+          echo "::add-mask::$DB_PASSWORD"
+          SERVER="psql-dev1-${{ env.AZ_PREFIX }}-${{ env.APP }}"
+          RG="ARG-dev1-${{ env.AZ_PREFIX }}"
+          RULE="gha-preview-sweep-${{ github.run_id }}-${{ github.run_attempt }}"
+          RUNNER_IP=$(curl -sf https://api.ipify.org)
+          az postgres flexible-server firewall-rule create --server-name "$SERVER" --resource-group "$RG" \
+            --name "$RULE" --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" --only-show-errors
+          trap 'az postgres flexible-server firewall-rule delete --server-name "$SERVER" --resource-group "$RG" --name "$RULE" --yes --only-show-errors || true' EXIT
+
+          # Expected DB name for every live preview app.
+          LIVE=$(az containerapp list --resource-group "${{ env.RESOURCE_GROUP }}" \
+            --query "[?starts_with(name,'aca-p-') && ends_with(name,'-eduback')].name" -o tsv \
+            | sed -E 's/^aca-p-(.*)-([0-9a-f]{4})-eduback$/educator_p_\1_\2/' | tr '-' '_')
+          echo "Live preview databases expected:"; echo "$LIVE"
+
+          export PGPASSWORD="$DB_PASSWORD"
+          CONN="host=$DB_HOST port=5432 dbname=postgres user=$DB_USERNAME sslmode=require"
+          for DB in $(psql "$CONN" -At -c "SELECT datname FROM pg_database WHERE datname LIKE 'educator\_p\_%'"); do
+            if echo "$LIVE" | grep -qx "$DB"; then
+              echo "keep  $DB (preview app exists)"
+            else
+              echo "drop  $DB (no preview app)"
+              psql "$CONN" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"$DB\" WITH (FORCE)" \
+                || echo "::warning::Failed to drop orphaned database $DB"
+            fi
           done

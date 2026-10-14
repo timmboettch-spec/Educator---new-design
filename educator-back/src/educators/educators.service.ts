@@ -1,87 +1,174 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
-import { Educator } from './entity/educator.entity';
-import { EducatorSchool } from './entity/educator-school.entity';
-import { User } from '../users/entity/user.entity';
-import { Schools } from '../schools/entity/schools.entity';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+import { DataSource, IsNull, Raw } from 'typeorm';
+
 import { UpdateEducatorDto } from './dto/educator.dto';
 import { ServiceResponse, SubscriptionSummary } from 'src/common/types';
 import { EducatorConstants } from './educators.constants';
-import { AzureBlobService } from '../config/azure-blob.config';
+import { AzureBlobService, LoggerService } from '../common/services';
 import { ErrorTypes } from 'src/common/utils/messages';
-import { Class } from 'src/class/entity/class.entity';
-import { Student } from 'src/students/entity/students.entity';
-import { ClassSimulation } from 'src/class-simulations/entity/class-simulation.entity';
-import { Invite, InviteStatus } from '../invites/entity/invite.entity';
+
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 import { InvitesConstants } from '../invites/invites.constants';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationChannel } from '../database/entities/notification-preference.entity';
+import { NotificationType } from 'src/database/entities';
 import { CommonStatus } from 'src/common/enums/status.enum';
+import {
+  EDUCATOR_USER_SELECT,
+  resolveEducatorEmail,
+  resolveEducatorPassword,
+  resolveEducatorStatus,
+  toEducatorResponse,
+  toEducatorResponseList,
+} from 'src/common/utils/educator-identity.util';
+import {
+  isGoogleClassroomEnabledForEducator,
+  mapEducatorSchoolsForAuth,
+} from 'src/common/utils/educator-school.util';
+import {
+  resolveAdminEmail,
+  resolveAdminFullName,
+  resolveAdminUserId,
+} from 'src/common/utils/district-admin-profile.util';
+import { EducatorResponse } from 'src/common/interfaces';
+import { SeatRequestCooldownException } from 'src/common/exceptions/seat-request-cooldown.exception';
+import { secondsUntilWindowEnds, toUtcIsoString } from 'src/common/utils/dayjs.utils';
 import { NotificationsConstants } from 'src/notifications/notifications.constants';
 import { EducatorSessionService } from '../session/educator-session.service';
-import { TutorPatientService } from 'src/common/utils/tutor-patient.service';
+import { InviteTokenService } from 'src/invites/invite-token.service';
+import {
+  Educator,
+  EducatorSchool,
+  Schools,
+  Class,
+  Student,
+  ClassSimulation,
+  Invite,
+  InviteStatus,
+  DistrictAdmin,
+  EducatorSeatRequest,
+} from 'src/database/entities';
+import {
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  DISTRICT_ADMIN_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  EDUCATOR_SCHOOL_REPOSITORY,
+  EDUCATOR_SEAT_REQUEST_REPOSITORY,
+  INVITE_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  USER_ROLE_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  ClassRepository,
+  ClassSimulationRepository,
+  DistrictAdminRepository,
+  EducatorRepository,
+  EducatorSchoolRepository,
+  EducatorSeatRequestRepository,
+  InviteRepository,
+  SimulationReportRepository,
+  SchoolsRepository,
+  UserRoleRepository,
+} from 'src/database/repositories';
 
 @Injectable()
 export class EducatorsService {
-  private readonly logger = new Logger(EducatorsService.name);
-  private static readonly seatRequestCooldown = new Map<string, number>();
+  private getLogoAttachments(): {
+    filename: string;
+    contentType: string;
+    content: Buffer;
+    cid: string;
+  }[] {
+    try {
+      const logoPath = path.join(__dirname, '..', 'assets', 'realityworks-ai-logo.png');
+      if (!fs.existsSync(logoPath)) return [];
+      return [
+        {
+          filename: 'realityworks-ai-logo.png',
+          contentType: 'image/png',
+          content: fs.readFileSync(logoPath),
+          cid: 'realityworks-ai-logo',
+        },
+      ];
+    } catch {
+      return [];
+    }
+  }
 
   constructor(
-    @InjectRepository(Educator)
-    private readonly educatorRepo: Repository<Educator>,
+    @Inject(EDUCATOR_REPOSITORY)
+    private readonly educatorRepo: EducatorRepository,
 
-    @InjectRepository(EducatorSchool)
-    private readonly educatorSchoolRepo: Repository<EducatorSchool>,
+    @Inject(EDUCATOR_SCHOOL_REPOSITORY)
+    private readonly educatorSchoolRepo: EducatorSchoolRepository,
 
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
+    @Inject(EDUCATOR_SEAT_REQUEST_REPOSITORY)
+    private readonly seatRequestRepo: EducatorSeatRequestRepository,
 
-    @InjectRepository(Schools)
-    private readonly schoolRepo: Repository<Schools>,
+    @Inject(USER_ROLE_REPOSITORY)
+    private readonly userRoleRepo: UserRoleRepository,
 
-    @InjectRepository(Class)
-    private readonly classRepo: Repository<Class>,
+    @Inject(DISTRICT_ADMIN_REPOSITORY)
+    private readonly districtAdminRepo: DistrictAdminRepository,
 
-    @InjectRepository(Student)
-    private readonly studentRepo: Repository<Student>,
+    @Inject(SCHOOLS_REPOSITORY)
+    private readonly schoolRepo: SchoolsRepository,
 
-    @InjectRepository(ClassSimulation)
-    private readonly classSimulationRepo: Repository<ClassSimulation>,
+    @Inject(CLASS_REPOSITORY)
+    private readonly classRepo: ClassRepository,
 
-    @InjectRepository(Invite)
-    private readonly inviteRepo: Repository<Invite>,
+    @Inject(CLASS_SIMULATION_REPOSITORY)
+    private readonly classSimulationRepo: ClassSimulationRepository,
+
+    @Inject(INVITE_REPOSITORY)
+    private readonly inviteRepo: InviteRepository,
+
+    @Inject(SIMULATION_REPORT_REPOSITORY)
+    private readonly simulationReportRepo: SimulationReportRepository,
 
     private readonly azureBlobService: AzureBlobService,
     private readonly dataSource: DataSource,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
     private readonly notificationsGateway: NotificationsGateway,
+    private readonly notificationsService: NotificationsService,
     private readonly educatorSessionService: EducatorSessionService,
-    private readonly tutorPatientService: TutorPatientService,
+    private readonly logger: LoggerService,
+    private readonly inviteTokenService: InviteTokenService,
   ) {}
-  async onModuleInit(): Promise<void> {
-    await this.ensureColumn();
-  }
 
-  private async ensureColumn(): Promise<void> {
-    await this.dataSource.query(`
-    ALTER TABLE educators
-    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL,
-    ADD COLUMN IF NOT EXISTS allocated_tokens INTEGER DEFAULT NULL,
-    ADD COLUMN IF NOT EXISTS token_invalidated_at TIMESTAMPTZ NULL;
-  `);
+  /**
+   * An educator's lifecycle lives solely on its linked `user_roles` row — `Educator.status` is
+   * no longer mapped or written, and `resolveEducatorStatus` reads `user_roles.status`. This
+   * keeps every status transition pointed at that single write target.
+   */
+  private async syncLinkedUserRoleStatus(educator: Educator, status: CommonStatus): Promise<void> {
+    if (!educator.userRoleId) return;
+    await this.userRoleRepo.update({ userRoleId: educator.userRoleId }, { status });
   }
 
   async findByIdAndOwner(educatorId: string, adminId: string): Promise<Educator | null> {
     return this.educatorRepo.findOne({
-      where: { id: educatorId, admin: { id: adminId } },
+      where: { id: educatorId, admin: { userRole: { userId: adminId } } },
       relations: {
         school: true,
-        admin: true,
+        admin: { userRole: { user: true } },
         schoolAssignments: { school: true },
+        userRole: { user: true },
+      },
+      select: {
+        userRole: {
+          userRoleId: true, // primary key of UserRole — required, use your entity's property name
+          userId: true,
+          status: true,
+          user: EDUCATOR_USER_SELECT,
+        },
       },
     });
   }
@@ -92,13 +179,14 @@ export class EducatorsService {
     });
   }
 
-  async findAll(adminId: string): Promise<ServiceResponse<Educator[]>> {
+  async findAll(adminId: string): Promise<ServiceResponse<EducatorResponse[]>> {
     const educators = await this.educatorRepo.find({
-      where: { admin: { id: adminId }, deleted_at: IsNull() },
+      where: { admin: { userRole: { userId: adminId } }, deleted_at: IsNull() },
       relations: {
         school: true,
         admin: true,
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
       order: { created_at: 'DESC' },
     });
@@ -106,33 +194,45 @@ export class EducatorsService {
     return {
       success: true,
       message: EducatorConstants.MESSAGES.FETCHED,
-      data: educators,
+      data: toEducatorResponseList(educators),
     };
   }
 
-  async findOne(educator: Educator): Promise<ServiceResponse<Educator>> {
-    await this.educatorRepo.findOne({
+  async findOne(educator: Educator): Promise<ServiceResponse<EducatorResponse>> {
+    // The re-fetch is what loads `userRole.user` — `email`/`status` no longer exist as columns
+    // on `Educator` and resolve through that relation, so responding with the caller's bare
+    // `educator` argument would return them as null on every call.
+    const loaded = await this.educatorRepo.findOne({
       where: { id: educator.id, is_active: true },
       relations: {
         school: true,
         admin: true,
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
     });
+    if (!loaded) {
+      return {
+        success: false,
+        message: EducatorConstants.MESSAGES.NOT_FOUND,
+        type: ErrorTypes.NOT_FOUND,
+      };
+    }
     return {
       success: true,
       message: EducatorConstants.MESSAGES.FETCHED,
-      data: educator,
+      data: toEducatorResponse(loaded),
     };
   }
 
-  async findById(id: string): Promise<ServiceResponse<Educator>> {
+  async findById(id: string): Promise<ServiceResponse<EducatorResponse>> {
     const educator = await this.educatorRepo.findOne({
       where: { id },
       relations: {
         school: true,
         admin: true,
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
     });
     if (!educator) {
@@ -142,21 +242,11 @@ export class EducatorsService {
         type: ErrorTypes.NOT_FOUND,
       };
     }
-    const { password, ...userWithoutPassword } = educator;
-    void password;
-    if (userWithoutPassword.admin) {
-      const { password: adminPassword, ...adminWithoutPassword } =
-        userWithoutPassword.admin as User & { password?: string };
-      void adminPassword;
-      userWithoutPassword.admin = adminWithoutPassword as User;
-    }
-    userWithoutPassword.profile_picture = await this.sanitizeProfilePicture(
-      userWithoutPassword.profile_picture,
-    );
+    educator.profile_picture = await this.sanitizeProfilePicture(educator.profile_picture);
     return {
       success: true,
       message: EducatorConstants.MESSAGES.FETCHED,
-      data: userWithoutPassword as Educator,
+      data: toEducatorResponse(educator),
     };
   }
 
@@ -168,7 +258,6 @@ export class EducatorsService {
     return Number(educator?.tokens) || 0;
   }
 
-  /** Refunds previously consumed seats back to the educator. */
   async releaseTokens(educatorId: string, count: number): Promise<void> {
     if (count <= 0) return;
     const educator = await this.educatorRepo.findOne({
@@ -177,13 +266,13 @@ export class EducatorsService {
     if (!educator) return;
     educator.tokens = (Number(educator.tokens) || 0) + count;
     educator.allocated_tokens = Math.max(0, (Number(educator.allocated_tokens) || 0) - count);
-    await this.educatorRepo.save(educator);
+    await this.educatorRepo.create(educator);
   }
 
   async updateToken(educatorId: string, tokensUsed: number): Promise<void> {
     const educator = await this.educatorRepo.findOne({
       where: { id: educatorId },
-      relations: ['admin'],
+      relations: ['admin', 'admin.userRole', 'userRole', 'userRole.user'],
     });
     if (!educator) return;
 
@@ -191,18 +280,46 @@ export class EducatorsService {
     const newTokens = Math.max(0, currentTokens - tokensUsed);
     educator.tokens = newTokens;
     educator.allocated_tokens = (educator.allocated_tokens || 0) + tokensUsed;
-    await this.educatorRepo.save(educator);
+    await this.educatorRepo.create(educator);
 
+    this.warnAdminIfSeatsCrossedThreshold(educator, currentTokens, newTokens);
+  }
+
+  /**
+   * Warns the educator's admin when a seat deduction made outside `updateToken` (e.g. the bulk
+   * assign transaction) drops the balance below the low-seat threshold. Fire-and-forget.
+   */
+  async notifyIfSeatsBelowThreshold(
+    educatorId: string,
+    previousTokens: number,
+    newTokens: number,
+  ): Promise<void> {
+    if (newTokens >= previousTokens) return;
+    const educator = await this.educatorRepo.findOne({
+      where: { id: educatorId },
+      relations: ['admin', 'admin.userRole', 'userRole', 'userRole.user'],
+    });
+    if (!educator) return;
+    this.warnAdminIfSeatsCrossedThreshold(educator, previousTokens, newTokens);
+  }
+
+  private warnAdminIfSeatsCrossedThreshold(
+    educator: Educator,
+    previousTokens: number,
+    newTokens: number,
+  ): void {
     const threshold = NotificationsConstants.DEFAULTS.LOW_EDUCATOR_SEAT_THRESHOLD;
+    const adminUserId = resolveAdminUserId(educator);
     if (
-      tokensUsed > 0 &&
-      educator.admin?.id &&
-      currentTokens >= threshold &&
+      newTokens < previousTokens &&
+      adminUserId &&
+      previousTokens >= threshold &&
       newTokens < threshold
     ) {
-      const educatorName = educator.full_name?.trim() || educator.email || educator.id;
+      const educatorName =
+        educator.full_name?.trim() || resolveEducatorEmail(educator) || educator.id;
       void this.notificationsGateway.notifyAdminEducatorLowSeatWarning(
-        educator.admin.id,
+        adminUserId,
         educator.id,
         educatorName,
         newTokens,
@@ -214,15 +331,15 @@ export class EducatorsService {
     educator: Educator,
     dto: UpdateEducatorDto,
     school?: Schools | null,
-  ): Promise<ServiceResponse<Educator>> {
-    const previousStatus = educator.status;
+  ): Promise<ServiceResponse<EducatorResponse>> {
+    const previousStatus = resolveEducatorStatus(educator);
     const isReactivating =
       previousStatus === CommonStatus.INACTIVE && dto.status === CommonStatus.ACTIVE;
     const isDeactivating =
       previousStatus !== CommonStatus.INACTIVE && dto.status === CommonStatus.INACTIVE;
 
     if (dto.status !== undefined) {
-      educator.status = dto.status;
+      await this.syncLinkedUserRoleStatus(educator, dto.status);
     }
 
     if (dto.full_name !== undefined) {
@@ -232,14 +349,14 @@ export class EducatorsService {
     if (dto.phone_number !== undefined) {
       educator.phone_number = dto.phone_number;
     }
+
+    let tokensJustAllocated = 0;
     if (dto.tokens !== undefined) {
       const previousTokens = Number(educator.tokens) || 0;
       const additionalTokens = Number(dto.tokens);
 
-      if (additionalTokens > 0 && educator.admin) {
-        const admin = await this.userRepo.findOne({
-          where: { id: educator.admin.id },
-        });
+      if (additionalTokens > 0 && educator.districtAdminId) {
+        const admin = await this.districtAdminRepo.findById(educator.districtAdminId);
         if (admin) {
           const subscriptions = (admin.subscriptions as SubscriptionSummary[]) || [];
           const sortedSubs = [...subscriptions].sort(
@@ -276,19 +393,24 @@ export class EducatorsService {
           if (totalAvailable > schoolThreshold && totalAvailableAfter <= schoolThreshold) {
             const schoolName =
               (educator.primarySchool ?? educator.school)?.school_name?.trim() || 'School';
-            void this.notificationsGateway.notifyAdminSchoolLowSeatWarning(
-              admin.id,
-              schoolName,
-              totalAvailableAfter,
-            );
+            const adminUserId = resolveAdminUserId(educator);
+            if (adminUserId) {
+              void this.notificationsGateway.notifyAdminSchoolLowSeatWarning(
+                adminUserId,
+                schoolName,
+                totalAvailableAfter,
+              );
+            }
           }
 
-          admin.subscriptions = subscriptions;
-          await this.userRepo.save(admin);
+          await this.districtAdminRepo.updateById(educator.districtAdminId, {
+            subscriptions,
+          });
         }
       }
 
       educator.tokens = previousTokens + additionalTokens;
+      tokensJustAllocated = additionalTokens;
     }
 
     if (school !== undefined) {
@@ -304,7 +426,14 @@ export class EducatorsService {
       educator.tokens ? undefined : undefined,
     );
 
-    await this.educatorRepo.save(educator);
+    await this.educatorRepo.create(educator);
+
+    if (tokensJustAllocated > 0) {
+      void this.notificationsGateway.notifyEducatorTokensAllocated(
+        educator.id,
+        tokensJustAllocated,
+      );
+    }
 
     if (isDeactivating) {
       await this.educatorSessionService.invalidateEducator(educator.id);
@@ -315,23 +444,23 @@ export class EducatorsService {
       where: { id: educator.id },
       relations: {
         school: true,
-        admin: true,
+        admin: { userRole: { user: true } },
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
     });
 
     let sentInvite = false;
     if (isReactivating) {
-      if (!educator.password) {
-        educator.status = CommonStatus.PENDING;
+      if (!resolveEducatorPassword(educator)) {
         educator.is_active = true;
-        educator.password = null;
-        await this.educatorRepo.save(educator);
+        await this.syncLinkedUserRoleStatus(educator, CommonStatus.PENDING);
+        await this.educatorRepo.create(educator);
         await this.sendReactivationInvite(educator);
         sentInvite = true;
       } else {
         educator.is_active = true;
-        await this.educatorRepo.save(educator);
+        await this.educatorRepo.create(educator);
         void this.sendAccountReactivatedEmail(educator);
       }
     }
@@ -341,8 +470,9 @@ export class EducatorsService {
           where: { id: educator.id },
           relations: {
             school: true,
-            admin: true,
+            admin: { userRole: { user: true } },
             schoolAssignments: { school: true },
+            userRole: { user: true },
           },
         })
       : updated;
@@ -352,62 +482,88 @@ export class EducatorsService {
       message: sentInvite
         ? InvitesConstants.MESSAGES.INVITE_SENT
         : EducatorConstants.MESSAGES.UPDATED,
-      data: finalUpdated!,
+      data: toEducatorResponse(finalUpdated!),
     };
   }
 
   private async sendReactivationInvite(educator: Educator): Promise<void> {
-    await this.inviteRepo.delete({ email: educator.email });
+    const identifier = resolveEducatorEmail(educator);
+    if (!identifier) {
+      this.logger.error(
+        `[sendReactivationInvite] No resolvable identifier for educator ${educator.id}`,
+      );
+      return;
+    }
+    await this.inviteRepo.deleteByEmail(identifier);
 
     const expires_at = new Date();
     expires_at.setMinutes(expires_at.getMinutes() + InvitesConstants.INVITE_EXPIRY_MINUTES);
 
     const reactivationSchool = educator.primarySchool ?? educator.school ?? undefined;
 
-    const savedInvite = await this.inviteRepo.save(
-      this.inviteRepo.create({
-        full_name: educator.full_name ?? undefined,
-        email: educator.email,
-        school: reactivationSchool ?? undefined,
-        createdBy: educator.admin ?? undefined,
-        status: InviteStatus.PENDING,
-        expires_at,
-      }),
-    );
+    const savedInvite = await this.inviteRepo.create({
+      full_name: educator.full_name ?? undefined,
+      email: identifier,
+      school: reactivationSchool ?? undefined,
+      createdBy: educator.admin?.userRole?.user ?? undefined,
+      status: InviteStatus.PENDING,
+      expires_at,
+    });
 
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
-    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || '';
-    const inviteUrl = `${frontendUrl}/signup/${savedInvite.id}`;
+    const logoUrl = this.configService.get<string>('mail.logoUrl') || '';
+    const inviteToken = this.inviteTokenService.issue(savedInvite.id);
+    const inviteUrl = this.inviteTokenService.buildInviteUrl(inviteToken);
 
     await this.mailService
       .sendMail({
-        to: educator.email,
+        to: identifier ?? undefined,
         subject: InvitesConstants.MESSAGES.EMAIL_SUBJECT,
         template: InvitesConstants.MESSAGES.TEMPLATE_NAME,
         context: {
           fullName: educator.full_name || InvitesConstants.EMAIL_DEFAULTS.FULL_NAME,
-          creatorName: educator.admin?.full_name || InvitesConstants.EMAIL_DEFAULTS.CREATOR_NAME,
+          creatorName:
+            resolveAdminFullName(educator) || InvitesConstants.EMAIL_DEFAULTS.CREATOR_NAME,
           schoolName:
             reactivationSchool?.school_name || InvitesConstants.EMAIL_DEFAULTS.SCHOOL_NAME,
           inviteUrl,
           logoUrl,
           expiryMinutes: InvitesConstants.INVITE_EXPIRY_MINUTES,
         },
+        attachments: this.getLogoAttachments(),
       })
       .catch((error: unknown) => {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(InvitesConstants.LOG.EMAIL_SEND_FAILED, errorMessage);
+        this.logger.error({
+          topic: 'EducatorsService',
+          subTopic: 'sendReactivationInvite',
+          operation: InvitesConstants.LOG.EMAIL_SEND_FAILED,
+          error,
+        });
       });
   }
 
   private async sendAccountReactivatedEmail(educator: Educator): Promise<void> {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') ?? '';
-    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') ?? '';
+    const enabled = await this.notificationsService.isPreferenceEnabled(
+      educator.id,
+      NotificationType.ACCOUNT_REACTIVATED,
+      NotificationChannel.EMAIL,
+    );
+    if (!enabled) return;
+
+    const identifier = resolveEducatorEmail(educator);
+    if (!identifier) {
+      this.logger.error(
+        `[sendAccountReactivatedEmail] No resolvable identifier for educator ${educator.id}`,
+      );
+      return;
+    }
+
+    const frontendUrl = this.configService.get<string>('app.frontendUrl') ?? '';
+    const logoUrl = this.configService.get<string>('mail.logoUrl') ?? '';
     const loginUrl = `${frontendUrl}/login`;
 
     await this.mailService
       .sendMail({
-        to: educator.email,
+        to: identifier,
         subject: 'Your Realityworks AI account has been reactivated',
         template: 'account-reactivated',
         context: {
@@ -418,7 +574,7 @@ export class EducatorsService {
       })
       .catch((error) => {
         this.logger.error(
-          `[sendAccountReactivatedEmail] Failed to send email to ${educator.email}: ${error instanceof Error ? error.message : String(error)}`,
+          `[sendAccountReactivatedEmail] Failed to send email to ${identifier}: ${error instanceof Error ? error.message : String(error)}`,
         );
       });
   }
@@ -434,19 +590,18 @@ export class EducatorsService {
     });
     const isPrimary = existingCount === 0;
 
-    const row = this.educatorSchoolRepo.create({
+    await this.educatorSchoolRepo.create({
       educator: { id: educatorId } as Educator,
       school: { id: schoolId } as Schools,
       is_primary: isPrimary,
     });
-    await this.educatorSchoolRepo.save(row);
   }
 
   async addSchool(
     educatorId: string,
     schoolId: string,
     adminId: string,
-  ): Promise<ServiceResponse<Educator>> {
+  ): Promise<ServiceResponse<EducatorResponse>> {
     const educator = await this.findByIdAndOwner(educatorId, adminId);
     if (!educator) {
       return {
@@ -468,11 +623,11 @@ export class EducatorsService {
     await this.ensureEducatorSchoolRow(educatorId, schoolId);
 
     if (!educator.is_active && !educator.deleted_at) {
-      if (educator.password) {
+      if (resolveEducatorPassword(educator)) {
         await this.educatorRepo.update(educatorId, {
           is_active: true,
-          status: CommonStatus.ACTIVE,
         });
+        await this.syncLinkedUserRoleStatus(educator, CommonStatus.ACTIVE);
         void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
           adminId,
           educatorId,
@@ -482,14 +637,15 @@ export class EducatorsService {
       } else {
         await this.educatorRepo.update(educatorId, {
           is_active: true,
-          status: CommonStatus.PENDING,
         });
+        await this.syncLinkedUserRoleStatus(educator, CommonStatus.PENDING);
         const reloaded = await this.educatorRepo.findOne({
           where: { id: educatorId },
           relations: {
             school: true,
-            admin: true,
+            admin: { userRole: { user: true } },
             schoolAssignments: { school: true },
+            userRole: { user: true },
           },
         });
         if (reloaded) {
@@ -506,12 +662,13 @@ export class EducatorsService {
         school: true,
         admin: true,
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
     });
     return {
       success: true,
       message: EducatorConstants.MESSAGES.UPDATED,
-      data: updated!,
+      data: toEducatorResponse(updated!),
     };
   }
 
@@ -519,7 +676,7 @@ export class EducatorsService {
     educatorId: string,
     schoolId: string,
     adminId: string,
-  ): Promise<ServiceResponse<Educator>> {
+  ): Promise<ServiceResponse<EducatorResponse>> {
     const educator = await this.findByIdAndOwner(educatorId, adminId);
     if (!educator) {
       return {
@@ -566,10 +723,13 @@ export class EducatorsService {
         where: { educator: { id: educatorId } },
       });
       if (remainingCount === 0) {
-        await manager.query(`UPDATE educators SET is_active = false, status = $1 WHERE id = $2`, [
-          CommonStatus.INACTIVE,
-          educatorId,
-        ]);
+        await manager.query(`UPDATE educators SET is_active = false WHERE id = $1`, [educatorId]);
+        if (educator.userRoleId) {
+          await manager.query(`UPDATE user_roles SET status = $1 WHERE user_role_id = $2`, [
+            CommonStatus.INACTIVE,
+            educator.userRoleId,
+          ]);
+        }
       }
     });
 
@@ -579,6 +739,7 @@ export class EducatorsService {
         school: true,
         admin: true,
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
     });
 
@@ -587,7 +748,7 @@ export class EducatorsService {
     return {
       success: true,
       message: EducatorConstants.MESSAGES.UPDATED,
-      data: updated!,
+      data: toEducatorResponse(updated!),
     };
   }
 
@@ -601,7 +762,7 @@ export class EducatorsService {
       };
     }
 
-    if (educator.status !== CommonStatus.PENDING) {
+    if (resolveEducatorStatus(educator) !== CommonStatus.PENDING) {
       return {
         success: false,
         message: EducatorConstants.MESSAGES.EDUCATOR_NOT_PENDING,
@@ -609,46 +770,52 @@ export class EducatorsService {
       };
     }
 
-    await this.inviteRepo.delete({
-      email: educator.email,
-      status: InviteStatus.PENDING,
-    });
+    const identifier = resolveEducatorEmail(educator);
+    if (!identifier) {
+      return {
+        success: false,
+        message: EducatorConstants.MESSAGES.NO_EMAIL_ON_FILE,
+        type: ErrorTypes.BAD_REQUEST,
+      };
+    }
+
+    await this.inviteRepo.deletePendingByEmail(identifier);
 
     const expires_at = new Date();
     expires_at.setMinutes(expires_at.getMinutes() + InvitesConstants.INVITE_EXPIRY_MINUTES);
 
-    const newInvite = await this.inviteRepo.save(
-      this.inviteRepo.create({
-        full_name: educator.full_name ?? undefined,
-        email: educator.email,
-        school: educator.school ?? undefined,
-        createdBy: educator.admin ?? undefined,
-        status: InviteStatus.PENDING,
-        expires_at,
-      }),
-    );
+    const newInvite = await this.inviteRepo.create({
+      full_name: educator.full_name ?? undefined,
+      email: identifier,
+      school: educator.school ?? undefined,
+      createdBy: educator.admin?.userRole?.user ?? undefined,
+      status: InviteStatus.PENDING,
+      expires_at,
+    });
 
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-    const inviteUrl = `${frontendUrl}/signup/${newInvite.id}`;
-    const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || '';
+    const inviteToken = this.inviteTokenService.issue(newInvite.id);
+    const inviteUrl = this.inviteTokenService.buildInviteUrl(inviteToken);
+    const logoUrl = this.configService.get<string>('mail.logoUrl') || '';
 
     await this.mailService
       .sendMail({
-        to: educator.email,
+        to: identifier,
         subject: InvitesConstants.MESSAGES.EMAIL_SUBJECT,
         template: InvitesConstants.MESSAGES.TEMPLATE_NAME,
         context: {
           fullName: educator.full_name || InvitesConstants.EMAIL_DEFAULTS.FULL_NAME,
-          creatorName: educator.admin?.full_name || InvitesConstants.EMAIL_DEFAULTS.CREATOR_NAME,
+          creatorName:
+            resolveAdminFullName(educator) || InvitesConstants.EMAIL_DEFAULTS.CREATOR_NAME,
           schoolName: educator.school?.school_name || InvitesConstants.EMAIL_DEFAULTS.SCHOOL_NAME,
           inviteUrl,
           logoUrl,
           expiryMinutes: InvitesConstants.INVITE_EXPIRY_MINUTES,
         },
+        attachments: this.getLogoAttachments(),
       })
       .catch((error: unknown) => {
         const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Failed to resend invite email to ${educator.email}`, errorMessage);
+        this.logger.error(`Failed to resend invite email to ${identifier}`, errorMessage);
       });
 
     return {
@@ -665,9 +832,10 @@ export class EducatorsService {
     const educator = await this.educatorRepo.findOne({
       where: { id: educatorId, is_active: true },
       relations: {
-        admin: true,
+        admin: { userRole: { user: true } },
         school: true,
         schoolAssignments: { school: true },
+        userRole: { user: true },
       },
     });
 
@@ -679,7 +847,9 @@ export class EducatorsService {
       };
     }
 
-    if (!educator.admin?.id) {
+    const adminUserId = resolveAdminUserId(educator);
+    const districtAdminId = educator.admin?.districtAdminId;
+    if (!adminUserId || !districtAdminId) {
       return {
         success: false,
         message: EducatorConstants.MESSAGES.ADMIN_NOT_FOUND,
@@ -687,50 +857,69 @@ export class EducatorsService {
       };
     }
 
-    const cooldownHours = NotificationsConstants.DEFAULTS.EDUCATOR_SEAT_REQUEST_COOLDOWN_HOURS;
-    const cooldownMs = cooldownHours * 60 * 60 * 1000;
-    const lastRequestedAt = EducatorsService.seatRequestCooldown.get(educator.id);
-    const now = Date.now();
-    if (lastRequestedAt && now - lastRequestedAt < cooldownMs) {
-      const secondsRemaining = Math.ceil((cooldownMs - (now - lastRequestedAt)) / 1000);
-      return {
-        success: false,
-        message: EducatorConstants.MESSAGES.SEAT_REQUEST_COOLDOWN(cooldownHours),
-        type: ErrorTypes.BAD_REQUEST,
-        data: {
-          requestedAt: new Date(lastRequestedAt).toISOString(),
-          cooldownSeconds: secondsRemaining,
-        },
-      };
-    }
-
-    EducatorsService.seatRequestCooldown.set(educator.id, now);
-
-    const educatorName = educator.full_name?.trim() || educator.email;
-    const remainingSeats = Number(educator.tokens) || 0;
+    const cooldownMinutes = NotificationsConstants.DEFAULTS.EDUCATOR_SEAT_REQUEST_COOLDOWN_MINUTES;
     const requestedSeats =
       typeof input.requested_seats === 'number' && input.requested_seats > 0
         ? Math.floor(input.requested_seats)
         : null;
     const note = input.note?.trim() || undefined;
+
+    let seatRequest: EducatorSeatRequest;
+    try {
+      seatRequest = await this.seatRequestRepo.createWithinCooldown(
+        { educatorId: educator.id, districtAdminId, requestedSeats, note: note ?? null },
+        cooldownMinutes,
+      );
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return {
+          success: false,
+          message: EducatorConstants.MESSAGES.NOT_FOUND,
+          type: ErrorTypes.NOT_FOUND,
+        };
+      }
+      if (error instanceof SeatRequestCooldownException) {
+        return {
+          success: false,
+          message: EducatorConstants.MESSAGES.SEAT_REQUEST_COOLDOWN(cooldownMinutes),
+          type: ErrorTypes.BAD_REQUEST,
+          data: {
+            requestedAt: toUtcIsoString(error.requestedAt),
+            cooldownSeconds: secondsUntilWindowEnds(error.requestedAt, cooldownMinutes),
+          },
+        };
+      }
+      throw error;
+    }
+
+    const identifier = resolveEducatorEmail(educator);
+    const educatorName = educator.full_name?.trim() || identifier || educator.id;
+    const remainingSeats = Number(educator.tokens) || 0;
     const primarySchoolName =
       (educator.primarySchool ?? educator.school)?.school_name?.trim() || undefined;
     try {
       await this.notificationsGateway.notifyAdminEducatorSeatRequest(
-        educator.admin.id,
+        adminUserId,
         educator.id,
         educatorName,
-        educator.email,
+        identifier,
         requestedSeats,
         remainingSeats,
         note,
       );
     } catch (error) {
-      EducatorsService.seatRequestCooldown.delete(educator.id);
       this.logger.error(
         `Failed to persist seat request notification for educator ${educator.id}`,
         error,
       );
+      try {
+        await this.seatRequestRepo.hardDeleteById(seatRequest.seatRequestId);
+      } catch (deleteError) {
+        this.logger.error(
+          `Failed to remove seat request after notification failure (seat_request_id=${seatRequest.seatRequestId})`,
+          deleteError,
+        );
+      }
       return {
         success: false,
         message: EducatorConstants.MESSAGES.SEAT_REQUEST_FAILED,
@@ -738,22 +927,20 @@ export class EducatorsService {
       };
     }
 
-    const admin = await this.userRepo.findOne({
-      where: { id: educator.admin.id },
-    });
-    if (admin?.email) {
-      const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || '';
-      const frontendUrl = this.configService.get<string>('FRONTEND_URL') || '';
+    const adminEmail = resolveAdminEmail(educator);
+    if (adminEmail) {
+      const logoUrl = this.configService.get<string>('mail.logoUrl') || '';
+      const frontendUrl = this.configService.get<string>('app.frontendUrl') || '';
       const adminUrl = frontendUrl ? `${frontendUrl}/educators` : '';
       this.mailService
         .sendMail({
-          to: admin.email,
+          to: adminEmail,
           subject: EducatorConstants.MESSAGES.SEAT_REQUEST_EMAIL_SUBJECT(educatorName),
           template: 'educator-seat-request',
           context: {
-            adminName: admin.full_name?.trim() || 'Admin',
+            adminName: resolveAdminFullName(educator)?.trim() || 'Admin',
             educatorName,
-            educatorEmail: educator.email,
+            educatorEmail: identifier,
             schoolName: primarySchoolName,
             remainingSeats,
             requestedSeats,
@@ -763,7 +950,7 @@ export class EducatorsService {
           },
         })
         .catch((error) => {
-          this.logger.error(`Failed to send seat-request email to admin ${admin.email}`, error);
+          this.logger.error(`Failed to send seat-request email to admin ${adminEmail}`, error);
         });
     }
 
@@ -771,8 +958,8 @@ export class EducatorsService {
       success: true,
       message: EducatorConstants.MESSAGES.SEAT_REQUEST_SENT,
       data: {
-        requestedAt: new Date(now).toISOString(),
-        cooldownSeconds: Math.ceil(cooldownMs / 1000),
+        requestedAt: toUtcIsoString(seatRequest.requestedAt),
+        cooldownSeconds: secondsUntilWindowEnds(seatRequest.requestedAt, cooldownMinutes),
       },
     };
   }
@@ -783,7 +970,6 @@ export class EducatorsService {
     await this.dataSource.transaction(async (manager) => {
       const educatorToDelete = await manager.findOne(Educator, {
         where: { id: educator.id },
-        relations: { admin: true },
       });
 
       if (!educatorToDelete) {
@@ -792,15 +978,14 @@ export class EducatorsService {
 
       const remainingTokens = Number(educatorToDelete.tokens) || 0;
 
-      // One DB query: all active students + their external codes across educator's classes
-      const studentRows: Array<{ student_id: string | null; class_id: string }> =
-        await manager.query(
-          `SELECT s.student_id, s.class_id
+      // One DB query: all active students across educator's classes
+      const studentRows: Array<{ id: string; class_id: string }> = await manager.query(
+        `SELECT s.id, s.class_id
          FROM students s
          INNER JOIN classes c ON c.id = s.class_id
          WHERE c.educator_id = $1 AND c.is_active = true AND s.is_active = true`,
-          [educator.id],
-        );
+        [educator.id],
+      );
 
       // One DB query: all active AI sims across educator's classes
       const aiSimRows: Array<{ simulation_id: string; class_id: string }> = await manager.query(
@@ -811,44 +996,29 @@ export class EducatorsService {
         [educator.id],
       );
 
-      // Blob fetch filtered to this educator's students (cached; cheap on repeat calls)
-      const externalCodes = [
-        ...new Set(studentRows.map((s) => s.student_id).filter(Boolean)),
-      ] as string[];
-      const completedKey = new Set<string>(); // "normalizedCode:scenarioId"
-      if (externalCodes.length > 0 && aiSimRows.length > 0) {
-        try {
-          const { matched } = await this.tutorPatientService.getReportsByStudentIds(externalCodes);
-          for (const r of matched as Array<Record<string, unknown>>) {
-            const userId = (
-              (r['userId'] ?? r['user_id'] ?? r['studentId'] ?? r['student_id'] ?? '') as string
-            )
-              .toLowerCase()
-              .replace(/[-_ ]/g, '');
-            const scenarioId = ((r['scenario_id'] ?? r['scenarioId'] ?? '') as string).trim();
-            if (userId && scenarioId) completedKey.add(`${userId}:${scenarioId}`);
-          }
-        } catch {
-          this.logger.warn(
-            '[remove] Blob unavailable; assuming no completions for refund calculation',
-          );
-        }
-      }
+      // Which of those students have an Attempt at any of those sims (scoped to both sets).
+      const completedKey = new Set<string>(); // "studentId:scenarioId"
+      const pairs = await this.simulationReportRepo.findStudentScenarioPairsWithAttempts(
+        studentRows.map((s) => s.id),
+        [...new Set(aiSimRows.map((sim) => sim.simulation_id))],
+      );
+      for (const pair of pairs) completedKey.add(`${pair.studentId}:${pair.scenarioId}`);
 
-      // Group student codes by class for O(1) lookup
-      const codesByClass = new Map<string, string[]>();
+      // Group student ids by class for O(1) lookup
+      const studentIdsByClass = new Map<string, string[]>();
       for (const s of studentRows) {
-        if (!codesByClass.has(s.class_id)) codesByClass.set(s.class_id, []);
-        if (s.student_id)
-          codesByClass.get(s.class_id)!.push(s.student_id.toLowerCase().replace(/[-_ ]/g, ''));
+        if (!studentIdsByClass.has(s.class_id)) studentIdsByClass.set(s.class_id, []);
+        studentIdsByClass.get(s.class_id)!.push(s.id);
       }
 
       let unusedStudentSeats = 0;
       for (const sim of aiSimRows) {
-        const codes = codesByClass.get(sim.class_id) ?? [];
-        const totalStudents = codes.length;
+        const studentIds = studentIdsByClass.get(sim.class_id) ?? [];
+        const totalStudents = studentIds.length;
         if (totalStudents === 0) continue;
-        const usedCount = codes.filter((c) => completedKey.has(`${c}:${sim.simulation_id}`)).length;
+        const usedCount = studentIds.filter((id) =>
+          completedKey.has(`${id}:${sim.simulation_id}`),
+        ).length;
         unusedStudentSeats += Math.max(0, totalStudents - usedCount);
       }
 
@@ -858,9 +1028,9 @@ export class EducatorsService {
         `[remove] educator=${educator.id} remainingTokens=${remainingTokens} unusedStudentSeats=${unusedStudentSeats} totalRefund=${totalRefund}`,
       );
 
-      if (totalRefund > 0 && educatorToDelete.admin?.id) {
-        const admin = await manager.findOne(User, {
-          where: { id: educatorToDelete.admin.id },
+      if (totalRefund > 0 && educatorToDelete.districtAdminId) {
+        const admin = await manager.findOne(DistrictAdmin, {
+          where: { districtAdminId: educatorToDelete.districtAdminId },
         });
 
         if (admin) {
@@ -874,17 +1044,38 @@ export class EducatorsService {
 
             admin.subscriptions = sortedSubs;
 
-            await manager.save(User, admin);
+            await manager.save(DistrictAdmin, admin);
           }
         }
       }
 
       await manager.query(
         `UPDATE educators
-       SET is_active = false, deleted_at = $1, status = $2
-       WHERE id = $3`,
-        [now, CommonStatus.INACTIVE, educator.id],
+       SET is_active = false, deleted_at = $1
+       WHERE id = $2`,
+        [now, educator.id],
       );
+
+      if (educatorToDelete.userRoleId) {
+        await manager.query(`UPDATE user_roles SET status = $1 WHERE user_role_id = $2`, [
+          CommonStatus.INACTIVE,
+          educatorToDelete.userRoleId,
+        ]);
+      }
+
+      // A never-accepted invite would otherwise outlive the educator and block re-inviting
+      // the same email with "A pending invitation for this email already exists".
+      const educatorEmail = resolveEducatorEmail(educator);
+      if (educatorEmail) {
+        await manager.delete(Invite, {
+          email: Raw((alias) => `LOWER(${alias}) = LOWER(:email)`, { email: educatorEmail }),
+          status: InviteStatus.PENDING,
+        });
+      } else {
+        this.logger.warn(
+          `[remove] No resolvable email for educator ${educator.id}; any pending invite is left in place`,
+        );
+      }
 
       const classes = await manager.find(Class, {
         where: {
@@ -924,6 +1115,30 @@ export class EducatorsService {
 
     void this.notificationsGateway.notifyAccountDeleted(educator.id);
 
+    // Durable communication channel: the educator can no longer log in to see
+    // an in-app notification, so account-deletion is communicated by email.
+    const deletedEducatorIdentifier = resolveEducatorEmail(educator);
+    if (deletedEducatorIdentifier) {
+      const logoUrl = this.configService.get<string>('mail.logoUrl') || '';
+      this.mailService
+        .sendMail({
+          to: deletedEducatorIdentifier,
+          subject: 'Your Realityworks AI Account Has Been Deleted',
+          template: 'account-deleted',
+          context: {
+            fullName: educator.full_name?.trim() || deletedEducatorIdentifier,
+            logoUrl,
+          },
+          attachments: this.getLogoAttachments(),
+        })
+        .catch((error) => {
+          this.logger.error(
+            `Failed to send account-deleted email to ${deletedEducatorIdentifier}`,
+            error,
+          );
+        });
+    }
+
     return {
       success: true,
       message: EducatorConstants.MESSAGES.DELETED,
@@ -939,19 +1154,19 @@ export class EducatorsService {
   async getProfile(id: string): Promise<
     ServiceResponse<{
       id: string;
-      email: string;
+      email: string | null;
       full_name: string | null;
       profile_picture: string;
       phone_number: string | null;
       tokens: number | null;
-      status: string;
-      schools: { id: string; school_name: string }[];
+      google_classroom_enabled: boolean;
+      schools: { id: string; school_name: string; google_classroom_enabled: boolean }[];
     }>
   > {
     this.logger.log(`[getProfile] Fetching profile for educator: ${id}`);
     const educator = await this.educatorRepo.findOne({
       where: { id },
-      relations: { school: true, schoolAssignments: { school: true } },
+      relations: { school: true, schoolAssignments: { school: true }, userRole: { user: true } },
     });
     if (!educator) {
       this.logger.warn(`[getProfile] Educator not found: ${id}`);
@@ -965,33 +1180,18 @@ export class EducatorsService {
     this.logger.log(
       `[getProfile] SUCCESS - educator: ${id}, profile_picture: ${sanitizedPicture ? 'present' : 'null'}`,
     );
-    const schools: { id: string; school_name: string }[] =
-      educator.schoolAssignments && educator.schoolAssignments.length > 0
-        ? educator.schoolAssignments
-            .filter((sa) => sa.school?.id && sa.school.is_active !== false)
-            .map((sa) => ({
-              id: sa.school.id,
-              school_name: sa.school.school_name,
-            }))
-        : educator.school?.id && educator.school.is_active !== false
-          ? [
-              {
-                id: educator.school.id,
-                school_name: educator.school.school_name,
-              },
-            ]
-          : [];
+    const schools = mapEducatorSchoolsForAuth(educator);
     return {
       success: true,
       message: EducatorConstants.MESSAGES.FETCHED,
       data: {
         id: educator.id,
-        email: educator.email,
+        email: resolveEducatorEmail(educator),
         full_name: educator.full_name,
         profile_picture: sanitizedPicture ?? '',
         phone_number: educator.phone_number ?? null,
         tokens: educator.tokens ?? null,
-        status: educator.status,
+        google_classroom_enabled: isGoogleClassroomEnabledForEducator(educator),
         schools,
       },
     };
@@ -1019,6 +1219,7 @@ export class EducatorsService {
         id,
         is_active: true,
       },
+      relations: { userRole: { user: true } },
     });
     if (!educator) {
       this.logger.warn(`[updateProfile] Educator not found or inactive: ${id}`);
@@ -1095,18 +1296,19 @@ export class EducatorsService {
       this.logger.log(
         `[updateProfile] Saving educator record. profile_picture value: ${educator.profile_picture ?? 'null'}`,
       );
-      await this.educatorRepo.save(educator);
+      await this.educatorRepo.create(educator);
       this.logger.log(`[updateProfile] Save successful for educator: ${id}`);
 
       if (body.full_name) {
-        const invite = await this.inviteRepo.findOne({
-          where: { email: educator.email },
-        });
+        const identifier = resolveEducatorEmail(educator);
+        const invite = identifier
+          ? await this.inviteRepo.findOne({ where: { email: identifier } })
+          : null;
 
         if (invite) {
-          this.logger.log(`[updateProfile] Updating invite record for: ${educator.email}`);
+          this.logger.log(`[updateProfile] Updating invite record for: ${identifier}`);
           invite.full_name = body.full_name;
-          await this.inviteRepo.save(invite);
+          await this.inviteRepo.create(invite);
           this.logger.log(`[updateProfile] Invite record updated`);
         }
       }
@@ -1118,7 +1320,7 @@ export class EducatorsService {
 
       return {
         success: true,
-        message: EducatorConstants.MESSAGES.UPDATED,
+        message: EducatorConstants.MESSAGES.PROFILE_UPDATED,
         data: {
           id: educator.id,
           full_name: educator.full_name,
@@ -1155,12 +1357,13 @@ export class EducatorsService {
     try {
       await this.dataSource.transaction(async (manager) => {
         // Acquire pessimistic write lock to prevent concurrent double-removes
-        const rows: Array<{ tokens: number | null; admin_id: string | null }> = await manager.query(
-          `SELECT COALESCE(tokens::text::integer, 0) AS tokens, admin_id FROM educators WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
-          [educatorId],
-        );
+        const rows: Array<{ tokens: number | null; district_admin_id: string | null }> =
+          await manager.query(
+            `SELECT COALESCE(tokens::text::integer, 0) AS tokens, district_admin_id FROM educators WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+            [educatorId],
+          );
 
-        if (!rows.length || rows[0].admin_id !== adminId) {
+        if (!rows.length || rows[0].district_admin_id !== adminId) {
           throw Object.assign(new Error(EducatorConstants.MESSAGES.NOT_FOUND), {
             type: ErrorTypes.NOT_FOUND,
           });
@@ -1181,10 +1384,11 @@ export class EducatorsService {
         remainingTokens = available - amount;
 
         // Refund seats to the admin's soonest-expiring subscription bucket
-        const adminRows: Array<{ id: string; subscriptions: unknown }> = await manager.query(
-          `SELECT id, subscriptions FROM users WHERE id = $1 FOR UPDATE`,
-          [adminId],
-        );
+        const adminRows: Array<{ district_admin_id: string; subscriptions: unknown }> =
+          await manager.query(
+            `SELECT district_admin_id, subscriptions FROM district_admins WHERE district_admin_id = $1 FOR UPDATE`,
+            [adminId],
+          );
 
         if (adminRows.length > 0) {
           const subscriptions = (adminRows[0].subscriptions as SubscriptionSummary[]) || [];
@@ -1193,10 +1397,10 @@ export class EducatorsService {
           );
           if (sortedSubs.length > 0) {
             sortedSubs[0].seats_available = (sortedSubs[0].seats_available || 0) + amount;
-            await manager.query(`UPDATE users SET subscriptions = $1 WHERE id = $2`, [
-              JSON.stringify(sortedSubs),
-              adminRows[0].id,
-            ]);
+            await manager.query(
+              `UPDATE district_admins SET subscriptions = $1 WHERE district_admin_id = $2`,
+              [JSON.stringify(sortedSubs), adminRows[0].district_admin_id],
+            );
           }
         }
       });
@@ -1242,9 +1446,9 @@ export class EducatorsService {
       await this.dataSource.transaction(async (manager) => {
         // Lock both rows in consistent UUID order to prevent deadlocks
         const [firstId, secondId] = [sourceEducatorId, targetEducatorId].sort();
-        const rows: Array<{ id: string; tokens: number | null; admin_id: string | null }> =
+        const rows: Array<{ id: string; tokens: number | null; district_admin_id: string | null }> =
           await manager.query(
-            `SELECT id, COALESCE(tokens::text::integer, 0) AS tokens, admin_id FROM educators
+            `SELECT id, COALESCE(tokens::text::integer, 0) AS tokens, district_admin_id FROM educators
              WHERE id IN ($1, $2) AND deleted_at IS NULL
              ORDER BY id FOR UPDATE`,
             [firstId, secondId],
@@ -1253,12 +1457,12 @@ export class EducatorsService {
         const sourceRow = rows.find((r) => r.id === sourceEducatorId);
         const targetRow = rows.find((r) => r.id === targetEducatorId);
 
-        if (!sourceRow || sourceRow.admin_id !== adminId) {
+        if (!sourceRow || sourceRow.district_admin_id !== adminId) {
           throw Object.assign(new Error(EducatorConstants.MESSAGES.NOT_FOUND), {
             type: ErrorTypes.NOT_FOUND,
           });
         }
-        if (!targetRow || targetRow.admin_id !== adminId) {
+        if (!targetRow || targetRow.district_admin_id !== adminId) {
           throw Object.assign(
             new Error(EducatorConstants.MESSAGES.REALLOCATE_SEATS_TARGET_NOT_FOUND),
             { type: ErrorTypes.NOT_FOUND },
@@ -1330,7 +1534,7 @@ export class EducatorsService {
     }
 
     educator.profile_picture = '';
-    await this.educatorRepo.save(educator);
+    await this.educatorRepo.create(educator);
 
     this.logger.log(`[removeProfilePicture] Profile picture cleared for educator: ${id}`);
 

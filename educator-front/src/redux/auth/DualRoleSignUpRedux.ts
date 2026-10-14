@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -21,8 +25,8 @@ export interface DualRoleSignUpResponse {
     isLicenseActive: boolean;
   };
   has_dual_role: string;
-  educator_tokens: { accessToken: string; },
-  educator_user: Record<string, unknown>,
+  educator_tokens: { accessToken: string };
+  educator_user: Record<string, unknown>;
 }
 
 export interface ResponseDualRoleSignUp {
@@ -95,8 +99,17 @@ export default DualRoleSignUpSlice.reducer;
 
 const selectState = (state: RootState) => state.DualRoleSignUp;
 
-export const selectDualRoleSignUpResponse = createSelector(selectState, (state) => state.responseDualRoleSignUp);
+export const selectDualRoleSignUpResponse = createSelector(
+  selectState,
+  (state) => state.responseDualRoleSignUp
+);
 
-export const selectDualRoleSignUpStatus = createSelector(selectState, (state) => state.status);
+export const selectDualRoleSignUpStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
 
-export const selectDualRoleSignUpError = createSelector(selectState, (state) => state.error);
+export const selectDualRoleSignUpError = createSelector(
+  selectState,
+  (state) => state.error
+);

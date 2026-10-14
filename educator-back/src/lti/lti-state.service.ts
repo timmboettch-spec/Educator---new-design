@@ -1,5 +1,8 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { RedisService } from 'src/redis/redis.service';
+import { runLtiStorageOp } from './lti-storage.util';
+import { LtiConstants } from './lti.constants';
+import { LoggerService } from 'src/common/services';
 
 /**
  * LtiStateService manages state and nonce validation for LTI 1.3 OAuth2 flows.
@@ -9,49 +12,59 @@ import { ConfigService } from '@nestjs/config';
  * - `nonce`: Prevents replay attacks by ensuring id_token freshness
  *
  * Implementation notes:
- * - Uses in-memory storage (Map) suitable for single-instance deployments
- * - For production multi-instance deployments, replace with Redis or database
- * - Entries auto-expire after 10 minutes to prevent memory leaks
- * - One-time use: both state and nonce are deleted after successful validation
+ * - Backed by Redis so login-init and the LMS callback can hit different replicas
+ * - Redis TTL (10 minutes) expires entries; no cleanup timer needed
+ * - One-time use: the record is read and deleted atomically on validation
+ * - No fallback once Redis is configured: if it is down the launch fails
+ *   rather than silently going per-replica again. Only a wholly unconfigured
+ *   Redis (REDIS_HOST unset, development only) uses in-memory storage;
+ *   staging and production refuse to boot without it.
  */
 
-interface StateRecord {
+export interface LtiStateRecord {
   nonce: string;
-  createdAt: number;
   toolType: 'educator' | 'student';
+  /**
+   * Canvas SpeedGrader review token from OIDC `target_link_uri` (`rw_review`).
+   * Carried across callback → launch because form_post drops the original query string.
+   */
+  canvasReviewToken?: string | null;
 }
 
 @Injectable()
 export class LtiStateService {
-  private readonly logger = new Logger(LtiStateService.name);
-  private readonly stateStore = new Map<string, StateRecord>();
-  private cleanupTimerId?: NodeJS.Timeout;
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly logger: LoggerService,
+  ) {}
 
-  // State/nonce TTL in milliseconds (10 minutes)
-  private readonly STATE_TTL_MS = 10 * 60 * 1000;
-
-  // Cleanup interval (run every 2 minutes)
-  private readonly CLEANUP_INTERVAL_MS = 2 * 60 * 1000;
-
-  constructor(private readonly configService: ConfigService) {
-    // Start periodic cleanup of expired entries
-    this.startCleanupTimer();
+  private key(state: string): string {
+    return `${LtiConstants.REDIS.STATE_KEY_PREFIX}${state}`;
   }
 
   /**
    * Create a new state/nonce pair for an LTI login initiation.
    * Both values are UUIDs and stored together.
    */
-  createStatePair(state: string, nonce: string, toolType: 'educator' | 'student'): void {
-    const record: StateRecord = {
+  async createStatePair(
+    state: string,
+    nonce: string,
+    toolType: 'educator' | 'student',
+    options?: { canvasReviewToken?: string | null },
+  ): Promise<void> {
+    const review = options?.canvasReviewToken?.trim() || null;
+    const record: LtiStateRecord = {
       nonce,
-      createdAt: Date.now(),
       toolType,
+      ...(review ? { canvasReviewToken: review } : {}),
     };
 
-    this.stateStore.set(state, record);
+    await runLtiStorageOp(this.logger, 'state write', () =>
+      this.redisService.setStrict(this.key(state), record, LtiConstants.REDIS.STATE_TTL_SECONDS),
+    );
     this.logger.debug(
-      `[LTI State] Created state/nonce pair for ${toolType} tool. State: ${state.substring(0, 8)}..., store size: ${this.stateStore.size}`,
+      `[LTI State] Created state/nonce pair for ${toolType} tool. State: ${state.substring(0, 8)}...` +
+        (review ? ' (canvas review token attached)' : ''),
     );
   }
 
@@ -59,18 +72,21 @@ export class LtiStateService {
    * Validate state and nonce from the LTI launch callback.
    *
    * Security checks:
-   * 1. State must exist in the store (not forged)
-   * 2. State must not be expired (< 10 min old)
+   * 1. State must exist in Redis (not forged, not expired, not already used)
+   * 2. Tool type must match the one the pair was created for
    * 3. Nonce in id_token must match the stored nonce
-   * 4. Both are deleted after validation (one-time use)
    *
+   * The record is consumed on read, so a replay finds nothing regardless of
+   * whether the checks below pass.
+   *
+   * @returns The consumed state record (includes optional Canvas review token)
    * @throws UnauthorizedException if validation fails
    */
-  validateAndConsume(
+  async validateAndConsume(
     state: string | undefined,
     nonceFromToken: string | undefined,
     toolType: 'educator' | 'student',
-  ): void {
+  ): Promise<LtiStateRecord> {
     // 1. Check state presence
     if (!state || typeof state !== 'string' || state.trim() === '') {
       this.logger.warn('[LTI State] Missing or empty state parameter');
@@ -83,98 +99,33 @@ export class LtiStateService {
       throw new UnauthorizedException('Missing nonce in id_token');
     }
 
-    // 3. Retrieve stored record
-    const record = this.stateStore.get(state);
+    const record = await runLtiStorageOp(this.logger, 'state read', () =>
+      this.redisService.getDelStrict<LtiStateRecord>(this.key(state)),
+    );
     if (!record) {
       this.logger.warn(
-        `[LTI State] State not found in store: ${state.substring(0, 8)}... (possibly expired, already used, or forged)`,
+        `[LTI State] State not found: ${state.substring(0, 8)}... (possibly expired, already used, or forged)`,
       );
       throw new UnauthorizedException('Invalid or expired state parameter');
     }
 
-    // 4. Check expiration (10 minutes)
-    const age = Date.now() - record.createdAt;
-    if (age > this.STATE_TTL_MS) {
-      this.stateStore.delete(state);
-      this.logger.warn(
-        `[LTI State] State expired (age: ${Math.round(age / 1000)}s, ttl: ${this.STATE_TTL_MS / 1000}s)`,
-      );
-      throw new UnauthorizedException('State parameter expired');
-    }
-
-    // 5. Check tool type match
     if (record.toolType !== toolType) {
-      this.stateStore.delete(state);
       this.logger.warn(
         `[LTI State] Tool type mismatch. Expected: ${record.toolType}, got: ${toolType}`,
       );
       throw new UnauthorizedException('State parameter tool type mismatch');
     }
 
-    // 6. Validate nonce match
     if (record.nonce !== nonceFromToken) {
-      this.stateStore.delete(state);
       this.logger.warn(
         `[LTI State] Nonce mismatch. Expected: ${record.nonce.substring(0, 8)}..., got: ${nonceFromToken.substring(0, 8)}...`,
       );
       throw new UnauthorizedException('Nonce mismatch - possible replay attack');
     }
 
-    // 7. Delete after successful validation (one-time use)
-    this.stateStore.delete(state);
     this.logger.log(
       `[LTI State] Successfully validated and consumed state/nonce for ${toolType} tool. State: ${state.substring(0, 8)}...`,
     );
-  }
-
-  /**
-   * Periodic cleanup of expired state/nonce pairs.
-   * Runs every 2 minutes to prevent memory leaks.
-   */
-  private startCleanupTimer(): void {
-    this.cleanupTimerId = setInterval(() => {
-      const now = Date.now();
-      let cleaned = 0;
-
-      for (const [state, record] of this.stateStore.entries()) {
-        const age = now - record.createdAt;
-        if (age > this.STATE_TTL_MS) {
-          this.stateStore.delete(state);
-          cleaned++;
-        }
-      }
-
-      if (cleaned > 0) {
-        this.logger.debug(
-          `[LTI State] Cleaned up ${cleaned} expired entries. Current store size: ${this.stateStore.size}`,
-        );
-      }
-    }, this.CLEANUP_INTERVAL_MS);
-  }
-
-  /**
-   * Get current store size (for monitoring/debugging).
-   */
-  getStoreSize(): number {
-    return this.stateStore.size;
-  }
-
-  /**
-   * Clear all state/nonce pairs (for testing only).
-   */
-  clearAll(): void {
-    const size = this.stateStore.size;
-    this.stateStore.clear();
-    this.logger.warn(`[LTI State] Cleared all ${size} entries from store`);
-  }
-
-  /**
-   * Stop the cleanup timer (for testing/shutdown).
-   */
-  stopCleanupTimer(): void {
-    if (this.cleanupTimerId) {
-      clearInterval(this.cleanupTimerId);
-      this.cleanupTimerId = undefined;
-    }
+    return record;
   }
 }

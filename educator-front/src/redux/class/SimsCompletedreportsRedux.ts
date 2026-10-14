@@ -1,10 +1,19 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
-import { setClassReportCount, setClassNeedsAttention, markReportViewed } from './GetClassRedux';
+import {
+  setClassReportCount,
+  setClassNeedsAttention,
+  markReportViewed,
+} from './GetClassRedux';
 import { clearReportIsNew } from '../reports/EducatorReportsRedux';
 import api from '../api';
+import { reportsApi } from '../api/reports/reportsApi';
 
 export interface ScoreJson {
   communication: number | null;
@@ -142,7 +151,8 @@ function normalizeReportArray(payload: unknown): SimulationReport[] {
     if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
       const i = inner as Record<string, unknown>;
       if (Array.isArray(i['data'])) return i['data'] as SimulationReport[];
-      if (Array.isArray(i['reports'])) return i['reports'] as SimulationReport[];
+      if (Array.isArray(i['reports']))
+        return i['reports'] as SimulationReport[];
     }
   }
   return [];
@@ -182,20 +192,28 @@ export const MarkReportViewed = createAsyncThunk<
   // sub-tables update their per-row NEW badges without a re-fetch.
   // We dispatch via the slice export below; use a lazy import via getState
   // dispatch pattern to avoid circular refs at module-init time.
-  thunkAPI.dispatch({ type: 'simulationReports/clearLocalReportIsNew', payload: reportId });
+  thunkAPI.dispatch({
+    type: 'simulationReports/clearLocalReportIsNew',
+    payload: reportId,
+  });
 
   // Best-effort API call for each ID — failures are non-fatal.
   // Only send the PATCH when the ID is a valid UUID (the backend endpoint
   // requires a UUID primary key). Legacy IDs like "report-{timestamp}" are
   // skipped so we avoid a guaranteed 400; the local state is already updated
   // above and survives a page reload via localStorage.
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const ids = Array.isArray(reportId) ? reportId : [reportId];
   const uuidIds = ids.filter((id) => UUID_RE.test(id.trim()));
   if (uuidIds.length > 0) {
     await Promise.allSettled(
-      uuidIds.map((id) => api.patch(`${config.MarkReportViewedAPI}/${id}/viewed`)),
+      uuidIds.map((id) =>
+        api.patch(`${config.MarkReportViewedAPI}/${id}/viewed`)
+      )
     );
+    // The reports list caches viewedAt; refetch it so it doesn't show the report as unread.
+    thunkAPI.dispatch(reportsApi.util.invalidateTags(['Reports']));
   }
 });
 
@@ -219,7 +237,9 @@ export const GetStudentSimulationReports = createAsyncThunk<
       };
     };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || 'Failed to fetch student simulation reports',
+      message:
+        error.response?.data?.message ||
+        'Failed to fetch student simulation reports',
     });
   }
 });
@@ -242,7 +262,9 @@ export const GetClassSimulationReports = createAsyncThunk<
     // sub-table after already having viewed all its reports.
     const currentState = thunkAPI.getState();
     const viewedReportIds = currentState.GetClass.viewedReportIds;
-    const unreadCount = reports.filter((r) => !viewedReportIds.includes(r.id)).length;
+    const unreadCount = reports.filter(
+      (r) => !viewedReportIds.includes(r.id)
+    ).length;
 
     // Only update the attention state from the API if the locally-tracked
     // unread count is HIGHER than what we just computed. This prevents a
@@ -259,7 +281,7 @@ export const GetClassSimulationReports = createAsyncThunk<
         classId,
         needsAttention: finalUnread > 0,
         unreadCount: finalUnread,
-      }),
+      })
     );
 
     return res.data;
@@ -267,7 +289,9 @@ export const GetClassSimulationReports = createAsyncThunk<
     const error = err as { response?: { data?: { message?: string } } };
 
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || 'Failed to fetch class simulation reports',
+      message:
+        error.response?.data?.message ||
+        'Failed to fetch class simulation reports',
     });
   }
 });
@@ -287,14 +311,16 @@ export const FetchClassReportCount = createAsyncThunk<
     // Compute the actual unread count by cross-referencing with viewedReportIds.
     const currentState = thunkAPI.getState();
     const viewedReportIds = currentState.GetClass.viewedReportIds;
-    const unreadCount = reports.filter((r) => !viewedReportIds.includes(r.id)).length;
+    const unreadCount = reports.filter(
+      (r) => !viewedReportIds.includes(r.id)
+    ).length;
 
     thunkAPI.dispatch(
       setClassNeedsAttention({
         classId,
         needsAttention: unreadCount > 0,
         unreadCount,
-      }),
+      })
     );
   } catch {
     // best-effort — count failures are non-fatal
@@ -322,16 +348,28 @@ const simulationReportsSlice = createSlice({
      * so that NEW badges disappear immediately when a report is viewed, without
      * waiting for a re-fetch. Accepts a single ID or an array.
      */
-    clearLocalReportIsNew(
-      state,
-      action: { payload: string | string[] },
-    ) {
-      const ids = Array.isArray(action.payload) ? action.payload : [action.payload];
+    clearLocalReportIsNew(state, action: { payload: string | string[] }) {
+      const ids = Array.isArray(action.payload)
+        ? action.payload
+        : [action.payload];
       for (const report of state.studentReports) {
         if (ids.includes(report.id)) report.isNew = false;
       }
       for (const report of state.classReports) {
         if (ids.includes(report.id)) report.isNew = false;
+      }
+    },
+
+    /** Reverse of clearLocalReportIsNew, for bulk "mark unreviewed". */
+    setLocalReportIsNew(state, action: { payload: string | string[] }) {
+      const ids = Array.isArray(action.payload)
+        ? action.payload
+        : [action.payload];
+      for (const report of state.studentReports) {
+        if (ids.includes(report.id)) report.isNew = true;
+      }
+      for (const report of state.classReports) {
+        if (ids.includes(report.id)) report.isNew = true;
       }
     },
 
@@ -388,40 +426,72 @@ const simulationReportsSlice = createSlice({
   },
 });
 
-export const { resetStudentReports, resetClassReports, clearLocalReportIsNew, resetSync, resetSingleReport, resetSimulationReports } = simulationReportsSlice.actions;
+export const {
+  resetStudentReports,
+  resetClassReports,
+  clearLocalReportIsNew,
+  setLocalReportIsNew,
+  resetSync,
+  resetSingleReport,
+  resetSimulationReports,
+} = simulationReportsSlice.actions;
 
 export default simulationReportsSlice.reducer;
 
 const selectSimReports = (state: RootState) => state.simsCompletedReports;
 
-export const selectStudentReports = createSelector(selectSimReports, (s) => s.studentReports);
+export const selectStudentReports = createSelector(
+  selectSimReports,
+  (s) => s.studentReports
+);
 
 export const selectStudentReportsStatus = createSelector(
   selectSimReports,
-  (s) => s.studentReportsStatus,
+  (s) => s.studentReportsStatus
 );
 
-export const selectClassReports = createSelector(selectSimReports, (s) => s.classReports);
+export const selectClassReports = createSelector(
+  selectSimReports,
+  (s) => s.classReports
+);
 
 export const selectClassReportsStatus = createSelector(
   selectSimReports,
-  (s) => s.classReportsStatus,
+  (s) => s.classReportsStatus
 );
 
-export const selectClassReportsError = createSelector(selectSimReports, (s) => s.classReportsError);
+export const selectClassReportsError = createSelector(
+  selectSimReports,
+  (s) => s.classReportsError
+);
 
 export const selectSyncedSimsCompleted = createSelector(
   selectSimReports,
-  (s) => s.syncedSimsCompleted,
+  (s) => s.syncedSimsCompleted
 );
 
-export const selectSingleReport = createSelector(selectSimReports, (s) => s.singleReport);
+export const selectSingleReport = createSelector(
+  selectSimReports,
+  (s) => s.singleReport
+);
 export const selectSingleReportStatus = createSelector(
   selectSimReports,
-  (s) => s.singleReportStatus,
+  (s) => s.singleReportStatus
 );
-export const selectSingleReportError = createSelector(selectSimReports, (s) => s.singleReportError);
+export const selectSingleReportError = createSelector(
+  selectSimReports,
+  (s) => s.singleReportError
+);
 
-export const selectSimulationReports = createSelector(selectSimReports, (s) => s.simulationReports);
-export const selectSimulationReportsStatus = createSelector(selectSimReports, (s) => s.simulationReportsStatus);
-export const selectSimulationReportsError = createSelector(selectSimReports, (s) => s.simulationReportsError);
+export const selectSimulationReports = createSelector(
+  selectSimReports,
+  (s) => s.simulationReports
+);
+export const selectSimulationReportsStatus = createSelector(
+  selectSimReports,
+  (s) => s.simulationReportsStatus
+);
+export const selectSimulationReportsError = createSelector(
+  selectSimReports,
+  (s) => s.simulationReportsError
+);

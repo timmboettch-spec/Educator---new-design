@@ -2,40 +2,45 @@ import {
   Controller,
   Post,
   Body,
-  UseGuards,
   Req,
-  Get,
-  Param,
-  ParseUUIDPipe,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
-import { Invite, InviteStatus } from './entity/invite.entity';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
+
+import { ApiTags, ApiBearerAuth, ApiOkResponse, ApiOperation } from '@nestjs/swagger';
+import { ResponseResult } from 'src/common/class/response.class';
+import { EmptyDataDto } from 'src/common/dtos/api-response.dto';
 import { InvitesService } from './invites.service';
-import {
-  CreateInviteDto,
-  VerifyInviteDto,
-  InviteCreateResponse,
-  InviteDetails,
-} from './dto/invites.dto';
-import type { JwtRequest, ServiceResponse } from '../common/types';
+import { InviteTokenService } from './invite-token.service';
+import { CreateInviteDto, InviteCreateResponse } from './dto/invites.dto';
+import { AcceptInviteReqDto, AcceptInviteResponseDto } from './dto/accept-invite.dto';
+import { VerifyInviteTokenReqDto } from './dto/verify-invite-token.dto';
+import type { JwtRequest } from '../common/types';
 import { InvitesConstants } from './invites.constants';
+import { ROLE_REPOSITORY } from 'src/database/tokens';
+import { RoleRepository } from 'src/database/repositories';
+import { RoleSlug } from 'src/common/constants';
+import { Public } from 'src/common/decorators/public.decorator';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
 
 @ApiTags(InvitesConstants.SWAGGER.TAG)
 @Controller(InvitesConstants.ROUTES.BASE)
 export class InvitesController {
-  constructor(private readonly invitesService: InvitesService) {}
+  constructor(
+    private readonly invitesService: InvitesService,
+    private readonly inviteTokenService: InviteTokenService,
+    @Inject(ROLE_REPOSITORY)
+    private readonly roleRepository: RoleRepository) { }
 
   @Post(InvitesConstants.ROUTES.CREATE)
-  @UseGuards(AuthGuard('jwt'))
+  @RequiredRoles(RoleSlug.DISTRICT_ADMIN)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: InvitesConstants.SWAGGER.SUMMARY_CREATE })
   async createInvite(
     @Body() dto: CreateInviteDto,
     @Req() req: JwtRequest,
-  ): Promise<ServiceResponse<InviteCreateResponse>> {
+  ): Promise<ResponseResult<InviteCreateResponse>> {
     const creatorId = req.user?.userId;
 
     const creator = await this.invitesService.findCreatorById(creatorId);
@@ -58,44 +63,28 @@ export class InvitesController {
       if (existingInvite) throw new BadRequestException(InvitesConstants.MESSAGES.INVITE_EXISTS);
     }
 
-    const educatorRole = await this.invitesService.findRoleByName('Educator');
+    const educatorRole = await this.roleRepository.findBySlug(RoleSlug.EDUCATOR);
+    if (!educatorRole) {
+      throw new BadRequestException(InvitesConstants.MESSAGES.ROLE_NOT_FOUND);
+    }
 
     return this.invitesService.createInvite(dto, creator, school, educatorRole, existingEducator);
   }
 
-  @Post(InvitesConstants.ROUTES.VERIFY)
-  @ApiOperation({ summary: InvitesConstants.SWAGGER.SUMMARY_VERIFY })
-  async verifyInvite(@Body() dto: VerifyInviteDto): Promise<ServiceResponse<Invite>> {
-    const invite = await this.invitesService.findInviteById(dto.invite_id);
-    if (!invite) throw new BadRequestException(InvitesConstants.MESSAGES.INVALID_OR_EXPIRED);
-
-    if (invite.status === InviteStatus.ACCEPTED)
-      throw new BadRequestException(InvitesConstants.MESSAGES.INVITE_ALREADY_USED);
-
-    if (invite.status === InviteStatus.EXPIRED)
-      throw new BadRequestException(InvitesConstants.MESSAGES.INVITE_EXPIRED);
-    if (!invite.expires_at || new Date() > new Date(invite.expires_at))
-      throw new BadRequestException(InvitesConstants.MESSAGES.INVITE_EXPIRED);
-
-    return this.invitesService.verifyInvite(invite);
+  @Public()
+  @Post(InvitesConstants.ROUTES.VERIFY_TOKEN)
+  @ApiOperation({ summary: InvitesConstants.SWAGGER.SUMMARY_VERIFY_TOKEN })
+  async verifyInviteToken(
+    @Body() dto: VerifyInviteTokenReqDto,
+  ) {
+    const invite = await this.inviteTokenService.resolve(dto.token);
+    return this.invitesService.getInviteDetails(invite);
   }
 
-  @Get(InvitesConstants.ROUTES.GET_DETAILS)
-  @ApiOperation({ summary: 'Get email and full_name by invite ID' })
-  async getInviteDetails(
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ): Promise<ServiceResponse<InviteDetails>> {
-    const invite = await this.invitesService.findInviteById(id);
-    if (!invite) throw new BadRequestException(InvitesConstants.MESSAGES.INVALID_OR_EXPIRED);
-
-    if (invite.status !== InviteStatus.PENDING) {
-      throw new BadRequestException(InvitesConstants.MESSAGES.INVITE_ALREADY_USED);
-    }
-
-    if (!invite.expires_at || new Date() > new Date(invite.expires_at)) {
-      throw new BadRequestException(InvitesConstants.MESSAGES.INVITE_EXPIRED);
-    }
-
-    return this.invitesService.getInviteDetails(invite);
+  @Public()
+  @Post(InvitesConstants.ROUTES.ACCEPT_INVITE)
+  @ApiOkResponse({ type: AcceptInviteResponseDto })
+  async acceptInvite(@Body() dto: AcceptInviteReqDto): Promise<ResponseResult<EmptyDataDto>> {
+    return this.invitesService.acceptInvite(dto);
   }
 }

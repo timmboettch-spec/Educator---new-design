@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 
 import type { RootState } from '../../store';
@@ -6,17 +10,16 @@ import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 
 export interface ResendOTPPayload {
-  reset_token: string;
+  email: string;
 }
 
-export interface ResendOTPResponse {
-  reset_token: string;
-}
+/** The endpoint now always responds with an empty `data`. */
+export type ResendOTPResponse = Record<string, unknown>;
 
 export interface ResponseResendOTP {
   data: ResendOTPResponse;
   message: string;
-  status: string;
+  status?: string;
 }
 
 export interface ResendOTPState {
@@ -26,7 +29,9 @@ export interface ResendOTPState {
   rememberedEmail: string;
 }
 const savedEmail =
-  typeof window !== 'undefined' ? localStorage.getItem('remembered_email') || '' : '';
+  typeof window !== 'undefined'
+    ? localStorage.getItem('remembered_email') || ''
+    : '';
 
 const initialState: ResendOTPState = {
   responseResendOTP: null,
@@ -87,11 +92,12 @@ export default ResendOTPSlice.reducer;
 
 const selectState = (state: RootState) => state.ResendOTP;
 
-export const selectResendOTPResponse = createSelector(
+export const selectResendOTPStatus = createSelector(
   selectState,
-  (state) => state.responseResendOTP,
+  (state) => state.status
 );
 
-export const selectResendOTPStatus = createSelector(selectState, (state) => state.status);
-
-export const selectResendOTPError = createSelector(selectState, (state) => state.error);
+export const selectResendOTPError = createSelector(
+  selectState,
+  (state) => state.error
+);

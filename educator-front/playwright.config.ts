@@ -13,7 +13,7 @@ export default defineConfig({
   // (post-login redirect) before that cold start finished, even though the
   // login itself succeeded.
   expect: {
-    timeout: 30000
+    timeout: 30000,
   },
 
   fullyParallel: false,
@@ -23,17 +23,20 @@ export default defineConfig({
     headless: true,
     screenshot: 'on',
     video: 'on',
-    trace: 'on-first-retry'
+    trace: 'on-first-retry',
   },
 
   outputDir: './tests/e2e/test-results',
 
   reporter: [
     ['list'],
-    ['./tests/e2e/reporters/friendly-html-reporter.cjs', {
-      outputFolder: './tests/e2e/results/reports/html',
-      pageTitle: 'UI Smoke Test Report',
-      projectName: 'Educator App — Frontend E2E',
-    }]
-  ]
+    [
+      './tests/e2e/reporters/friendly-html-reporter.cjs',
+      {
+        outputFolder: './tests/e2e/results/reports/html',
+        pageTitle: 'UI Smoke Test Report',
+        projectName: 'Educator App — Frontend E2E',
+      },
+    ],
+  ],
 });

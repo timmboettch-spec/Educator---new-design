@@ -14,7 +14,8 @@ interface RemoveProfilePictureState {
 
 export const removeProfilePictureRequest = createAsyncThunk<
   RemoveProfilePictureResponse,
-  void,
+  // `silent` keeps the full-page loader off (see loaderMiddleware).
+  { silent?: boolean } | void,
   { rejectValue: string }
 >('profile/removePicture', async (_, { rejectWithValue }) => {
   try {

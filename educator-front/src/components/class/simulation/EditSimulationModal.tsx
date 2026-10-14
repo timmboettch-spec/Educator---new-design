@@ -1,328 +1,163 @@
-import { AlertCircle, Calendar, Loader2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import dayjs from "dayjs";
-import loginEn from "../../../locales/auth/login/en.json";
-import loginEs from "../../../locales/auth/login/es.json";
-import { toast } from "../../common/Toast";
+import { AlertCircle } from 'lucide-react';
+import { useState } from 'react';
+import { useFormik } from 'formik';
+import { useTranslation } from 'react-i18next';
+import { toast } from '../../common/Toast';
+import { FormModal } from '../../modal/FormModal';
+import { getApiErrorMessage } from '../../../redux/api/classes/classesService';
+import { useDateRangeFields } from '../../../hooks/useDateRangeFields';
+import { useUpdateClassSimulationMutation } from '../../../redux/api/classSimulations/classSimulationsApi';
 import {
-  clearUpdateSimulationState,
-  selectUpdateSimError,
-  selectUpdateSimLoading,
-  selectUpdateSimSuccess,
-  selectUpdateSimResponse,
-  updateSimulationRequest,
-} from "../../../redux/class/UpdateSimRedux";
-import { useAppDispatch, useAppSelector } from "../../../store/hooks";
-import type { SimulationItem } from "../../../types/index";
-import Modal from "../../ui/Modal";
-import Input from "../../ui/Input";
-import { Button } from "../../ui/Button";
-import { getDerivedCategory } from "../../../utils/simulationType";
+  getEditSimulationSchema,
+  type EditSimulationFormValues,
+} from '../../../schemas/editSimulation.schema';
+import type { SimulationItem } from '../../../types/index';
+import { DatePickerField } from '../../ui/DatePickerField';
+import Input from '../../ui/Input';
+import { getDerivedCategory } from '../../../utils/simulationType';
 
-interface Props {
+interface EditSimulationModalProps {
   sim: SimulationItem;
-  classId: string;
-  className?: string;
   onClose: () => void;
 }
 
+const DATE_FIELD_NAMES = ['startDate', 'dueDate', 'closeDate'] as const;
+
 const toInputDate = (date: string): string => {
-  if (!date) return "";
-  const parts = date.split("-");
-  if (parts.length !== 3) return "";
-  if (parts[0].length === 4) return date;
+  if (!date) return '';
+  const parts = date.split('-');
+  if (parts.length !== 3) return '';
+  if (parts[0]?.length === 4) return date;
   return `${parts[2]}-${parts[0]}-${parts[1]}`;
 };
 
-export default function EditSimulationModal({ sim, onClose }: Props) {
-  const dispatch = useAppDispatch();
-  const t = (
-    localStorage.getItem("app_language")?.toLowerCase() === "es"
-      ? loginEs
-      : loginEn
-  ).editSimModal;
-  const isLoading = useAppSelector(selectUpdateSimLoading);
-  const isSuccess = useAppSelector(selectUpdateSimSuccess);
-  const apiError = useAppSelector(selectUpdateSimError);
-  const apiResponse = useAppSelector(selectUpdateSimResponse);
-  const originalStart = toInputDate(sim.start_date);
-  const originalEnd = toInputDate(sim.end_date);
-  const [startDate, setStartDate] = useState(originalStart);
-  const [dueDate, setDueDate] = useState(toInputDate(sim.due_date));
-  const [closeDate, setCloseDate] = useState(originalEnd);
+/** Edits an assignment's start, due and close dates. */
+export function EditSimulationModal({
+  sim,
+  onClose,
+}: EditSimulationModalProps) {
+  const { t } = useTranslation('classManagement');
+  const [updateClassSimulation] = useUpdateClassSimulationMutation();
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setStartDate(toInputDate(sim.start_date));
-    setDueDate(toInputDate(sim.due_date));
-    setCloseDate(toInputDate(sim.end_date));
-  }, [sim.id]);
-
-  const startPickerRef = useRef<HTMLInputElement>(null);
-  const duePickerRef = useRef<HTMLInputElement>(null);
-  const closePickerRef = useRef<HTMLInputElement>(null);
-
-  const toApiDate = (date: string): string => {
-    if (!date) return "";
-    const [year, month, day] = date.split("-");
-    return `${month}-${day}-${year}`;
+  const initialValues: EditSimulationFormValues = {
+    startDate: toInputDate(sim.start_date),
+    dueDate: toInputDate(sim.due_date),
+    closeDate: toInputDate(sim.end_date),
   };
+  const originalStart = initialValues.startDate;
+  const originalClose = initialValues.closeDate;
 
-  useEffect(() => {
-    if (isSuccess) {
-      toast.success(apiResponse?.message ?? t.successUpdate);
-      setTimeout(async () => {
-        await dispatch(clearUpdateSimulationState());
+  const formik = useFormik<EditSimulationFormValues>({
+    enableReinitialize: true,
+    initialValues,
+    validationSchema: getEditSimulationSchema({
+      t,
+      originalStart,
+      originalClose,
+    }),
+    onSubmit: async (values) => {
+      const hasChanges = DATE_FIELD_NAMES.some(
+        (name) => values[name] !== initialValues[name]
+      );
+      if (!hasChanges) {
+        toast.error(t('editSimModal.noChanges'));
+        return;
+      }
+      setApiError(null);
+      try {
+        await updateClassSimulation({
+          id: sim.id,
+          body: {
+            startDate: values.startDate,
+            dueDate: values.dueDate,
+            endDate: values.closeDate,
+          },
+        }).unwrap();
+        toast.success(t('editSimModal.successUpdate'));
         onClose();
-      }, 2000);
-    }
-  }, [isSuccess, apiResponse, dispatch, onClose]);
-
-  useEffect(() => {
-    return () => {
-      (async () => {
-        await dispatch(clearUpdateSimulationState());
-      })();
-    };
-  }, [dispatch]);
-
-  const hasChanges =
-    startDate !== originalStart ||
-    dueDate !== toInputDate(sim.due_date) ||
-    closeDate !== originalEnd;
-
-  const handleSave = async () => {
-    if (!hasChanges) {
-      toast.error(t.noChanges);
-      return;
-    }
-    await dispatch(
-      updateSimulationRequest({
-        simId: sim.id,
-        start_date: toApiDate(startDate),
-        due_date: toApiDate(dueDate),
-        end_date: toApiDate(closeDate),
-      }),
-    );
-  };
-
-  const handleSaveRef = useRef(handleSave);
-  useEffect(() => {
-    handleSaveRef.current = handleSave;
+      } catch (error) {
+        setApiError(
+          getApiErrorMessage(error, t('editSimModal.errUpdateFailed'))
+        );
+      }
+    },
   });
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !isLoading) {
-        e.preventDefault();
-        void handleSaveRef.current();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isLoading]);
+  const { values, isSubmitting } = formik;
+
+  const handleClose = () => {
+    formik.resetForm();
+    setApiError(null);
+    onClose();
+  };
+
+  const { dateFieldProps } = useDateRangeFields(formik, DATE_FIELD_NAMES);
 
   return (
-    <>
-      <Modal
-        isOpen={true}
-        onClose={() => {
-          if (!isLoading) onClose();
-        }}
-        title={t.title}
-        footer={
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                if (!isLoading) onClose();
-              }}
-              disabled={isLoading}
-              className="w-full h-11 rounded-full"
-            >
-              {t.back}
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              className="w-full h-11 rounded-full bg-primary-500 text-white disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" /> {t.saving}
-                </>
-              ) : (
-                t.saveChanges
-              )}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-5">
-          {apiError && (
-            <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
-              <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
-              <p className="text-sm text-red-600">{apiError}</p>
-            </div>
-          )}
-
-          <Input
-            label={t.fieldSimName}
-            value={sim.simulation_title}
-            readOnly
-            inputClassName="bg-gray-50 text-gray-600 cursor-not-allowed"
-          />
-
-          <Input
-            label={t.fieldUnit}
-            value={sim.unit_name ?? sim.unit ?? sim.simulation_lib_name ?? ""}
-            readOnly
-            inputClassName="bg-gray-50 text-gray-600 cursor-not-allowed"
-          />
-
-          <Input
-            label={t.fieldProductCategory}
-            value={
-              getDerivedCategory(
-                (sim as unknown as Record<string, unknown>)?.avatarEnabled as
-                | boolean
-                | undefined,
-              ) || ""
-            }
-            readOnly
-            inputClassName="bg-gray-50 text-gray-600 cursor-not-allowed"
-          />
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <p className="text-xs text-gray-500 font-medium mb-1">
-                {t.fieldStartDate} <span className="text-red-500">*</span>
-              </p>
-              <div className="relative">
-                <Input
-                  placeholder="MM-DD-YYYY"
-                  value={startDate ? dayjs(startDate).format("MM-DD-YYYY") : ""}
-                  onClick={() =>
-                    !isLoading && startPickerRef.current?.showPicker?.()
-                  }
-                  inputClassName={`pr-8 ${isLoading ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "cursor-pointer"}`}
-                />
-                <Calendar
-                  size={14}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-                />
-              </div>
-              <Input
-                ref={startPickerRef}
-                type="date"
-                value={startDate}
-                min={originalStart || undefined}
-                max={originalEnd || undefined}
-                disabled={isLoading}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  setStartDate(newVal);
-                  if (closeDate && newVal && newVal > closeDate) {
-                    setCloseDate("");
-                    setDueDate("");
-                  } else if (dueDate && newVal && newVal > dueDate) {
-                    setDueDate("");
-                  }
-                }}
-                className="sr-only"
-              />
-              {!startDate && (
-                <p className="text-[10px] text-red-500 mt-0.5">
-                  {t.errStartRequired}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 font-medium mb-1">
-                {t.fieldDueDate} <span className="text-red-500">*</span>
-              </p>
-              <div className="relative">
-                <Input
-                  placeholder="MM-DD-YYYY"
-                  value={dueDate ? dayjs(dueDate).format("MM-DD-YYYY") : ""}
-                  readOnly
-                  onClick={() =>
-                    !isLoading && duePickerRef.current?.showPicker?.()
-                  }
-                  inputClassName={`pr-8 ${isLoading ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "cursor-pointer"}`}
-                />
-                <Calendar
-                  size={14}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-                />
-              </div>
-              <Input
-                ref={duePickerRef}
-                type="date"
-                value={dueDate}
-                min={startDate || originalStart || undefined}
-                max={closeDate || originalEnd || undefined}
-                disabled={isLoading}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  setDueDate(newVal);
-                  if (closeDate && newVal && newVal > closeDate) {
-                    setCloseDate("");
-                  }
-                }}
-                className="sr-only"
-              />
-              {!dueDate && (
-                <p className="text-[10px] text-red-500 mt-0.5">
-                  {t.errDueRequired}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs text-gray-500 font-medium mb-1">
-                {t.fieldCloseDate} <span className="text-red-500">*</span>
-              </p>
-              <div className="relative">
-                <Input
-                  placeholder="MM-DD-YYYY"
-                  value={closeDate ? dayjs(closeDate).format("MM-DD-YYYY") : ""}
-                  onClick={() =>
-                    !isLoading && closePickerRef.current?.showPicker?.()
-                  }
-                  inputClassName={`pr-8 ${isLoading ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "cursor-pointer"}`}
-                />
-                <Calendar
-                  size={14}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
-                />
-              </div>
-              <Input
-                ref={closePickerRef}
-                type="date"
-                value={closeDate}
-                min={dueDate || startDate || originalStart || undefined}
-                max={originalEnd || undefined}
-                disabled={isLoading}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  setCloseDate(newVal);
-                  if (dueDate && newVal && dueDate > newVal) {
-                    setDueDate("");
-                  }
-                }}
-                className="sr-only"
-              />
-              {!closeDate && (
-                <p className="text-[10px] text-red-500 mt-0.5">
-                  {t.errCloseRequired}
-                </p>
-              )}
-            </div>
-          </div>
+    <FormModal
+      isOpen
+      onClose={handleClose}
+      title={t('editSimModal.title')}
+      formId="edit-simulation-form"
+      onSubmit={formik.handleSubmit}
+      submitText={t('editSimModal.saveChanges')}
+      submittingText={t('editSimModal.saving')}
+      cancelText={t('editSimModal.back')}
+      isSubmitting={isSubmitting}
+      submitTone="primary"
+    >
+      {apiError && (
+        <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
+          <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+          <p className="text-sm text-red-600">{apiError}</p>
         </div>
-      </Modal>
-    </>
+      )}
+
+      <Input
+        label={t('editSimModal.fieldSimName')}
+        value={sim.simulation_title}
+        readOnly
+        inputClassName="bg-gray-50 text-gray-600 cursor-not-allowed"
+      />
+
+      <Input
+        label={t('editSimModal.fieldUnit')}
+        value={sim.unit_name ?? sim.unit ?? sim.simulation_lib_name ?? ''}
+        readOnly
+        inputClassName="bg-gray-50 text-gray-600 cursor-not-allowed"
+      />
+
+      <Input
+        label={t('editSimModal.fieldProductCategory')}
+        value={getDerivedCategory(sim.avatarEnabled) || ''}
+        readOnly
+        inputClassName="bg-gray-50 text-gray-600 cursor-not-allowed"
+      />
+
+      <div className="grid grid-cols-3 gap-3">
+        <DatePickerField
+          {...dateFieldProps('startDate')}
+          label={t('editSimModal.fieldStartDate')}
+          min={originalStart}
+          max={originalClose}
+          disabled={isSubmitting}
+        />
+        <DatePickerField
+          {...dateFieldProps('dueDate')}
+          label={t('editSimModal.fieldDueDate')}
+          min={values.startDate || originalStart}
+          max={values.closeDate || originalClose}
+          disabled={isSubmitting}
+        />
+        <DatePickerField
+          {...dateFieldProps('closeDate')}
+          label={t('editSimModal.fieldCloseDate')}
+          min={values.dueDate || values.startDate || originalStart}
+          max={originalClose}
+          disabled={isSubmitting}
+        />
+      </div>
+    </FormModal>
   );
 }

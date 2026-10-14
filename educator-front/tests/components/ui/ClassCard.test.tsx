@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import '../../../src/i18n';
 import ClassCard from '../../../src/components/ui/ClassCard';
 vi.mock('/assets/dashboard/student.svg', () => ({ default: 'student.svg' }));
 vi.mock('/assets/dashboard/sims.svg', () => ({ default: 'sims.svg' }));
@@ -24,7 +25,7 @@ const renderCard = (props = {}) =>
         newReports={0}
         {...props}
       />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 
 describe('ClassCard', () => {
@@ -131,5 +132,52 @@ describe('ClassCard', () => {
     const { container } = renderCard({ classId: 'class-1', activeStudents: 5 });
     const dots = container.querySelectorAll('.bg-green-400');
     expect(dots.length).toBe(0);
+  });
+  it('shows the LMS pill and names the course on hover for a linked class', () => {
+    renderCard({
+      title: 'Math 101',
+      lmsLinkage: {
+        provider: 'canvas',
+        courseId: 'course-9',
+        courseName: 'Intro to Nursing',
+      },
+    });
+
+    const pill = screen.getByText('Canvas');
+    expect(pill).toHaveClass('bg-gray-50');
+    expect(pill).toHaveAttribute(
+      'aria-label',
+      'Linked to Canvas course “Intro to Nursing”'
+    );
+
+    fireEvent.mouseEnter(pill);
+    expect(screen.getByRole('tooltip')).toHaveTextContent(
+      'Linked to Canvas course “Intro to Nursing”'
+    );
+  });
+
+  it('falls back to the class name when the integration reports no course name', () => {
+    renderCard({
+      title: 'Math 101',
+      lmsLinkage: {
+        provider: 'google_classroom',
+        courseId: 'gc-1',
+        courseName: null,
+      },
+    });
+
+    const pill = screen.getByText('Google');
+    expect(pill).toHaveClass('bg-gray-50');
+    expect(pill).toHaveAttribute(
+      'aria-label',
+      'Linked to Google course “Math 101”'
+    );
+  });
+
+  it('shows no LMS pill for a manual class', () => {
+    renderCard({ title: 'Math 101' });
+
+    expect(screen.queryByText('Canvas')).not.toBeInTheDocument();
+    expect(screen.queryByText('Google Classroom')).not.toBeInTheDocument();
   });
 });

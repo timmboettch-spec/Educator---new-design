@@ -101,11 +101,12 @@ VITE_API_URL=http://localhost:3000
 ### 3. Azure Static Web Apps
 
 **Resource Names**:
-| Environment | SWA Name | Custom Domain |
-|-------------|----------|---------------|
-| Dev | `swa-dev1-rwai-edufront` | `dev.educator.realityworksai.com` |
-| QA | `swa-qa1-rwai-edufront` | `qa.educator.realityworksai.com` |
-| Prod | `swa-prod1-rwai-edufront` | `educator.realityworksai.com` |
+
+| Environment | SWA Name                  | Custom Domain                     |
+| ----------- | ------------------------- | --------------------------------- |
+| Dev         | `swa-dev1-rwai-edufront`  | `dev.educator.realityworksai.com` |
+| QA          | `swa-qa1-rwai-edufront`   | `qa.educator.realityworksai.com`  |
+| Prod        | `swa-prod1-rwai-edufront` | `educator.realityworksai.com`     |
 
 **SWA Configuration** (`public/staticwebapp.config.json`):
 
@@ -185,8 +186,8 @@ push → lint → build → deploy
 
 **Deployment Tokens** (per-environment GitHub secrets):
 
-| Secret                                 | SWA                     |
-| -------------------------------------- | ----------------------- |
+| Secret                                 | SWA                       |
+| -------------------------------------- | ------------------------- |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN_DEV`  | `swa-dev1-rwai-edufront`  |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN_QA`   | `swa-qa1-rwai-edufront`   |
 | `AZURE_STATIC_WEB_APPS_API_TOKEN_PROD` | `swa-prod1-rwai-edufront` |
@@ -263,14 +264,14 @@ The Educator App is part of the larger **Realityworks AI Healthcare Simulation P
 
 ### Related Repositories
 
-| Repository | Purpose | Integration Point |
-|------------|---------|-------------------|
-| [HS-online-AI-app](https://github.com/Realityworks-AI/HS-online-AI-app) | Healthcare simulation (student-facing) | Writes `reports.json` to shared blob; reads `EDUCATOR_BASE_URL` for API calls |
-| [Educator-App-Backend](https://github.com/Realityworks-AI/Educator-App-Backend) | Educator REST API | Direct API calls from this frontend |
-| [SARI-Web](https://github.com/Realityworks-AI/SARI-Web) | Real-time speech AI server | Used by HS-online-AI-app (not direct) |
-| [Whisper-En](https://github.com/Realityworks-AI/Whisper-En) | Speech-to-text service | Used by SARI-Web (not direct) |
-| [Gen-LLM](https://github.com/Realityworks-AI/Gen-LLM) | vLLM inference server | Used by SARI-Web (not direct) |
-| [Realityworks-Avatar](https://github.com/Realityworks-AI/Realityworks-Avatar) | 3D patient avatar | Used by HS-online-AI-app (not direct) |
+| Repository                                                                      | Purpose                                | Integration Point                                                             |
+| ------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------- |
+| [HS-online-AI-app](https://github.com/Realityworks-AI/HS-online-AI-app)         | Healthcare simulation (student-facing) | Writes `reports.json` to shared blob; reads `EDUCATOR_BASE_URL` for API calls |
+| [Educator-App-Backend](https://github.com/Realityworks-AI/Educator-App-Backend) | Educator REST API                      | Direct API calls from this frontend                                           |
+| [SARI-Web](https://github.com/Realityworks-AI/SARI-Web)                         | Real-time speech AI server             | Used by HS-online-AI-app (not direct)                                         |
+| [Whisper-En](https://github.com/Realityworks-AI/Whisper-En)                     | Speech-to-text service                 | Used by SARI-Web (not direct)                                                 |
+| [Gen-LLM](https://github.com/Realityworks-AI/Gen-LLM)                           | vLLM inference server                  | Used by SARI-Web (not direct)                                                 |
+| [Realityworks-Avatar](https://github.com/Realityworks-AI/Realityworks-Avatar)   | 3D patient avatar                      | Used by HS-online-AI-app (not direct)                                         |
 
 ### Data Flow
 
@@ -281,12 +282,12 @@ The Educator App is part of the larger **Realityworks AI Healthcare Simulation P
 
 ### Shared Infrastructure
 
-| Resource | Pattern | Example |
-|----------|---------|---------|
-| Resource Group | `ARG-{env}1-rwai` | `ARG-dev1-rwai` |
-| Key Vault | `akv{env}1rwai` | `akvdev1rwai` |
-| Storage Account | `asa{env}rwai` | `asadevrwai` |
-| Blob Container | `json-data` | Shared across HS-online-AI-app and Educator |
+| Resource        | Pattern           | Example                                     |
+| --------------- | ----------------- | ------------------------------------------- |
+| Resource Group  | `ARG-{env}1-rwai` | `ARG-dev1-rwai`                             |
+| Key Vault       | `akv{env}1rwai`   | `akvdev1rwai`                               |
+| Storage Account | `asa{env}rwai`    | `asadevrwai`                                |
+| Blob Container  | `json-data`       | Shared across HS-online-AI-app and Educator |
 
 **Note**: The Educator App uses a **separate** database (`apg-{env}-edu`) but **shares** blob storage with HS-online-AI-app for simulation content and reports.
 

@@ -38,7 +38,11 @@ vi.mock('../../../src/components/ui/Button', () => ({
     disabled?: boolean;
     type?: 'button' | 'submit' | 'reset';
   }) => (
-    <button type={type || 'button'} onClick={onClick} disabled={loading || disabled}>
+    <button
+      type={type || 'button'}
+      onClick={onClick}
+      disabled={loading || disabled}
+    >
       {loading ? 'Loading...' : children}
     </button>
   ),
@@ -86,7 +90,9 @@ describe('DeleteEducatorModal', () => {
 
     expect(screen.getByTestId('modal')).toBeInTheDocument();
 
-    expect(screen.getByRole('heading', { name: /Delete Educator/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: /Delete Educator/i })
+    ).toBeInTheDocument();
   });
 
   test('renders delete title and educator name', () => {
@@ -100,13 +106,17 @@ describe('DeleteEducatorModal', () => {
   test('renders confirmation message', () => {
     render(<DeleteEducatorModal {...defaultProps} />);
 
-    expect(screen.getByText(/Are you sure you want to delete educator/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Are you sure you want to delete educator/i)
+    ).toBeInTheDocument();
   });
 
   test('renders Delete Educator and Back buttons', () => {
     render(<DeleteEducatorModal {...defaultProps} />);
 
-    expect(screen.getAllByRole('button', { name: /Delete Educator/i })[0]).toBeInTheDocument();
+    expect(
+      screen.getAllByRole('button', { name: /Delete Educator/i })[0]
+    ).toBeInTheDocument();
 
     expect(screen.getByRole('button', { name: /Back/i })).toBeInTheDocument();
   });
@@ -122,7 +132,9 @@ describe('DeleteEducatorModal', () => {
   test('calls confirmDelete when Delete Educator button is clicked', () => {
     render(<DeleteEducatorModal {...defaultProps} />);
 
-    fireEvent.click(screen.getAllByRole('button', { name: /Delete Educator/i })[0]);
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /Delete Educator/i })[0]
+    );
 
     expect(mockConfirmDelete).toHaveBeenCalledTimes(1);
   });
@@ -134,7 +146,9 @@ describe('DeleteEducatorModal', () => {
 
     const buttons = screen.getAllByRole('button');
 
-    const disabledButton = buttons.find((button) => button.hasAttribute('disabled'));
+    const disabledButton = buttons.find((button) =>
+      button.hasAttribute('disabled')
+    );
 
     expect(disabledButton).toBeDefined();
   });
@@ -142,6 +156,8 @@ describe('DeleteEducatorModal', () => {
   test('handles null selectedEducator gracefully', () => {
     render(<DeleteEducatorModal {...defaultProps} selectedEducator={null} />);
 
-    expect(screen.getByText(/Are you sure you want to delete educator/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Are you sure you want to delete educator/i)
+    ).toBeInTheDocument();
   });
 });

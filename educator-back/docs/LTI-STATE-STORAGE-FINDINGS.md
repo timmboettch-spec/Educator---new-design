@@ -110,7 +110,7 @@ effective limit than configured.
 
 ### 1a-ii. Blob/catalog caching — confirmed to have already caused production bugs
 
-`tutor-patient.service.ts` and `simulation-catalog.service.ts` cache blob
+The former blob reader service and `simulation-catalog.service.ts` cached blob
 data (scenarios, units, merged reports) via the same sidecar `RedisService`,
 with explicit invalidation (`del`, `delByPrefix`) on update. Two commits in
 history are the direct symptom of this exact per-replica problem:

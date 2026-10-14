@@ -4,7 +4,7 @@
 // Stands up a DEDICATED, ephemeral Container App per branch on the DEV infra,
 // isolated from the real dev app (aca-dev1-rwai-eduback). Reuses the exact same
 // module as app-deploy.bicep (modules/containerApp-backend.bicep) so the preview
-// inherits ALL of the app's wiring with zero drift: Redis sidecar, every env var,
+// inherits ALL of the app's wiring with zero drift: managed Redis creds, every env var,
 // KV secret refs, probes, and scale-to-zero.
 //
 // Differences from app-deploy.bicep:
@@ -43,6 +43,9 @@ param previewAppName string
 
 @description('Image tag for this preview build, e.g. prev-<slug>-<hash>-<sha7>.')
 param backendImageTag string
+
+@description('This branch\'s own preview database on the dev Postgres server (educator_p_<slug>_<hash>), created/migrated/seeded by the preview-db-check job before this deploy. Previews never use educator_dev.')
+param previewDbName string
 
 // Previews always target the DEV environment's shared infra.
 var environment = 'dev'
@@ -93,8 +96,19 @@ resource backendUai 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31
   name: backendIdentityName
 }
 
+// Previews reuse dev's ACS Communication Services resource (see
+// infra/modules/acsEmail.bicep) the same way they reuse its UAI/KV above —
+// no per-preview ACS resource, just the same endpoint dev's real app uses.
+resource acsCommunicationService 'Microsoft.Communication/communicationServices@2023-04-01' existing = {
+  name: 'acs-${environment}-${prefix}-${app}'
+}
+
 module backend 'modules/containerApp-backend.bicep' = {
-  name: 'aca-${app}-back-preview'
+  // Keyed off previewAppName (unique per branch), not the static `app` param —
+  // concurrent previews for different branches previously all resolved to the
+  // literal name "aca-edu-back-preview" and collided in ARM with
+  // "DeploymentActive" when two branches deployed at the same time.
+  name: 'aca-${previewAppName}-back-preview'
   params: {
     name: previewAppName
     location: location
@@ -111,9 +125,19 @@ module backend 'modules/containerApp-backend.bicep' = {
     customDomainCertificateId: ''
     userAssignedIdentityId: backendUai.id
     userAssignedIdentityPrincipalId: backendUai.properties.principalId
+    userAssignedIdentityClientId: backendUai.properties.clientId
+    acsEndpoint: 'https://${acsCommunicationService.properties.hostName}'
     revisionSuffix: revisionSuffix
     // Empty → module routes 100% traffic to the latest (only) revision.
     stableRevisionName: ''
+    // Pin 1 warm replica explicitly on first deploy rather than relying on
+    // dev's shared tier (resourceMap.dev.minReplicas), so previews don't
+    // silently regress if that tier ever changes. The workflow scales this
+    // back to 0 once the smoke-test job finishes, since previews are
+    // ephemeral and would otherwise sit warm (billed) until branch delete /
+    // PR close.
+    minReplicasOverride: 1
+    dbNameOverride: previewDbName
   }
 }
 

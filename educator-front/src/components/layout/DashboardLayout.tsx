@@ -1,48 +1,79 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Suspense, useEffect, useRef } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import ScrollbarIndicator from '../ui/ScrollbarIndicator';
+import ContentLoader from './ContentLoader';
 import AdminSetupTracker from '../onboarding/AdminSetupTracker';
 import EducatorSetupTracker from '../onboarding/EducatorSetupTracker';
+import { useScrollbarIndicator } from '../../hooks/useScrollbarIndicator';
+import { useRouteContentLoading } from '../../routes/RouteContentLoadingContext';
+import type { LibraryReturnNavState } from '../../hooks/useLibraryReturnState';
 
-interface DashboardLayoutProps {
-  children: ReactNode;
-}
-
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+export default function DashboardLayout() {
   const location = useLocation();
+  const contentLoading = useRouteContentLoading();
+  const mainRef = useRef<HTMLElement>(null);
+  const isFirstRender = useRef(true);
+  const { scrollContainerRef, scrollProgress, isScrolling, handleScroll } =
+    useScrollbarIndicator<HTMLElement>();
 
-  // Document-flow layout: the page (body) scrolls and grows to fit the content,
-  // so reset the window scroll on navigation.
   useEffect(() => {
-    window.scrollTo(0, 0);
-    const t = setTimeout(() => window.scrollTo(0, 0), 50);
+    const el = mainRef.current;
+    if (!el) return;
+    // The page restores its own scroll position and focus (e.g. the library
+    // after Back from a simulation's details).
+    if ((location.state as LibraryReturnNavState | null)?.preserveScroll) {
+      isFirstRender.current = false;
+      const sync = setTimeout(handleScroll, 50);
+      return () => clearTimeout(sync);
+    }
+    el.scrollTop = 0;
+    // Move focus to the content landmark on navigation (not on first mount)
+    // so keyboard/screen-reader users land on the new page instead of a stale
+    // sidebar link, now that the layout persists across route changes.
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+    } else {
+      el.focus();
+    }
+    const t = setTimeout(() => {
+      el.scrollTop = 0;
+      handleScroll();
+    }, 50);
     return () => clearTimeout(t);
-  }, [location.pathname]);
+  }, [location.pathname, handleScroll]);
 
   return (
-    <div className="grid grid-cols-layout w-full min-h-screen">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-600 focus:shadow-lg focus:ring-2 focus:ring-primary-400"
-      >
-        Skip to main content
-      </a>
+    <div className="grid grid-cols-layout h-screen w-full min-h-0 overflow-hidden">
       <Sidebar />
-      <div className="flex flex-col min-w-0">
-        {/* Top bar stays pinned while the page scrolls. */}
-        <div className="sticky top-0 z-30 bg-white">
-          <Header />
+      <div className="flex flex-col h-full min-w-0 overflow-hidden min-h-0">
+        <Header />
+        <div className="relative flex-1 min-w-0 min-h-0">
+          <main
+            ref={(el) => {
+              mainRef.current = el;
+              scrollContainerRef.current = el;
+            }}
+            onScroll={handleScroll}
+            tabIndex={-1}
+            aria-label="Page content"
+            className="h-full w-full overflow-y-auto overflow-x-hidden min-w-0 min-h-0 scrollbar-hide focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus:ring-2 focus:ring-orange-300"
+          >
+            <Suspense fallback={<ContentLoader />}>
+              <EducatorSetupTracker />
+              <AdminSetupTracker />
+              <Outlet />
+            </Suspense>
+          </main>
+          <ContentLoader visible={contentLoading} />
+          <ScrollbarIndicator
+            scrollProgress={scrollProgress}
+            isScrolling={isScrolling}
+            showArrows={false}
+            scrollContainerRef={scrollContainerRef}
+          />
         </div>
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="min-w-0 overflow-x-hidden focus:outline-none"
-        >
-          <AdminSetupTracker />
-          <EducatorSetupTracker />
-          {children}
-        </main>
       </div>
     </div>
   );

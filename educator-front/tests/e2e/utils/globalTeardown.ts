@@ -1,7 +1,9 @@
 import { sendReport } from './report/sendReport';
 
 async function globalTeardown() {
-  process.stdout.write('\n[REPORT] Playwright execution complete. Sending email report...\n');
+  process.stdout.write(
+    '\n[REPORT] Playwright execution complete. Sending email report...\n'
+  );
 
   try {
     await sendReport();

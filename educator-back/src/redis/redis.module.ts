@@ -1,9 +1,10 @@
-import { Global, Logger, Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from './redis.constants';
 import { createRedisClient } from './redis.provider';
 import { RedisService } from './redis.service';
+import { LoggerService } from '../common/services/logger.service';
 
 @Global()
 @Module({
@@ -11,12 +12,14 @@ import { RedisService } from './redis.service';
   providers: [
     {
       provide: REDIS_CLIENT,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService): Promise<Redis | null> =>
-        createRedisClient(configService, new Logger('RedisModule')),
+      inject: [ConfigService, LoggerService],
+      useFactory: (
+        configService: ConfigService,
+        loggerService: LoggerService,
+      ): Promise<Redis | null> => createRedisClient(configService, loggerService),
     },
     RedisService,
   ],
-  exports: [RedisService],
+  exports: [RedisService, REDIS_CLIENT],
 })
 export class RedisModule {}

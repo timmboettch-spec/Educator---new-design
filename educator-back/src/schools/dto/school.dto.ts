@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsOptional,
@@ -27,6 +28,15 @@ export class SchoolDto {
   @IsOptional()
   @IsEnum(CommonStatus, { message: SchoolConstants.VALIDATION.STATUS_ENUM })
   status?: CommonStatus;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, educators at this school can use Google Classroom. Defaults to false for new schools.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  google_classroom_enabled?: boolean;
 
   @ApiPropertyOptional({ description: 'The UUID of the user who owns this school' })
   @IsOptional()

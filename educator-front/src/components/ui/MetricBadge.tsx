@@ -7,7 +7,7 @@ const badgeColors = {
   teal: 'bg-teal-50 text-teal-700 border-teal-200',
   purple: 'bg-purple-50 text-purple-700 border-purple-200',
   red: 'bg-red-50 text-red-700 border-red-200',
-  orange: 'bg-primary-50 text-primary-700 border-primary-200',
+  orange: 'bg-orange-50 text-orange-700 border-orange-200',
   pink: 'bg-pink-50 text-pink-700 border-pink-200',
   gray: 'bg-gray-50 text-gray-700 border-gray-200',
   olive: 'bg-lime-50 text-lime-700 border-lime-200',
@@ -29,7 +29,11 @@ interface MetricBadgeProps {
 
 const statusVariants = new Set(['active', 'pending', 'inactive']);
 
-export const MetricBadge = ({ value, color = 'gray', children }: MetricBadgeProps) => {
+export const MetricBadge = ({
+  value,
+  color = 'gray',
+  children,
+}: MetricBadgeProps) => {
   const isStatus = statusVariants.has(color);
   return (
     <span

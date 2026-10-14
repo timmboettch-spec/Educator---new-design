@@ -1,8 +1,10 @@
 import { DataSource } from 'typeorm';
-import { AppDataSource } from '../data-source';
-import { LmsSchoolConfig } from '../lms/entity/lms-school-config.entity';
-import { LmsClassMapping } from '../lms/entity/lms-class-mapping.entity';
+import { databseConfig } from '../database/data-source';
+import { LmsSchoolConfig } from '../database/entities/lms-school-config.entity';
+import { LmsClassMapping } from '../database/entities/lms-class-mapping.entity';
 import { isRotationInProgress } from '../lms/utils/lms-secret-crypto';
+
+const AppDataSource = new DataSource(databseConfig);
 
 // update() not save(): save() diffs against the unchanged plaintext snapshot
 // and skips the write, silently leaving rows on the old key.

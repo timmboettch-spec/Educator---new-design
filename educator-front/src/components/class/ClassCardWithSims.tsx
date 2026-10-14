@@ -1,5 +1,5 @@
 import ClassCard from '../ui/ClassCard';
-import { Class } from '@/types/Class_types';
+import { type Class } from '@/types/Class_types';
 
 interface ClassCardLabels {
   activeStudents: string;
@@ -48,6 +48,7 @@ export function ClassCardWithSims({
         viewReports: labels.viewReports,
       }}
       classId={cls.id}
+      lmsLinkage={cls.lms_linkage ?? null}
     />
   );
 }

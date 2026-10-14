@@ -1,16 +1,33 @@
-import type { INestApplication } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import type { ExecutionContext, INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request = require('supertest');
-import { ScenariosController } from '@/modules/scenarios/scenarios.controller';
-import { ScenariosService } from '@/modules/scenarios/scenarios.service';
-import { JsonDataService } from '@/data/json-data.service';
-import { ScenarioAuthGuard } from '@/guards/scenario-auth.guard';
-import { ScenarioAssignmentGuard } from '@/modules/scenarios/guards/scenario-assignment.guard';
+import { ScenariosController } from 'src/student-backend/modules/scenarios/scenarios.controller';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { SimulationService } from 'src/simulation/simulation.service';
+import { AutomationAccessService } from 'src/common/services/automation-access.service';
+import { LoggerService } from 'src/common/services';
+import { VoiceProfilesService } from 'src/voice-profiles/voice-profiles.service';
+import {
+  LMS_ASSIGNMENT_MAPPING_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationRepository,
+} from '../../common/utils/mock-factory';
 
 describe('Scenarios API (Integration)', () => {
   let app: INestApplication;
+  let unitRepository: ReturnType<typeof createMockUnitRepository>;
+  let simulationV2Repository: ReturnType<typeof createMockSimulationRepository>;
 
   const mockUnit = { id: 'unit-001', name: 'Nursing' };
+  // ScenariosService maps the DB entity to the blob-shaped Unit interface, which
+  // always includes imageUrl (defaulted to '' when the entity has none).
+  const mappedUnit = { ...mockUnit, imageUrl: '' };
 
   const mockScenario = {
     id: 'scenario-001',
@@ -23,33 +40,58 @@ describe('Scenarios API (Integration)', () => {
     { id: 'scenario-002', title: 'Scenario 2', unitId: 'unit-001' },
   ];
 
-  const mockJsonDataService = {
-    getDefaultScenario: jest.fn(),
-    getScenarioByIdFresh: jest.fn(),
-    getScenarios: jest.fn(),
-    getScenariosByUnitId: jest.fn(),
-    getScenarioById: jest.fn(),
-    // Localized wrappers used by ScenariosService. Delegate to the plain
-    // getters so existing test setup that seeds `.getScenarios`,
-    // `.getScenariosByUnitId`, and `.getScenarioByIdFresh` continues to
-    // drive the endpoints without duplicating fixture wiring.
-    getAllScenariosLocalized: jest.fn(),
-    getScenariosByUnitIdLocalized: jest.fn(),
-    getScenarioByIdLocalized: jest.fn(),
-    getUnitById: jest.fn(),
-    getTranscriptsByUserId: jest.fn(),
+  const mockTranscriptRepository = {
+    findByUserId: jest.fn(),
   };
+  const mockAssignmentService = { getAssignedSimulationIds: jest.fn() };
+
+  // Stands in for the JWT guard: the test picks the authenticated user via the `x-test-user`
+  // header (JSON), exactly as the real guard would populate `req.user` from a cookie or bearer.
+  const fakeAuthGuard = {
+    canActivate: (ctx: ExecutionContext): boolean => {
+      const req = ctx
+        .switchToHttp()
+        .getRequest<{ headers: Record<string, string>; user?: unknown }>();
+      const header = req.headers['x-test-user'];
+      if (header) req.user = JSON.parse(header);
+      return true;
+    },
+  };
+  const asUser = (user: Record<string, unknown>): [string, string] => [
+    'x-test-user',
+    JSON.stringify(user),
+  ];
+  const educator = { userId: 'user1', type: 'educator', roles: ['educator'] };
+  const student = { userId: 'REP-1', student_id: 'REP-1', type: 'student', roles: ['student'] };
 
   beforeAll(async () => {
+    unitRepository = createMockUnitRepository();
+    simulationV2Repository = createMockSimulationRepository();
+
     const moduleRef = await Test.createTestingModule({
       controllers: [ScenariosController],
-      providers: [ScenariosService, { provide: JsonDataService, useValue: mockJsonDataService }],
-    })
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScenarioAssignmentGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+      providers: [
+        { provide: APP_GUARD, useValue: fakeAuthGuard },
+        ScenariosService,
+        {
+          provide: VoiceProfilesService,
+          useValue: { resolveForScenario: jest.fn().mockResolvedValue(null) },
+        },
+        { provide: UNIT_REPOSITORY, useValue: unitRepository },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: simulationV2Repository },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: mockTranscriptRepository },
+        { provide: LMS_ASSIGNMENT_MAPPING_REPOSITORY, useValue: { findOne: jest.fn() } },
+        { provide: SimulationService, useValue: mockAssignmentService },
+        { provide: LoggerService, useValue: { warn: jest.fn(), log: jest.fn(), error: jest.fn() } },
+        {
+          provide: AutomationAccessService,
+          useValue: {
+            filterRecords: jest.fn((records) => records),
+            canAccessRecord: jest.fn(() => true),
+          },
+        },
+      ],
+    }).compile();
 
     app = moduleRef.createNestApplication();
     await app.init();
@@ -57,19 +99,10 @@ describe('Scenarios API (Integration)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockJsonDataService.getUnitById.mockReturnValue(mockUnit);
-    mockJsonDataService.getTranscriptsByUserId.mockReturnValue([]);
-    // Wire the localized wrappers to delegate to the non-localized fakes
-    // that the individual tests seed via `.mockReturnValue(...)`.
-    mockJsonDataService.getAllScenariosLocalized.mockImplementation(async () =>
-      mockJsonDataService.getScenarios(),
-    );
-    mockJsonDataService.getScenariosByUnitIdLocalized.mockImplementation(async (unitId: string) =>
-      mockJsonDataService.getScenariosByUnitId(unitId),
-    );
-    mockJsonDataService.getScenarioByIdLocalized.mockImplementation(async (id: string) =>
-      mockJsonDataService.getScenarioByIdFresh(id),
-    );
+    unitRepository.findByBusinessId.mockResolvedValue(mockUnit as never);
+    unitRepository.find.mockResolvedValue([mockUnit] as never);
+    mockTranscriptRepository.findByUserId.mockReturnValue([]);
+    mockAssignmentService.getAssignedSimulationIds.mockResolvedValue(new Set<string>());
   });
 
   afterAll(async () => {
@@ -77,47 +110,8 @@ describe('Scenarios API (Integration)', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // GET /scenarios/default
+  // GET /scenarios/default and GET /scenarios/default/:id — disabled, routes commented out
   // ─────────────────────────────────────────────────────────────────────────
-
-  describe('GET /scenarios/default', () => {
-    it('returns 200 with the default scenario', async () => {
-      mockJsonDataService.getDefaultScenario.mockReturnValue(mockScenario);
-
-      const res = await request(app.getHttpServer()).get('/scenarios/default').expect(200);
-
-      expect(res.body.id).toBe('scenario-001');
-    });
-
-    it('returns 404 when no default scenario is configured', async () => {
-      mockJsonDataService.getDefaultScenario.mockReturnValue(null);
-
-      await request(app.getHttpServer()).get('/scenarios/default').expect(404);
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // GET /scenarios/default/:id
-  // ─────────────────────────────────────────────────────────────────────────
-
-  describe('GET /scenarios/default/:id', () => {
-    it('returns 200 with the matching scenario when id exists', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(mockScenario);
-
-      const res = await request(app.getHttpServer())
-        .get('/scenarios/default/scenario-001')
-        .expect(200);
-
-      expect(res.body.id).toBe('scenario-001');
-      expect(mockJsonDataService.getScenarioByIdFresh).toHaveBeenCalledWith('scenario-001');
-    });
-
-    it('returns 404 when the scenario id does not exist', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(undefined);
-
-      await request(app.getHttpServer()).get('/scenarios/default/non-existent').expect(404);
-    });
-  });
 
   // ─────────────────────────────────────────────────────────────────────────
   // GET /scenarios
@@ -125,7 +119,7 @@ describe('Scenarios API (Integration)', () => {
 
   describe('GET /scenarios', () => {
     it('returns 200 with an array of all scenarios', async () => {
-      mockJsonDataService.getScenarios.mockReturnValue(mockScenarios);
+      simulationV2Repository.findAllWithChildrenJoined.mockResolvedValue(mockScenarios as never);
 
       const res = await request(app.getHttpServer()).get('/scenarios').expect(200);
 
@@ -134,15 +128,15 @@ describe('Scenarios API (Integration)', () => {
     });
 
     it('each scenario includes the unit object', async () => {
-      mockJsonDataService.getScenarios.mockReturnValue(mockScenarios);
+      simulationV2Repository.findAllWithChildrenJoined.mockResolvedValue(mockScenarios as never);
 
       const res = await request(app.getHttpServer()).get('/scenarios').expect(200);
 
-      expect(res.body[0].unit).toEqual(mockUnit);
+      expect(res.body[0].unit).toEqual(mappedUnit);
     });
 
     it('returns empty array when no scenarios exist', async () => {
-      mockJsonDataService.getScenarios.mockReturnValue([]);
+      simulationV2Repository.findAllWithChildrenJoined.mockResolvedValue([]);
 
       const res = await request(app.getHttpServer()).get('/scenarios').expect(200);
 
@@ -150,88 +144,41 @@ describe('Scenarios API (Integration)', () => {
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // GET /scenarios/unit/:unitId
-  // ─────────────────────────────────────────────────────────────────────────
-
-  describe('GET /scenarios/unit/:unitId', () => {
-    it('returns 200 with scenarios for the given unit', async () => {
-      mockJsonDataService.getScenariosByUnitId.mockReturnValue(mockScenarios);
-
-      const res = await request(app.getHttpServer()).get('/scenarios/unit/unit-001').expect(200);
-
-      expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body[0].unitId).toBe('unit-001');
-      expect(mockJsonDataService.getScenariosByUnitId).toHaveBeenCalledWith('unit-001');
-    });
-
-    it('does not include completed/progress when no Authorization header', async () => {
-      mockJsonDataService.getScenariosByUnitId.mockReturnValue(mockScenarios);
-
-      const res = await request(app.getHttpServer()).get('/scenarios/unit/unit-001').expect(200);
-
-      expect(res.body[0].completed).toBeUndefined();
-      expect(res.body[0].progress).toBeUndefined();
-    });
-
-    it('includes completion info when Authorization header is provided', async () => {
-      mockJsonDataService.getScenariosByUnitId.mockReturnValue(mockScenarios);
-      mockJsonDataService.getTranscriptsByUserId.mockReturnValue([
-        { scenarioId: 'scenario-001', userId: 'user1', endedAt: '2024-01-01' },
-      ]);
-
-      const res = await request(app.getHttpServer())
-        .get('/scenarios/unit/unit-001')
-        .set('Authorization', 'Bearer token-user1')
-        .expect(200);
-
-      const completed = res.body.find((s: { id: string }) => s.id === 'scenario-001');
-      const incomplete = res.body.find((s: { id: string }) => s.id === 'scenario-002');
-
-      expect(completed.completed).toBe(true);
-      expect(completed.progress).toBe(100);
-      expect(incomplete.completed).toBe(false);
-      expect(incomplete.progress).toBe(0);
-    });
-
-    it('returns empty array when no scenarios exist for the unit', async () => {
-      mockJsonDataService.getScenariosByUnitId.mockReturnValue([]);
-
-      const res = await request(app.getHttpServer()).get('/scenarios/unit/unit-999').expect(200);
-
-      expect(res.body).toEqual([]);
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // GET /scenarios/:id
-  // ─────────────────────────────────────────────────────────────────────────
-
   describe('GET /scenarios/:id', () => {
     it('returns 200 with the scenario and its unit', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(mockScenario);
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(
+        mockScenario as never,
+      );
 
-      const res = await request(app.getHttpServer()).get('/scenarios/scenario-001').expect(200);
+      const res = await request(app.getHttpServer())
+        .get('/scenarios/scenario-001')
+        .set(...asUser(educator))
+        .expect(200);
 
       expect(res.body.id).toBe('scenario-001');
-      expect(res.body.unit).toEqual(mockUnit);
+      expect(res.body.unit).toEqual(mappedUnit);
     });
 
     it('returns 404 when scenario does not exist', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(undefined);
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(null);
 
-      await request(app.getHttpServer()).get('/scenarios/non-existent').expect(404);
+      await request(app.getHttpServer())
+        .get('/scenarios/non-existent')
+        .set(...asUser(educator))
+        .expect(404);
     });
 
     it('includes completed=true and progress=100 when user has a completed transcript', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(mockScenario);
-      mockJsonDataService.getTranscriptsByUserId.mockReturnValue([
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(
+        mockScenario as never,
+      );
+      mockTranscriptRepository.findByUserId.mockReturnValue([
         { scenarioId: 'scenario-001', userId: 'user1', endedAt: '2024-01-01' },
       ]);
 
       const res = await request(app.getHttpServer())
         .get('/scenarios/scenario-001')
-        .set('Authorization', 'Bearer token-user1')
+        .set(...asUser(educator))
         .expect(200);
 
       expect(res.body.completed).toBe(true);
@@ -239,24 +186,46 @@ describe('Scenarios API (Integration)', () => {
     });
 
     it('includes completed=false and progress=0 when user has no matching transcript', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(mockScenario);
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(
+        mockScenario as never,
+      );
 
       const res = await request(app.getHttpServer())
         .get('/scenarios/scenario-001')
-        .set('Authorization', 'Bearer token-user1')
+        .set(...asUser(educator))
         .expect(200);
 
       expect(res.body.completed).toBe(false);
       expect(res.body.progress).toBe(0);
     });
 
-    it('does not include completed/progress when no Authorization header', async () => {
-      mockJsonDataService.getScenarioByIdFresh.mockResolvedValue(mockScenario);
+    it('returns 403 to a student for an unassigned scenario', async () => {
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(
+        mockScenario as never,
+      );
 
-      const res = await request(app.getHttpServer()).get('/scenarios/scenario-001').expect(200);
+      await request(app.getHttpServer())
+        .get('/scenarios/scenario-001')
+        .set(...asUser(student))
+        .expect(403);
+    });
 
-      expect(res.body.completed).toBeUndefined();
-      expect(res.body.progress).toBeUndefined();
+    it('returns 200 with progress to a student for an assigned scenario', async () => {
+      simulationV2Repository.findByBusinessIdWithChildrenJoined.mockResolvedValue(
+        mockScenario as never,
+      );
+      mockAssignmentService.getAssignedSimulationIds.mockResolvedValue(new Set(['scenario-001']));
+      mockTranscriptRepository.findByUserId.mockReturnValue([
+        { scenarioId: 'scenario-001', userId: 'REP-1', endedAt: '2024-01-01' },
+      ]);
+
+      const res = await request(app.getHttpServer())
+        .get('/scenarios/scenario-001')
+        .set(...asUser(student))
+        .expect(200);
+
+      expect(res.body.completed).toBe(true);
+      expect(mockAssignmentService.getAssignedSimulationIds).toHaveBeenCalledWith('REP-1');
     });
   });
 });

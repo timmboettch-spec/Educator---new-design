@@ -163,7 +163,7 @@
     "moduleName": "Simulation API",
     "category": "Positive Tests",
     "method": "GET",
-    "endpoint": "/simulation-catalog/scenarios",
+    "endpoint": "/simulations/educators",
     "statusCode": 200,
     "description": "returns 200 with simulation scenarios",
     "successReason": "The API successfully returned simulation scenarios with 200 status.",

@@ -37,10 +37,11 @@ vi.mock('../../../src/utils/storage', () => ({
   updateStoredUser: vi.fn(),
   clearAuthData: vi.fn(),
   setAuthData: vi.fn(),
+  isRememberMe: vi.fn(() => false),
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'getCurrentUserRequest' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 vi.mock('../../../src/redux/auth/LoginRedux', () => ({
@@ -54,12 +55,21 @@ vi.mock('@/components/common/RedeemHeader', () => ({
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
 vi.mock('../../../src/components/common/Toast', () => ({
-  toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
-  sonnerToast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
+  toast: {
+    success: (...a: unknown[]) => toastSuccess(...a),
+    error: (...a: unknown[]) => toastError(...a),
+  },
+  sonnerToast: {
+    success: (...a: unknown[]) => toastSuccess(...a),
+    error: (...a: unknown[]) => toastError(...a),
+  },
 }));
 
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual =
+    await vi.importActual<typeof import('react-router-dom')>(
+      'react-router-dom'
+    );
   return { ...actual, useNavigate: () => vi.fn() };
 });
 
@@ -67,11 +77,12 @@ import redeemReducer from '../../../src/redux/auth/RedeemRedux';
 import RedeemCode from '../../../src/pages/auth/RedeemCode/index';
 import { AUTH_MESSAGES } from '../../../src/utils/messages/auth';
 import api from '../../../src/redux/api';
+import { setAuthData } from '../../../src/utils/storage';
 
-const VALID_SEGMENTS   = ['ABCD', '1234', 'EFGH', '5678'];
+const VALID_SEGMENTS = ['ABCD', '1234', 'EFGH', '5678'];
 const INVALID_SEGMENTS = ['ZZZZ', 'ZZZZ', 'ZZZZ', 'ZZZZ'];
-const USED_SEGMENTS    = ['USED', 'CODE', 'TEST', '0001'];
-const EXPD_SEGMENTS    = ['EXPD', 'CODE', 'TEST', '0002'];
+const USED_SEGMENTS = ['USED', 'CODE', 'TEST', '0001'];
+const EXPD_SEGMENTS = ['EXPD', 'CODE', 'TEST', '0002'];
 
 const makeStore = () => configureStore({ reducer: { Redeem: redeemReducer } });
 
@@ -81,18 +92,22 @@ function renderComponent() {
       <MemoryRouter>
         <RedeemCode />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 }
 
 function fillSegments(segments: string[]) {
   const inputs = screen.getAllByPlaceholderText('XXXX');
-  segments.forEach((val, i) => fireEvent.change(inputs[i], { target: { value: val } }));
+  segments.forEach((val, i) =>
+    fireEvent.change(inputs[i], { target: { value: val } })
+  );
 }
 
 /** Mock api.post to resolve with a successful response payload. */
 function mockApiSuccess(message: string, data: object = {}) {
-  (api.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ data: { message, data } });
+  (api.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    data: { message, data },
+  });
 }
 
 /** Mock api.post to reject with a server error message. */
@@ -103,30 +118,40 @@ function mockApiError(message: string) {
 }
 
 describe('Redeem Code Integration', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  afterEach(() => { vi.restoreAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it('renders 4 segmented inputs and both action buttons', () => {
     renderComponent();
     expect(screen.getAllByPlaceholderText('XXXX')).toHaveLength(4);
-    expect(screen.getByRole('button', { name: /active license/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /start trial/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /active license/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /start trial/i })
+    ).toBeInTheDocument();
   });
 
   it('blocks submission and shows error when all fields are empty', async () => {
     renderComponent();
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     expect(
-      await screen.findByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED),
+      await screen.findByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED)
     ).toBeInTheDocument();
   });
 
   it('blocks submission and shows length error for an incomplete code', async () => {
     renderComponent();
-    fireEvent.change(screen.getAllByPlaceholderText('XXXX')[0], { target: { value: 'ABCD' } });
+    fireEvent.change(screen.getAllByPlaceholderText('XXXX')[0], {
+      target: { value: 'ABCD' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     expect(
-      await screen.findByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_LENGTH),
+      await screen.findByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_LENGTH)
     ).toBeInTheDocument();
   });
 
@@ -135,8 +160,42 @@ describe('Redeem Code Integration', () => {
     renderComponent();
     fillSegments(VALID_SEGMENTS);
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('License activated'));
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('License activated')
+    );
     expect(await screen.findByText(/license activated/i)).toBeInTheDocument();
+  });
+
+  it('persists a rotated access token from the redeem response', async () => {
+    (api.post as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      data: {
+        message: 'License activated',
+        data: { isLicenseActive: true },
+        token: 'rotated-token',
+      },
+    });
+    renderComponent();
+    fillSegments(VALID_SEGMENTS);
+    fireEvent.click(screen.getByRole('button', { name: /active license/i }));
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('License activated')
+    );
+    expect(setAuthData).toHaveBeenCalledWith(
+      { accessToken: 'rotated-token' },
+      expect.anything(),
+      expect.any(Boolean)
+    );
+  });
+
+  it('does not call setAuthData when the redeem response has no token', async () => {
+    mockApiSuccess('License activated', { isLicenseActive: true });
+    renderComponent();
+    fillSegments(VALID_SEGMENTS);
+    fireEvent.click(screen.getByRole('button', { name: /active license/i }));
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('License activated')
+    );
+    expect(setAuthData).not.toHaveBeenCalled();
   });
 
   it('shows error toast for an invalid (unknown) code and keeps form open', async () => {
@@ -144,7 +203,9 @@ describe('Redeem Code Integration', () => {
     renderComponent();
     fillSegments(INVALID_SEGMENTS);
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Invalid redemption code'));
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Invalid redemption code')
+    );
     expect(screen.getAllByPlaceholderText('XXXX')).toHaveLength(4);
   });
 
@@ -153,7 +214,9 @@ describe('Redeem Code Integration', () => {
     renderComponent();
     fillSegments(USED_SEGMENTS);
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Code has already been used'));
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Code has already been used')
+    );
     expect(screen.getAllByPlaceholderText('XXXX')).toHaveLength(4);
   });
 
@@ -162,7 +225,9 @@ describe('Redeem Code Integration', () => {
     renderComponent();
     fillSegments(EXPD_SEGMENTS);
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Redemption code has expired'));
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Redemption code has expired')
+    );
     expect(screen.getAllByPlaceholderText('XXXX')).toHaveLength(4);
   });
 
@@ -171,20 +236,28 @@ describe('Redeem Code Integration', () => {
     renderComponent();
     fillSegments(VALID_SEGMENTS);
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
-    await waitFor(() => expect(toastError).toHaveBeenCalledWith('Unauthorized'));
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('Unauthorized')
+    );
   });
 
   it('does not fire a second API call when submit is clicked while in-flight', async () => {
     let resolvePost!: (v: unknown) => void;
     (api.post as ReturnType<typeof vi.fn>).mockReturnValueOnce(
-      new Promise((res) => { resolvePost = res; }),
+      new Promise((res) => {
+        resolvePost = res;
+      })
     );
     renderComponent();
     fillSegments(VALID_SEGMENTS);
-    const btn = screen.getByRole('button', { name: /active license|redeeming/i });
+    const btn = screen.getByRole('button', {
+      name: /active license|redeeming/i,
+    });
     fireEvent.click(btn);
     // Wait for Formik's async validation to complete and the thunk to call api.post.
-    await waitFor(() => expect(api.post as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(api.post as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1)
+    );
     fireEvent.click(btn); // second click while request is in-flight
     expect(api.post as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(1);
     resolvePost({ data: { message: 'OK', data: {} } });
@@ -192,14 +265,17 @@ describe('Redeem Code Integration', () => {
 
   it('Active License button has type="submit" for keyboard Enter support', () => {
     renderComponent();
-    expect(screen.getByRole('button', { name: /active license/i })).toHaveAttribute('type', 'submit');
+    expect(
+      screen.getByRole('button', { name: /active license/i })
+    ).toHaveAttribute('type', 'submit');
   });
 
   it('validation message is a <p> for screen-reader compatibility', async () => {
     renderComponent();
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
-    const el = await screen.findByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED);
+    const el = await screen.findByText(
+      AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED
+    );
     expect(el.tagName.toLowerCase()).toBe('p');
   });
 });
-

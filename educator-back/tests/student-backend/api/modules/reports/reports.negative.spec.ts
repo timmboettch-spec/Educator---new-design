@@ -1,16 +1,17 @@
 /// <reference types="jest" />
-import { BadRequestException, ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { ScenarioAuthGuard } from '../../../../../src/student-backend/guards/scenario-auth.guard';
-import { ReportsModule } from '../../../../../src/student-backend/modules/reports/reports.module';
+import { ReportsController } from '../../../../../src/student-backend/modules/reports/reports.controller';
 import { ReportsService } from '../../../../../src/student-backend/modules/reports/reports.service';
-import { AUTH_GUARD_MOCK } from '../../../mocks/auth.mock';
-import { ActionsInterventionsService } from '../../../../../src/student-backend/modules/reports/actions-interventions.service';
-import { JsonDataService } from '../../../../../src/student-backend/data/json-data.service';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiGet, apiPost } from '../../common/utils/api.helper';
 import { studentToken } from '../../common/utils/auth-token.helper';
@@ -29,16 +30,10 @@ describe('Reports API — Negative Tests', () => {
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), ReportsModule],
+      imports: [ConfigModule.forRoot({ isGlobal: true })],
+      controllers: [ReportsController],
+      providers: [{ provide: ReportsService, useValue: mockReportsService }],
     })
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue(AUTH_GUARD_MOCK)
-      .overrideProvider(ReportsService)
-      .useValue(mockReportsService)
-      .overrideProvider(JsonDataService)
-      .useValue({})
-      .overrideProvider(ActionsInterventionsService)
-      .useValue({})
       .compile();
 
     app = await createTestApp(moduleRef);

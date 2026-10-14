@@ -1,4 +1,4 @@
-name: "lint-ratchet-against-baseline"
+name: 'lint-ratchet-against-baseline'
 description: >-
   Runs a lint command, counts errors/warnings from its JSON report, and
   compares the counts against a checked-in baseline file. Fails the build if
@@ -19,6 +19,7 @@ description: >-
 #       report-file:       eslint-report.json
 #       baseline-file:     .github/lint-baseline.json
 #       baseline-key:      backend
+#       format-check-command: 'npm run format:check'
 #
 #   - run: echo "verdict=${{ steps.lint.outputs.verdict }}"
 #
@@ -62,6 +63,14 @@ inputs:
   baseline-key:
     description: 'Top-level key inside baseline-file for this app/package, e.g. backend'
     required: true
+  format-check-command:
+    description: >-
+      Optional formatting-check command to run after the lint ratchet, e.g.
+      "npm run format:check". Empty (the default) skips this step. Runs
+      unconditionally (not gated on the ratchet verdict) so a lint
+      regression doesn't hide a separate formatting failure.
+    required: false
+    default: ''
 
 outputs:
   errors:
@@ -122,3 +131,9 @@ runs:
         BASELINE_FILE: ${{ inputs.baseline-file }}
         BASELINE_KEY: ${{ inputs.baseline-key }}
       run: ${{ github.action_path }}/scripts/lint-ratchet-against-baseline.ps1
+
+    - name: Format check
+      if: inputs.format-check-command != ''
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: ${{ inputs.format-check-command }}

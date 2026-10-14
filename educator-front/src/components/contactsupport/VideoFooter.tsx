@@ -1,25 +1,31 @@
-import PlayVideo from "../../../public/assets/contactsupport/PlayVideo.svg"
+import PlayVideo from '../../../public/assets/contactsupport/PlayVideo.svg';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
 
 const videos = [
   {
-    title: "Blood Pressure Simulator Tutorial",
-    url: "https://www.youtube.com/watch?v=SI7eBO3CcwE",
+    title: 'Blood Pressure Simulator Tutorial',
+    url: 'https://www.youtube.com/watch?v=SI7eBO3CcwE',
   },
   {
-    title: "Animal Science - Chicken Model",
-    url: "https://www.youtube.com/watch?v=EnI6ODJ7MP4",
+    title: 'Animal Science - Chicken Model',
+    url: 'https://www.youtube.com/watch?v=EnI6ODJ7MP4',
   },
   {
-    title: "guideWELD LIVE intro",
-    url: "https://www.youtube.com/watch?v=jSb2AcxwDHY",
+    title: 'guideWELD LIVE intro',
+    url: 'https://www.youtube.com/watch?v=jSb2AcxwDHY',
   },
   {
-    title: "Electrical Wiring Kit Intro",
-    url: "https://www.youtube.com/watch?v=wj8n2ynUTeg",
+    title: 'Electrical Wiring Kit Intro',
+    url: 'https://www.youtube.com/watch?v=wj8n2ynUTeg',
   },
 ];
 
 export default function VideoFooter() {
+  const language =
+    localStorage.getItem('app_language')?.toLowerCase() === 'es' ? 'es' : 'en';
+  const locale = (language === 'es' ? loginEs : loginEn).contactSupport;
+
   return (
     <div className="w-full p-6">
       <div className="grid grid-cols-2 items-center gap-12">
@@ -36,7 +42,7 @@ export default function VideoFooter() {
 
         <div className="flex flex-col gap-12">
           <h3 className="text-primary-500 text-xl font-semibold">
-            Most Viewed Videos
+            {locale.mostViewedVideos}
           </h3>
 
           {videos.map((video, index) => (

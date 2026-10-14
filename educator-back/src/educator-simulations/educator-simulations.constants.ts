@@ -4,7 +4,9 @@ export const EducatorSimulationsConstants = {
     ADD_TO_LIBRARY: 'add-to-library',
     ADD_TO_LIBRARY_BULK: 'add-to-library-bulk',
     REMOVE_FROM_LIBRARY: 'remove-from-library/:scenario_id',
+    REMOVE_FROM_LIBRARY_BULK: 'remove-from-library-bulk',
     MY_LIBRARY: 'my-library',
+    MY_LIBRARY_LIST: 'my-library/list',
   },
   SWAGGER: {
     TAG: 'Educator Simulations (My Library)',

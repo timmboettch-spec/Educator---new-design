@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FormikProps } from 'formik';
+import { type FormikProps } from 'formik';
 import CreateEducatorModal from '../../../src/components/modal/CreateEducatorModal';
 
 type SelectOption = { value: string; label: string };
@@ -98,7 +98,13 @@ vi.mock('../../../src/components/ui/Button', () => ({
       form={form}
       onClick={onClick}
       disabled={disabled || loading}
-      data-testid={loading ? 'loading-button' : typeof children === 'string' ? children : 'button'}
+      data-testid={
+        loading
+          ? 'loading-button'
+          : typeof children === 'string'
+            ? children
+            : 'button'
+      }
     >
       {loading ? 'Loading...' : children}
     </button>
@@ -152,7 +158,9 @@ type EducatorFormValues = {
   school_id: string;
 };
 
-const mockSchools = [{ id: 'school-1', school_name: 'Test School', status: 'ACTIVE' }];
+const mockSchools = [
+  { id: 'school-1', school_name: 'Test School', status: 'ACTIVE' },
+];
 
 const mockSetIsModalOpen = vi.fn();
 const mockSetTokensInput = vi.fn();
@@ -176,7 +184,9 @@ const createMockFormik = (): Partial<FormikProps<EducatorFormValues>> => ({
 
   handleBlur: vi.fn(),
 
-  handleSubmit: vi.fn((e?: React.FormEvent<HTMLFormElement>) => e?.preventDefault?.()),
+  handleSubmit: vi.fn((e?: React.FormEvent<HTMLFormElement>) =>
+    e?.preventDefault?.()
+  ),
 
   setFieldValue: vi.fn(),
 });
@@ -219,19 +229,27 @@ describe('CreateEducatorModal', () => {
     renderModal();
 
     expect(screen.getByText('Create Educator')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter educator name')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter Educator Email')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter educator name')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter Educator Email')
+    ).toBeInTheDocument();
     expect(screen.getByTestId('select-Select school')).toBeInTheDocument();
     expect(screen.getByTestId('select-Select status')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /add educator/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /add educator/i })
+    ).toBeInTheDocument();
   });
 
   it('renders edit mode correctly', () => {
     renderModal({ modalMode: 'edit' });
 
     expect(screen.getByText('Edit Educator')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /update educator/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /update educator/i })
+    ).toBeInTheDocument();
   });
 
   it('renders view mode correctly', () => {
@@ -254,8 +272,12 @@ describe('CreateEducatorModal', () => {
     const statusInput = screen.getByDisplayValue('Active');
     expect(statusInput).toBeDisabled();
 
-    expect(screen.queryByRole('button', { name: /add educator/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /update educator/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /add educator/i })
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /update educator/i })
+    ).not.toBeInTheDocument();
   });
 
   it('calls setIsModalOpen when back clicked', () => {
@@ -348,19 +370,25 @@ describe('CreateEducatorModal', () => {
       formik: formik as unknown as FormikProps<EducatorFormValues>,
     });
 
-    expect(screen.queryByText('Educator name is required')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Educator name is required')
+    ).not.toBeInTheDocument();
   });
 
   it('hides seats field in view mode', () => {
     renderModal({ modalMode: 'view' });
 
-    expect(screen.queryByPlaceholderText('Enter Educator seats')).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText('Enter Educator seats')
+    ).not.toBeInTheDocument();
   });
 
   it('shows seats field in create mode', () => {
     renderModal();
 
-    expect(screen.getByPlaceholderText('Enter Educator seats')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter Educator seats')
+    ).toBeInTheDocument();
   });
 
   it('updates tokens input and formik value on seats change', () => {

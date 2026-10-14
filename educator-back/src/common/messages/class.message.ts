@@ -1,0 +1,25 @@
+import { encodeI18nKey } from '../utils/i18n-key.util';
+
+export const CLASS_MSG = {
+  TRANSFER: {
+    BULK_COMPLETED: (transferred: number, requested: number): string =>
+      encodeI18nKey('class.TRANSFER.BULK_COMPLETED', { transferred, requested }),
+    SAME_EDUCATOR: 'class.TRANSFER.SAME_EDUCATOR',
+    SOURCE_INACTIVE: 'class.TRANSFER.SOURCE_INACTIVE',
+    TARGET_INACTIVE: 'class.TRANSFER.TARGET_INACTIVE',
+    MISSING_ADMIN: 'class.TRANSFER.MISSING_ADMIN',
+    GOOGLE_ADD_TARGET_TO_COURSE: (targetName: string): string =>
+      encodeI18nKey('class.TRANSFER.GOOGLE_ADD_TARGET_TO_COURSE', { targetName }),
+    REASON: {
+      CLASS_NOT_FOUND: 'class.TRANSFER.REASON.CLASS_NOT_FOUND',
+      CLASS_INACTIVE: 'class.TRANSFER.REASON.CLASS_INACTIVE',
+      CLASS_ARCHIVED: 'class.TRANSFER.REASON.CLASS_ARCHIVED',
+      CLASS_NOT_OWNED_BY_SOURCE: 'class.TRANSFER.REASON.CLASS_NOT_OWNED_BY_SOURCE',
+      TARGET_NOT_IN_CLASS_SCHOOL: 'class.TRANSFER.REASON.TARGET_NOT_IN_CLASS_SCHOOL',
+      TARGET_NO_GOOGLE_CONNECTION: (targetName: string): string =>
+        encodeI18nKey('class.TRANSFER.REASON.TARGET_NO_GOOGLE_CONNECTION', { targetName }),
+      TRANSFER_FAILED: 'class.TRANSFER.REASON.TRANSFER_FAILED',
+      NOT_PROCESSED: 'class.TRANSFER.REASON.NOT_PROCESSED',
+    },
+  },
+};

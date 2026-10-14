@@ -12,10 +12,21 @@ import {
   clearAllRemoveReallocateState,
 } from '../../redux/educator/RemoveReallocateSeatsRedux';
 import { GetEducatorByUserRequest } from '../../redux/educator/GetEducatorRedux';
-import { getCurrentUserRequest } from '../../redux/users/GetUserRedux';
-import { updateStoredUser } from '../../utils/storage';
+import { fetchCurrentUser } from '../../redux/auth/MeRedux';
 import type { AppDispatch } from '../../store';
 import type { Educator } from '../../types';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
+import { translateApiError } from '../../utils/translateApiError';
+
+type SupportedLang = 'en' | 'es';
+const LANGUAGE_STORAGE_KEY = 'app_language';
+
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY)?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
 
 type Mode = 'remove' | 'reallocate';
 
@@ -26,7 +37,15 @@ interface RemoveReallocateSeatsModalProps {
   allEducators: Educator[];
 }
 
-function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
+function ModeToggle({
+  mode,
+  onChange,
+  locale,
+}: {
+  mode: Mode;
+  onChange: (m: Mode) => void;
+  locale: typeof loginEn;
+}) {
   return (
     <div className="flex bg-gray-100 rounded-lg p-1 mb-6">
       {(['remove', 'reallocate'] as Mode[]).map((m) => (
@@ -36,11 +55,13 @@ function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => voi
           onClick={() => onChange(m)}
           className={`flex-1 py-1.5 text-sm font-semibold rounded-md transition-all capitalize ${
             mode === m
-              ? 'bg-white shadow text-primary-600'
+              ? 'bg-white shadow text-orange-600'
               : 'text-gray-500 hover:text-gray-700'
           }`}
         >
-          {m === 'remove' ? 'Remove' : 'Reallocate'}
+          {m === 'remove'
+            ? locale?.educators?.removeMode || 'Remove'
+            : locale?.educators?.reallocateMode || 'Reallocate'}
         </button>
       ))}
     </div>
@@ -64,13 +85,28 @@ function digitsOnly(s: string) {
   return s.replace(/\D/g, '');
 }
 
-function validateTokenAmount(raw: string, max: number, action: 'remove' | 'reallocate'): string {
+function validateTokenAmount(
+  raw: string,
+  max: number,
+  action: 'remove' | 'reallocate',
+  validationMessages: {
+    fieldRequired: string;
+    onlyWholeNumbers: string;
+    valueMustBeGreaterThanZero: string;
+    cannotExceedMaxTokens: string;
+  }
+): string {
   const trimmed = raw.trim();
-  if (!trimmed) return 'This field is required';
-  if (!/^\d+$/.test(trimmed)) return 'Only whole numbers are accepted';
+  if (!trimmed) return validationMessages.fieldRequired;
+  if (!/^\d+$/.test(trimmed)) return validationMessages.onlyWholeNumbers;
   const n = Number(trimmed);
-  if (n <= 0) return 'Value must be greater than zero';
-  if (n > max) return `You can ${action} a maximum of ${max} available tokens`;
+  if (n <= 0) return validationMessages.valueMustBeGreaterThanZero;
+  if (n > max) {
+    const actionText = action === 'remove' ? 'remove' : 'reallocate';
+    return validationMessages.cannotExceedMaxTokens
+      .replace('{action}', actionText)
+      .replace('{max}', max.toString());
+  }
   return '';
 }
 
@@ -81,6 +117,8 @@ export default function RemoveReallocateSeatsModal({
   allEducators,
 }: RemoveReallocateSeatsModalProps): React.ReactElement {
   const dispatch = useDispatch<AppDispatch>();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
   const [mode, setMode] = useState<Mode>('remove');
 
   const [removeAmount, setRemoveAmount] = useState('');
@@ -99,20 +137,19 @@ export default function RemoveReallocateSeatsModal({
       allEducators
         .filter(
           (e) =>
-            e.id !== educator.id &&
-            (e.status || '').toUpperCase() === 'ACTIVE',
+            e.id !== educator.id && (e.status || '').toUpperCase() === 'ACTIVE'
         )
         .sort((a, b) => (a.email ?? '').localeCompare(b.email ?? ''))
         .map((e) => ({
           value: e.id,
           label: e.email ?? e.id,
         })),
-    [allEducators, educator.id],
+    [allEducators, educator.id]
   );
 
   const selectedTarget = useMemo(
     () => allEducators.find((e) => e.id === targetId) ?? null,
-    [allEducators, targetId],
+    [allEducators, targetId]
   );
 
   const targetAvailableTokens = selectedTarget
@@ -141,34 +178,62 @@ export default function RemoveReallocateSeatsModal({
     setTargetId('');
   }, [mode]);
 
+  const validationMessages = {
+    fieldRequired:
+      locale?.validation?.fieldRequired || 'This field is required',
+    onlyWholeNumbers:
+      locale?.validation?.onlyWholeNumbers || 'Only whole numbers are accepted',
+    valueMustBeGreaterThanZero:
+      locale?.validation?.valueMustBeGreaterThanZero ||
+      'Value must be greater than zero',
+    cannotExceedMaxTokens:
+      locale?.validation?.cannotExceedMaxTokens ||
+      'You can {action} a maximum of {max} available tokens',
+  };
+
   const removeError = removeTouched
-    ? validateTokenAmount(removeAmount, availableTokens, 'remove')
+    ? validateTokenAmount(
+        removeAmount,
+        availableTokens,
+        'remove',
+        validationMessages
+      )
     : '';
 
   const reallocateError = reallocateTouched
-    ? validateTokenAmount(reallocateAmount, availableTokens, 'reallocate')
+    ? validateTokenAmount(
+        reallocateAmount,
+        availableTokens,
+        'reallocate',
+        validationMessages
+      )
     : '';
 
   const canRemove =
     !isRemoving &&
     !!removeAmount.trim() &&
-    !validateTokenAmount(removeAmount, availableTokens, 'remove');
+    !validateTokenAmount(
+      removeAmount,
+      availableTokens,
+      'remove',
+      validationMessages
+    );
 
   const canReallocate =
     !isReallocating &&
     !!targetId &&
     !!reallocateAmount.trim() &&
-    !validateTokenAmount(reallocateAmount, availableTokens, 'reallocate');
+    !validateTokenAmount(
+      reallocateAmount,
+      availableTokens,
+      'reallocate',
+      validationMessages
+    );
 
   const refreshData = async () => {
     try {
       await dispatch(GetEducatorByUserRequest()).unwrap();
-      const userRes = await dispatch(getCurrentUserRequest()).unwrap();
-      if (userRes?.data) {
-        updateStoredUser({
-          subscriptions: (userRes.data as { subscriptions?: unknown[] }).subscriptions,
-        });
-      }
+      await dispatch(fetchCurrentUser()).unwrap();
     } catch {
       return;
     }
@@ -181,13 +246,25 @@ export default function RemoveReallocateSeatsModal({
     setIsRemoving(true);
     try {
       await dispatch(
-        RemoveSeats({ educatorId: educator.id, amount: Number(removeAmount.trim()) }),
+        RemoveSeats({
+          educatorId: educator.id,
+          amount: Number(removeAmount.trim()),
+        })
       ).unwrap();
-      toast.success(`${removeAmount} token(s) removed and refunded to your account.`);
+      const message = (
+        locale?.educators?.seatsRemovedSuccess ||
+        '{count} seat(s) removed and refunded to your account.'
+      ).replace('{count}', removeAmount);
+      toast.success(message);
       await refreshData();
       onClose();
     } catch (err: unknown) {
-      toast.error((err as { message?: string })?.message || 'Failed to remove seats');
+      const msg = (err as { message?: string })?.message;
+      toast.error(
+        msg
+          ? translateApiError(msg, language)
+          : locale.toast.failedToRemoveSeats || 'Failed to remove seats'
+      );
     } finally {
       setIsRemoving(false);
     }
@@ -204,14 +281,26 @@ export default function RemoveReallocateSeatsModal({
           sourceEducatorId: educator.id,
           targetEducatorId: targetId,
           amount: Number(reallocateAmount.trim()),
-        }),
+        })
       ).unwrap();
-      const targetName = selectedTarget?.full_name ?? selectedTarget?.email ?? 'target educator';
-      toast.success(`${reallocateAmount} token(s) reallocated to ${targetName}.`);
+      const targetName =
+        selectedTarget?.full_name ?? selectedTarget?.email ?? 'target educator';
+      const message = (
+        locale?.educators?.seatsReallocatedSuccess ||
+        '{count} token(s) reallocated to {name}.'
+      )
+        .replace('{count}', reallocateAmount)
+        .replace('{name}', targetName);
+      toast.success(message);
       await refreshData();
       onClose();
     } catch (err: unknown) {
-      toast.error((err as { message?: string })?.message || 'Failed to reallocate seats');
+      const msg = (err as { message?: string })?.message;
+      toast.error(
+        msg
+          ? translateApiError(msg, language)
+          : locale.toast.failedToReallocateSeats || 'Failed to reallocate seats'
+      );
     } finally {
       setIsReallocating(false);
     }
@@ -223,16 +312,29 @@ export default function RemoveReallocateSeatsModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Remove / Reallocate Educator Seats"
-      subtitle="Manage token allocation for this educator"
+      title={
+        locale?.educators?.removeReallocateSeatsTitle ||
+        'Remove / Reallocate Educator Seats'
+      }
+      subtitle={
+        locale?.educators?.removeReallocateSeatsSubtitle ||
+        'Manage token allocation for this educator'
+      }
       contentClassName="max-w-md"
     >
-      <ModeToggle mode={mode} onChange={(m) => !isSubmitting && setMode(m)} />
+      <ModeToggle
+        mode={mode}
+        onChange={(m) => !isSubmitting && setMode(m)}
+        locale={locale}
+      />
 
       {mode === 'remove' && (
         <form onSubmit={(e) => void handleRemove(e)} noValidate>
-          <div className="rounded-xl bg-primary-50 border border-primary-100 px-4 py-3 mb-5">
-            <InfoRow label="Educator" value={educator.full_name ?? educator.email ?? '—'} />
+          <div className="rounded-xl bg-orange-50 border border-orange-100 px-4 py-3 mb-5">
+            <InfoRow
+              label="Educator"
+              value={educator.full_name ?? educator.email ?? '—'}
+            />
             <InfoRow label="Available Tokens" value={availableTokens} />
           </div>
 
@@ -253,8 +355,12 @@ export default function RemoveReallocateSeatsModal({
 
           {!removeError && removeAmount && Number(removeAmount) > 0 && (
             <p className="mt-2 text-sm text-gray-500 flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />
-              {removeAmount} token(s) will be removed and refunded to your account.
+              <CheckCircle2
+                size={14}
+                className="text-green-500 flex-shrink-0"
+              />
+              {removeAmount} token(s) will be removed and refunded to your
+              account.
             </p>
           )}
 
@@ -272,7 +378,7 @@ export default function RemoveReallocateSeatsModal({
               type="submit"
               variant="gradient"
               disabled={!canRemove}
-              className="w-1/2 h-11 rounded-full bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium"
+              className="w-1/2 h-11 rounded-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium"
             >
               {isRemoving && <Loader2 size={14} className="animate-spin" />}
               Remove
@@ -284,10 +390,10 @@ export default function RemoveReallocateSeatsModal({
       {mode === 'reallocate' && (
         <form onSubmit={(e) => void handleReallocate(e)} noValidate>
           <div className="mb-5">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
               Reallocate From
             </p>
-            <div className="rounded-xl bg-primary-50 border border-primary-100 px-4 py-3">
+            <div className="rounded-xl bg-orange-50 border border-orange-100 px-4 py-3">
               <InfoRow label="Name" value={educator.full_name ?? '—'} />
               <InfoRow label="Email" value={educator.email ?? '—'} />
               <InfoRow label="Available Tokens" value={availableTokens} />
@@ -295,7 +401,7 @@ export default function RemoveReallocateSeatsModal({
           </div>
 
           <div className="mb-4">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">
               Reallocate To
             </p>
 
@@ -321,17 +427,20 @@ export default function RemoveReallocateSeatsModal({
                 className={`w-full rounded-lg border px-3 py-2 text-sm min-h-[38px] ${
                   selectedTarget
                     ? 'bg-gray-50 border-gray-200 text-gray-800 font-medium'
-                    : 'bg-gray-50 border-gray-100 text-gray-500 italic'
+                    : 'bg-gray-50 border-gray-100 text-gray-400 italic'
                 }`}
               >
-                {selectedTarget?.full_name ?? 'Auto-populated after selecting an email'}
+                {selectedTarget?.full_name ??
+                  'Auto-populated after selecting an email'}
               </div>
             </div>
 
             {selectedTarget && (
-              <p className="mt-1.5 text-xs text-gray-500">
+              <p className="mt-1.5 text-xs text-gray-400">
                 Current available tokens:{' '}
-                <span className="font-semibold text-gray-600">{targetAvailableTokens}</span>
+                <span className="font-semibold text-gray-600">
+                  {targetAvailableTokens}
+                </span>
               </p>
             )}
           </div>
@@ -351,13 +460,19 @@ export default function RemoveReallocateSeatsModal({
             }}
           />
 
-          {!reallocateError && reallocateAmount && Number(reallocateAmount) > 0 && selectedTarget && (
-            <p className="mt-2 text-sm text-gray-500 flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />
-              {reallocateAmount} token(s) will be transferred to{' '}
-              {selectedTarget.full_name ?? selectedTarget.email}.
-            </p>
-          )}
+          {!reallocateError &&
+            reallocateAmount &&
+            Number(reallocateAmount) > 0 &&
+            selectedTarget && (
+              <p className="mt-2 text-sm text-gray-500 flex items-center gap-1.5">
+                <CheckCircle2
+                  size={14}
+                  className="text-green-500 flex-shrink-0"
+                />
+                {reallocateAmount} token(s) will be transferred to{' '}
+                {selectedTarget.full_name ?? selectedTarget.email}.
+              </p>
+            )}
 
           <div className="flex gap-4 w-full mt-5">
             <Button
@@ -373,7 +488,7 @@ export default function RemoveReallocateSeatsModal({
               type="submit"
               variant="gradient"
               disabled={!canReallocate}
-              className="w-1/2 h-11 rounded-full bg-primary-500 hover:bg-primary-600 text-white text-sm font-medium"
+              className="w-1/2 h-11 rounded-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium"
             >
               {isReallocating && <Loader2 size={14} className="animate-spin" />}
               Reallocate

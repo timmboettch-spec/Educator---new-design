@@ -1,0 +1,22 @@
+{
+  "IS_STRING": "{key} should be a string.",
+  "IS_INT": "{key} should be an integer.",
+  "IS_NUMBER": "{key} should be a number.",
+  "IS_BOOLEAN": "{key} should be a boolean.",
+  "IS_OBJECT": "{key} should be a non-empty object.",
+  "IS_EMAIL": "{key} should be a valid email address.",
+  "IS_UUID": "{key} should be a valid UUID.",
+  "IS_ENUM": "{key} should be one of the allowed values.",
+  "IS_NOT_EMPTY": "{key} should not be empty.",
+  "IS_ARRAY": "{key} should be an array.",
+  "ARRAY_NOT_EMPTY": "{key} should not be an empty array.",
+  "IS_OPTIONAL_INVALID": "{key} is invalid.",
+  "MIN_VALUE": "{key} must not be less than {value}.",
+  "MAX_VALUE": "{key} must not be greater than {value}.",
+  "MIN_LENGTH": "{key} must be longer than or equal to {value} characters.",
+  "MAX_LENGTH": "{key} must be shorter than or equal to {value} characters.",
+  "ARRAY_MAX_SIZE": "{key} must contain no more than {value} items.",
+  "ARRAY_UNIQUE": "{key} must not contain duplicate values.",
+  "MUTUALLY_EXCLUSIVE": "{key} cannot be combined with {others}.",
+  "INVALID": "{key} is invalid."
+}

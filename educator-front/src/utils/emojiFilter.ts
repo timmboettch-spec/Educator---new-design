@@ -4,7 +4,7 @@ const LEFTOVER =
 
 const EMOJI_PATTERN = new RegExp(
   `\\p{Extended_Pictographic}(?:${SKIN_TONE}|\\uFE0F)?(?:\\u200D\\p{Extended_Pictographic}(?:${SKIN_TONE}|\\uFE0F)?)*|[\\u{1F1E0}-\\u{1F1FF}]{2}|[#*0-9]\\uFE0F\\u20E3|${LEFTOVER}`,
-  'gu',
+  'gu'
 );
 
 export const stripEmoji = (text: string): string => {
@@ -17,7 +17,9 @@ export const containsEmoji = (text: string): boolean => {
   return EMOJI_PATTERN.test(text);
 };
 
-export const extractClipboardText = (clipboardData: DataTransfer): string | null => {
+export const extractClipboardText = (
+  clipboardData: DataTransfer
+): string | null => {
   const htmlData = clipboardData.getData('text/html');
 
   if (htmlData) {
@@ -26,7 +28,9 @@ export const extractClipboardText = (clipboardData: DataTransfer): string | null
 
     doc.querySelectorAll('img').forEach((img) => img.remove());
 
-    const textContent = (doc.body.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const textContent = (doc.body.textContent ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
     const cleaned = stripEmoji(textContent);
 
     if (cleaned === '') {

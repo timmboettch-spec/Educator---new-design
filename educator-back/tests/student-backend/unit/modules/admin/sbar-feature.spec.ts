@@ -5,6 +5,7 @@ import { AdminService } from '@/modules/admin/admin.service';
 import { CreateScenarioDto } from '@/modules/admin/dto/create-scenario.dto';
 import { UpdateScenarioDto } from '@/modules/admin/dto/update-scenario.dto';
 import { validate } from 'class-validator';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 describe('SBAR Feature - Backend Tests', () => {
   let controller: AdminController;
@@ -26,7 +27,8 @@ describe('SBAR Feature - Backend Tests', () => {
           useValue: mockAdminService,
         },
       ],
-    }).compile();
+    })
+      .compile();
 
     controller = module.get<AdminController>(AdminController);
 

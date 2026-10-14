@@ -7,164 +7,218 @@
 
 /* eslint-disable @typescript-eslint/no-require-imports, no-undef, no-console, @typescript-eslint/no-unused-vars */
 
-const fs   = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function stripAnsi(str = "") {
+function stripAnsi(str = '') {
   // eslint-disable-next-line no-control-regex
-  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 }
 
-function escapeHtml(s = "") {
+function escapeHtml(s = '') {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function humanizeTitle(title) {
-  if (!title) { return "Validates expected behavior."; }
+  if (!title) {
+    return 'Validates expected behavior.';
+  }
   let t = title.trim();
-  t = t.replace(/^should\s+/i, "");
+  t = t.replace(/^should\s+/i, '');
   t = t.charAt(0).toUpperCase() + t.slice(1);
-  if (!/[.!?]$/.test(t)) { t += "."; }
+  if (!/[.!?]$/.test(t)) {
+    t += '.';
+  }
   return t;
 }
 
 function whatItChecks(title) {
-  const lower = (title || "").toLowerCase();
-  if (/(login|authenticate|sign.?in)/.test(lower))
-    {return "Verifies that a user can log in with valid credentials and that a session is correctly established afterwards.";}
-  if (/(sign.?out|log.?out)/.test(lower))
-    {return "Verifies that the sign-out flow works correctly — the session is cleared and the user is redirected to the login page.";}
-  if (/(create|add new|add a)/.test(lower))
-    {return "Verifies that the creation form accepts valid input, submits successfully, and the new record appears in the system.";}
-  if (/(update|edit|modify|save changes)/.test(lower))
-    {return "Verifies that editing an existing record saves the updated values correctly and the changes are reflected in the UI.";}
-  if (/(delete|remove)/.test(lower))
-    {return "Verifies that the delete action removes the selected record and it no longer appears in the list after confirmation.";}
-  if (/(navigate|sidebar|breadcrumb|route|redirect)/.test(lower))
-    {return "Verifies that clicking a navigation control takes the user to the correct page and the URL updates as expected.";}
-  if (/(heading|title|h1|h2|render|visible|display|show)/.test(lower))
-    {return "Verifies that the expected heading or key UI element is rendered and visible on the page after it loads.";}
-  if (/(search|filter|sort)/.test(lower))
-    {return "Verifies that the search, filter, or sort control narrows the results to the expected subset without breaking the page.";}
-  if (/(modal|dialog|popup|confirm)/.test(lower))
-    {return "Verifies that the modal opens on the correct action, displays the right content, and can be dismissed cleanly.";}
-  if (/(form|submit|input|validation|invalid|required)/.test(lower))
-    {return "Verifies that the form enforces validation rules — required fields are checked and invalid data is rejected with a clear error message.";}
-  if (/(report|score|transcript)/.test(lower))
-    {return "Verifies that the assessment report page loads correctly and displays the student's score and performance breakdown.";}
-  if (/(responsive|mobile|tablet|viewport|overflow)/.test(lower))
-    {return "Verifies that the page layout adapts correctly to the target viewport size and no content is clipped or horizontally overflowed.";}
-  if (/(screenshot|error.*overlay|js.?error)/.test(lower))
-    {return "Verifies that the page renders without a JavaScript error overlay or unexpected crash banner.";}
-  return "Verifies that the described behaviour works correctly end-to-end in the browser.";
+  const lower = (title || '').toLowerCase();
+  if (/(login|authenticate|sign.?in)/.test(lower)) {
+    return 'Verifies that a user can log in with valid credentials and that a session is correctly established afterwards.';
+  }
+  if (/(sign.?out|log.?out)/.test(lower)) {
+    return 'Verifies that the sign-out flow works correctly — the session is cleared and the user is redirected to the login page.';
+  }
+  if (/(create|add new|add a)/.test(lower)) {
+    return 'Verifies that the creation form accepts valid input, submits successfully, and the new record appears in the system.';
+  }
+  if (/(update|edit|modify|save changes)/.test(lower)) {
+    return 'Verifies that editing an existing record saves the updated values correctly and the changes are reflected in the UI.';
+  }
+  if (/(delete|remove)/.test(lower)) {
+    return 'Verifies that the delete action removes the selected record and it no longer appears in the list after confirmation.';
+  }
+  if (/(navigate|sidebar|breadcrumb|route|redirect)/.test(lower)) {
+    return 'Verifies that clicking a navigation control takes the user to the correct page and the URL updates as expected.';
+  }
+  if (/(heading|title|h1|h2|render|visible|display|show)/.test(lower)) {
+    return 'Verifies that the expected heading or key UI element is rendered and visible on the page after it loads.';
+  }
+  if (/(search|filter|sort)/.test(lower)) {
+    return 'Verifies that the search, filter, or sort control narrows the results to the expected subset without breaking the page.';
+  }
+  if (/(modal|dialog|popup|confirm)/.test(lower)) {
+    return 'Verifies that the modal opens on the correct action, displays the right content, and can be dismissed cleanly.';
+  }
+  if (/(form|submit|input|validation|invalid|required)/.test(lower)) {
+    return 'Verifies that the form enforces validation rules — required fields are checked and invalid data is rejected with a clear error message.';
+  }
+  if (/(report|score|transcript)/.test(lower)) {
+    return "Verifies that the assessment report page loads correctly and displays the student's score and performance breakdown.";
+  }
+  if (/(responsive|mobile|tablet|viewport|overflow)/.test(lower)) {
+    return 'Verifies that the page layout adapts correctly to the target viewport size and no content is clipped or horizontally overflowed.';
+  }
+  if (/(screenshot|error.*overlay|js.?error)/.test(lower)) {
+    return 'Verifies that the page renders without a JavaScript error overlay or unexpected crash banner.';
+  }
+  return 'Verifies that the described behaviour works correctly end-to-end in the browser.';
 }
 
 function whyPassed(title) {
-  const lower = (title || "").toLowerCase();
-  if (/(login|authenticate|sign.?in)/.test(lower))
-    {return "The login flow completed successfully. The user was authenticated and the session was established — the dashboard loaded as expected.";}
-  if (/(sign.?out|log.?out)/.test(lower))
-    {return "The sign-out flow completed successfully. The session was cleared and the browser redirected to the login page.";}
-  if (/(create|add new|add a)/.test(lower))
-    {return "The resource was created with the provided data. The form submitted without errors and the new record appeared in the system.";}
-  if (/(update|edit|modify|save changes)/.test(lower))
-    {return "The record was updated successfully. The new values were saved and the UI reflected the changes without any errors.";}
-  if (/(delete|remove)/.test(lower))
-    {return "The record was deleted. The confirmation dialog appeared, the delete was confirmed, and the item was removed from the list.";}
-  if (/(navigate|sidebar|breadcrumb|route|redirect)/.test(lower))
-    {return "Navigation worked as expected. The sidebar link or button took the user to the correct page and the URL matched the expected pattern.";}
-  if (/(heading|title|h1|h2|render|visible|display|show)/.test(lower))
-    {return "The expected element was rendered and visible within the allowed timeout. The page loaded correctly without any errors.";}
-  if (/(search|filter|sort)/.test(lower))
-    {return "The search or filter returned the expected results. The list was correctly narrowed down and the page remained stable.";}
-  if (/(modal|dialog|popup|confirm)/.test(lower))
-    {return "The modal opened correctly, displayed the right content, and closed cleanly when dismissed — no overlay or z-index issues.";}
-  if (/(form|validation|invalid|required)/.test(lower))
-    {return "Form validation worked correctly. The required fields were enforced and invalid input was rejected with the appropriate error message.";}
-  if (/(report|score|transcript)/.test(lower))
-    {return "The report page loaded and displayed the assessment data correctly within the expected timeout.";}
-  if (/(responsive|mobile|tablet|viewport|overflow)/.test(lower))
-    {return "The page rendered correctly at the target viewport size. No horizontal overflow was detected and all critical elements were visible.";}
-  return "All assertions passed. Every expected element was found, every navigation completed, and every data check returned the correct result.";
+  const lower = (title || '').toLowerCase();
+  if (/(login|authenticate|sign.?in)/.test(lower)) {
+    return 'The login flow completed successfully. The user was authenticated and the session was established — the dashboard loaded as expected.';
+  }
+  if (/(sign.?out|log.?out)/.test(lower)) {
+    return 'The sign-out flow completed successfully. The session was cleared and the browser redirected to the login page.';
+  }
+  if (/(create|add new|add a)/.test(lower)) {
+    return 'The resource was created with the provided data. The form submitted without errors and the new record appeared in the system.';
+  }
+  if (/(update|edit|modify|save changes)/.test(lower)) {
+    return 'The record was updated successfully. The new values were saved and the UI reflected the changes without any errors.';
+  }
+  if (/(delete|remove)/.test(lower)) {
+    return 'The record was deleted. The confirmation dialog appeared, the delete was confirmed, and the item was removed from the list.';
+  }
+  if (/(navigate|sidebar|breadcrumb|route|redirect)/.test(lower)) {
+    return 'Navigation worked as expected. The sidebar link or button took the user to the correct page and the URL matched the expected pattern.';
+  }
+  if (/(heading|title|h1|h2|render|visible|display|show)/.test(lower)) {
+    return 'The expected element was rendered and visible within the allowed timeout. The page loaded correctly without any errors.';
+  }
+  if (/(search|filter|sort)/.test(lower)) {
+    return 'The search or filter returned the expected results. The list was correctly narrowed down and the page remained stable.';
+  }
+  if (/(modal|dialog|popup|confirm)/.test(lower)) {
+    return 'The modal opened correctly, displayed the right content, and closed cleanly when dismissed — no overlay or z-index issues.';
+  }
+  if (/(form|validation|invalid|required)/.test(lower)) {
+    return 'Form validation worked correctly. The required fields were enforced and invalid input was rejected with the appropriate error message.';
+  }
+  if (/(report|score|transcript)/.test(lower)) {
+    return 'The report page loaded and displayed the assessment data correctly within the expected timeout.';
+  }
+  if (/(responsive|mobile|tablet|viewport|overflow)/.test(lower)) {
+    return 'The page rendered correctly at the target viewport size. No horizontal overflow was detected and all critical elements were visible.';
+  }
+  return 'All assertions passed. Every expected element was found, every navigation completed, and every data check returned the correct result.';
 }
 
-function whyFailed(error = "") {
-  if (!error) { return "The test did not meet the expected outcome. No detailed error was captured."; }
+function whyFailed(error = '') {
+  if (!error) {
+    return 'The test did not meet the expected outcome. No detailed error was captured.';
+  }
   const raw = stripAnsi(String(error));
 
-  if (/timeout.*exceed|exceed.*timeout/i.test(raw))
-    {return "The test timed out waiting for an element or action to complete. The element may not have appeared, the page may be stuck loading, or the API response took too long.";}
-  if (/strict mode violation/i.test(raw))
-    {return "Playwright found more than one element matching the selector. The locator must be made more specific to target exactly one element.";}
-  if (/element.*not.*found|no elements|locator.*resolved to 0/i.test(raw))
-    {return "The expected element was not found on the page at all. It may not have been rendered, or the selector may be incorrect.";}
-  if (/not visible|hidden|display:none/i.test(raw))
-    {return "The element exists in the DOM but is not visible to the user. It may be hidden, covered by another element, or outside the viewport.";}
-  if (/toHaveURL|Expected.*URL|url.*mismatch/i.test(raw))
-    {return "The page URL did not match the expected pattern. Navigation may have been blocked, redirected elsewhere, or the URL changed unexpectedly.";}
-  if (/toBeVisible/i.test(raw))
-    {return "An element that was expected to be visible was not visible within the allowed timeout. Check if it is rendered after an API call or user interaction.";}
+  if (/timeout.*exceed|exceed.*timeout/i.test(raw)) {
+    return 'The test timed out waiting for an element or action to complete. The element may not have appeared, the page may be stuck loading, or the API response took too long.';
+  }
+  if (/strict mode violation/i.test(raw)) {
+    return 'Playwright found more than one element matching the selector. The locator must be made more specific to target exactly one element.';
+  }
+  if (/element.*not.*found|no elements|locator.*resolved to 0/i.test(raw)) {
+    return 'The expected element was not found on the page at all. It may not have been rendered, or the selector may be incorrect.';
+  }
+  if (/not visible|hidden|display:none/i.test(raw)) {
+    return 'The element exists in the DOM but is not visible to the user. It may be hidden, covered by another element, or outside the viewport.';
+  }
+  if (/toHaveURL|Expected.*URL|url.*mismatch/i.test(raw)) {
+    return 'The page URL did not match the expected pattern. Navigation may have been blocked, redirected elsewhere, or the URL changed unexpectedly.';
+  }
+  if (/toBeVisible/i.test(raw)) {
+    return 'An element that was expected to be visible was not visible within the allowed timeout. Check if it is rendered after an API call or user interaction.';
+  }
   if (/Expected.*toBe|toEqual|Received/i.test(raw)) {
-    const lines = raw.split("\n").filter(l => l.trim() && !/^\s+at\s/.test(l)).slice(0, 4).join(" — ");
+    const lines = raw
+      .split('\n')
+      .filter((l) => l.trim() && !/^\s+at\s/.test(l))
+      .slice(0, 4)
+      .join(' — ');
     return `An assertion value did not match what was expected: ${escapeHtml(lines.slice(0, 350))}`;
   }
-  if (/ERR_|net::|navigation.*failed/i.test(raw))
-    {return "A network error occurred. The page could not be loaded — check if the dev server is running and the base URL is reachable.";}
-  if (/click.*failed|not clickable|intercept/i.test(raw))
-    {return "The element could not be clicked. It may be covered by another element, disabled, or outside the visible area.";}
+  if (/ERR_|net::|navigation.*failed/i.test(raw)) {
+    return 'A network error occurred. The page could not be loaded — check if the dev server is running and the base URL is reachable.';
+  }
+  if (/click.*failed|not clickable|intercept/i.test(raw)) {
+    return 'The element could not be clicked. It may be covered by another element, disabled, or outside the visible area.';
+  }
 
-  const firstLine = raw.split("\n").find(l => l.trim().length > 0 && !/^\s+at\s/.test(l));
-  if (firstLine) { return escapeHtml(firstLine.trim().slice(0, 450)); }
-  return "The test failed. Review the error detail below for the full stack trace.";
+  const firstLine = raw
+    .split('\n')
+    .find((l) => l.trim().length > 0 && !/^\s+at\s/.test(l));
+  if (firstLine) {
+    return escapeHtml(firstLine.trim().slice(0, 450));
+  }
+  return 'The test failed. Review the error detail below for the full stack trace.';
 }
 
 function getFailureCategory(test = {}) {
-  const raw = stripAnsi(String(test.error?.message || test.error || ""));
+  const raw = stripAnsi(String(test.error?.message || test.error || ''));
   const isTimedOut =
-    test.status === "timedOut" ||
+    test.status === 'timedOut' ||
     /timeout.*exceed|exceed.*timeout|timed out/i.test(raw);
   if (isTimedOut) {
     return {
-      type: "TIMEOUT",
+      type: 'TIMEOUT',
       isTimeout: true,
-      badge: "⏱️ TIMEOUT",
+      badge: '⏱️ TIMEOUT',
       description:
-        "The test exceeded the timeout duration waiting for an action, locator, or navigation to complete.",
+        'The test exceeded the timeout duration waiting for an action, locator, or navigation to complete.',
     };
   }
   if (/Expected.*toBe|toEqual|Received|toHave|toContain/i.test(raw)) {
     return {
-      type: "ASSERTION FAILED",
+      type: 'ASSERTION FAILED',
       isTimeout: false,
-      badge: "❌ ASSERTION FAILED",
+      badge: '❌ ASSERTION FAILED',
       description:
-        "An assertion (expect) did not match the expected condition or value.",
+        'An assertion (expect) did not match the expected condition or value.',
     };
   }
   return {
-    type: "ERROR",
+    type: 'ERROR',
     isTimeout: false,
-    badge: "💥 ERROR",
+    badge: '💥 ERROR',
     description:
-      "An unexpected runtime error, selector issue, or exception occurred during test execution.",
+      'An unexpected runtime error, selector issue, or exception occurred during test execution.',
   };
 }
 
 function whySkipped(title) {
-  const lower = (title || "").toLowerCase();
-  if (/(report|transcript|viewer|performance)/.test(lower))
-    {return "This test requires an existing assessment report in the environment. No report data was found during the setup phase, so the test was skipped to avoid a false failure.";}
-  if (/(delete|cancel.*delete)/.test(lower))
-    {return "This test requires a record with a visible Delete button. No deletable record was found in the current environment, so the test was skipped gracefully.";}
-  if (/(row action|view report|view transcript|accordion|class section)/.test(lower))
-    {return "This test requires at least one report row in the class accordion. No report data was available in this environment, so the test was skipped.";}
+  const lower = (title || '').toLowerCase();
+  if (/(report|transcript|viewer|performance)/.test(lower)) {
+    return 'This test requires an existing assessment report in the environment. No report data was found during the setup phase, so the test was skipped to avoid a false failure.';
+  }
+  if (/(delete|cancel.*delete)/.test(lower)) {
+    return 'This test requires a record with a visible Delete button. No deletable record was found in the current environment, so the test was skipped gracefully.';
+  }
+  if (
+    /(row action|view report|view transcript|accordion|class section)/.test(
+      lower
+    )
+  ) {
+    return 'This test requires at least one report row in the class accordion. No report data was available in this environment, so the test was skipped.';
+  }
   return "The test's pre-conditions were not met in this environment (e.g. missing data or a feature flag that is off). It was skipped gracefully rather than failing.";
 }
 
@@ -172,27 +226,38 @@ const MIN_IMAGE_BYTES = 4_000;
 
 function readAttachmentBytes(att) {
   try {
-    if (att.path && fs.existsSync(att.path)) { return fs.readFileSync(att.path); }
-    if (att.body) { return Buffer.isBuffer(att.body) ? att.body : Buffer.from(att.body); }
-  } catch (_) { /* skip */ }
+    if (att.path && fs.existsSync(att.path)) {
+      return fs.readFileSync(att.path);
+    }
+    if (att.body) {
+      return Buffer.isBuffer(att.body) ? att.body : Buffer.from(att.body);
+    }
+  } catch (_) {
+    /* skip */
+  }
   return null;
 }
 
 function screenshotDataUri(attachments = []) {
   for (const att of attachments) {
-    if (att && typeof att.name === "string" && att.name.toLowerCase() === "final-state" &&
-        att.contentType && att.contentType.startsWith("image/")) {
+    if (
+      att &&
+      typeof att.name === 'string' &&
+      att.name.toLowerCase() === 'final-state' &&
+      att.contentType &&
+      att.contentType.startsWith('image/')
+    ) {
       const bytes = readAttachmentBytes(att);
       if (bytes && bytes.length >= MIN_IMAGE_BYTES) {
-        return `data:${att.contentType};base64,${bytes.toString("base64")}`;
+        return `data:${att.contentType};base64,${bytes.toString('base64')}`;
       }
     }
   }
   for (const att of attachments) {
-    if (att.contentType && att.contentType.startsWith("image/")) {
+    if (att.contentType && att.contentType.startsWith('image/')) {
       const bytes = readAttachmentBytes(att);
       if (bytes && bytes.length >= MIN_IMAGE_BYTES) {
-        return `data:${att.contentType};base64,${bytes.toString("base64")}`;
+        return `data:${att.contentType};base64,${bytes.toString('base64')}`;
       }
     }
   }
@@ -203,35 +268,44 @@ function screenshotDataUri(attachments = []) {
 
 class FriendlyHtmlReporter {
   constructor(options = {}) {
-    this.outputDir   = options.outputFolder || path.join(__dirname, "../results/reports/html");
-    this.pageTitle   = options.pageTitle    || "UI Regression Test Report";
-    this.subtitle    = options.subtitle     || "User-friendly summary of every UI test — what it validates, why it passed or failed, and a screenshot of the browser at the time the test finished.";
-    this.projectName = options.projectName  || "Educator App — Frontend E2E";
-    this.framework   = options.framework    || "Playwright";
-    const fileName   = this.pageTitle.toLowerCase().replace(/\s+/g, "-") + ".html";
-    this.reportFile  = path.join(this.outputDir, fileName);
+    this.outputDir =
+      options.outputFolder || path.join(__dirname, '../results/reports/html');
+    this.pageTitle = options.pageTitle || 'UI Regression Test Report';
+    this.subtitle =
+      options.subtitle ||
+      'User-friendly summary of every UI test — what it validates, why it passed or failed, and a screenshot of the browser at the time the test finished.';
+    this.projectName = options.projectName || 'Educator App — Frontend E2E';
+    this.framework = options.framework || 'Playwright';
+    const fileName =
+      this.pageTitle.toLowerCase().replace(/\s+/g, '-') + '.html';
+    this.reportFile = path.join(this.outputDir, fileName);
     this.testsByFile = {};
   }
 
   onTestEnd(test, result) {
     const rawFile = test.location?.file || test.file;
-    const file = rawFile ? path.basename(rawFile, path.extname(rawFile)) : "Tests";
+    const file = rawFile
+      ? path.basename(rawFile, path.extname(rawFile))
+      : 'Tests';
     if (!this.testsByFile[file]) {
       this.testsByFile[file] = { file: rawFile, tests: [] };
     }
     this.testsByFile[file].tests.push({
-      title:       test.title,
-      status:      result.status,
-      duration:    result.duration,
-      error:       result.error,
+      title: test.title,
+      status: result.status,
+      duration: result.duration,
+      error: result.error,
       attachments: result.attachments || [],
     });
 
-    if (result.status === "failed" || result.status === "timedOut") {
-      const cat = getFailureCategory({ status: result.status, error: result.error });
+    if (result.status === 'failed' || result.status === 'timedOut') {
+      const cat = getFailureCategory({
+        status: result.status,
+        error: result.error,
+      });
       const explanation = whyFailed(result.error?.message || result.error);
       console.log(
-        `\n  ✘ [FAIL: ${cat.badge} (${cat.isTimeout ? "YES - TIMEOUT" : "NO - NOT A TIMEOUT"})] ${test.title} (${file})`,
+        `\n  ✘ [FAIL: ${cat.badge} (${cat.isTimeout ? 'YES - TIMEOUT' : 'NO - NOT A TIMEOUT'})] ${test.title} (${file})`
       );
       console.log(`    → Why: ${explanation}`);
     }
@@ -240,16 +314,21 @@ class FriendlyHtmlReporter {
   async onEnd() {
     try {
       const stats = this.calculateStats();
-      let logoDataUri = "";
+      let logoDataUri = '';
       try {
-        const logoPath  = path.join(__dirname, "../../../public/assets/common/Realityworks_AI_RGB.png");
+        const logoPath = path.join(
+          __dirname,
+          '../../../public/assets/common/Realityworks_AI_RGB.png'
+        );
         const logoBytes = fs.readFileSync(logoPath);
-        logoDataUri = `data:image/png;base64,${logoBytes.toString("base64")}`;
-      } catch (_) { /* logo not found — skip silently */ }
+        logoDataUri = `data:image/png;base64,${logoBytes.toString('base64')}`;
+      } catch (_) {
+        /* logo not found — skip silently */
+      }
 
       const html = this.generateHTML(stats, logoDataUri);
       fs.mkdirSync(this.outputDir, { recursive: true });
-      fs.writeFileSync(this.reportFile, html, "utf-8");
+      fs.writeFileSync(this.reportFile, html, 'utf-8');
 
       this.printFailureSummaryToConsole();
       console.log(`\n✅ ${this.pageTitle} generated: ${this.reportFile}\n`);
@@ -262,63 +341,91 @@ class FriendlyHtmlReporter {
     const failedTests = [];
     Object.entries(this.testsByFile).forEach(([fileKey, { tests }]) => {
       tests.forEach((t) => {
-        if (t.status === "failed" || t.status === "timedOut") {
+        if (t.status === 'failed' || t.status === 'timedOut') {
           failedTests.push({ ...t, fileKey });
         }
       });
     });
 
     if (failedTests.length === 0) {
-      console.log("\n✨ All tests passed! No failure logs to display.\n");
+      console.log('\n✨ All tests passed! No failure logs to display.\n');
       return;
     }
 
-    console.log("\n================================================================================");
-    console.log(`❌ FAILED REGRESSION TESTS SUMMARY (${failedTests.length} failed)`);
-    console.log("================================================================================");
+    console.log(
+      '\n================================================================================'
+    );
+    console.log(
+      `❌ FAILED REGRESSION TESTS SUMMARY (${failedTests.length} failed)`
+    );
+    console.log(
+      '================================================================================'
+    );
 
     failedTests.forEach((t, index) => {
       const cat = getFailureCategory(t);
       const explanation = whyFailed(t.error?.message || t.error);
-      const rawError = stripAnsi(String(t.error?.message || t.error || "")).trim();
+      const rawError = stripAnsi(
+        String(t.error?.message || t.error || '')
+      ).trim();
       const firstLines = rawError
-        .split("\n")
-        .filter((l) => l.trim() && !l.includes("at "))
+        .split('\n')
+        .filter((l) => l.trim() && !l.includes('at '))
         .slice(0, 5)
-        .join("\n       ");
+        .join('\n       ');
 
       console.log(`\n${index + 1}) [FAIL] ${t.title}`);
       console.log(`   File         : ${t.fileKey}`);
-      console.log(`   Failure Type : ${cat.badge} (${cat.isTimeout ? "YES - TIMEOUT" : "NO - NOT A TIMEOUT"})`);
+      console.log(
+        `   Failure Type : ${cat.badge} (${cat.isTimeout ? 'YES - TIMEOUT' : 'NO - NOT A TIMEOUT'})`
+      );
       console.log(`   Why Failed   : ${explanation}`);
       if (firstLines) {
         console.log(`   Error Detail :\n       ${firstLines}`);
       }
-      console.log("--------------------------------------------------------------------------------");
+      console.log(
+        '--------------------------------------------------------------------------------'
+      );
     });
-    console.log("");
+    console.log('');
   }
 
   calculateStats() {
-    let passed = 0, failed = 0, skipped = 0, duration = 0;
+    let passed = 0,
+      failed = 0,
+      skipped = 0,
+      duration = 0;
     Object.values(this.testsByFile).forEach(({ tests }) => {
-      tests.forEach(t => {
+      tests.forEach((t) => {
         duration += t.duration || 0;
-        if (t.status === "passed")       { passed++; }
-        else if (t.status === "failed" || t.status === "timedOut") { failed++; }
-        else                             { skipped++; }
+        if (t.status === 'passed') {
+          passed++;
+        } else if (t.status === 'failed' || t.status === 'timedOut') {
+          failed++;
+        } else {
+          skipped++;
+        }
       });
     });
-    return { passed, failed, skipped, duration, total: passed + failed + skipped };
+    return {
+      passed,
+      failed,
+      skipped,
+      duration,
+      total: passed + failed + skipped,
+    };
   }
 
-  generateHTML(stats, logoDataUri = "") {
-    const timestamp   = new Date().toLocaleString();
-    const successRate = stats.total > 0 ? Math.round((stats.passed / stats.total) * 1000) / 10 : 0;
+  generateHTML(stats, logoDataUri = '') {
+    const timestamp = new Date().toLocaleString();
+    const successRate =
+      stats.total > 0
+        ? Math.round((stats.passed / stats.total) * 1000) / 10
+        : 0;
     const fileSections = this.generateFileSections();
     const logoHtml = logoDataUri
       ? `<div class="logo-box"><img src="${logoDataUri}" alt="Realityworks AI" class="logo-img"/></div>`
-      : "";
+      : '';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -455,7 +562,7 @@ footer{text-align:center;padding:20px;color:var(--muted);font-size:12px;margin-t
     <button class="filter-btn" onclick="setFilter(this,'skipped')">⏭ Skipped</button>
   </div>
 </div>
-<main>${fileSections || "<p>No test results.</p>"}</main>
+<main>${fileSections || '<p>No test results.</p>'}</main>
 <footer>
   <strong>Educator App</strong> &nbsp;|&nbsp; ${escapeHtml(this.pageTitle)} &nbsp;|&nbsp; Powered by Playwright
 </footer>
@@ -506,42 +613,53 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); }
   }
 
   generateFileSections() {
-    return Object.keys(this.testsByFile).sort().map(fileKey => {
-      const { tests } = this.testsByFile[fileKey];
-      let nPass = 0, nFail = 0, nSkip = 0;
-      tests.forEach(t => {
-        if (t.status === "passed")      {nPass++;}
-        else if (t.status === "failed" || t.status === "timedOut") {nFail++;}
-        else                            {nSkip++;}
-      });
-      const total      = nPass + nFail + nSkip;
-      const sectionCls = nFail > 0 ? "fail" : "pass";
-      const rows = tests.map((test, idx) => this.buildTestRow(test, fileKey, idx)).join("");
-      return `<section class="module-section ${sectionCls}" data-module="${escapeHtml(fileKey)}">
+    return Object.keys(this.testsByFile)
+      .sort()
+      .map((fileKey) => {
+        const { tests } = this.testsByFile[fileKey];
+        let nPass = 0,
+          nFail = 0,
+          nSkip = 0;
+        tests.forEach((t) => {
+          if (t.status === 'passed') {
+            nPass++;
+          } else if (t.status === 'failed' || t.status === 'timedOut') {
+            nFail++;
+          } else {
+            nSkip++;
+          }
+        });
+        const total = nPass + nFail + nSkip;
+        const sectionCls = nFail > 0 ? 'fail' : 'pass';
+        const rows = tests
+          .map((test, idx) => this.buildTestRow(test, fileKey, idx))
+          .join('');
+        return `<section class="module-section ${sectionCls}" data-module="${escapeHtml(fileKey)}">
   <button class="module-head" onclick="toggleModule(this)">
     <span class="caret">▾</span>
     <span class="module-name">📄 ${escapeHtml(fileKey)}</span>
     <span class="module-stats">
       <span class="chip ok">${nPass} passed</span>
-      ${nFail ? `<span class="chip bad">${nFail} failed</span>` : ""}
-      ${nSkip ? `<span class="chip warn">${nSkip} skipped</span>` : ""}
+      ${nFail ? `<span class="chip bad">${nFail} failed</span>` : ''}
+      ${nSkip ? `<span class="chip warn">${nSkip} skipped</span>` : ''}
       <span class="chip total">${total} total</span>
     </span>
   </button>
   <div class="module-body">${rows}</div>
 </section>`;
-    }).join("");
+      })
+      .join('');
   }
 
   buildTestRow(test, fileKey, idx) {
-    const isPass = test.status === "passed";
-    const isFail = test.status === "failed" || test.status === "timedOut";
+    const isPass = test.status === 'passed';
+    const isFail = test.status === 'failed' || test.status === 'timedOut';
     const isSkip = !isPass && !isFail;
 
-    const badgeCls   = isPass ? "pass"   : isFail ? "fail"    : "skipped";
-    const dataStatus = isPass ? "passed" : isFail ? "failed"  : "skipped";
-    const badgeText  = isPass ? "PASS"   : isFail ? "FAIL"    : "SKIP";
-    const rowId      = `row-${fileKey.replace(/\W/g,"-")}-${idx}`;
+    const badgeCls = isPass ? 'pass' : isFail ? 'fail' : 'skipped';
+    const dataStatus = isPass ? 'passed' : isFail ? 'failed' : 'skipped';
+    const badgeText = isPass ? 'PASS' : isFail ? 'FAIL' : 'SKIP';
+    const rowId = `row-${fileKey.replace(/\W/g, '-')}-${idx}`;
 
     const checksCard = `<div class="info-card checks">
   <div class="ic-label">🎯 What this test checks</div>
@@ -556,7 +674,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); }
 </div>`;
     } else if (isFail) {
       const cat = getFailureCategory(test);
-      const badgeHtml = `<span class="sc-badge fail-b" style="margin-left:8px;">${cat.badge} (${cat.isTimeout ? "TIMEOUT" : "NOT TIMEOUT"})</span>`;
+      const badgeHtml = `<span class="sc-badge fail-b" style="margin-left:8px;">${cat.badge} (${cat.isTimeout ? 'TIMEOUT' : 'NOT TIMEOUT'})</span>`;
       resultCard = `<div class="info-card result-fail">
   <div class="ic-label">❌ Why it failed ${badgeHtml}</div>
   <div class="ic-value">${whyFailed(test.error?.message || test.error)}</div>
@@ -568,10 +686,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); }
 </div>`;
     }
 
-    let errorBlock = "";
+    let errorBlock = '';
     if (isFail && test.error) {
-      const rawError  = stripAnsi(String(test.error.message || test.error));
-      const codeLines = rawError.split("\n").filter(l => l.trim()).slice(0, 30).join("\n");
+      const rawError = stripAnsi(String(test.error.message || test.error));
+      const codeLines = rawError
+        .split('\n')
+        .filter((l) => l.trim())
+        .slice(0, 30)
+        .join('\n');
       errorBlock = `<div class="error-block">
   <div class="error-block-head">🔴 Full Error Detail</div>
   <pre>${escapeHtml(codeLines)}</pre>
@@ -586,16 +708,24 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); }
   <div class="sc-none"><span class="sc-none-icon">📷</span>No screenshot was captured because the test was skipped before any browser interaction occurred.</div>
 </div>`;
     } else if (dataUri) {
-      const hdrCls   = isPass ? "pass-hdr" : "fail-hdr";
-      const badgeCl2 = isPass ? "pass-b"   : "fail-b";
-      const hdrLabel = isPass ? "📸 Screenshot — Final Page State" : "📸 Screenshot — Page State at Failure";
-      const badgeLbl = isPass ? "CAPTURED ON PASS" : "CAPTURED ON FAIL";
-      const altText  = isPass ? `Screenshot: ${test.title} — test passed` : `Screenshot: ${test.title} — test failed`;
-      const captionTitle = isPass ? "What you are seeing" : "What you are seeing — and why it matters";
-      const captionBody  = isPass
-        ? "This screenshot was captured <strong>after the test completed successfully</strong>. It confirms the browser was in the correct state when all assertions passed."
-        : "This screenshot was captured <strong>at the exact moment the test failed</strong>. It shows what the browser displayed when the timeout or assertion error occurred.";
-      const lbLabel = isPass ? `✅ PASSED — ${test.title}` : `❌ FAILED — ${test.title}`;
+      const hdrCls = isPass ? 'pass-hdr' : 'fail-hdr';
+      const badgeCl2 = isPass ? 'pass-b' : 'fail-b';
+      const hdrLabel = isPass
+        ? '📸 Screenshot — Final Page State'
+        : '📸 Screenshot — Page State at Failure';
+      const badgeLbl = isPass ? 'CAPTURED ON PASS' : 'CAPTURED ON FAIL';
+      const altText = isPass
+        ? `Screenshot: ${test.title} — test passed`
+        : `Screenshot: ${test.title} — test failed`;
+      const captionTitle = isPass
+        ? 'What you are seeing'
+        : 'What you are seeing — and why it matters';
+      const captionBody = isPass
+        ? 'This screenshot was captured <strong>after the test completed successfully</strong>. It confirms the browser was in the correct state when all assertions passed.'
+        : 'This screenshot was captured <strong>at the exact moment the test failed</strong>. It shows what the browser displayed when the timeout or assertion error occurred.';
+      const lbLabel = isPass
+        ? `✅ PASSED — ${test.title}`
+        : `❌ FAILED — ${test.title}`;
       scBlock = `<div class="sc-block">
   <div class="sc-head ${hdrCls}"><span>${hdrLabel}</span><span class="sc-badge ${badgeCl2}">${badgeLbl}</span></div>
   <div class="sc-caption"><strong>${captionTitle}</strong>${captionBody}</div>
@@ -603,15 +733,18 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); }
 </div>`;
     } else {
       scBlock = `<div class="sc-block">
-  <div class="sc-head ${isPass ? "pass-hdr" : "fail-hdr"}"><span>📷 Screenshot — Not Captured</span><span class="sc-badge ${isPass ? "pass-b" : "fail-b"}">${isPass ? "PASS" : "FAIL"}</span></div>
+  <div class="sc-head ${isPass ? 'pass-hdr' : 'fail-hdr'}"><span>📷 Screenshot — Not Captured</span><span class="sc-badge ${isPass ? 'pass-b' : 'fail-b'}">${isPass ? 'PASS' : 'FAIL'}</span></div>
   <div class="sc-none"><span class="sc-none-icon">🖼️</span>No screenshot attachment found. Ensure <code>screenshot: "on"</code> is set in the Playwright config.</div>
 </div>`;
     }
 
-    const ms  = test.duration || 0;
-    const dur = ms >= 60_000
-      ? `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1_000)}s`
-      : ms >= 1_000 ? `${(ms / 1_000).toFixed(1)} s` : `${ms} ms`;
+    const ms = test.duration || 0;
+    const dur =
+      ms >= 60_000
+        ? `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1_000)}s`
+        : ms >= 1_000
+          ? `${(ms / 1_000).toFixed(1)} s`
+          : `${ms} ms`;
 
     return `<div class="test-row ${badgeCls}" data-status="${dataStatus}" id="${rowId}">
   <div class="test-head">

@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Schools from '../../../src/pages/schools/index';
@@ -45,10 +52,12 @@ vi.mock('../../../src/redux/schools/PostSchoolsRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({ type: 'schools/get' })),
   resetSchools: vi.fn(() => ({ type: 'schools/reset' })),
-  selectSchoolResponse: (s: typeof mockState) => s?.School?.responseSchool ?? null,
+  selectSchoolResponse: (s: typeof mockState) =>
+    s?.School?.responseSchool ?? null,
   selectSchoolStatus: (s: typeof mockState) => s?.School?.status ?? 'idle',
 }));
 
@@ -66,8 +75,8 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
     s?.GetEducator?.responseGetEducator?.data ?? { items: [], total: 0 },
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'users/get' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 vi.mock('../../../src/components/common/Toast', () => ({
@@ -94,7 +103,9 @@ vi.mock('../../../src/components/common/ListTable', () => ({
             <td>
               {onView && <button onClick={() => onView(row)}>View</button>}
               {onEdit && <button onClick={() => onEdit(row)}>Edit</button>}
-              {onDelete && <button onClick={() => onDelete(row)}>Delete</button>}
+              {onDelete && (
+                <button onClick={() => onDelete(row)}>Delete</button>
+              )}
             </td>
           </tr>
         ))}
@@ -107,7 +118,7 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <Schools />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 
 describe('Schools Page + CreateSchoolModal Integration', () => {
@@ -130,7 +141,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const addBtn = await screen.findByRole('button', { name: /add school/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -141,7 +154,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const addBtn = await screen.findByRole('button', { name: /add school/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => {
         const inputs = screen.queryAllByRole('textbox');
@@ -153,13 +168,19 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const addBtn = await screen.findByRole('button', { name: /add school/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const backBtn = within(dialog).queryByRole('button', { name: /back|cancel/i });
+      const backBtn = within(dialog).queryByRole('button', {
+        name: /back|cancel/i,
+      });
       if (backBtn) {
-        await act(async () => { fireEvent.click(backBtn); });
+        await act(async () => {
+          fireEvent.click(backBtn);
+        });
         await waitFor(() => {
           expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
         });
@@ -170,14 +191,22 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const addBtn = await screen.findByRole('button', { name: /add school/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const submitBtns = within(dialog).queryAllByRole('button', { name: /add school/i });
-      const submitBtn = submitBtns.find(btn => btn.getAttribute('type') === 'submit');
+      const submitBtns = within(dialog).queryAllByRole('button', {
+        name: /add school/i,
+      });
+      const submitBtn = submitBtns.find(
+        (btn) => btn.getAttribute('type') === 'submit'
+      );
       if (submitBtn) {
-        await act(async () => { fireEvent.click(submitBtn); });
+        await act(async () => {
+          fireEvent.click(submitBtn);
+        });
         await waitFor(() => {
           const errors = screen.queryAllByText(/required|invalid|must/i);
           expect(errors.length).toBeGreaterThan(0);
@@ -189,7 +218,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const addBtn = await screen.findByRole('button', { name: /add school/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
@@ -198,10 +229,16 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
         fireEvent.change(input, { target: { value: 'Test Value' } });
       });
 
-      const submitBtns = within(dialog).queryAllByRole('button', { name: /add school/i });
-      const submitBtn = submitBtns.find(btn => btn.getAttribute('type') === 'submit');
+      const submitBtns = within(dialog).queryAllByRole('button', {
+        name: /add school/i,
+      });
+      const submitBtn = submitBtns.find(
+        (btn) => btn.getAttribute('type') === 'submit'
+      );
       if (submitBtn) {
-        await act(async () => { fireEvent.click(submitBtn); });
+        await act(async () => {
+          fireEvent.click(submitBtn);
+        });
         await waitFor(() => {
           expect(mockDispatch).toHaveBeenCalled();
         });
@@ -214,7 +251,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const viewBtn = await screen.findByRole('button', { name: /^View$/i });
-      await act(async () => { fireEvent.click(viewBtn); });
+      await act(async () => {
+        fireEvent.click(viewBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -225,7 +264,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const viewBtn = await screen.findByRole('button', { name: /^View$/i });
-      await act(async () => { fireEvent.click(viewBtn); });
+      await act(async () => {
+        fireEvent.click(viewBtn);
+      });
 
       await waitFor(() => {
         expect(screen.queryByText(/Springfield High/i)).toBeInTheDocument();
@@ -238,7 +279,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const editBtn = await screen.findByRole('button', { name: /^Edit$/i });
-      await act(async () => { fireEvent.click(editBtn); });
+      await act(async () => {
+        fireEvent.click(editBtn);
+      });
 
       await waitFor(() => {
         const inputs = screen.queryAllByRole('textbox');
@@ -250,13 +293,19 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const editBtn = await screen.findByRole('button', { name: /^Edit$/i });
-      await act(async () => { fireEvent.click(editBtn); });
+      await act(async () => {
+        fireEvent.click(editBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const saveBtn = within(dialog).queryByRole('button', { name: /save|update/i });
+      const saveBtn = within(dialog).queryByRole('button', {
+        name: /save|update/i,
+      });
       if (saveBtn) {
-        await act(async () => { fireEvent.click(saveBtn); });
+        await act(async () => {
+          fireEvent.click(saveBtn);
+        });
         await waitFor(() => {
           expect(mockDispatch).toHaveBeenCalled();
         });
@@ -268,8 +317,12 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('opens delete confirmation when Delete action is clicked', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => {
         expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -279,19 +332,27 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('shows school name in delete confirmation dialog', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => {
         const dialog = screen.getByRole('dialog');
-        expect(within(dialog).queryByText(/Springfield High/i)).toBeInTheDocument();
+        expect(
+          within(dialog).queryByText(/Springfield High/i)
+        ).toBeInTheDocument();
       });
     });
 
     it('shows destructive-action warning text in delete confirmation dialog', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       fireEvent.click(deleteBtn);
 
       const dialog = await screen.findByRole('dialog');
@@ -303,8 +364,12 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('shows Cancel and Delete buttons in delete confirmation', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
@@ -316,14 +381,22 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('dispatches DeleteSchoolRequest when delete is confirmed', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|delete/i,
+      });
       if (confirmBtn) {
-        await act(async () => { fireEvent.click(confirmBtn); });
+        await act(async () => {
+          fireEvent.click(confirmBtn);
+        });
         await waitFor(() => {
           expect(mockDispatch).toHaveBeenCalled();
         });
@@ -333,15 +406,23 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('dismisses modal without dispatching when Back is clicked in delete mode', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
       const callsBefore = mockDispatch.mock.calls.length;
-      const backBtn = within(dialog).queryByRole('button', { name: /back|cancel/i });
+      const backBtn = within(dialog).queryByRole('button', {
+        name: /back|cancel/i,
+      });
       if (backBtn) {
-        await act(async () => { fireEvent.click(backBtn); });
+        await act(async () => {
+          fireEvent.click(backBtn);
+        });
         expect(mockDispatch.mock.calls.length).toBe(callsBefore);
       }
     });
@@ -349,15 +430,25 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('closes dialog after Cancel/Back without removing school from list', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const backBtn = within(dialog).queryByRole('button', { name: /back|cancel/i });
+      const backBtn = within(dialog).queryByRole('button', {
+        name: /back|cancel/i,
+      });
       if (backBtn) {
-        await act(async () => { fireEvent.click(backBtn); });
-        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        await act(async () => {
+          fireEvent.click(backBtn);
+        });
+        await waitFor(() =>
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        );
       }
 
       // School must still be rendered after cancel
@@ -371,14 +462,22 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
 
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|delete/i,
+      });
       if (confirmBtn) {
-        await act(async () => { fireEvent.click(confirmBtn); });
+        await act(async () => {
+          fireEvent.click(confirmBtn);
+        });
         await waitFor(() => {}, { timeout: 1500 });
         // School must still be in the DOM — no optimistic removal
         expect(screen.queryByText('Springfield High')).toBeInTheDocument();
@@ -392,14 +491,22 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
 
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|delete/i,
+      });
       if (confirmBtn) {
-        await act(async () => { fireEvent.click(confirmBtn); });
+        await act(async () => {
+          fireEvent.click(confirmBtn);
+        });
         await waitFor(() => {}, { timeout: 1500 });
         expect(screen.queryByText('Springfield High')).toBeInTheDocument();
       }
@@ -412,14 +519,22 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
 
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
-      await act(async () => { fireEvent.click(deleteBtn); });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
+      await act(async () => {
+        fireEvent.click(deleteBtn);
+      });
 
       await waitFor(() => screen.getByRole('dialog'));
       const dialog = screen.getByRole('dialog');
-      const confirmBtn = within(dialog).queryByRole('button', { name: /confirm|delete/i });
+      const confirmBtn = within(dialog).queryByRole('button', {
+        name: /confirm|delete/i,
+      });
       if (confirmBtn) {
-        await act(async () => { fireEvent.click(confirmBtn); });
+        await act(async () => {
+          fireEvent.click(confirmBtn);
+        });
         await waitFor(() => {}, { timeout: 1500 });
         expect(screen.queryByText('Springfield High')).toBeInTheDocument();
       }
@@ -428,7 +543,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
     it('does not open multiple dialogs simultaneously on repeated delete clicks', async () => {
       renderPage();
 
-      const deleteBtn = await screen.findByRole('button', { name: /^Delete$/i });
+      const deleteBtn = await screen.findByRole('button', {
+        name: /^Delete$/i,
+      });
       await act(async () => {
         fireEvent.click(deleteBtn);
         fireEvent.click(deleteBtn);
@@ -445,7 +562,9 @@ describe('Schools Page + CreateSchoolModal Integration', () => {
       renderPage();
 
       const addBtn = await screen.findByRole('button', { name: /add school/i });
-      await act(async () => { fireEvent.click(addBtn); });
+      await act(async () => {
+        fireEvent.click(addBtn);
+      });
 
       const dialogs = screen.queryAllByRole('dialog');
       expect(dialogs.length).toBeLessThanOrEqual(1);

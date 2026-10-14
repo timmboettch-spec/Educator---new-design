@@ -19,6 +19,7 @@ import { SuperTest, Test } from 'supertest';
 import { createAgent, signupAndLogin } from '../../common/setup/supertest.setup';
 import { ENDPOINTS } from '../../common/constants/endpoints';
 import { STATUS } from '../../common/constants/status-codes';
+import { testEmail } from '../../utils/env';
 
 describe('@redeem-api Code Redemption — POST /auth/redeem', () => {
   let agent: SuperTest<Test>;
@@ -28,7 +29,7 @@ describe('@redeem-api Code Redemption — POST /auth/redeem', () => {
     agent = createAgent();
     adminToken = await signupAndLogin(agent, {
       full_name: 'Redeem Suite Admin',
-      email: `redeem-admin-${Date.now()}@test.realityworks`,
+      email: testEmail('redeem-admin'),
       password: 'Redeem@Suite1234',
     });
   });
@@ -58,7 +59,7 @@ describe('@redeem-api Code Redemption — POST /auth/redeem', () => {
       .send({});
     expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.FORBIDDEN]).toContain(res.status);
     if (res.status === STATUS.BAD_REQUEST) {
-      expect(res.body?.status).toBe('FAILED');
+      expect(res.body?.data).toBeNull();
       expect(res.body?.message).toBeTruthy();
     }
   });
@@ -80,7 +81,7 @@ describe('@redeem-api Code Redemption — POST /auth/redeem', () => {
       .send({ code: '---   ---' });
     expect([STATUS.BAD_REQUEST, STATUS.FORBIDDEN]).toContain(res.status);
     if (res.status === STATUS.BAD_REQUEST) {
-      expect(res.body?.status).toBe('FAILED');
+      expect(res.body?.data).toBeNull();
     }
   });
 
@@ -99,7 +100,7 @@ describe('@redeem-api Code Redemption — POST /auth/redeem', () => {
       STATUS.TOO_MANY_REQUESTS,
     ]).toContain(res.status);
     if (res.status === STATUS.BAD_REQUEST || res.status === STATUS.NOT_FOUND) {
-      expect(res.body?.status).toBe('FAILED');
+      expect(res.body?.data).toBeNull();
       expect(res.body?.message).toBeTruthy();
     }
   });
@@ -160,7 +161,7 @@ describe('@redeem-api Code Redemption — POST /auth/redeem', () => {
     ]).toContain(res.status);
 
     if (res.status === STATUS.CREATED || res.status === STATUS.OK) {
-      expect(res.body?.status).toBe('SUCCESS');
+      expect(res.body?.error).toBeNull();
       expect(res.body?.message).toBeTruthy();
       // Read-after-write: subscriptions must be present in the response
       const data = res.body?.data as Record<string, unknown>;

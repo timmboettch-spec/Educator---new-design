@@ -5,16 +5,16 @@ import path from 'path';
  * ============================================================================
  * EXECUTION DATA MANAGER
  * ============================================================================
- * 
+ *
  * Manages centralized storage and retrieval of entity IDs across test modules.
  * Captures all created resource IDs during test execution for cleanup phase.
- * 
+ *
  * Usage:
  *   1. Initialize: ExecutionDataManager.initialize()
  *   2. Save IDs: ExecutionDataManager.saveEntityId('school', schoolId)
  *   3. Retrieve: ExecutionDataManager.getEntityIds('school')
  *   4. Finalize: ExecutionDataManager.finalize()
- * 
+ *
  * Data stored in: tests/api/test-data/execution-data.json
  * ============================================================================
  */
@@ -66,14 +66,11 @@ interface ExecutionData {
  * Handles centralized ID storage for all test modules
  */
 export class ExecutionDataManager {
-  private static readonly DATA_DIR = path.resolve(
-    __dirname,
-    '../test-data'
-  );
+  private static readonly DATA_DIR = path.resolve(__dirname, '../test-data');
 
   private static readonly DATA_FILE = path.join(
     ExecutionDataManager.DATA_DIR,
-    'execution-data.json'
+    'execution-data.json',
   );
 
   /**
@@ -131,10 +128,7 @@ export class ExecutionDataManager {
       },
     };
 
-    fs.writeFileSync(
-      ExecutionDataManager.DATA_FILE,
-      JSON.stringify(executionData, null, 2)
-    );
+    fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(executionData, null, 2));
   }
 
   static saveEntityId(entity: string, id: string): void {
@@ -150,18 +144,18 @@ export class ExecutionDataManager {
         };
       }
 
-      if (id && !(data.entities[entity as keyof typeof data.entities] as EntityData).created.includes(id)) {
+      if (
+        id &&
+        !(data.entities[entity as keyof typeof data.entities] as EntityData).created.includes(id)
+      ) {
         (data.entities[entity as keyof typeof data.entities] as EntityData).created.push(id);
       }
 
-      fs.writeFileSync(
-        ExecutionDataManager.DATA_FILE,
-        JSON.stringify(data, null, 2)
-      );
+      fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
       console.error(
         `Failed to save entity ID for ${entity}:`,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -174,7 +168,7 @@ export class ExecutionDataManager {
     } catch (error) {
       console.error(
         `Failed to get entity IDs for ${entity}:`,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
       return [];
     }
@@ -189,14 +183,11 @@ export class ExecutionDataManager {
     try {
       const data = ExecutionDataManager.getExecutionData();
       data.auth = { userId, accessToken };
-      fs.writeFileSync(
-        ExecutionDataManager.DATA_FILE,
-        JSON.stringify(data, null, 2)
-      );
+      fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
       console.error(
         'Failed to set auth data:',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -227,7 +218,7 @@ export class ExecutionDataManager {
     id: string,
     status: 'deleted' | 'failed' | 'pending',
     httpStatus?: number,
-    message?: string
+    message?: string,
   ): void {
     try {
       const data = ExecutionDataManager.getExecutionData();
@@ -254,14 +245,11 @@ export class ExecutionDataManager {
         }
       }
 
-      fs.writeFileSync(
-        ExecutionDataManager.DATA_FILE,
-        JSON.stringify(data, null, 2)
-      );
+      fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
       console.error(
         `Failed to update cleanup status for ${entity}:`,
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -276,15 +264,12 @@ export class ExecutionDataManager {
         throw new Error('Execution data file not found');
       }
 
-      const content = fs.readFileSync(
-        ExecutionDataManager.DATA_FILE,
-        'utf-8'
-      );
+      const content = fs.readFileSync(ExecutionDataManager.DATA_FILE, 'utf-8');
       return JSON.parse(content) as ExecutionData;
     } catch (error) {
       console.error(
         'Failed to read execution data:',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
       throw error;
     }
@@ -305,14 +290,11 @@ export class ExecutionDataManager {
         data.cleanup.endTime = new Date().toISOString();
       }
 
-      fs.writeFileSync(
-        ExecutionDataManager.DATA_FILE,
-        JSON.stringify(data, null, 2)
-      );
+      fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
       console.error(
         'Failed to finalize execution data:',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -323,14 +305,11 @@ export class ExecutionDataManager {
       data.status = 'interrupted';
       data.endTime = new Date().toISOString();
 
-      fs.writeFileSync(
-        ExecutionDataManager.DATA_FILE,
-        JSON.stringify(data, null, 2)
-      );
+      fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
       console.error(
         'Failed to mark execution as interrupted:',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -343,7 +322,7 @@ export class ExecutionDataManager {
     } catch (error) {
       console.error(
         'Failed to reset execution data:',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -375,14 +354,11 @@ export class ExecutionDataManager {
     try {
       const data = ExecutionDataManager.getExecutionData();
       data.auth.testUserEmail = email;
-      fs.writeFileSync(
-        ExecutionDataManager.DATA_FILE,
-        JSON.stringify(data, null, 2)
-      );
+      fs.writeFileSync(ExecutionDataManager.DATA_FILE, JSON.stringify(data, null, 2));
     } catch (error) {
       console.error(
         'Failed to set test user email:',
-        error instanceof Error ? error.message : String(error)
+        error instanceof Error ? error.message : String(error),
       );
     }
   }

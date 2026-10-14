@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -8,11 +10,21 @@ import {
   IsString,
   IsBoolean,
   IsInt,
+  IsIn,
+  ValidateIf,
   Min,
   Max,
+  MaxLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, IntersectionType } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { CommonStatus } from 'src/common/enums/status.enum';
+import { PaginationDto } from 'src/common/dtos/pagination.dto';
+import { LiteQueryDto } from 'src/common/dtos/lite-query.dto';
+import { ApiPaginatedResponseDto } from 'src/common/dtos/api-response.dto';
+import { VALIDATION_MSG } from 'src/common/messages/validation.message';
+import { toStringArray, toOptionalBoolean } from 'src/common/utils/query-array.util';
+import { StudentCodeStatus, StudentSortField } from '../students.constants';
 
 export class CreateStudentDto {
   @ApiPropertyOptional({
@@ -376,3 +388,104 @@ export class StartAssessmentDto {
   @IsString()
   mode?: 'Assessment' | 'Practice';
 }
+
+export class ListStudentsReqDto extends IntersectionType(PaginationDto, LiteQueryDto) {
+  @IsOptional()
+  @IsString({ message: VALIDATION_MSG.IS_STRING('search') })
+  @MaxLength(200, { message: VALIDATION_MSG.MAX_LENGTH('search', 200) })
+  @ApiPropertyOptional({ example: 'BIO-4ZPT' })
+  search?: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toStringArray(value))
+  @IsArray({ message: VALIDATION_MSG.INVALID('classIds') })
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true, message: VALIDATION_MSG.IS_UUID('classIds') })
+  @ApiPropertyOptional({ type: [String], example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6'] })
+  classIds?: string[];
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toStringArray(value))
+  @IsArray({ message: VALIDATION_MSG.INVALID('schoolIds') })
+  @ArrayMaxSize(100)
+  @IsUUID('4', { each: true, message: VALIDATION_MSG.IS_UUID('schoolIds') })
+  @ApiPropertyOptional({ type: [String], example: ['3fa85f64-5717-4562-b3fc-2c963f66afa6'] })
+  schoolIds?: string[];
+
+  /** Omitted means no filter (both active and inactive students are returned). */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => toOptionalBoolean(value))
+  @IsBoolean({ message: VALIDATION_MSG.IS_BOOLEAN('isActive') })
+  @ApiPropertyOptional({ example: true })
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsIn(Object.values(StudentSortField), { message: VALIDATION_MSG.IS_ENUM('sortBy') })
+  @ApiPropertyOptional({ enum: StudentSortField })
+  sortBy?: StudentSortField;
+
+  @IsOptional()
+  @ValidateIf((dto: ListStudentsReqDto) => dto.sortBy !== undefined)
+  @IsIn(['asc', 'desc'], { message: VALIDATION_MSG.IS_ENUM('sortDir') })
+  @ApiPropertyOptional({ enum: ['asc', 'desc'], default: 'asc' })
+  sortDir?: 'asc' | 'desc';
+}
+
+export class StudentLiteResDto {
+  @ApiProperty({ example: '3fa85f64-5717-4562-b3fc-2c963f66afa6' })
+  id!: string;
+
+  @ApiProperty({ example: 'STU-AB12', description: 'Business/roster code, not a foreign key.' })
+  studentId!: string;
+
+  @ApiPropertyOptional({ example: 'Ava Thompson', nullable: true })
+  name!: string | null;
+}
+
+export class StudentSummaryResDto extends StudentLiteResDto {
+  @ApiPropertyOptional({ example: 'ava.thompson@example.com', nullable: true })
+  email!: string | null;
+
+  @ApiPropertyOptional({ example: '3fa85f64-5717-4562-b3fc-2c963f66afa6', nullable: true })
+  classId!: string | null;
+
+  @ApiPropertyOptional({ example: '3fa85f64-5717-4562-b3fc-2c963f66afa6', nullable: true })
+  schoolId!: string | null;
+
+  @ApiProperty({ enum: CommonStatus, example: CommonStatus.ACTIVE })
+  status!: CommonStatus;
+
+  @ApiProperty({ example: true })
+  isActive!: boolean;
+
+  @ApiPropertyOptional({ example: '2026-01-15', nullable: true })
+  submissionDate!: string | null;
+
+  @ApiPropertyOptional({ example: '3', nullable: true })
+  simsCompleted!: string | null;
+
+  @ApiPropertyOptional({ example: 87.5, nullable: true })
+  score!: number | null;
+
+  @ApiPropertyOptional({ example: '02:15:00', description: 'HH:MM:SS', nullable: true })
+  timeSpent!: string | null;
+
+  @ApiPropertyOptional({ example: '00:45:00', description: 'HH:MM:SS', nullable: true })
+  timeRemaining!: string | null;
+
+  @ApiProperty({ example: 3 })
+  reportsCount!: number;
+
+  @ApiProperty({ enum: StudentCodeStatus, example: StudentCodeStatus.ACTIVE })
+  codeStatus!: StudentCodeStatus;
+}
+
+export class ListStudentsResponseDto extends ApiPaginatedResponseDto(
+  StudentSummaryResDto,
+  'Students fetched successfully',
+) { }
+
+export class ListStudentsLiteResponseDto extends ApiPaginatedResponseDto(
+  StudentLiteResDto,
+  'Students fetched successfully',
+) { }

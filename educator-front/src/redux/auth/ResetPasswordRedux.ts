@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 
 import type { RootState } from '../../store';
@@ -6,18 +10,18 @@ import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 
 export interface ResetPasswordPayload {
-  verified_token: string;
-  new_password: string;
+  email: string;
+  otp: string;
+  newPassword: string;
 }
 
-export interface ResetPasswordResponse {
-  reset_token: string;
-}
+/** The endpoint now always responds with an empty `data`. */
+export type ResetPasswordResponse = Record<string, unknown>;
 
 export interface ResponseResetPassword {
   data: ResetPasswordResponse;
   message: string;
-  status: string;
+  status?: string;
 }
 
 export interface ResetPasswordState {
@@ -27,7 +31,9 @@ export interface ResetPasswordState {
   rememberedEmail: string;
 }
 const savedEmail =
-  typeof window !== 'undefined' ? localStorage.getItem('remembered_email') || '' : '';
+  typeof window !== 'undefined'
+    ? localStorage.getItem('remembered_email') || ''
+    : '';
 
 const initialState: ResetPasswordState = {
   responseResetPassword: null,
@@ -90,9 +96,15 @@ const selectState = (state: RootState) => state.ResetPassword;
 
 export const selectResetPasswordResponse = createSelector(
   selectState,
-  (state) => state.responseResetPassword,
+  (state) => state.responseResetPassword
 );
 
-export const selectResetPasswordStatus = createSelector(selectState, (state) => state.status);
+export const selectResetPasswordStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
 
-export const selectResetPasswordError = createSelector(selectState, (state) => state.error);
+export const selectResetPasswordError = createSelector(
+  selectState,
+  (state) => state.error
+);

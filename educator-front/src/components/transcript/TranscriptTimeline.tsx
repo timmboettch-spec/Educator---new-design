@@ -17,7 +17,9 @@ function normaliseType(type: string): string {
 }
 
 /** Select the right component for a given event type */
-function resolveComponent(type: string): React.ComponentType<{ event: TranscriptEventData }> {
+function resolveComponent(
+  type: string
+): React.ComponentType<{ event: TranscriptEventData }> {
   const t = normaliseType(type);
 
   if (t === 'studentspeech') return StudentSpeech;
@@ -32,7 +34,12 @@ function resolveComponent(type: string): React.ComponentType<{ event: Transcript
   )
     return MedicationEvent;
 
-  if (t === 'action' || t === 'actions' || t === 'commonactions' || t === 'commonaction')
+  if (
+    t === 'action' ||
+    t === 'actions' ||
+    t === 'commonactions' ||
+    t === 'commonaction'
+  )
     return ActionEvent;
 
   if (t === 'order' || t === 'orders') return OrderEvent;
@@ -41,7 +48,11 @@ function resolveComponent(type: string): React.ComponentType<{ event: Transcript
   return TranscriptEvent;
 }
 
-const EventItem = memo(function EventItem({ event }: { event: TranscriptEventData }) {
+const EventItem = memo(function EventItem({
+  event,
+}: {
+  event: TranscriptEventData;
+}) {
   const Component = resolveComponent(event.type);
   return <Component event={event} />;
 });
@@ -51,7 +62,7 @@ const TranscriptTimeline = memo(function TranscriptTimeline({
 }: TranscriptTimelineProps) {
   if (events.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+      <div className="flex flex-col items-center justify-center py-16 text-gray-400">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           className="w-10 h-10 mb-3 opacity-40"
@@ -80,7 +91,7 @@ const TranscriptTimeline = memo(function TranscriptTimeline({
         {events.map((event, index) => (
           <div key={event.id ?? index} className="relative">
             {/* Timeline dot */}
-            <div className="absolute -left-[26px] top-3.5 w-3 h-3 rounded-full bg-white border-2 border-primary-400 z-10" />
+            <div className="absolute -left-[26px] top-3.5 w-3 h-3 rounded-full bg-white border-2 border-orange-400 z-10" />
             <EventItem event={event} />
           </div>
         ))}

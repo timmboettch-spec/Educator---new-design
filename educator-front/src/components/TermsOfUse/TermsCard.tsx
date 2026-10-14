@@ -7,9 +7,20 @@ interface TermsCardProps {
   isActive: boolean;
 }
 
-
 const SANITIZE_CONFIG = {
-  ALLOWED_TAGS: ['strong', 'em', 'b', 'i', 'u', 'a', 'br', 'p', 'ul', 'ol', 'li'],
+  ALLOWED_TAGS: [
+    'strong',
+    'em',
+    'b',
+    'i',
+    'u',
+    'a',
+    'br',
+    'p',
+    'ul',
+    'ol',
+    'li',
+  ],
   ALLOWED_ATTR: ['href', 'target', 'rel'],
   FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'svg', 'style'],
   FORBID_ATTR: ['style'],
@@ -28,11 +39,13 @@ const TermsCard = ({ id, title, content, isActive }: TermsCardProps) => {
       }`}
     >
       <div className="flex items-center gap-4 pb-4 border-b border-gray-200">
-        <div className="w-9 h-9 text-[15px] rounded-full bg-primary-500 text-white flex items-center justify-center font-semibold">
+        <div className="w-9 h-9 text-[15px] rounded-full bg-orange-500 text-white flex items-center justify-center font-semibold">
           {id}
         </div>
 
-        <h3 className={`text-[16px] font-medium ${isActive ? 'text-[#F28C28]' : 'text-gray-800'}`}>
+        <h3
+          className={`text-[16px] font-medium ${isActive ? 'text-[#F28C28]' : 'text-gray-800'}`}
+        >
           {title}
         </h3>
       </div>

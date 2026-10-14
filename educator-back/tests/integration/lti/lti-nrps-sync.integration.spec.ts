@@ -9,11 +9,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { LmsConfigStatus, LmsToolType, LmsType } from '../../../src/common/enums/lms.enum';
 import { MoodleAdapter } from '../../../src/lms/adapters/moodle.adapter';
-import { LmsSchoolConfig } from '../../../src/lms/entity/lms-school-config.entity';
+
 import { LmsAdapterFactory } from '../../../src/lms/factories/lms-adapter.factory';
 import { LmsAdapter, LmsRosterResponse } from '../../../src/lms/interfaces/lms.interfaces';
 import { LmsAuthService } from '../../../src/lms/services/lms-auth.service';
 import { LmsRosterService } from '../../../src/lms/services/lms-roster.service';
+import { LoggerService } from '../../../src/common/services';
 
 const MOODLE_URL = 'https://moodle.test.edu';
 const NRPS_URL =
@@ -21,6 +22,7 @@ const NRPS_URL =
 const ACCESS_TOKEN = 'mock-access-token';
 
 import { extractCourseIdFromNrpsUrl } from '../../../src/lms/utils/nrps.util';
+import { LmsSchoolConfig } from 'src/database/entities';
 
 function buildSchoolConfig(overrides: Partial<LmsSchoolConfig> = {}): LmsSchoolConfig {
   return {
@@ -68,6 +70,17 @@ describe('NRPS Roster Sync (Integration)', () => {
         { provide: LmsAuthService, useValue: { getAccessToken: getAccessTokenMock } },
         { provide: LmsAdapterFactory, useValue: mockLmsAdapterFactory },
         { provide: MoodleAdapter, useValue: mockLmsAdapter },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
         {
           provide: ConfigService,
           useValue: {
@@ -305,25 +318,21 @@ describe('NRPS Roster Sync (Integration)', () => {
 
       expect(result.members).toHaveLength(2);
       expect(
-        result.members.some((member) =>
-          member.roles.some((role) => role.includes('Instructor')),
-        ),
+        result.members.some((member) => member.roles.some((role) => role.includes('Instructor'))),
       ).toBe(true);
       expect(
-        result.members.some((member) =>
-          member.roles.some((role) => role.includes('Learner')),
-        ),
+        result.members.some((member) => member.roles.some((role) => role.includes('Learner'))),
       ).toBe(true);
     });
 
     it('INTEGRATION: should handle malformed NRPS URL gracefully', async () => {
       const malformedUrl = 'not-a-valid-url';
 
-      fetchRosterMock.mockRejectedValue(new Error('Invalid URL'));
-
+      // SSRF gate rejects before any outbound NRPS fetch.
       await expect(rosterService.fetchRoster(schoolConfig, malformedUrl)).rejects.toThrow(
-        'Invalid URL',
+        'NRPS URL is invalid',
       );
+      expect(fetchRosterMock).not.toHaveBeenCalled();
     });
   });
 

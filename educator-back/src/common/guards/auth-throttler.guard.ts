@@ -1,6 +1,5 @@
-import { ExecutionContext, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { ExecutionContext, Inject, Injectable, Optional } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { JwtService } from '@nestjs/jwt';
 import {
   ThrottlerGuard,
   ThrottlerException,
@@ -13,6 +12,10 @@ import type { ThrottlerRequest } from '@nestjs/throttler/dist/throttler.guard.in
 import { Request, Response } from 'express';
 import { RATE_LIMIT } from '../constants/throttle.constants';
 import { createHash } from 'crypto';
+import { TokenService } from '../services/token.service';
+import { LoggerService } from '../services';
+import { extractAccessToken } from '../utils/token-extractor.util';
+import { isLtiClassroomBurstPath } from '../utils/lti-rate-limit-path.util';
 
 export const RATE_LIMIT_THROTTLER_NAME = 'rateLimit';
 
@@ -36,26 +39,32 @@ interface JwtVerifiedPayload {
 
 @Injectable()
 export class AuthThrottlerGuard extends ThrottlerGuard {
-  private readonly jwtLogger = new Logger('RateLimitAuth');
-
   constructor(
     @Inject(getOptionsToken()) options: ThrottlerModuleOptions,
     @Inject(ThrottlerStorage) storageService: ThrottlerStorage,
     reflector: Reflector,
-    @Optional() private readonly jwtService?: JwtService,
+    private readonly jwtLogger: LoggerService,
+    @Optional() private readonly tokenService?: TokenService,
   ) {
     super(options, storageService, reflector);
   }
 
-  protected async handleRequest(
-    requestProps: ThrottlerRequest,
-  ): Promise<boolean> {
+  protected async handleRequest(requestProps: ThrottlerRequest): Promise<boolean> {
     const request = requestProps.context.switchToHttp().getRequest<Request>();
     await this.ensureAuthResolved(request);
 
     if (requestProps.throttler.name !== RATE_LIMIT_THROTTLER_NAME) {
       return super.handleRequest(requestProps);
     }
+
+    if (isLtiClassroomBurstPath(request.path ?? request.url)) {
+      return super.handleRequest({
+        ...requestProps,
+        limit: RATE_LIMIT.LTI_LAUNCH.LIMIT,
+        ttl: RATE_LIMIT.LTI_LAUNCH.TTL * MS_PER_SECOND,
+      });
+    }
+
     const user = this.getRateLimitUser(request);
     const bucket = user ? RATE_LIMIT.AUTHENTICATED : RATE_LIMIT.PUBLIC;
     return super.handleRequest({
@@ -65,28 +74,41 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
     });
   }
 
-  protected generateKey(
-    context: ExecutionContext,
-    tracker: string,
-    throttlerName: string,
-  ): string {
+  protected generateKey(context: ExecutionContext, tracker: string, throttlerName: string): string {
     const request = context.switchToHttp().getRequest<Request>();
     const user = this.getRateLimitUser(request);
-    if (
-      request.method === 'GET' &&
-      request.path === '/api/students/login'
-    ) {
+
+    // One shared per-IP bucket across login → callback → launch → session/exchange
+    // so a classroom NAT does not get 4× the allowance by hopping routes.
+    if (isLtiClassroomBurstPath(request.path ?? request.url)) {
+      const ip = this.extractIp(request);
+      return createHash('sha256').update(`${throttlerName}:lti-launch:${ip}`).digest('hex');
+    }
+
+    if (request.method === 'GET' && request.path === '/api/students/login') {
       const rawStudentId = request.query.student_id;
-      const studentId =
-        typeof rawStudentId === 'string' ? rawStudentId.trim() : '';
+      const studentId = typeof rawStudentId === 'string' ? rawStudentId.trim() : '';
 
       if (studentId) {
-        const customTracker = `student:${this.extractIp(request)}:${studentId}`;
-        const key = createHash('sha256')
-          .update(`${throttlerName}:${customTracker}`)
-          .digest('hex');
+        return this.generateStudentKey(throttlerName, 'login', studentId, request);
+      }
+    }
 
-        return key;
+    if (request.method === 'GET' && request.path?.startsWith('/api/students/lookup/')) {
+      const rawStudentCode = request.params?.studentCode;
+      const studentCode = typeof rawStudentCode === 'string' ? rawStudentCode.trim() : '';
+
+      if (studentCode) {
+        return this.generateStudentKey(throttlerName, 'lookup', studentCode, request);
+      }
+    }
+
+    if (request.method === 'POST' && request.path?.endsWith('/start-assessment')) {
+      const rawStudentId = request.params?.studentId;
+      const studentId = typeof rawStudentId === 'string' ? rawStudentId.trim() : '';
+
+      if (studentId) {
+        return this.generateStudentKey(throttlerName, 'start-assessment', studentId, request);
       }
     }
 
@@ -94,9 +116,7 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
       const id = user.userId ?? user.sub;
 
       if (id) {
-        return createHash('sha256')
-          .update(`${throttlerName}:auth:${id}`)
-          .digest('hex');
+        return createHash('sha256').update(`${throttlerName}:auth:${id}`).digest('hex');
       }
     }
 
@@ -129,30 +149,18 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
 
     state[AUTH_RESOLVED_FLAG] = true;
 
-    if (!this.jwtService) {
+    if (!this.tokenService) {
       return;
     }
 
-    const authHeader = request.headers?.authorization;
-
-    if (typeof authHeader !== 'string') {
-      return;
-    }
-
-    const match = /^Bearer\s+(.+)$/i.exec(authHeader);
-
-    if (!match) {
-      return;
-    }
-
-    const token = match[1].trim();
+    const token = extractAccessToken(request);
 
     if (!token) {
       return;
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<JwtVerifiedPayload>(token);
+      const payload = await this.tokenService.verifyToken<JwtVerifiedPayload>(token);
       const userId = payload.user_id ?? payload.sub;
 
       if (!userId) {
@@ -189,5 +197,15 @@ export class AuthThrottlerGuard extends ThrottlerGuard {
         : undefined;
 
     return xffFirst || request.ip || request.socket?.remoteAddress || 'unknown';
+  }
+
+  private generateStudentKey(
+    throttlerName: string,
+    route: string,
+    studentIdentifier: string,
+    request: Request,
+  ): string {
+    const customTracker = `student:${route}:${this.extractIp(request)}:${studentIdentifier}`;
+    return createHash('sha256').update(`${throttlerName}:${customTracker}`).digest('hex');
   }
 }

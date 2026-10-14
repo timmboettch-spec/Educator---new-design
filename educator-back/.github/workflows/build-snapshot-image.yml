@@ -1,0 +1,75 @@
+name: Build Snapshot Image
+
+# Builds & pushes the hs-online weekly snapshot-to-git job's image whenever
+# its script or Dockerfile changes. The job's schedule itself is native to
+# Container Apps Jobs (cron in infra/modules/containerAppJob-snapshot.bicep)
+# — no pipeline is needed to trigger the weekly run, only to publish a new
+# image when snapshot/entrypoint.ps1 changes. Mirrors the OIDC-to-Azure /
+# docker-build-push-acr pattern deploy-backend.yml uses for the backend image.
+
+on:
+  push:
+    branches: [dev, qa, main]
+    paths:
+      - 'snapshot/**'
+      - '.github/workflows/build-snapshot-image.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag (defaults to commit SHA)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write       # required for OIDC
+  contents: read
+
+env:
+  ACR_NAME: acrall1rwai
+  ACR_RG: ARG-all1-rwai   # shared RG — SP only has Contributor on per-env RG, so ACR lookups must be RG-scoped
+  IMAGE_NAME: hs-snapshot
+  SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+
+jobs:
+  build-and-push:
+    name: Build & push hs-snapshot image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve image tag
+        id: vars
+        run: |
+          TAG="${{ github.event.inputs.image_tag || github.sha }}"
+          echo "image_tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      - name: Resolve ACR login server
+        id: acr
+        run: |
+          LOGIN_SERVER=$(az acr show \
+            --name "${{ env.ACR_NAME }}" \
+            --resource-group "${{ env.ACR_RG }}" \
+            --query loginServer -o tsv)
+          echo "login-server=$LOGIN_SERVER" >> "$GITHUB_OUTPUT"
+
+      - name: ACR login (docker)
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build & push image (GHA-cached)
+        uses: ./.github/actions/docker-build-push-acr
+        with:
+          context:    ./snapshot
+          dockerfile: ./snapshot/Dockerfile
+          registry:   ${{ steps.acr.outputs.login-server }}
+          image-name: ${{ env.IMAGE_NAME }}
+          tags: |
+            ${{ steps.vars.outputs.image_tag }}
+            latest

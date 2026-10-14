@@ -27,9 +27,7 @@ describe('Smoke — Reports', () => {
     const token = smokeState.accessToken;
     if (!token) return;
 
-    const res = await agent
-      .get(ENDPOINTS.REPORTS.STUDENT)
-      .set('Authorization', `Bearer ${token}`);
+    const res = await agent.get(ENDPOINTS.REPORTS.STUDENT).set('Authorization', `Bearer ${token}`);
     expect([STATUS.OK, STATUS.NOT_FOUND]).toContain(res.status);
   });
 

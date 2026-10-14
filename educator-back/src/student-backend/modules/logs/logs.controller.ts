@@ -6,36 +6,39 @@ import {
   Body,
   Param,
   NotFoundException,
-  UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
-import { ScenarioAuthGuard } from '../../guards/scenario-auth.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 
-import { type Transcript } from '../../data/json-data.service';
+import { type ICurrentUser, type TranscriptMessage } from '../../../common/interfaces';
 
 import { CreateLogDto } from './dto/create-log.dto';
 import { UpdateLogDto } from './dto/update-log.dto';
 import { LogsService } from './logs.service';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { RoleSlug } from 'src/common/constants';
 
 @ApiBearerAuth()
 @ApiTags('Student-backend: Logs')
-@UseGuards(ScenarioAuthGuard)
 @Controller('logs')
 export class LogsController {
-  constructor(private readonly logsService: LogsService) {}
+  constructor(private readonly logsService: LogsService) { }
 
   @Post()
-  create(@Body() createLogDto: CreateLogDto) {
-    return this.logsService.create(createLogDto);
+  @RequiredRoles(RoleSlug.STUDENT)
+  create(@Body() createLogDto: CreateLogDto, @CurrentUser() currentUser: ICurrentUser) {
+    return this.logsService.create(currentUser, createLogDto);
   }
 
   @Get()
+  @RequiredRoles(RoleSlug.STUDENT)
   findAll() {
     return this.logsService.findAll();
   }
 
   @Get(':id')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   async findOne(@Param('id') id: string) {
     const log = await this.logsService.findOne(id);
     if (!log) {
@@ -45,17 +48,20 @@ export class LogsController {
   }
 
   @Put(':id')
+  @RequiredRoles(RoleSlug.STUDENT)
   update(@Param('id') id: string, @Body() updateLogDto: UpdateLogDto) {
     return this.logsService.update(id, updateLogDto);
   }
 
   @Post(':id/end')
+  @RequiredRoles(RoleSlug.STUDENT)
   endLog(@Param('id') id: string) {
     return this.logsService.endLog(id);
   }
 
   @Post(':id/messages')
-  appendMessages(@Param('id') id: string, @Body('messages') messages: Transcript['messages']) {
+  @RequiredRoles(RoleSlug.STUDENT)
+  appendMessages(@Param('id') id: string, @Body('messages') messages: TranscriptMessage[]) {
     return this.logsService.appendMessages(id, messages);
   }
 

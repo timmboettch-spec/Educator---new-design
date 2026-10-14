@@ -1,5 +1,9 @@
 import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import config from '../../config';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
@@ -48,7 +52,8 @@ export const BulkPostStudentRequest = createAsyncThunk<
       response?: { data?: { message?: string } };
     };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || 'Failed to bulk create students',
+      message:
+        error.response?.data?.message || 'Failed to bulk create students',
     });
   }
 });
@@ -74,11 +79,12 @@ const bulkPostStudentSlice = createSlice({
         (state, action: PayloadAction<BulkPostStudentResponse>) => {
           state.status = SUCCEEDED;
           state.response = action.payload;
-        },
+        }
       )
       .addCase(BulkPostStudentRequest.rejected, (state, action) => {
         state.status = FAILED;
-        state.error = action.payload?.message || 'Failed to bulk create students';
+        state.error =
+          action.payload?.message || 'Failed to bulk create students';
       });
   },
 });
@@ -89,5 +95,5 @@ export default bulkPostStudentSlice.reducer;
 const selectBulkPostStudentState = (state: RootState) => state.BulkPostStudent;
 export const selectBulkPostStudentLoading = createSelector(
   selectBulkPostStudentState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );

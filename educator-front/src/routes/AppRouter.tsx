@@ -1,47 +1,47 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { useAppSelector } from "../store/hooks";
-import Classes from "../pages/class";
-import Educators from "../pages/educator";
-import SimulationLibrary from "../pages/Simulation/simulationlibrary";
-import SimulationCatalog from "../pages/Simulation/simulationcatalog";
-import Account from "../pages/app/account";
-import LMSIntegration from "../pages/app/lms-integration";
-import SupportConsole from "../pages/support";
-import SignIn from "../pages/auth/SignIn";
-import SignUp from "../pages/auth/SignUp";
-import InviteSignUp from "../pages/auth/SignUp/InviteSignUp";
-import ForgotPassWord from "../pages/auth/ForgotPassWord";
-import OtpVerify from "../pages/auth/OtpVerify";
-import ResetPassWord from "../pages/auth/ResetPassWord";
-import RedeemCode from "../pages/auth/RedeemCode";
-import AdminDashboard from "../pages/dashboard/admin";
-import EducatorDashboard from "../pages/dashboard/educator";
-import Schools from "../pages/schools";
-import DashboardLayout from "../components/layout/DashboardLayout";
-import AppLayout from "../pages/AppLayout";
-import Toast from "../components/common/Toast";
-import AppLoader from "../components/common/AppLoader";
-import { usePageLoader } from "../hooks/usePageLoader";
-import { useLtiLaunchHandler } from "../hooks/useLtiLaunchHandler";
-import { selectLoginResponse } from "../redux/auth/LoginRedux";
-import { selectSignUpResponse } from "../redux/auth/SignUpRedux";
-import { useAccountStatus } from "../hooks/useAccountStatus";
-import { useHealthCheck } from "../hooks/useHealthCheck";
-import { useNotifications } from "../hooks/useNotifications";
-import { getToken, getParsedUser } from "../utils/storage";
-import { toast, SESSION_TOAST_KEY, sonnerToast } from "../components/common/Toast";
-import { store } from "../store";
-import { clearPendingToast } from "../redux/loader/loaderSlice";
-import type { PendingToast } from "../redux/loader/loaderSlice";
-import SimulationDetail from "@/pages/Simulation/simulationdetails";
-import SimulationReportPage from "../pages/class/SimulationReportPage";
-import UserTranscriptPage from "../pages/class/UserTranscriptPage";
-import TermsOfUse from "@/pages/TermsOfUse";
-import CustomerSupport from '@/pages/customersupport';
-import CustomerSupportLayout from '@/components/layout/CustomerSupportLayout';
-import PrivacyPolicy from "../pages/privacypolicy";
-import MyProducts from "../pages/products";
+import {
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Routes, useLocation } from 'react-router-dom';
+import AppLayout from '../pages/AppLayout';
+import Toast from '../components/common/Toast';
+import AppLoader from '../components/common/AppLoader';
+import { usePageLoader } from '../hooks/usePageLoader';
+import { useLtiLaunchHandler } from '../hooks/useLtiLaunchHandler';
+import { useAccountStatus } from '../hooks/useAccountStatus';
+import { useHealthCheck } from '../hooks/useHealthCheck';
+import { useNotifications } from '../hooks/useNotifications';
+import {
+  isLtiSessionHandoff,
+  subscribeLtiSessionHandoff,
+} from '../utils/sessionState';
+import {
+  toast,
+  SESSION_TOAST_KEY,
+  sonnerToast,
+} from '../components/common/Toast';
+import { translateApiMessage } from '../utils/translateMessage';
+import { store } from '../store';
+import { clearPendingToast } from '../redux/loader/loaderSlice';
+import type { PendingToast } from '../redux/loader/loaderSlice';
+import ContentLoader from '../components/layout/ContentLoader';
+import { RouteContentLoadingProvider } from './RouteContentLoadingContext';
+import { renderRoutes } from './renderRoutes';
+import { buildRouteTree } from './routeTree';
+import { useSessionIdentity } from '../features/auth/model/useSessionIdentity';
+
+// Auth
+// LTI
+// Dashboards
+// Schools / Classes / Educators
+// Simulation
+// Account / LMS
+// Reports
+// Support / Legal
 
 export function AppRouter() {
   // Handle LTI launches regardless of auth state
@@ -50,49 +50,53 @@ export function AppRouter() {
   const pageLoading = usePageLoader();
   const [initialLoading, setInitialLoading] = useState(true);
   const [routeLoading, setRouteLoading] = useState(true);
+  const [ltiHandoff, setLtiHandoff] = useState(() => isLtiSessionHandoff());
   const location = useLocation();
   const isFirstMount = useRef(true);
   const apiStarted = useRef(false);
   const fallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const safetyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageLoadingRef = useRef(false);
-  const loginResponse = useAppSelector(selectLoginResponse);
-  const signUpResponse = useAppSelector(selectSignUpResponse);
+  const identity = useSessionIdentity();
 
-  type UserRole =
-    | string
-    | {
-      role_name?: string;
-    };
+  useLayoutEffect(() => {
+    setLtiHandoff(isLtiSessionHandoff());
+    return subscribeLtiSessionHandoff(() => {
+      setLtiHandoff(isLtiSessionHandoff());
+    });
+  }, []);
 
-  type User = {
-    id?: string;
-    email?: string;
-    full_name?: string;
-    role?: UserRole;
-    is_license_active?: boolean;
-    isLicenseActive?: boolean;
-  };
+  // URL still has the launch param before useLayoutEffect clears auth — treat as handoff.
+  const ltiLaunchParam = new URLSearchParams(location.search).get('lti_launch');
+  const suppressAuthRouting = ltiHandoff || ltiLaunchParam === 'success';
 
-  const user = (loginResponse?.data?.user ||
-    signUpResponse?.data?.user ||
-    getParsedUser()) as User | null;
+  /**
+   * Everything below now comes from the one identity hook rather than being
+   * re-derived here. `role` is the canonical slug instead of a lowercased display
+   * name: `'educator'` is unchanged, and every other value — including a role this
+   * portal does not serve — still falls through the `!== 'educator'` branches
+   * exactly as the display name did, so the guards below behave identically.
+   *
+   * `isAuthenticated` re-applies the LTI suppression that the guards here expect.
+   * The identity hook expresses a handoff as `isResolved: false` instead, which is
+   * what the new guard layer reads; the two are reconciled when those land.
+   */
+  const role = identity.role ?? undefined;
+  const isAuthenticated = !suppressAuthRouting && identity.isAuthenticated;
 
-  const role = (
-    typeof user?.role === "string" ? user.role : user?.role?.role_name
-  )?.toLowerCase();
+  /**
+   * Rebuilt only when the authentication state flips, because one route — the
+   * simulation detail page — is registered in a different place depending on it.
+   * Everything else in the tree is static, and rebuilding it per render would hand
+   * React new component identities and remount the page on every pass.
+   */
+  const routeTree = useMemo(
+    () => buildRouteTree(isAuthenticated),
+    [isAuthenticated]
+  );
 
-  const token =
-    loginResponse?.data?.tokens?.accessToken ||
-    signUpResponse?.data?.tokens?.accessToken ||
-    getToken();
-  const isAuthenticated = !!token && token !== "undefined" && token !== "null";
-  const hasActiveLicense =
-    user?.is_license_active || user?.isLicenseActive || false;
-  const skippedRedeem = sessionStorage.getItem("skipped_redeem") === "true";
-
-  useAccountStatus(role, isAuthenticated ? token : null);
-  useNotifications(role);
+  useAccountStatus(role, isAuthenticated ? identity.accessToken : null);
+  useNotifications(isAuthenticated ? role : undefined);
   useHealthCheck();
 
   useEffect(() => {
@@ -143,7 +147,6 @@ export function AppRouter() {
     };
   }, [location.pathname]);
 
-
   useEffect(() => {
     pageLoadingRef.current = pageLoading;
     if (pageLoading) {
@@ -158,14 +161,12 @@ export function AppRouter() {
     }
   }, [pageLoading]);
 
-  const getRedirectPath = () => {
-    if (!isAuthenticated) return "/login";
-    if (role === "educator") return "/educator-dashboard";
-    if (hasActiveLicense || skippedRedeem) return "/admin-dashboard";
-    return "/redeem";
-  };
-
-  const isLoading = initialLoading || pageLoading || routeLoading;
+  // Full-screen overlay: only for the initial app mount and LTI handoff, where
+  // there's no sidebar/header yet to keep visible.
+  const isLoading = initialLoading || suppressAuthRouting;
+  // In-app navigation: scoped to the content area only (see RouteContentLoadingContext),
+  // so the sidebar/header stay visible and interactive during route transitions.
+  const contentLoading = pageLoading || routeLoading;
   const [loaderVisible, setLoaderVisible] = useState(true);
 
   const handleLoaderHidden = () => {
@@ -180,7 +181,7 @@ export function AppRouter() {
       if (stored) {
         sessionStorage.removeItem(SESSION_TOAST_KEY);
         const { type, message } = JSON.parse(stored) as PendingToast;
-        sonnerToast[type](message);
+        sonnerToast[type](translateApiMessage(message));
       }
     } catch {
       // malformed sessionStorage entry — ignore
@@ -192,326 +193,19 @@ export function AppRouter() {
   }, [isLoading]);
 
   return (
-    <div className="relative">
+    <div className="relative h-full w-full overflow-hidden">
       <AppLoader loading={isLoading} onHidden={handleLoaderHidden} />
       <Toast />
-      <div style={{ visibility: loaderVisible ? 'hidden' : 'visible' }}>
+      <div
+        className="h-full w-full overflow-hidden"
+        style={{ visibility: loaderVisible ? 'hidden' : 'visible' }}
+      >
         <AppLayout isAuthenticated={isAuthenticated}>
-          <Routes>
-            <Route
-              path="/login"
-              element={
-                !isAuthenticated ? (
-                  <SignIn />
-                ) : (
-                  <Navigate to={getRedirectPath()} replace />
-                )
-              }
-            />
-            <Route
-              path="/forgotpassword"
-              element={
-                !isAuthenticated ? (
-                  <ForgotPassWord />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <Navigate to="/admin-dashboard" replace />
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/otpverify"
-              element={
-                !isAuthenticated ? (
-                  <OtpVerify />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <Navigate to="/admin-dashboard" replace />
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/resetpassword"
-              element={
-                !isAuthenticated ? (
-                  <ResetPassWord />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <Navigate to="/admin-dashboard" replace />
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/signup"
-              element={
-                !isAuthenticated ? (
-                  <SignUp />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <Navigate to="/admin-dashboard" replace />
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/signup/:invite_id"
-              element={
-                !isAuthenticated ? (
-                  <InviteSignUp />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <InviteSignUp />
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/redeem"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" replace />
-                ) : (
-                  <RedeemCode />
-                )
-              }
-            />
-            <Route
-              path="/admin-dashboard"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <DashboardLayout>
-                    <AdminDashboard />
-                  </DashboardLayout>
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/educator-dashboard"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <EducatorDashboard />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/schools"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <DashboardLayout>
-                    <Schools />
-                  </DashboardLayout>
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/classes"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : role === "educator" ? (
-                  <DashboardLayout>
-                    <Classes />
-                  </DashboardLayout>
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <Navigate to="/admin-dashboard" replace />
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/educators"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <DashboardLayout>
-                    <Educators />
-                  </DashboardLayout>
-                ) : (
-                  <Navigate to="/redeem" replace />
-                )
-              }
-            />
-            <Route
-              path="/simulationlibrary"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" />
-                ) : (
-                  <DashboardLayout>
-                    <SimulationLibrary />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/simulation-catalog"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <SimulationCatalog />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/simulationdetails/:simulationId"
-              element={
-                isAuthenticated ? (
-                  <DashboardLayout>
-                    <SimulationDetail />
-                  </DashboardLayout>
-                ) : (
-                  <SimulationDetail isPublic />
-                )
-              }
-            />
-            <Route
-              path="/products"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <MyProducts />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/account"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <Account />
-                  </DashboardLayout>
-                )
-              }
-            />
-            {/* Support Console - Realityworks staff tool. Public route: the console
-                ships its own sign-in, so it is intentionally NOT behind the educator/
-                admin app session. */}
-            <Route path="/support" element={<SupportConsole />} />
-            <Route
-              path="/lms-integration"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <LMSIntegration />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" />
-                ) : role === "educator" ? (
-                  <Navigate to="/educator-dashboard" />
-                ) : hasActiveLicense || skippedRedeem ? (
-                  <Navigate to="/admin-dashboard" />
-                ) : (
-                  <Navigate to="/redeem" />
-                )
-              }
-            />
-            <Route
-              path="/report-detail"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <SimulationReportPage />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/transcript/:attemptId"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <UserTranscriptPage />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route
-              path="/customersupport"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <CustomerSupportLayout>
-                    <CustomerSupport />
-                  </CustomerSupportLayout>
-                )
-              }
-            />
-            <Route
-              path="/privacypolicy"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <PrivacyPolicy />
-                  </DashboardLayout>
-                )
-              }
-            />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-            <Route
-              path="/terms"
-              element={
-                !isAuthenticated ? (
-                  <Navigate to="/login" replace />
-                ) : (
-                  <DashboardLayout>
-                    <TermsOfUse />
-                  </DashboardLayout>
-                )
-              }
-            />
-          </Routes>
+          <RouteContentLoadingProvider value={contentLoading}>
+            <Suspense fallback={<ContentLoader />}>
+              <Routes>{renderRoutes(routeTree)}</Routes>
+            </Suspense>
+          </RouteContentLoadingProvider>
         </AppLayout>
       </div>
     </div>

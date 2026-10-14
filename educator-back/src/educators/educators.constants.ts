@@ -17,6 +17,7 @@ export const EducatorConstants = {
     CREATED: 'Educator created successfully',
     FETCHED: 'Educator(s) fetched successfully',
     UPDATED: 'Educator updated successfully',
+    PROFILE_UPDATED: 'Profile updated successfully',
     DELETED: 'Educator deleted successfully',
     NOT_FOUND: 'Educator not found',
     EMAIL_EXISTS: 'An educator with this email already exists',
@@ -29,10 +30,13 @@ export const EducatorConstants = {
     REMOVE_PROFILE_PICTURE_FAILED: 'Failed to remove profile picture',
     RESEND_INVITE_SENT: 'Invitation resent successfully',
     EDUCATOR_NOT_PENDING: 'Invitation can only be resent for educators with Pending status',
+    NO_EMAIL_ON_FILE: 'This educator has no email on file to send an invite to',
     SEAT_REQUEST_SENT: 'Your request for additional AI seats has been sent to the admin.',
     SEAT_REQUEST_FAILED: 'Could not send seat request. Please try again in a moment.',
-    SEAT_REQUEST_COOLDOWN: (hours: number): string =>
-      `A seat request was already sent in the last ${hours} hour${hours === 1 ? '' : 's'}. Please wait before sending another.`,
+    SEAT_REQUEST_COOLDOWN: (minutes: number): string => {
+      const [amount, unit] = minutes % 60 === 0 ? [minutes / 60, 'hour'] : [minutes, 'minute'];
+      return `A seat request was already sent in the last ${amount} ${unit}${amount === 1 ? '' : 's'}. Please wait before sending another.`;
+    },
     SEAT_REQUEST_EMAIL_SUBJECT: (educatorName: string): string =>
       `${educatorName} is requesting more AI seats`,
     SEAT_REQUEST_FORBIDDEN: 'Only educators can request additional seats.',

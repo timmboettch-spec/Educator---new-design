@@ -1,24 +1,36 @@
 import { beforeAll, beforeEach, describe, it } from '@jest/globals';
 import { SuperTest, Test } from 'supertest';
 import { resetSmokeAgent, logTarget } from './smoke-client';
+import {
+  extractAccessTokenFromResponse,
+  primeCsrfToken,
+  signup,
+} from '../common/setup/supertest.setup';
 import { smokeState } from './smoke-state';
 import { ENDPOINTS } from '../common/constants/endpoints';
 import { STATUS } from '../common/constants/status-codes';
-import { post, expectStatus, expectSuccess, expectFailed } from '../common/utils/api.helper';
+import {
+  post,
+  expectStatus,
+  expectSuccess,
+  expectFailed,
+  ApiResponse,
+} from '../common/utils/api.helper';
 import authFixtures from '../common/fixtures/auth.requests.json';
+import { testEmail } from '../utils/env';
 
 describe('Smoke — Auth', () => {
   let agent: SuperTest<Test>;
 
   // Dynamic credentials created once per run against the live server
-  const smokeEmail = `smoke-auth-${Date.now()}@smoke.test`;
+  const smokeEmail = testEmail('smoke-auth');
   const smokePassword = 'SmokeAuth@1234';
 
   beforeAll(async () => {
     logTarget('Auth');
     agent = resetSmokeAgent();
     // Sign up a fresh user so login tests have valid credentials on the live server
-    await agent.post(ENDPOINTS.AUTH.SIGNUP).send({
+    await signup(agent, {
       full_name: 'Smoke Auth User',
       email: smokeEmail,
       password: smokePassword,
@@ -31,19 +43,28 @@ describe('Smoke — Auth', () => {
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  it('should login with valid credentials and return access token', async () => {
-    const body = await expectStatus(
-      post(agent, ENDPOINTS.AUTH.LOGIN, { email: smokeEmail, password: smokePassword }),
-      [STATUS.OK, STATUS.CREATED],
-    );
-    expectSuccess(body);
-    const tokens = (body.data as Record<string, unknown>)?.tokens as Record<string, unknown>;
-    expect(typeof tokens?.accessToken).toBe('string');
+  it('should login with valid credentials and set the access token cookie', async () => {
+    // Awaited directly rather than through `expectStatus`, which returns only the
+    // body — the access token is delivered as an httpOnly `accessToken` cookie.
+    const res = await post(agent, ENDPOINTS.AUTH.LOGIN, {
+      email: smokeEmail,
+      password: smokePassword,
+    });
+    expect([STATUS.OK, STATUS.CREATED]).toContain(res.status);
 
-    // Persist token for subsequent smoke tests
-    smokeState.accessToken = tokens.accessToken as string;
-    const user = (body.data as Record<string, unknown>)?.user as Record<string, unknown>;
-    smokeState.adminId = (user?.id ?? '') as string;
+    const body = res.body as ApiResponse<Record<string, unknown>>;
+    expectSuccess(body);
+
+    const accessToken = extractAccessTokenFromResponse(res);
+    expect(accessToken.length).toBeGreaterThan(0);
+
+    // Persist token for subsequent smoke tests, and prime the CSRF token the
+    // global CsrfGuard requires on every later POST/PUT/PATCH/DELETE.
+    smokeState.accessToken = accessToken;
+    await primeCsrfToken(agent, accessToken);
+
+    const user = body.data?.user as Record<string, unknown> | undefined;
+    smokeState.adminId = (user?.id ?? user?.userId ?? '') as string;
   });
 
   it('should reject login with wrong password', async () => {
@@ -83,8 +104,13 @@ describe('Smoke — Auth', () => {
   // ── Forgot password ────────────────────────────────────────────────────────
 
   it('should initiate forgot-password flow for valid email', async () => {
-    const res = await agent.post(ENDPOINTS.AUTH.FORGOT_PASSWORD).send({ email: smokeEmail });
-    expect([STATUS.OK, STATUS.CREATED, STATUS.NOT_FOUND]).toContain(res.status);
+    const body = await expectStatus(
+      post(agent, ENDPOINTS.AUTH.FORGOT_PASSWORD, { email: smokeEmail }),
+      [STATUS.OK, STATUS.CREATED, STATUS.TOO_MANY_REQUESTS],
+    );
+    if ((body as unknown as { statusCode: number }).statusCode !== STATUS.TOO_MANY_REQUESTS) {
+      expectSuccess(body);
+    }
   });
 
   it('should reject forgot-password for unknown email', async () => {
@@ -162,11 +188,7 @@ describe('Smoke — Auth', () => {
     const loginRes = await agent
       .post(ENDPOINTS.AUTH.LOGIN)
       .send({ email: smokeEmail, password: smokePassword });
-    const tokens = (loginRes.body?.data as Record<string, unknown>)?.tokens as Record<
-      string,
-      unknown
-    >;
-    const freshToken = tokens?.accessToken as string;
+    const freshToken = extractAccessTokenFromResponse(loginRes);
 
     const res = await agent
       .post(ENDPOINTS.AUTH.LOGOUT)

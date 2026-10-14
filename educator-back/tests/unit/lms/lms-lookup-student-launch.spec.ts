@@ -12,6 +12,9 @@ describe('LmsLookupService.resolveStudentCodeForLaunch', () => {
         {} as never,
         {} as never,
         {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
       ),
       {
         findStudentCodeByLmsClassAndUserId: jest.fn(),
@@ -42,19 +45,10 @@ describe('LmsLookupService.resolveStudentCodeForLaunch', () => {
       schoolId: SCHOOL_B,
       studentCode: 'CODE-B',
       courseScopedClassFound: true,
+      classId: null,
     });
-    expect(findStudentCodeByLmsClassAndUserId).toHaveBeenNthCalledWith(
-      1,
-      '42',
-      '12',
-      SCHOOL_A,
-    );
-    expect(findStudentCodeByLmsClassAndUserId).toHaveBeenNthCalledWith(
-      2,
-      '42',
-      '12',
-      SCHOOL_B,
-    );
+    expect(findStudentCodeByLmsClassAndUserId).toHaveBeenNthCalledWith(1, '42', '12', SCHOOL_A);
+    expect(findStudentCodeByLmsClassAndUserId).toHaveBeenNthCalledWith(2, '42', '12', SCHOOL_B);
   });
 
   it('falls back to school-wide lookup when course context is missing', async () => {
@@ -75,6 +69,7 @@ describe('LmsLookupService.resolveStudentCodeForLaunch', () => {
       schoolId: SCHOOL_B,
       studentCode: 'CODE-B',
       courseScopedClassFound: false,
+      classId: null,
     });
   });
 
@@ -105,6 +100,7 @@ describe('LmsLookupService.resolveStudentCodeForLaunch', () => {
       schoolId: null,
       studentCode: null,
       courseScopedClassFound: false,
+      classId: null,
     });
     expect(findStudentCodeByLmsUserIdGlobally).not.toHaveBeenCalled();
   });

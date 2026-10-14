@@ -1,40 +1,42 @@
- 
-"use client";
+'use client';
 
 import {
   ChevronDown,
   ChevronRight,
   Check,
   X,
-} from "lucide-react";
-import React, { useEffect, useState } from "react";
+  CheckCircle,
+  AlertCircle,
+} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 
-import { VERIFICATION_ITEMS } from "../constants/grading";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
+import { VERIFICATION_ITEMS } from '../constants/grading';
+import SharedStatusBadge from '../../components/ui/StatusBadge';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Language / translation helper
 // ─────────────────────────────────────────────────────────────────────────────
-function useAppLanguage(): "en" | "es" {
-  const [language, setLanguage] = useState<"en" | "es">(() => {
-    if (typeof window === "undefined") {
-      return "en";
+function useAppLanguage(): 'en' | 'es' {
+  const [language, setLanguage] = useState<'en' | 'es'>(() => {
+    if (typeof window === 'undefined') {
+      return 'en';
     }
-    const stored = window.localStorage.getItem("app_language");
-    return stored === "es" ? "es" : "en";
+    const stored = window.localStorage.getItem('app_language');
+    return stored === 'es' ? 'es' : 'en';
   });
 
   useEffect(() => {
-    if (typeof window === "undefined") {
+    if (typeof window === 'undefined') {
       return;
     }
     const handler = () => {
-      const stored = window.localStorage.getItem("app_language");
-      setLanguage(stored === "es" ? "es" : "en");
+      const stored = window.localStorage.getItem('app_language');
+      setLanguage(stored === 'es' ? 'es' : 'en');
     };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }, []);
 
   return language;
@@ -162,18 +164,18 @@ const formatDurationLabel = (seconds: number): string => {
 
 /** Format epoch-ms or ISO/date string as "May 15, 09:30". Returns '' when invalid. */
 const formatAdminDate = (value: number | string | undefined): string => {
-  if (value === undefined || value === null || value === "") {
-    return "";
+  if (value === undefined || value === null || value === '') {
+    return '';
   }
-  const d = typeof value === "number" ? new Date(value) : new Date(value);
+  const d = typeof value === 'number' ? new Date(value) : new Date(value);
   if (Number.isNaN(d.getTime())) {
-    return "";
+    return '';
   }
-  return d.toLocaleString("en-US", {
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+  return d.toLocaleString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
   });
 };
@@ -181,9 +183,9 @@ const formatAdminDate = (value: number | string | undefined): string => {
 /** Strip a known "Label:" prefix from a captured pipe-part and trim. */
 const stripPrefix = (raw: string | undefined, prefix: string): string => {
   if (!raw) {
-    return "";
+    return '';
   }
-  return raw.replace(new RegExp(`^${prefix}\\s*`), "").trim();
+  return raw.replace(new RegExp(`^${prefix}\\s*`), '').trim();
 };
 
 /** True when a value should render (not empty, not placeholder dashes). */
@@ -192,7 +194,7 @@ const hasValue = (raw: string | undefined): boolean => {
     return false;
   }
   const v = raw.trim();
-  return v.length > 0 && !/^-+$/.test(v) && v.toLowerCase() !== "n/a";
+  return v.length > 0 && !/^-+$/.test(v) && v.toLowerCase() !== 'n/a';
 };
 
 // ── Checklist label normalization ──────────────────────────────────────────
@@ -203,26 +205,26 @@ const hasValue = (raw: string | undefined): boolean => {
 // so Expected and Documented columns visually line up.
 
 export const EDUCATION_LABEL_MAP: Record<string, string> = {
-  purpose_indication: "Purpose Discussed",
-  purpose_discussed: "Purpose Discussed",
-  discussed_purpose: "Purpose Discussed",
-  side_effects: "Side Effects Reviewed",
-  side_effects_reviewed: "Side Effects Reviewed",
-  reviewed_side_effects: "Side Effects Reviewed",
-  instructions: "Instructions Provided",
-  instructions_provided: "Instructions Provided",
-  provided_instructions: "Instructions Provided",
-  answered_questions: "Questions Answered",
-  questions_answered: "Questions Answered",
-  verbalized_understanding: "Patient Understanding",
-  patient_understanding: "Patient Understanding",
+  purpose_indication: 'Purpose Discussed',
+  purpose_discussed: 'Purpose Discussed',
+  discussed_purpose: 'Purpose Discussed',
+  side_effects: 'Side Effects Reviewed',
+  side_effects_reviewed: 'Side Effects Reviewed',
+  reviewed_side_effects: 'Side Effects Reviewed',
+  instructions: 'Instructions Provided',
+  instructions_provided: 'Instructions Provided',
+  provided_instructions: 'Instructions Provided',
+  answered_questions: 'Questions Answered',
+  questions_answered: 'Questions Answered',
+  verbalized_understanding: 'Patient Understanding',
+  patient_understanding: 'Patient Understanding',
 };
 export const EDUCATION_ORDER: string[] = [
-  "Purpose Discussed",
-  "Side Effects Reviewed",
-  "Instructions Provided",
-  "Questions Answered",
-  "Patient Understanding",
+  'Purpose Discussed',
+  'Side Effects Reviewed',
+  'Instructions Provided',
+  'Questions Answered',
+  'Patient Understanding',
 ];
 
 // VERIFICATION_LABEL_MAP and VERIFICATION_ORDER are derived from
@@ -234,50 +236,50 @@ export const EDUCATION_ORDER: string[] = [
 // Build the primary id→label map from the source-of-truth list.
 export const VERIFICATION_LABEL_MAP: Record<string, string> =
   Object.fromEntries(
-    VERIFICATION_ITEMS.map((item) => [item.id, item.label]),
+    VERIFICATION_ITEMS.map((item) => [item.id, item.label])
   ) as Record<string, string>;
 
 // Legacy/alias keys that may appear in older records or boolean-fallback paths.
 // All aliases resolve to the same canonical label as the authoritative id.
 const _VERIFICATION_ALIASES: Record<string, string> = {
   // patient-side aliases
-  name_checked: "Asked patient to state their full name",
-  dob_checked: "Asked patient to state their date of birth",
-  date_of_birth: "Asked patient to state their date of birth",
-  scanned_id: "Scanned/checked patient wristband",
-  wristband_checked: "Scanned/checked patient wristband",
+  name_checked: 'Asked patient to state their full name',
+  dob_checked: 'Asked patient to state their date of birth',
+  date_of_birth: 'Asked patient to state their date of birth',
+  scanned_id: 'Scanned/checked patient wristband',
+  wristband_checked: 'Scanned/checked patient wristband',
   // medication-side aliases
-  medication_name: "Verified medication name",
-  name_verified: "Verified medication name",
-  patient_name: "Verified medication name",
-  expiration_date: "Verified medication is not expired",
-  expiry_check: "Verified medication is not expired",
-  expiry_checked: "Verified medication is not expired",
+  medication_name: 'Verified medication name',
+  name_verified: 'Verified medication name',
+  patient_name: 'Verified medication name',
+  expiration_date: 'Verified medication is not expired',
+  expiry_check: 'Verified medication is not expired',
+  expiry_checked: 'Verified medication is not expired',
   no_allergies_contraindications:
-    "Verified absence of allergies or contraindications",
-  allergies_verified: "Verified absence of allergies or contraindications",
-  allergies_checked: "Verified absence of allergies or contraindications",
-  strength_concentration: "Verified medication strength/concentration",
-  indication_confirmed: "Verified medication strength/concentration",
-  indication_verified: "Verified medication strength/concentration",
+    'Verified absence of allergies or contraindications',
+  allergies_verified: 'Verified absence of allergies or contraindications',
+  allergies_checked: 'Verified absence of allergies or contraindications',
+  strength_concentration: 'Verified medication strength/concentration',
+  indication_confirmed: 'Verified medication strength/concentration',
+  indication_verified: 'Verified medication strength/concentration',
 };
 Object.assign(VERIFICATION_LABEL_MAP, _VERIFICATION_ALIASES);
 
 // Order matches the VERIFICATION_ITEMS declaration order.
 export const VERIFICATION_ORDER: string[] = VERIFICATION_ITEMS.map(
-  (item) => item.label,
+  (item) => item.label
 );
 
 const toTitleCase = (s: string): string =>
   s
-    .replace(/[_-]+/g, " ")
+    .replace(/[_-]+/g, ' ')
     .trim()
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const normalizeChecklistList = (
   items: string[],
   map: Record<string, string>,
-  order: string[],
+  order: string[]
 ): string[] => {
   const normalized = items.map((i) => {
     const key = i.toLowerCase().trim();
@@ -318,16 +320,16 @@ function CollapsibleSection({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className="border-t border-gray-200">
+    <div data-pdf-section className="border-t border-gray-200">
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center justify-between py-3 text-left hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-2">
           {isOpen ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-gray-400 pdf-hide" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+            <ChevronRight className="w-4 h-4 text-gray-400 pdf-hide" />
           )}
           {icon}
           <span className="text-[12px] font-bold text-gray-700 uppercase tracking-wider">
@@ -336,7 +338,12 @@ function CollapsibleSection({
         </div>
         {badge}
       </button>
-      {isOpen && <div className="pb-3 pl-6">{children}</div>}
+      <div
+        data-collapsible-body
+        className={isOpen ? 'pb-3 pl-6' : 'pb-3 pl-6 hidden'}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -348,7 +355,7 @@ interface InfoRowProps {
   className?: string;
 }
 
-function InfoRow({ label, value, className = "" }: InfoRowProps) {
+function InfoRow({ label, value, className = '' }: InfoRowProps) {
   return (
     <div className={`flex justify-between items-start py-1.5 ${className}`}>
       <span className="text-[12px] text-gray-500 font-medium">{label}</span>
@@ -360,53 +367,54 @@ function InfoRow({ label, value, className = "" }: InfoRowProps) {
 }
 
 /** Checklist display */
+const STATUS_VARIANT_TO_TONE: Record<
+  'success' | 'warning' | 'error' | 'info' | 'default',
+  'success' | 'warning' | 'danger' | 'info' | 'neutral'
+> = {
+  success: 'success',
+  warning: 'warning',
+  error: 'danger',
+  info: 'info',
+  default: 'neutral',
+};
+
 /** Status Badge Component */
 function StatusBadge({
   status,
-  variant = "default",
+  variant = 'default',
 }: {
   status: string;
-  variant?: "success" | "warning" | "error" | "info" | "default";
+  variant?: 'success' | 'warning' | 'error' | 'info' | 'default';
 }) {
-  const variants = {
-    success: "bg-emerald-100 text-emerald-700 border-emerald-200",
-    warning: "bg-amber-100 text-amber-700 border-amber-200",
-    error: "bg-rose-100 text-rose-700 border-rose-200",
-    info: "bg-sky-100 text-sky-700 border-sky-200",
-    default: "bg-gray-100 text-gray-700 border-gray-200",
-  };
-
   return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${variants[variant]}`}
-    >
-      {status}
-    </span>
+    <SharedStatusBadge tone={STATUS_VARIANT_TO_TONE[variant]} label={status} />
   );
 }
 
-/** Grading Result Badge - Satisfactory/Unsatisfactory indicator */
+/** Grading Result Badge - Satisfactory/Unsatisfactory indicator, styled to
+ *  match the transcript timeline correctness pill. */
 function GradingResultBadge({ isCorrect }: { isCorrect: boolean }) {
   const language = useAppLanguage();
   const labels =
-    language === "es"
+    language === 'es'
       ? loginEs.studentReport.labels
       : loginEn.studentReport.labels;
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+      data-status-pill
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
         isCorrect
-          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
-          : "bg-rose-100 text-rose-700 border border-rose-200"
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+          : 'bg-rose-50 text-rose-700 border-rose-200'
       }`}
     >
       {isCorrect ? (
         <>
-          <Check className="w-3 h-3" /> {labels.satisfactory}
+          <CheckCircle className="w-3.5 h-3.5" /> {labels.satisfactory}
         </>
       ) : (
         <>
-          <X className="w-3 h-3" /> {labels.unsatisfactory}
+          <AlertCircle className="w-3.5 h-3.5" /> {labels.unsatisfactory}
         </>
       )}
     </span>
@@ -436,46 +444,36 @@ function GradingComparisonRow({
 }) {
   const language = useAppLanguage();
   const tL =
-    language === "es"
+    language === 'es'
       ? loginEs.studentReport.medicationCard
       : loginEn.studentReport.medicationCard;
   const formatValue = (val: string | string[] | undefined): string => {
     if (val === undefined || val === null) {
-      return "—";
+      return '—';
     }
     if (Array.isArray(val)) {
-      return val.length === 0 ? "—" : val.join(` ${tL.or} `);
+      return val.length === 0 ? '—' : val.join(` ${tL.or} `);
     }
     const trimmed = String(val).trim();
-    return trimmed.length === 0 ? "—" : trimmed;
+    return trimmed.length === 0 ? '—' : trimmed;
   };
 
   const neutral = isCorrect === null;
-  const containerCls = neutral
-    ? "bg-gray-50 border border-gray-200"
-    : isCorrect
-      ? "bg-emerald-50 border border-emerald-100"
-      : "bg-rose-50 border border-rose-100";
-  const expectedTextCls = neutral
-    ? "text-gray-700"
-    : isCorrect
-      ? "text-emerald-700"
-      : "text-gray-700";
-  const actualTextCls = neutral
-    ? "text-gray-700"
-    : isCorrect
-      ? "text-emerald-700"
-      : "text-rose-700";
+  // Flattened in-app per C-12: no tinted container around grading rows.
+  const containerCls = '';
+  // Value text stays neutral gray; correctness is communicated via the badge.
+  const expectedTextCls = 'text-gray-700';
+  const actualTextCls = 'text-gray-700';
 
   return (
-    <div className={`rounded-lg p-3 mb-2 ${containerCls}`}>
+    <div data-pdf-section className={`rounded-lg p-3 mb-2 ${containerCls}`}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[12px] font-bold text-gray-700">{label}</span>
         {!neutral && <GradingResultBadge isCorrect={isCorrect} />}
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">
             {tL.expected}
           </p>
           <p className={`text-[12px] font-semibold ${expectedTextCls}`}>
@@ -483,7 +481,7 @@ function GradingComparisonRow({
           </p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mb-1">
+          <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">
             {tL.documented}
           </p>
           <p className={`text-[12px] font-semibold ${actualTextCls}`}>
@@ -491,11 +489,11 @@ function GradingComparisonRow({
           </p>
         </div>
       </div>
-      {(typeof confidence === "number" || explanation) && (
+      {(typeof confidence === 'number' || explanation) && (
         <div className="mt-2 pt-2 border-t border-gray-200">
-          {typeof confidence === "number" && (
+          {typeof confidence === 'number' && (
             <p className="text-[10px] text-gray-500">
-              {tL.confidence}:{" "}
+              {tL.confidence}:{' '}
               {(Math.max(0, Math.min(1, confidence)) * 100).toFixed(0)}%
             </p>
           )}
@@ -522,72 +520,72 @@ function ChecklistGradingDisplay({
   result,
   studentItems,
   neutral = false,
-  kind = "education",
+  kind = 'education',
 }: {
   title: string;
   result: ChecklistGradingResult;
   studentItems?: string[];
   neutral?: boolean;
-  kind?: "education" | "verification";
+  kind?: 'education' | 'verification';
 }) {
   const language = useAppLanguage();
   const tL =
-    language === "es"
+    language === 'es'
       ? loginEs.studentReport.medicationCard
       : loginEn.studentReport.medicationCard;
   const labelMap =
-    kind === "verification" ? VERIFICATION_LABEL_MAP : EDUCATION_LABEL_MAP;
-  const order = kind === "verification" ? VERIFICATION_ORDER : EDUCATION_ORDER;
+    kind === 'verification' ? VERIFICATION_LABEL_MAP : EDUCATION_LABEL_MAP;
+  const order = kind === 'verification' ? VERIFICATION_ORDER : EDUCATION_ORDER;
 
   const expectedDisplayRaw = normalizeChecklistList(
     result.expected,
     labelMap,
-    order,
+    order
   );
   const documentedDisplayRaw = normalizeChecklistList(
     studentItems ?? result.actual,
     labelMap,
-    order,
+    order
   );
 
   // Translate education / verification labels to Spanish for display only.
   // The canonical English labels are preserved in the underlying data so
   // grading logic and exports remain stable.
   const localizeLabel = (raw: string): string => {
-    if (kind === "education") {
+    if (kind === 'education') {
       const map: Record<string, string> = {
-        "Purpose Discussed": tL.educationLabels.purposeDiscussed,
-        "Side Effects Reviewed": tL.educationLabels.sideEffectsReviewed,
-        "Instructions Provided": tL.educationLabels.instructionsProvided,
-        "Questions Answered": tL.educationLabels.questionsAnswered,
-        "Patient Understanding": tL.educationLabels.patientUnderstanding,
-        "Discussed medication purpose and indication":
+        'Purpose Discussed': tL.educationLabels.purposeDiscussed,
+        'Side Effects Reviewed': tL.educationLabels.sideEffectsReviewed,
+        'Instructions Provided': tL.educationLabels.instructionsProvided,
+        'Questions Answered': tL.educationLabels.questionsAnswered,
+        'Patient Understanding': tL.educationLabels.patientUnderstanding,
+        'Discussed medication purpose and indication':
           tL.educationLabels.discussedPurposeIndication,
-        "Reviewed potential side effects":
+        'Reviewed potential side effects':
           tL.educationLabels.reviewedSideEffectsFull,
-        "Provided medication instructions":
+        'Provided medication instructions':
           tL.educationLabels.providedInstructionsFull,
-        "Answered patient questions":
+        'Answered patient questions':
           tL.educationLabels.answeredPatientQuestions,
-        "Patient verbalizes understanding":
+        'Patient verbalizes understanding':
           tL.educationLabels.patientVerbalizesUnderstanding,
       };
       return map[raw] ?? raw;
     }
     // verification
     const map: Record<string, string> = {
-      "Asked patient to state their full name":
+      'Asked patient to state their full name':
         tL.verificationLabels.askedFullName,
-      "Asked patient to state their date of birth":
+      'Asked patient to state their date of birth':
         tL.verificationLabels.askedDateOfBirth,
-      "Scanned/checked patient wristband":
+      'Scanned/checked patient wristband':
         tL.verificationLabels.scannedWristband,
-      "Verified medication name": tL.verificationLabels.verifiedMedicationName,
-      "Verified medication is not expired":
+      'Verified medication name': tL.verificationLabels.verifiedMedicationName,
+      'Verified medication is not expired':
         tL.verificationLabels.verifiedNotExpired,
-      "Verified absence of allergies or contraindications":
+      'Verified absence of allergies or contraindications':
         tL.verificationLabels.verifiedNoAllergies,
-      "Verified medication strength/concentration":
+      'Verified medication strength/concentration':
         tL.verificationLabels.verifiedStrength,
     };
     return map[raw] ?? raw;
@@ -595,11 +593,9 @@ function ChecklistGradingDisplay({
   const expectedDisplay = expectedDisplayRaw.map(localizeLabel);
   const documentedDisplay = documentedDisplayRaw.map(localizeLabel);
 
-  const expectedSet = new Set(
-    expectedDisplayRaw.map((v) => v.toLowerCase()),
-  );
+  const expectedSet = new Set(expectedDisplayRaw.map((v) => v.toLowerCase()));
   const documentedSet = new Set(
-    documentedDisplayRaw.map((v) => v.toLowerCase()),
+    documentedDisplayRaw.map((v) => v.toLowerCase())
   );
   const allExpectedDocumented =
     expectedSet.size === 0 ||
@@ -607,11 +603,8 @@ function ChecklistGradingDisplay({
   const displayIsCorrect =
     expectedSet.size > 0 ? allExpectedDocumented : result.isCorrect;
 
-  const containerCls = neutral
-    ? "bg-gray-50 border border-gray-200"
-    : displayIsCorrect
-      ? "bg-emerald-50 border border-emerald-100"
-      : "bg-rose-50 border border-rose-100";
+  // Flattened in-app per C-12: no tinted container around checklist rows.
+  const containerCls = '';
 
   return (
     <div className={`rounded-lg p-3 mb-2 ${containerCls}`}>
@@ -628,7 +621,7 @@ function ChecklistGradingDisplay({
           </p>
           <div className="space-y-1">
             {expectedDisplay.length === 0 ? (
-              <span className="text-[11px] text-gray-500 italic">—</span>
+              <span className="text-[11px] text-gray-400 italic">—</span>
             ) : (
               expectedDisplay.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 py-0.5">
@@ -647,7 +640,7 @@ function ChecklistGradingDisplay({
           </p>
           <div className="space-y-1">
             {documentedDisplay.length === 0 ? (
-              <span className="text-[11px] text-gray-500 italic">—</span>
+              <span className="text-[11px] text-gray-400 italic">—</span>
             ) : (
               documentedDisplay.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-1.5 py-0.5">
@@ -672,7 +665,7 @@ export default function MedicationTranscriptCard({
 }: MedicationTranscriptCardProps) {
   const language = useAppLanguage();
   const tL =
-    language === "es"
+    language === 'es'
       ? loginEs.studentReport.medicationCard
       : loginEn.studentReport.medicationCard;
 
@@ -682,7 +675,8 @@ export default function MedicationTranscriptCard({
   // Spanish is active. Declared near the top of the component so they are in
   // scope for both the reassessment early-return branch and the main card.
   type OrderTypeKey = keyof typeof tL.orderTypes;
-  type StatusValuesTable = typeof loginEs.studentReport.medicationCard.statusValues;
+  type StatusValuesTable =
+    typeof loginEs.studentReport.medicationCard.statusValues;
   const statusValues = (tL as unknown as { statusValues?: StatusValuesTable })
     .statusValues;
   const translateOrderType = (raw: string): string => {
@@ -703,15 +697,15 @@ export default function MedicationTranscriptCard({
   ).clinicalDecisionValues;
   const translateClinicalDecisionValue = <T,>(v: T): T => {
     if (!clinicalDecisionValues) return v;
-    if (typeof v === "string") {
+    if (typeof v === 'string') {
       const key = v.trim().toLowerCase();
       return (clinicalDecisionValues[key] ?? v) as T;
     }
     if (Array.isArray(v)) {
       return v.map((x) =>
-        typeof x === "string"
-          ? clinicalDecisionValues[x.trim().toLowerCase()] ?? x
-          : x,
+        typeof x === 'string'
+          ? (clinicalDecisionValues[x.trim().toLowerCase()] ?? x)
+          : x
       ) as T;
     }
     return v;
@@ -719,12 +713,13 @@ export default function MedicationTranscriptCard({
   const translateAtLabel = (raw: string): string => {
     if (!raw) return raw;
     const trimmed = raw.trim();
-    if (trimmed.toLowerCase() === "administered at") return tL.rows.administeredAt;
+    if (trimmed.toLowerCase() === 'administered at')
+      return tL.rows.administeredAt;
     // Parse "<Status> At" (e.g. "Held At", "Refused At") and, when the UI
     // language is Spanish, render as "<Estado> a las" (e.g. "Retenido a las")
     // to match the HS-online reference. In English, keep the raw label.
     const match = trimmed.match(/^(.*?)\s+At$/i);
-    if (match && language === "es") {
+    if (match && language === 'es') {
       const status = match[1];
       return `${translateStatusValue(status)} a las`;
     }
@@ -736,18 +731,18 @@ export default function MedicationTranscriptCard({
   // set to ES. Underlying variant logic still keys off the original English
   // string, only the displayed label changes.
   const REASSESSMENT_EN_TO_ES: Record<string, string> = {
-    improved: "Mejoró",
-    unchanged: "Sin cambios",
-    worsened: "Empeoró",
-    severe: "Grave",
-    moderate: "Moderado",
-    mild: "Leve",
-    none: "Ninguno",
-    absent: "Ausente",
-    present: "Presente",
+    improved: 'Mejoró',
+    unchanged: 'Sin cambios',
+    worsened: 'Empeoró',
+    severe: 'Grave',
+    moderate: 'Moderado',
+    mild: 'Leve',
+    none: 'Ninguno',
+    absent: 'Ausente',
+    present: 'Presente',
   };
   const translateReassessmentValue = (raw: string): string => {
-    if (language !== "es" || !raw) return raw;
+    if (language !== 'es' || !raw) return raw;
     const key = raw.trim().toLowerCase();
     return REASSESSMENT_EN_TO_ES[key] ?? raw;
   };
@@ -757,24 +752,24 @@ export default function MedicationTranscriptCard({
   // ("enero 01, 06:02") rather than English ("Jan 01, 06:02"). Uses a
   // manual format so ES doesn't fall back to Intl's verbose default
   // ("01 de enero a las 06:02") which does not match HS.
-  const formatReassessmentDate = (value: number | string | undefined): string => {
-    if (value === undefined || value === null || value === "") return "";
-    const d = typeof value === "number" ? new Date(value) : new Date(value);
-    if (Number.isNaN(d.getTime())) return "";
-    if (language === "es") {
-      const month = d
-        .toLocaleString("es-ES", { month: "long" })
-        .toLowerCase();
-      const day = String(d.getDate()).padStart(2, "0");
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
+  const formatReassessmentDate = (
+    value: number | string | undefined
+  ): string => {
+    if (value === undefined || value === null || value === '') return '';
+    const d = typeof value === 'number' ? new Date(value) : new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    if (language === 'es') {
+      const month = d.toLocaleString('es-ES', { month: 'long' }).toLowerCase();
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
       return `${month} ${day}, ${hh}:${mm}`;
     }
-    return d.toLocaleString("en-US", {
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
       hour12: false,
     });
   };
@@ -784,7 +779,7 @@ export default function MedicationTranscriptCard({
   }
 
   const parts = entry.details
-    .split(" | ")
+    .split(' | ')
     .map((s) => s.trim())
     .filter(Boolean);
 
@@ -798,32 +793,33 @@ export default function MedicationTranscriptCard({
 
   // Helper to find a specific grading comparison
   const getGradingComparison = (
-    field: string,
+    field: string
   ): GradingComparison | undefined => {
     return gradingResult?.comparisons.find(
-      (c) => c.field.toLowerCase() === field.toLowerCase(),
+      (c) => c.field.toLowerCase() === field.toLowerCase()
     );
   };
 
   // Order info
-  const orderTypePart = findPart("Order Type:");  const orderedDose = findPart("Ordered Dose:");
-  const administeredDose = findPart("Administered Dose:");
-  const quantity = findPart("Quantity:");
-  const route = findPart("Route:");
-  const site = findPart("Site:");
-  const time = findPart("Time:");
-  const rate = findPart("Rate:");
-  const infusionDuration = findPart("Infusion Duration:");
-  const frequency = findPart("Frequency:");
-  const indication = findPart("Indication:");
-  const drugOnHand = findPart("Drug On Hand:");
-  const expiration = findPart("Expiration:");
-  const administrationHistory = findPart("Administration History:");
-  const medicationName = findPart("Medication Name:");
+  const orderTypePart = findPart('Order Type:');
+  const orderedDose = findPart('Ordered Dose:');
+  const administeredDose = findPart('Administered Dose:');
+  const quantity = findPart('Quantity:');
+  const route = findPart('Route:');
+  const site = findPart('Site:');
+  const time = findPart('Time:');
+  const rate = findPart('Rate:');
+  const infusionDuration = findPart('Infusion Duration:');
+  const frequency = findPart('Frequency:');
+  const indication = findPart('Indication:');
+  const drugOnHand = findPart('Drug On Hand:');
+  const expiration = findPart('Expiration:');
+  const administrationHistory = findPart('Administration History:');
+  const medicationName = findPart('Medication Name:');
   // (orderTitle findPart result is currently unused; the raw entry.title
   // provides the order title at the render site.)
-  const dueTime = findPart("Due Time:");
-  const expectedQuantity = findPart("Expected Quantity:");
+  const dueTime = findPart('Due Time:');
+  const expectedQuantity = findPart('Expected Quantity:');
 
   // Verification
   // (patientVerif / medVerif findPart results are currently unused;
@@ -833,58 +829,58 @@ export default function MedicationTranscriptCard({
   // Education
   // (patientEd findPart result is currently unused; education state is
   // rendered from administrationDetails.education below.)
-  const educationNotes = findPart("Education Notes:");
+  const educationNotes = findPart('Education Notes:');
 
   // Clinical decision
-  const clinicalDecision = findPart("Clinical Decision:");
-  const reasonNotGiven = findPart("Reason for Not Given:");
-  const refusalReason = findPart("Refusal Reason:");
-  const inappropriateReason = findPart("Inappropriate Reason:");
-  const assessmentFindings = findPart("Assessment Findings:");
+  const clinicalDecision = findPart('Clinical Decision:');
+  const reasonNotGiven = findPart('Reason for Not Given:');
+  const refusalReason = findPart('Refusal Reason:');
+  const inappropriateReason = findPart('Inappropriate Reason:');
+  const assessmentFindings = findPart('Assessment Findings:');
 
   // Administration confirmation
-  const administeredToPatient = findPart("Administered to Patient:");
-  const properDisposal = findPart("Proper Disposal:");
-  const adminNotes = findPart("Admin Notes:");
+  const administeredToPatient = findPart('Administered to Patient:');
+  const properDisposal = findPart('Proper Disposal:');
+  const adminNotes = findPart('Admin Notes:');
 
   // Reassessment
-  const therapeutic = findPart("Therapeutic Response:");
-  const adverse = findPart("Adverse Effects:");
-  const timeElapsed = findPart("Time Elapsed:");
-  const reassessmentNotes = findPart("Reassessment Notes:");
-  const reassessedAtPart = findPart("Reassessed At:");
+  const therapeutic = findPart('Therapeutic Response:');
+  const adverse = findPart('Adverse Effects:');
+  const timeElapsed = findPart('Time Elapsed:');
+  const reassessmentNotes = findPart('Reassessment Notes:');
+  const reassessedAtPart = findPart('Reassessed At:');
 
   // Status + dynamic "<Status> At:" label
-  const statusPart = findPart("Status:");
-  const statusValue = stripPrefix(statusPart, "Status:");
+  const statusPart = findPart('Status:');
+  const statusValue = stripPrefix(statusPart, 'Status:');
   const atRegex =
     /^(Administered At|Logged At|Missed At|Refused At|Inappropriate At|Held At):/;
   const administeredAtPart = parts.find((p) => atRegex.test(p));
   const atLabelMatch = administeredAtPart?.match(atRegex);
-  const atLabel = atLabelMatch ? atLabelMatch[1] : "";
+  const atLabel = atLabelMatch ? atLabelMatch[1] : '';
   const atValueRaw = administeredAtPart
-    ? administeredAtPart.replace(atRegex, "").trim()
-    : "";
+    ? administeredAtPart.replace(atRegex, '').trim()
+    : '';
   const atFormatted = atValueRaw
     ? formatAdminDate(atValueRaw) || atValueRaw
-    : "";
+    : '';
 
-  const note = findPart("Note:");
+  const note = findPart('Note:');
 
   // Derive Order Type
   const freqText = frequency
-    ? frequency.replace("Frequency:", "").trim().toLowerCase()
-    : "";
-  let orderType = "";
+    ? frequency.replace('Frequency:', '').trim().toLowerCase()
+    : '';
+  let orderType = '';
   if (orderTypePart) {
-    orderType = stripPrefix(orderTypePart, "Order Type:");
+    orderType = stripPrefix(orderTypePart, 'Order Type:');
   } else if (freqText) {
     if (/\bprn\b|as needed/.test(freqText)) {
-      orderType = "PRN";
+      orderType = 'PRN';
     } else if (/\bstat\b|\bonce\b/.test(freqText)) {
-      orderType = "STAT";
+      orderType = 'STAT';
     } else {
-      orderType = "Scheduled";
+      orderType = 'Scheduled';
     }
   }
 
@@ -894,39 +890,39 @@ export default function MedicationTranscriptCard({
   // simulated-time formatter renders the timestamp directly.)
 
   // Detect reassessment-only entry
-  const isReassessmentOnly = /^\[Reassessment\]/.test(entry.details || "");
+  const isReassessmentOnly = /^\[Reassessment\]/.test(entry.details || '');
 
   // Get medication name for display
-  const medNameVal = stripPrefix(medicationName, "Medication Name:");
-  const doseVal = orderedDose ? stripPrefix(orderedDose, "Ordered Dose:") : "";
-  const routeVal = route ? stripPrefix(route, "Route:") : "";
-  const freqVal = frequency ? stripPrefix(frequency, "Frequency:") : "";
-  const dueTimeVal = dueTime ? stripPrefix(dueTime, "Due Time:") : "";
+  const medNameVal = stripPrefix(medicationName, 'Medication Name:');
+  const doseVal = orderedDose ? stripPrefix(orderedDose, 'Ordered Dose:') : '';
+  const routeVal = route ? stripPrefix(route, 'Route:') : '';
+  const freqVal = frequency ? stripPrefix(frequency, 'Frequency:') : '';
+  const dueTimeVal = dueTime ? stripPrefix(dueTime, 'Due Time:') : '';
   const indicationVal = indication
-    ? stripPrefix(indication, "Indication:")
-    : "";
+    ? stripPrefix(indication, 'Indication:')
+    : '';
   const drugOnHandVal = drugOnHand
-    ? stripPrefix(drugOnHand, "Drug On Hand:")
-    : "";
+    ? stripPrefix(drugOnHand, 'Drug On Hand:')
+    : '';
   const expirationVal = expiration
-    ? stripPrefix(expiration, "Expiration:")
-    : "";
+    ? stripPrefix(expiration, 'Expiration:')
+    : '';
 
   // Render slim reassessment-only card
   if (isReassessmentOnly) {
-    const therapeuticVal = stripPrefix(therapeutic, "Therapeutic Response:");
-    const adverseVal = stripPrefix(adverse, "Adverse Effects:");
-    const timeElapsedVal = stripPrefix(timeElapsed, "Time Elapsed:");
+    const therapeuticVal = stripPrefix(therapeutic, 'Therapeutic Response:');
+    const adverseVal = stripPrefix(adverse, 'Adverse Effects:');
+    const timeElapsedVal = stripPrefix(timeElapsed, 'Time Elapsed:');
     const reassessmentNotesVal = stripPrefix(
       reassessmentNotes,
-      "Reassessment Notes:",
+      'Reassessment Notes:'
     );
-    const reassessedAtVal = stripPrefix(reassessedAtPart, "Reassessed At:");
+    const reassessedAtVal = stripPrefix(reassessedAtPart, 'Reassessed At:');
 
     return (
       <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-violet-50 to-white border-b border-gray-200">
+        <div className="flex items-center justify-between px-4 py-3 bg-white border-b border-gray-200">
           <span className="text-[13px] font-bold text-gray-800">
             {tL.reassessment}
           </span>
@@ -935,11 +931,11 @@ export default function MedicationTranscriptCard({
               <StatusBadge
                 status={translateOrderType(orderType)}
                 variant={
-                  orderType === "STAT"
-                    ? "error"
-                    : orderType === "PRN"
-                      ? "info"
-                      : "default"
+                  orderType === 'STAT'
+                    ? 'error'
+                    : orderType === 'PRN'
+                      ? 'info'
+                      : 'default'
                 }
               />
             )}
@@ -955,12 +951,17 @@ export default function MedicationTranscriptCard({
             </p>
           )}
 
-          <CollapsibleSection title={tL.sections.reassessmentFindings} defaultOpen={true}>
+          <CollapsibleSection
+            title={tL.sections.reassessmentFindings}
+            defaultOpen={true}
+          >
             <div className="space-y-1">
               {hasValue(reassessedAtVal) && (
                 <InfoRow
                   label={tL.rows.reassessedAt}
-                  value={formatReassessmentDate(reassessedAtVal) || reassessedAtVal}
+                  value={
+                    formatReassessmentDate(reassessedAtVal) || reassessedAtVal
+                  }
                 />
               )}
               {hasValue(timeElapsedVal) && (
@@ -970,9 +971,14 @@ export default function MedicationTranscriptCard({
                 label={tL.rows.therapeuticResponse}
                 value={
                   hasValue(therapeuticVal) ? (
-                    <StatusBadge status={translateReassessmentValue(therapeuticVal)} variant="success" />
+                    <StatusBadge
+                      status={translateReassessmentValue(therapeuticVal)}
+                      variant="success"
+                    />
                   ) : (
-                    <span className="text-gray-500 italic">{tL.notDocumented}</span>
+                    <span className="text-gray-400 italic">
+                      {tL.notDocumented}
+                    </span>
                   )
                 }
               />
@@ -983,13 +989,15 @@ export default function MedicationTranscriptCard({
                     <StatusBadge
                       status={translateReassessmentValue(adverseVal)}
                       variant={
-                        adverseVal.toLowerCase() === "none"
-                          ? "success"
-                          : "warning"
+                        adverseVal.toLowerCase() === 'none'
+                          ? 'success'
+                          : 'warning'
                       }
                     />
                   ) : (
-                    <span className="text-gray-500 italic">{tL.notDocumented}</span>
+                    <span className="text-gray-400 italic">
+                      {tL.notDocumented}
+                    </span>
                   )
                 }
               />
@@ -1005,47 +1013,8 @@ export default function MedicationTranscriptCard({
 
   return (
     <div className="mt-4 bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-      {/* Header */}
-      <div className="px-4 py-3 bg-gradient-to-r from-violet-50 to-white border-b border-gray-200">
-        <div className="flex items-center justify-between">
-          <span className="text-[13px] font-bold text-gray-800">
-            {tL.medicationAdministration}
-          </span>
-          <div className="flex items-center gap-2">
-            {orderType && (
-              <StatusBadge
-                status={translateOrderType(orderType)}
-                variant={
-                  orderType === "STAT"
-                    ? "error"
-                    : orderType === "PRN"
-                      ? "info"
-                      : "default"
-                }
-              />
-            )}
-            {/* Status badge intentionally omitted here to match HS-online:
-                the medication status (Held / Refused / Administered / …)
-                is already surfaced in the outer wrapper header alongside
-                the medication name, so rendering it again inside the
-                "Administración de Medicamentos" row is a duplicate. */}
-          </div>
-        </div>
-        {/* Timing info row */}
-        {(adminStartedMs || entry.duration) && (
-          <div className="flex items-center gap-4 mt-2 text-[10px] text-gray-500">
-            {adminStartedMs && (
-              <span>{tL.rows.started}: {formatReassessmentDate(adminStartedMs)}</span>
-            )}
-            {entry.duration && (
-              <span>{tL.rows.duration}: {formatDurationLabel(entry.duration)}</span>
-            )}
-          </div>
-        )}
-      </div>
-
       {/* Medication Title */}
-      <div className="px-4 pt-4 pb-2">
+      <div data-pdf-section className="px-4 pt-4 pb-2">
         {/* Show medication name as main title */}
         {medNameVal && (
           <h3 className="text-[16px] font-bold text-gray-900 mb-3">
@@ -1056,25 +1025,30 @@ export default function MedicationTranscriptCard({
             this card matches the HS-online reference layout. The order
             title is already shown in the card header above. */}
 
-        {/* Info chips row */}
-        <div className="flex flex-wrap gap-2 mb-3">
+        {/* Info chips row — order-type pill appears first per C-12 */}
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          {orderType && (
+            <span className="inline-flex items-center h-6 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-white text-[#5f6060] border border-[#d1d5db] leading-none">
+              {translateOrderType(orderType)}
+            </span>
+          )}
           {dueTimeVal && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+            <span className="inline-flex items-center h-6 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-white text-[#5f6060] border border-[#d1d5db] leading-none">
               {tL.due} {dueTimeVal}
             </span>
           )}
           {doseVal && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white text-[#5f6060] border border-[#d1d5db]">
               {tL.dose} {doseVal}
             </span>
           )}
           {routeVal && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white text-[#5f6060] border border-[#d1d5db]">
               {tL.route} {routeVal}
             </span>
           )}
           {freqVal && (
-            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+            <span className="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white text-[#5f6060] border border-[#d1d5db]">
               {tL.freq} {freqVal}
             </span>
           )}
@@ -1085,7 +1059,7 @@ export default function MedicationTranscriptCard({
           <div className="grid grid-cols-2 gap-4 py-2 border-t border-gray-100">
             {indicationVal && (
               <div>
-                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
                   {tL.indication}
                 </p>
                 <p className="text-[12px] text-gray-800 font-semibold">
@@ -1095,7 +1069,7 @@ export default function MedicationTranscriptCard({
             )}
             {drugOnHandVal && (
               <div>
-                <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
                   {tL.drugOnHand}
                 </p>
                 <p className="text-[12px] text-gray-800 font-semibold">
@@ -1107,16 +1081,15 @@ export default function MedicationTranscriptCard({
               (() => {
                 const isExpired = expirationVal
                   .toLowerCase()
-                  .startsWith("expired");
+                  .startsWith('expired');
                 return (
                   <div>
-                    <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider">
+                    <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
                       {tL.drugExpiration}
                     </p>
-                    <StatusBadge
-                      status={isExpired ? tL.expired : tL.notExpired}
-                      variant={isExpired ? "error" : "success"}
-                    />
+                    <p className="text-[12px] text-gray-800 font-semibold">
+                      {isExpired ? tL.expired : tL.notExpired}
+                    </p>
                   </div>
                 );
               })()}
@@ -1136,13 +1109,13 @@ export default function MedicationTranscriptCard({
           (() => {
             const historyVal = stripPrefix(
               administrationHistory,
-              "Administration History:",
+              'Administration History:'
             );
             if (!hasValue(historyVal)) {
               return null;
             }
             const historyItems = historyVal
-              .split(";")
+              .split(';')
               .map((s) => s.trim())
               .filter(Boolean);
             return (
@@ -1154,7 +1127,7 @@ export default function MedicationTranscriptCard({
                   {historyItems.map((item, i) => {
                     const match = item.match(/^(.+?)\s*\(([^)]+)\)$/);
                     const time = match ? match[1].trim() : item;
-                    const status = match ? match[2].trim() : "";
+                    const status = match ? match[2].trim() : '';
                     return (
                       <div
                         key={i}
@@ -1167,9 +1140,9 @@ export default function MedicationTranscriptCard({
                           <StatusBadge
                             status={translateStatusValue(status)}
                             variant={
-                              status.toLowerCase() === "administered"
-                                ? "success"
-                                : "warning"
+                              status.toLowerCase() === 'administered'
+                                ? 'success'
+                                : 'warning'
                             }
                           />
                         )}
@@ -1190,27 +1163,27 @@ export default function MedicationTranscriptCard({
           // Fall back to legacy booleans when checklist IDs were not captured.
           const studentVerifItemsFromBooleans: string[] = [];
           if (adminDetails?.patientVerification?.nameChecked) {
-            studentVerifItemsFromBooleans.push("name_checked");
+            studentVerifItemsFromBooleans.push('name_checked');
           }
           if (adminDetails?.patientVerification?.dobChecked) {
-            studentVerifItemsFromBooleans.push("dob_checked");
+            studentVerifItemsFromBooleans.push('dob_checked');
           }
           if (adminDetails?.patientVerification?.wristbandChecked) {
-            studentVerifItemsFromBooleans.push("scanned_id");
+            studentVerifItemsFromBooleans.push('scanned_id');
           }
           if (adminDetails?.medicationVerification?.nameVerified) {
-            studentVerifItemsFromBooleans.push("medication_name");
+            studentVerifItemsFromBooleans.push('medication_name');
           }
           if (adminDetails?.medicationVerification?.expiryChecked) {
-            studentVerifItemsFromBooleans.push("expiration_date");
+            studentVerifItemsFromBooleans.push('expiration_date');
           }
           if (adminDetails?.medicationVerification?.allergiesVerified) {
             studentVerifItemsFromBooleans.push(
-              "no_allergies_contraindications",
+              'no_allergies_contraindications'
             );
           }
           if (adminDetails?.medicationVerification?.indicationConfirmed) {
-            studentVerifItemsFromBooleans.push("strength_concentration");
+            studentVerifItemsFromBooleans.push('strength_concentration');
           }
 
           const studentVerifItems =
@@ -1235,7 +1208,10 @@ export default function MedicationTranscriptCard({
           // Neutral fallback when there is no grading config: still show the
           // Expected/Documented layout with "—" for missing expected.
           return (
-            <CollapsibleSection title={tL.sections.verificationChecklist} defaultOpen>
+            <CollapsibleSection
+              title={tL.sections.verificationChecklist}
+              defaultOpen
+            >
               <ChecklistGradingDisplay
                 title={tL.subsections.medicationVerification}
                 result={{
@@ -1256,48 +1232,50 @@ export default function MedicationTranscriptCard({
         {/* Clinical Decision - always renders with Expected/Documented
             layout so ungraded medications display consistently. */}
         {(() => {
-          const comparison = getGradingComparison("Clinical Decision");
+          const comparison = getGradingComparison('Clinical Decision');
           const decisionVal = clinicalDecision
-            ? stripPrefix(clinicalDecision, "Clinical Decision:")
-            : "";
-          const rawDocumented = decisionVal || statusValue || "";
+            ? stripPrefix(clinicalDecision, 'Clinical Decision:')
+            : '';
+          const rawDocumented = decisionVal || statusValue || '';
           const normalizedDoc = rawDocumented.toLowerCase().trim();
           const documented =
-            normalizedDoc === "hold"
-              ? "Held"
-              : normalizedDoc === "refuse"
-                ? "Refused"
+            normalizedDoc === 'hold'
+              ? 'Held'
+              : normalizedDoc === 'refuse'
+                ? 'Refused'
                 : rawDocumented || undefined;
           const reasonNotGivenVal = stripPrefix(
             reasonNotGiven,
-            "Reason for Not Given:",
+            'Reason for Not Given:'
           );
           const refusalReasonVal = stripPrefix(
             refusalReason,
-            "Refusal Reason:",
+            'Refusal Reason:'
           );
           const inappropriateReasonVal = stripPrefix(
             inappropriateReason,
-            "Inappropriate Reason:",
+            'Inappropriate Reason:'
           );
           const assessmentFindingsVal = stripPrefix(
             assessmentFindings,
-            "Assessment Findings:",
+            'Assessment Findings:'
           );
-          const noteVal = stripPrefix(note, "Note:");
+          const noteVal = stripPrefix(note, 'Note:');
           return (
             <CollapsibleSection
               title={tL.sections.clinicalDecision}
               defaultOpen={
                 (hasGrading && !!comparison) ||
-                !!(statusValue && statusValue !== "Administered")
+                !!(statusValue && statusValue !== 'Administered')
               }
             >
               <div className="space-y-1">
                 {comparison ? (
                   <GradingComparisonRow
                     label={tL.rows.clinicalDecision}
-                    expected={translateClinicalDecisionValue(comparison.expected)}
+                    expected={translateClinicalDecisionValue(
+                      comparison.expected
+                    )}
                     actual={translateClinicalDecisionValue(comparison.actual)}
                     isCorrect={comparison.isCorrect}
                   />
@@ -1319,7 +1297,10 @@ export default function MedicationTranscriptCard({
                   <InfoRow label={tL.rows.reason} value={reasonNotGivenVal} />
                 )}
                 {hasValue(refusalReasonVal) && (
-                  <InfoRow label={tL.rows.refusalReason} value={refusalReasonVal} />
+                  <InfoRow
+                    label={tL.rows.refusalReason}
+                    value={refusalReasonVal}
+                  />
                 )}
                 {hasValue(inappropriateReasonVal) && (
                   <InfoRow
@@ -1327,7 +1308,9 @@ export default function MedicationTranscriptCard({
                     value={inappropriateReasonVal}
                   />
                 )}
-                {hasValue(noteVal) && <InfoRow label={tL.rows.note} value={noteVal} />}
+                {hasValue(noteVal) && (
+                  <InfoRow label={tL.rows.note} value={noteVal} />
+                )}
               </div>
             </CollapsibleSection>
           );
@@ -1340,49 +1323,49 @@ export default function MedicationTranscriptCard({
           // and the clinical decision was graded correctly, gray out all admin detail
           // rows — they are irrelevant and should not show as Unsatisfactory.
           const nonAdminStatuses = [
-            "held",
-            "refused",
-            "inappropriate",
-            "missed",
+            'held',
+            'refused',
+            'inappropriate',
+            'missed',
           ];
           const isNonAdministered = nonAdminStatuses.includes(
-            (statusValue || "").toLowerCase(),
+            (statusValue || '').toLowerCase()
           );
           const clinicalDecisionComp =
-            getGradingComparison("Clinical Decision");
+            getGradingComparison('Clinical Decision');
           const clinicalDecisionCorrect =
             clinicalDecisionComp?.isCorrect === true;
           // Force neutral when not administered + clinical decision correct
           const forceNeutralAdminRows =
             isNonAdministered && clinicalDecisionCorrect;
 
-          const doseComp = getGradingComparison("Dose");
-          const qtyComp = getGradingComparison("Quantity");
-          const routeComp = getGradingComparison("Route");
+          const doseComp = getGradingComparison('Dose');
+          const qtyComp = getGradingComparison('Quantity');
+          const routeComp = getGradingComparison('Route');
           // Check for combined "Route vs Site" first
-          const combinedRouteSiteComp = getGradingComparison("Route vs Site");
+          const combinedRouteSiteComp = getGradingComparison('Route vs Site');
           // Site is supplemental documentation only (not graded)
-          const siteComp = getGradingComparison("Site");
-          const timeComp = getGradingComparison("Administration Time");
-          const infusionRateComp = getGradingComparison("Infusion Rate");
-          const rateComp = getGradingComparison("Rate");
-          const durationComp = getGradingComparison("Duration");
+          const siteComp = getGradingComparison('Site');
+          const timeComp = getGradingComparison('Administration Time');
+          const infusionRateComp = getGradingComparison('Infusion Rate');
+          const rateComp = getGradingComparison('Rate');
+          const durationComp = getGradingComparison('Duration');
 
           const administeredDoseVal = stripPrefix(
             administeredDose,
-            "Administered Dose:",
+            'Administered Dose:'
           );
-          const quantityVal = stripPrefix(quantity, "Quantity:");
+          const quantityVal = stripPrefix(quantity, 'Quantity:');
           const expectedQuantityVal = stripPrefix(
             expectedQuantity,
-            "Expected Quantity:",
+            'Expected Quantity:'
           );
-          const siteVal = stripPrefix(site, "Site:");
-          const timeVal = stripPrefix(time, "Time:");
-          const rateVal = stripPrefix(rate, "Rate:");
+          const siteVal = stripPrefix(site, 'Site:');
+          const timeVal = stripPrefix(time, 'Time:');
+          const rateVal = stripPrefix(rate, 'Rate:');
           const infusionDurationVal = stripPrefix(
             infusionDuration,
-            "Infusion Duration:",
+            'Infusion Duration:'
           );
           // Hide a row only when BOTH expected and documented are missing.
           const hasAny = (v: string | string[] | undefined): boolean => {
@@ -1470,11 +1453,11 @@ export default function MedicationTranscriptCard({
                       documentedRoute;
                     if (
                       documentedSite &&
-                      typeof documentedRoute === "string" &&
-                      !documentedRoute.includes("(")
+                      typeof documentedRoute === 'string' &&
+                      !documentedRoute.includes('(')
                     ) {
                       combinedDocumented = `${documentedRoute} (${String(
-                        documentedSite,
+                        documentedSite
                       )})`;
                     } else if (!documentedRoute && documentedSite) {
                       combinedDocumented = String(documentedSite);
@@ -1557,7 +1540,7 @@ export default function MedicationTranscriptCard({
           ];
 
           const visibleRows = rows.filter(
-            (r) => hasAny(r.expected) || hasAny(r.actual),
+            (r) => hasAny(r.expected) || hasAny(r.actual)
           );
 
           if (visibleRows.length === 0) {
@@ -1590,21 +1573,21 @@ export default function MedicationTranscriptCard({
             layout so ungraded medications display consistently. */}
         {(() => {
           const eduNotesVal = educationNotes
-            ? stripPrefix(educationNotes, "Education Notes:")
-            : "";
+            ? stripPrefix(educationNotes, 'Education Notes:')
+            : '';
           const hasNotes = hasValue(eduNotesVal);
           const studentEduItems = adminDetails?.patientEducation
             ? ([
                 adminDetails.patientEducation.discussedPurpose &&
-                  "Purpose Discussed",
+                  'Purpose Discussed',
                 adminDetails.patientEducation.reviewedSideEffects &&
-                  "Side Effects Reviewed",
+                  'Side Effects Reviewed',
                 adminDetails.patientEducation.providedInstructions &&
-                  "Instructions Provided",
+                  'Instructions Provided',
                 adminDetails.patientEducation.answeredQuestions &&
-                  "Questions Answered",
+                  'Questions Answered',
                 adminDetails.patientEducation.patientUnderstanding &&
-                  "Patient Understanding",
+                  'Patient Understanding',
               ].filter(Boolean) as string[])
             : [];
           const hasEducationGrading = !!gradingResult?.educationResult;
@@ -1651,18 +1634,18 @@ export default function MedicationTranscriptCard({
                 (() => {
                   const val = stripPrefix(
                     administeredToPatient,
-                    "Administered to Patient:",
+                    'Administered to Patient:'
                   );
                   const yes = /^yes$/i.test(val);
                   return (
                     <div className="flex items-center gap-2 py-1.5">
                       <div
-                        className={`w-5 h-5 rounded-full flex items-center justify-center ${yes ? "bg-emerald-100" : "bg-gray-100"}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center ${yes ? 'bg-emerald-100' : 'bg-gray-100'}`}
                       >
                         {yes ? (
                           <Check className="w-3 h-3 text-emerald-600" />
                         ) : (
-                          <X className="w-3 h-3 text-gray-500" />
+                          <X className="w-3 h-3 text-gray-400" />
                         )}
                       </div>
                       <span className="text-[12px] text-gray-700 font-medium">
@@ -1673,17 +1656,17 @@ export default function MedicationTranscriptCard({
                 })()}
               {properDisposal &&
                 (() => {
-                  const val = stripPrefix(properDisposal, "Proper Disposal:");
+                  const val = stripPrefix(properDisposal, 'Proper Disposal:');
                   const yes = /^yes$/i.test(val);
                   return (
                     <div className="flex items-center gap-2 py-1.5">
                       <div
-                        className={`w-5 h-5 rounded-full flex items-center justify-center ${yes ? "bg-emerald-100" : "bg-gray-100"}`}
+                        className={`w-5 h-5 rounded-full flex items-center justify-center ${yes ? 'bg-emerald-100' : 'bg-gray-100'}`}
                       >
                         {yes ? (
                           <Check className="w-3 h-3 text-emerald-600" />
                         ) : (
-                          <X className="w-3 h-3 text-gray-500" />
+                          <X className="w-3 h-3 text-gray-400" />
                         )}
                       </div>
                       <span className="text-[12px] text-gray-700 font-medium">
@@ -1693,10 +1676,10 @@ export default function MedicationTranscriptCard({
                   );
                 })()}
               {adminNotes &&
-                hasValue(stripPrefix(adminNotes, "Admin Notes:")) && (
+                hasValue(stripPrefix(adminNotes, 'Admin Notes:')) && (
                   <InfoRow
                     label={tL.rows.notes}
-                    value={stripPrefix(adminNotes, "Admin Notes:")}
+                    value={stripPrefix(adminNotes, 'Admin Notes:')}
                   />
                 )}
             </div>
@@ -1709,7 +1692,10 @@ export default function MedicationTranscriptCard({
           administeredAtPart ||
           time ||
           entry.duration) && (
-          <CollapsibleSection title={tL.sections.administrationTiming} defaultOpen={false}>
+          <CollapsibleSection
+            title={tL.sections.administrationTiming}
+            defaultOpen={false}
+          >
             <div className="space-y-1">
               {adminStartedMs && (
                 <InfoRow
@@ -1726,8 +1712,8 @@ export default function MedicationTranscriptCard({
                 adminCompletedMs && (
                   <InfoRow
                     label={
-                      statusValue && statusValue !== "Administered"
-                        ? `${translateStatusValue(statusValue)} ${language === "es" ? "a las" : "at"}`
+                      statusValue && statusValue !== 'Administered'
+                        ? `${translateStatusValue(statusValue)} ${language === 'es' ? 'a las' : 'at'}`
                         : tL.rows.administeredAt
                     }
                     value={formatReassessmentDate(adminCompletedMs)}
@@ -1737,7 +1723,7 @@ export default function MedicationTranscriptCard({
               {time && (
                 <InfoRow
                   label={tL.rows.documentedAtSimTime}
-                  value={stripPrefix(time, "Time:")}
+                  value={stripPrefix(time, 'Time:')}
                 />
               )}
               {entry.duration && (
@@ -1754,17 +1740,17 @@ export default function MedicationTranscriptCard({
         {(() => {
           const therapeuticVal = stripPrefix(
             therapeutic,
-            "Therapeutic Response:",
+            'Therapeutic Response:'
           );
-          const adverseVal = stripPrefix(adverse, "Adverse Effects:");
-          const timeElapsedVal = stripPrefix(timeElapsed, "Time Elapsed:");
+          const adverseVal = stripPrefix(adverse, 'Adverse Effects:');
+          const timeElapsedVal = stripPrefix(timeElapsed, 'Time Elapsed:');
           const reassessmentNotesVal = stripPrefix(
             reassessmentNotes,
-            "Reassessment Notes:",
+            'Reassessment Notes:'
           );
           const reassessedAtVal = stripPrefix(
             reassessedAtPart,
-            "Reassessed At:",
+            'Reassessed At:'
           );
           const hasReassessmentData =
             therapeutic ||
@@ -1785,7 +1771,9 @@ export default function MedicationTranscriptCard({
                 {hasValue(reassessedAtVal) && (
                   <InfoRow
                     label={tL.rows.reassessedAt}
-                    value={formatReassessmentDate(reassessedAtVal) || reassessedAtVal}
+                    value={
+                      formatReassessmentDate(reassessedAtVal) || reassessedAtVal
+                    }
                   />
                 )}
                 {hasValue(timeElapsedVal) && (
@@ -1795,9 +1783,12 @@ export default function MedicationTranscriptCard({
                   label={tL.rows.therapeuticResponse}
                   value={
                     hasValue(therapeuticVal) ? (
-                      <StatusBadge status={translateReassessmentValue(therapeuticVal)} variant="success" />
+                      <StatusBadge
+                        status={translateReassessmentValue(therapeuticVal)}
+                        variant="success"
+                      />
                     ) : (
-                      <span className="text-gray-500 italic">
+                      <span className="text-gray-400 italic">
                         {tL.notDocumented}
                       </span>
                     )
@@ -1810,13 +1801,13 @@ export default function MedicationTranscriptCard({
                       <StatusBadge
                         status={translateReassessmentValue(adverseVal)}
                         variant={
-                          adverseVal.toLowerCase() === "none"
-                            ? "success"
-                            : "warning"
+                          adverseVal.toLowerCase() === 'none'
+                            ? 'success'
+                            : 'warning'
                         }
                       />
                     ) : (
-                      <span className="text-gray-500 italic">
+                      <span className="text-gray-400 italic">
                         {tL.notDocumented}
                       </span>
                     )
@@ -1833,9 +1824,9 @@ export default function MedicationTranscriptCard({
         {/* Final Medication Status - always renders Expected/Documented
             layout so ungraded medications display consistently. */}
         {(() => {
-          const comparison = getGradingComparison("Final Status");
+          const comparison = getGradingComparison('Final Status');
           const translateVal = (
-            v: string | string[] | undefined,
+            v: string | string[] | undefined
           ): string | string[] | undefined => {
             if (v === undefined) return undefined;
             if (Array.isArray(v)) return v.map((x) => translateStatusValue(x));
@@ -1849,14 +1840,14 @@ export default function MedicationTranscriptCard({
               <GradingComparisonRow
                 label={tL.rows.finalStatus}
                 expected={translateVal(
-                  comparison ? comparison.expected : undefined,
+                  comparison ? comparison.expected : undefined
                 )}
                 actual={translateVal(
                   comparison
                     ? comparison.actual
                     : statusValue
                       ? statusValue
-                      : undefined,
+                      : undefined
                 )}
                 isCorrect={comparison ? comparison.isCorrect : null}
               />

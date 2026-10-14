@@ -44,6 +44,7 @@ import { SuperTest, Test } from 'supertest';
 import { createAgent, signupAndLogin } from '../../common/setup/supertest.setup';
 import { ENDPOINTS } from '../../common/constants/endpoints';
 import { STATUS } from '../../common/constants/status-codes';
+import { testEmail } from '../../utils/env';
 
 const SUCCESS_OR_FORBIDDEN = [STATUS.CREATED, STATUS.OK, STATUS.FORBIDDEN] as const;
 const OK_OR_FORBIDDEN = [STATUS.OK, STATUS.FORBIDDEN] as const;
@@ -80,13 +81,13 @@ describe('@schools-api Schools Module — full endpoint coverage', () => {
 
     adminToken = await signupAndLogin(agent, {
       full_name: 'Schools Suite Admin',
-      email: `schools-admin-${Date.now()}@test.realityworks`,
+      email: testEmail('schools-admin'),
       password: 'Schools@Suite1234',
     });
 
     otherAdminToken = await signupAndLogin(agent, {
       full_name: 'Schools Suite Other',
-      email: `schools-other-${Date.now()}@test.realityworks`,
+      email: testEmail('schools-other'),
       password: 'Schools@Suite1234',
     });
 
@@ -184,15 +185,17 @@ describe('@schools-api Schools Module — full endpoint coverage', () => {
       expect([STATUS.UNAUTHORIZED, STATUS.FORBIDDEN]).toContain(res.status);
     });
 
-    it('returns 403 when caller is not a District Admin', async () => {
-      const nonAdminToken = await signupAndLogin(agent, {
+    // Role-guard for non-DA is covered in schools.integration.spec.ts;
+    // signup always creates District Admin so 201 is the correct outcome here.
+    it('note — signup always creates District Admin; role-guard verified at integration layer', async () => {
+      const token = await signupAndLogin(agent, {
         full_name: 'Schools Non Admin',
-        email: `schools-nonadmin-${Date.now()}@test.realityworks`,
+        email: testEmail('schools-nonadmin'),
         password: 'Schools@Suite1234',
       });
       const res = await agent
         .post(ENDPOINTS.SCHOOLS.BASE)
-        .set('Authorization', `Bearer ${nonAdminToken}`)
+        .set('Authorization', `Bearer ${token}`)
         .send({ school_name: `Non-Admin School ${Date.now()}` });
       expect([STATUS.FORBIDDEN, STATUS.UNAUTHORIZED, STATUS.CREATED, STATUS.OK]).toContain(
         res.status,
@@ -522,17 +525,18 @@ describe('@schools-api Schools Module — full endpoint coverage', () => {
       expect([STATUS.OK, STATUS.NO_CONTENT, STATUS.FORBIDDEN]).toContain(res.status);
     });
 
-    it('delete response body contains status, message, and data keys when 200', async () => {
+    it('delete response body contains message, data, meta, and error keys when 200', async () => {
       const id = await makeSchool(agent, adminToken, 'Del-Schema');
       if (!id) return;
       const res = await agent
         .delete(ENDPOINTS.SCHOOLS.BY_ID(id))
         .set('Authorization', `Bearer ${adminToken}`);
       if (res.status === STATUS.OK) {
-        expect(res.body).toHaveProperty('status', 'SUCCESS');
         expect(res.body).toHaveProperty('message');
         expect(typeof res.body.message).toBe('string');
+        expect(res.body.error).toBeNull();
         expect(Object.keys(res.body)).toContain('data');
+        expect(Object.keys(res.body)).toContain('meta');
       } else {
         expect([STATUS.NO_CONTENT, STATUS.FORBIDDEN]).toContain(res.status);
       }

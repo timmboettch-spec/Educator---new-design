@@ -6,16 +6,17 @@ import { isValidProfileImageFile } from '../../utils/validation';
 import api from '../api';
 
 interface UpdateProfilePayload {
-  full_name: string;
+  fullName: string;
   profile_image?: File | null;
   remove_photo?: boolean;
+  /** Keeps the full-page loader off (see loaderMiddleware); not sent to the API. */
+  silent?: boolean;
 }
 
 interface UpdateProfileResponse {
   message?: string;
   data?: {
-    full_name: string;
-    profile_picture: string;
+    fullName?: string;
   };
 }
 
@@ -31,11 +32,23 @@ export const updateProfileRequest = createAsyncThunk<
   { rejectValue: string }
 >('profile/update', async (payload, { rejectWithValue }) => {
   try {
-    if (payload.profile_image && !isValidProfileImageFile(payload.profile_image)) {
+    if (
+      payload.profile_image &&
+      !isValidProfileImageFile(payload.profile_image)
+    ) {
       return rejectWithValue(ACCOUNT_VALIDATION.IMAGE_TYPE_INVALID);
     }
+    // A name-only change uses the documented JSON body. Photo changes stay
+    // multipart until the backend confirms how `profilePictureUrl` is obtained.
+    if (!payload.profile_image && !payload.remove_photo) {
+      const res = await api.put(config.UpdateProfileAPI, {
+        fullName: payload.fullName,
+      });
+      return res.data;
+    }
+
     const formData = new FormData();
-    formData.append('full_name', payload.full_name);
+    formData.append('fullName', payload.fullName);
 
     if (payload.profile_image) {
       formData.append('file', payload.profile_image);
@@ -45,22 +58,20 @@ export const updateProfileRequest = createAsyncThunk<
       formData.append('remove_photo', 'true');
     }
 
-    const res = await api.put(config.UpdateProfileAPI, formData,{
+    const res = await api.put(config.UpdateProfileAPI, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
     return res.data;
-
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-        return rejectWithValue(error.response?.data?.message ?? 'Update failed');
-      }
-
-      return rejectWithValue('Update failed');
+      return rejectWithValue(error.response?.data?.message ?? 'Update failed');
     }
+
+    return rejectWithValue('Update failed');
   }
-);
+});
 
 const initialState: UpdateProfileState = {
   loading: false,

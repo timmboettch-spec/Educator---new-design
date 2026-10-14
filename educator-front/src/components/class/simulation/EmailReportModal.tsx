@@ -60,14 +60,22 @@ function Toast({
         strokeWidth={2.5}
       >
         {type === 'success' ? (
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M5 13l4 4L19 7"
+          />
         ) : (
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M6 18L18 6M6 6l12 12"
+          />
         )}
       </svg>
       <span className="text-sm font-medium">{message}</span>
     </div>,
-    document.body,
+    document.body
   );
 }
 
@@ -76,7 +84,9 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
   const isLoading = useAppSelector(selectEmailReportLoading);
   const isSuccess = useAppSelector(selectEmailReportSuccess);
   const error = useAppSelector(selectEmailReportError);
-  const successMessage = useAppSelector((state) => state.EmailReport.response?.message);
+  const successMessage = useAppSelector(
+    (state) => state.EmailReport.response?.message
+  );
 
   const [mode, setMode] = useState<Mode>('individual');
   const [selectedId, setSelectedId] = useState('');
@@ -127,7 +137,11 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
   return (
     <>
       {showToast && (
-        <Toast message={successMessage || error || ''} type="success" onDone={handleToastDone} />
+        <Toast
+          message={successMessage || error || ''}
+          type="success"
+          onDone={handleToastDone}
+        />
       )}
       {showErrToast && error && (
         <Toast
@@ -158,7 +172,7 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
               type="button"
               onClick={handleSend}
               disabled={isLoading}
-              className="flex-1 py-3 rounded-full bg-primary-500 text-white text-sm font-semibold hover:bg-primary-600 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-full bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
@@ -176,7 +190,11 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
                       stroke="currentColor"
                       strokeWidth="4"
                     />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8v8H4z"
+                    />
                   </svg>
                   Sending...
                 </>
@@ -197,7 +215,7 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
                   onClick={() => setMode(m)}
                   className={`px-5 py-1.5 rounded-full text-sm font-semibold capitalize transition-colors ${
                     mode === m
-                      ? 'bg-primary-500 text-white shadow'
+                      ? 'bg-orange-500 text-white shadow'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -209,16 +227,20 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
 
           {mode === 'individual' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">To</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                To
+              </label>
               {students && students.length > 0 ? (
                 <select
                   value={selectedId}
                   onChange={(e) => {
-                    const s = students.find((st) => st.student_id === e.target.value);
+                    const s = students.find(
+                      (st) => st.student_id === e.target.value
+                    );
                     setSelectedId(e.target.value);
                     setTo(s?.email ?? '');
                   }}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-primary-300"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-orange-300"
                 >
                   <option value="">Select a student...</option>
                   {students.map((s) => (
@@ -233,39 +255,45 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
                   value={to}
                   onChange={(e) => setTo(e.target.value)}
                   placeholder="Recipient email address"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-primary-300"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-orange-300"
                 />
               )}
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Subject
+            </label>
             <Input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Email subject"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-primary-300"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-orange-300"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Message
+            </label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Add a message..."
               rows={4}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-primary-300 resize-none"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 outline-none focus:ring-2 focus:ring-orange-300 resize-none"
             />
           </div>
 
           {mode === 'individual' && sim.access_code && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Student Code</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Student Code
+              </label>
               <div className="flex gap-2">
-                <div className="flex-1 px-4 py-2.5 bg-primary-50 border border-primary-200 rounded-xl text-center text-primary-500 font-bold tracking-widest text-sm">
+                <div className="flex-1 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-center text-orange-500 font-bold tracking-widest text-sm">
                   {sim.access_code}
                 </div>
                 <button
@@ -303,15 +331,20 @@ export default function EmailReportModal({ sim, students, onClose }: Props) {
               type="checkbox"
               checked={includePdf}
               onChange={(e) => setIncludePdf(e.target.checked)}
-              className="w-4 h-4 accent-primary-500 cursor-pointer"
+              className="w-4 h-4 accent-orange-500 cursor-pointer"
             />
-            <label htmlFor="includePdf" className="text-sm text-gray-700 cursor-pointer">
+            <label
+              htmlFor="includePdf"
+              className="text-sm text-gray-700 cursor-pointer"
+            >
               Include PDF Report
             </label>
           </div>
 
           {sim.last_sent_date && (
-            <p className="text-xs text-gray-500">Last Sent {sim.last_sent_date}</p>
+            <p className="text-xs text-gray-400">
+              Last Sent {sim.last_sent_date}
+            </p>
           )}
         </div>
       </Modal>

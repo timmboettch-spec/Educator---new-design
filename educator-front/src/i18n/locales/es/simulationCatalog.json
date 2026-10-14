@@ -1,0 +1,33 @@
+{
+  "viewSwitcher": {
+    "label": "Ver simulaciones",
+    "all": "Todas",
+    "favorites": "Favoritas",
+    "packs": "Paquetes",
+    "units": "Unidades"
+  },
+  "groups": {
+    "packName": "Paquete {{modality}} de {{level}}",
+    "simulationCount_one": "{{count}} simulación",
+    "simulationCount_other": "{{count}} simulaciones",
+    "view": "Ver",
+    "viewAria": "Ver {{name}}",
+    "addToLibrary": "Agregar todo {{name}} a Mi biblioteca",
+    "removeFromLibrary": "Quitar todo {{name}} de Mi biblioteca"
+  },
+  "empty": {
+    "allTitle": "No se encontraron datos",
+    "favoritesTitle": "Aún no hay simulaciones favoritas",
+    "favoritesBody": "Agrega simulaciones a tus favoritos haciendo clic en el icono de corazón en cualquier tarjeta.",
+    "unitsTitle": "No se encontraron datos"
+  },
+  "card": {
+    "addToLibrary": "Agregar {{title}} a Mi biblioteca",
+    "removeFromLibrary": "Quitar {{title}} de Mi biblioteca"
+  },
+  "groupPage": {
+    "back": "Volver",
+    "searchPlaceholder": "Buscar...",
+    "empty": "No se encontraron simulaciones."
+  }
+}

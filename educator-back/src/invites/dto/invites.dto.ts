@@ -3,8 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { InvitesConstants } from '../invites.constants';
 import { CommonStatus } from 'src/common/enums/status.enum';
-import { Invite } from '../entity/invite.entity';
-import { Educator } from '../../educators/entity/educator.entity';
+import { Invite, Educator } from 'src/database/entities';
 
 export class CreateInviteDto {
   @ApiProperty({ example: InvitesConstants.VALIDATION.EMAIL_EXAMPLE })
@@ -37,14 +36,6 @@ export class CreateInviteDto {
   tokens?: number;
 }
 
-export class VerifyInviteDto {
-  @ApiProperty({ example: InvitesConstants.VALIDATION.INVITE_ID_EXAMPLE })
-  @Transform(({ value }) => (value === '' ? undefined : (value as string)))
-  @IsUUID()
-  @IsNotEmpty()
-  invite_id!: string;
-}
-
 export class RecordInviteDto {
   @ApiProperty({ example: InvitesConstants.VALIDATION.EMAIL_EXAMPLE })
   @IsNotEmpty({ message: 'Email is required' })
@@ -64,14 +55,9 @@ export class RecordInviteDto {
   creator_id!: string;
 }
 
-export class InviteIdDto {
-  @IsUUID('4', { message: 'Invalid Invite ID format' })
-  @IsNotEmpty()
-  id!: string;
-}
-
 export interface InviteCreateResponse {
-  invite: Invite;
+  /** Null when an already-active district admin is granted the Educator role directly — no invite is created to accept. */
+  invite: Invite | null;
   educator: Educator;
 }
 

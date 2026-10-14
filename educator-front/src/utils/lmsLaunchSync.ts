@@ -1,5 +1,8 @@
 import type { AppDispatch } from '../store';
-import { resyncLmsRosters, syncLmsClasses } from '../redux/lms/SyncLmsClassesRedux';
+import {
+  resyncLmsRosters,
+  syncLmsClasses,
+} from '../redux/lms/SyncLmsClassesRedux';
 
 export const LMS_LAUNCH_SESSION_KEY = 'lms_launch_session';
 export const LMS_LAUNCH_SYNC_LOCK_KEY = 'lms_launch_sync_lock';
@@ -9,8 +12,10 @@ const LTI_LAUNCH_STORAGE_KEYS = [
   'lti_course_id',
   'lti_course_name',
   'nrpsUrl',
+  // No longer written; kept so logout/launch purges tokens left by older builds.
   'lmsAccessToken',
   'moodleAccessToken',
+  'moodle_access_token',
 ] as const;
 
 /** Clears persisted LTI/LMS launch context from localStorage (call on logout). */
@@ -96,7 +101,9 @@ export function resetLmsLaunchSyncStateForTests(): void {
  * Creates new mapped classes when needed, then triggers backend roster sync.
  * Concurrent callers (e.g. React StrictMode double-mount) share one in-flight promise.
  */
-export function runLtiLaunchSyncIfNeeded(dispatch: AppDispatch): Promise<boolean> {
+export function runLtiLaunchSyncIfNeeded(
+  dispatch: AppDispatch
+): Promise<boolean> {
   if (launchSyncPromise) {
     return launchSyncPromise;
   }
@@ -131,7 +138,9 @@ export function finishLmsLaunchSession(): void {
  * Re-syncs Moodle rosters for all mapped classes (add/remove students in DB).
  * Safe to call on dashboard/classes refresh — not limited to one LTI launch.
  */
-export function resyncLmsRostersIfConfigured(dispatch: AppDispatch): Promise<number> {
+export function resyncLmsRostersIfConfigured(
+  dispatch: AppDispatch
+): Promise<number> {
   if (!hasLmsContextInStorage()) {
     return Promise.resolve(0);
   }

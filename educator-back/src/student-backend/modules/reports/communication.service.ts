@@ -1,7 +1,13 @@
-import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
+import { Injectable } from '@nestjs/common';
+
+import { AiMessageRole } from '../../../common/constants';
+import { AiNotConfiguredException } from '../../../common/exceptions/ai.exception';
+import {
+  type AiConceptEvaluation,
+  type AiConceptResultItem,
+  AiGateway,
+} from '../../../common/interfaces';
+import { LoggerService } from '../../../common/services';
 
 // --- Communication evaluation constants ------------------------------------
 /** Default pass/fail threshold (0-100) when not supplied by the caller. */
@@ -14,20 +20,13 @@ const STATUS_SCORE_PARTIAL = 0.5;
 const STATUS_SCORE_UNSATISFIED = 0;
 /** Multiplier to convert a 0–1 fraction to a 0–100 percentage score. */
 const SCORE_PERCENTAGE_MULTIPLIER = 100;
-/** Fallback OpenAI model when AI_MODEL env-var is not configured. */ /** Temperature for communication evaluation calls (0 = deterministic). */
+/** Temperature for communication evaluation calls (0 = deterministic). */
 const COMM_EVAL_TEMPERATURE = 0;
 
 interface ConceptCheckpoint {
   id: string;
   description: string;
   type: string;
-}
-
-interface LlmResultItem {
-  concept?: string;
-  conceptId?: string;
-  status?: string;
-  evidence?: string;
 }
 
 export interface FinalCommunicationResult {
@@ -43,21 +42,11 @@ export interface FinalQuestionResult {
   evidence: string;
 }
 
-interface OpenAIChatResponse {
-  choices?: Array<{ message?: { content?: string } }>;
-}
-
-interface ParsedLlmResponse {
-  results?: LlmResultItem[];
-}
-
 @Injectable()
 export class CommunicationService {
-  private readonly logger = new Logger(CommunicationService.name);
-
   constructor(
-    private httpService: HttpService,
-    private configService: ConfigService,
+    private readonly aiGateway: AiGateway,
+    private readonly logger: LoggerService,
   ) {}
 
   /**
@@ -85,14 +74,8 @@ export class CommunicationService {
       { id: 'provides_recommendation', label: 'Provides recommendation' },
     ];
 
-    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-    const configModel = this.configService.get<string>('AI_MODEL');
-    const model = configModel?.trim() ? configModel.trim() : 'gpt-4-turbo';
-
-    this.logger.log(`[Communication] Using model: ${model}, API key present: ${!!openaiApiKey}`);
-
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key not configured');
+    if (!this.aiGateway.isConfigured()) {
+      throw new AiNotConfiguredException();
     }
 
     const prompt = `
@@ -119,34 +102,19 @@ export class CommunicationService {
     `;
 
     try {
-      const response = await firstValueFrom(
-        this.httpService.post<OpenAIChatResponse>(
-          'https://api.openai.com/v1/chat/completions',
+      const parsed = await this.aiGateway.completeJson<AiConceptEvaluation>({
+        caller: 'reports.communication-evaluation',
+        messages: [
           {
-            model,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a professional clinical communication assessor. Evaluate the transcript accurately and return only JSON.',
-              },
-              { role: 'user', content: prompt },
-            ],
-            temperature: COMM_EVAL_TEMPERATURE,
-            response_format: { type: 'json_object' },
+            role: AiMessageRole.System,
+            content:
+              'You are a professional clinical communication assessor. Evaluate the transcript accurately and return only JSON.',
           },
-          {
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-
-      const content = response.data?.choices?.[0]?.message?.content ?? '{}';
-      const parsed = JSON.parse(content) as ParsedLlmResponse;
-      const results: LlmResultItem[] = parsed.results ?? [];
+          { role: AiMessageRole.User, content: prompt },
+        ],
+        temperature: COMM_EVAL_TEMPERATURE,
+      });
+      const results: AiConceptResultItem[] = parsed.results ?? [];
 
       const STATUS_SCORE: Record<string, number> = {
         satisfied: STATUS_SCORE_SATISFIED,
@@ -155,7 +123,7 @@ export class CommunicationService {
         contradicted: STATUS_SCORE_UNSATISFIED,
       };
 
-      const earned = results.reduce((sum: number, r: LlmResultItem) => {
+      const earned = results.reduce((sum: number, r: AiConceptResultItem) => {
         const statusStr = (r.status ?? '').toString().toLowerCase().trim();
         return sum + (STATUS_SCORE[statusStr] ?? 0);
       }, 0);
@@ -164,16 +132,19 @@ export class CommunicationService {
       const numThreshold = Number(threshold ?? DEFAULT_COMM_PASS_THRESHOLD);
       const passed = score >= numThreshold && score > 0;
       const flagged = results.some(
-        (r: LlmResultItem) => (r.status ?? '').toString().toLowerCase().trim() === 'contradicted',
+        (r: AiConceptResultItem) =>
+          (r.status ?? '').toString().toLowerCase().trim() === 'contradicted',
       );
 
       this.logger.log(
         `[TeamComm] LLM Eval -> Earned: ${earned}/${REQUIRED_CONCEPTS.length}, Score: ${score}%, Threshold: ${numThreshold}%, Passed: ${passed}`,
       );
-      this.logger.debug(`[TeamComm] Results: ${JSON.stringify(results, null, 2)}`);
+      this.logger.debug(
+        `[TeamComm] Result statuses: ${results.map((r: AiConceptResultItem) => `${r.concept}=${r.status}`).join(', ')}`,
+      );
 
       const finalResults: FinalCommunicationResult[] = REQUIRED_CONCEPTS.map((concept) => {
-        const found = results.find((r: LlmResultItem) => r.concept === concept.id);
+        const found = results.find((r: AiConceptResultItem) => r.concept === concept.id);
         return {
           concept: found?.concept ?? concept.id,
           status: found?.status ?? 'not_satisfied',
@@ -181,7 +152,7 @@ export class CommunicationService {
         };
       });
 
-      this.logger.debug(`finalResults ${JSON.stringify(finalResults)}`);
+      this.logger.debug(`[TeamComm] finalResults count=${finalResults.length}`);
 
       return { score, passed, flagged, results: finalResults };
     } catch (error: unknown) {
@@ -198,7 +169,7 @@ export class CommunicationService {
             ? JSON.stringify((error.response as Record<string, unknown>).data)
             : JSON.stringify(error);
       this.logger.error(`Error details: ${errorMessage}`);
-      throw new Error('Failed to evaluate communication transcript');
+      throw new Error('Failed to evaluate communication transcript', { cause: error });
     }
   }
 
@@ -218,12 +189,8 @@ export class CommunicationService {
       return { score: 100, passed: true, results: [] };
     }
 
-    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-    const configModel = this.configService.get<string>('AI_MODEL');
-    const model = configModel?.trim() ? configModel.trim() : 'gpt-4-turbo';
-
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key not configured');
+    if (!this.aiGateway.isConfigured()) {
+      throw new AiNotConfiguredException();
     }
 
     const conceptDescriptions = concepts
@@ -245,37 +212,22 @@ export class CommunicationService {
     `;
 
     try {
-      const response = await firstValueFrom(
-        this.httpService.post<OpenAIChatResponse>(
-          'https://api.openai.com/v1/chat/completions',
+      const parsed = await this.aiGateway.completeJson<AiConceptEvaluation>({
+        caller: 'reports.question-evaluation',
+        messages: [
           {
-            model,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  "You are a clinical educator evaluating a student's answer based on specific concepts. Be fair but accurate.",
-              },
-              { role: 'user', content: prompt },
-            ],
-            temperature: COMM_EVAL_TEMPERATURE,
-            response_format: { type: 'json_object' },
+            role: AiMessageRole.System,
+            content:
+              "You are a clinical educator evaluating a student's answer based on specific concepts. Be fair but accurate.",
           },
-          {
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-
-      const content = response.data?.choices?.[0]?.message?.content ?? '{}';
-      const parsed = JSON.parse(content) as ParsedLlmResponse;
-      const results: LlmResultItem[] = parsed.results ?? [];
+          { role: AiMessageRole.User, content: prompt },
+        ],
+        temperature: COMM_EVAL_TEMPERATURE,
+      });
+      const results: AiConceptResultItem[] = parsed.results ?? [];
 
       const finalResults: FinalQuestionResult[] = concepts.map((concept) => {
-        const found = results.find((r: LlmResultItem) => r.conceptId === concept.id);
+        const found = results.find((r: AiConceptResultItem) => r.conceptId === concept.id);
         const status = found ? found.status : 'not_satisfied';
         return {
           concept: concept.description,
@@ -298,7 +250,7 @@ export class CommunicationService {
       return { score, passed, results: finalResults };
     } catch (error) {
       this.logger.error('[CommunicationService] LLM Question Evaluation failed', error);
-      throw new Error('Failed to evaluate question response');
+      throw new Error('Failed to evaluate question response', { cause: error });
     }
   }
 }

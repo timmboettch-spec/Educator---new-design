@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 import { waitForDetach } from '../utils/waitHelper';
 
 export async function logout(page: Page): Promise<void> {
@@ -8,9 +8,13 @@ export async function logout(page: Page): Promise<void> {
   await logoutButton.waitFor({ state: 'visible', timeout: 15000 });
   await logoutButton.click();
 
-  await page.getByRole('button', {
-    name: 'Yes, Sign Out'
-  }).click();
+  await page
+    .getByRole('button', {
+      name: 'Yes, Sign Out',
+    })
+    .click();
 
-  await page.locator('input[name="email"]').waitFor({ state: 'visible', timeout: 30000 });
+  await page
+    .locator('input[name="email"]')
+    .waitFor({ state: 'visible', timeout: 30000 });
 }

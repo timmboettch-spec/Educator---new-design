@@ -60,7 +60,9 @@ describe('HeaderCard Component', () => {
   test('renders search input with placeholder', () => {
     render(<HeaderCard {...defaultProps} />);
     expect(
-      screen.getByPlaceholderText('Have a Question? Ask or enter a search term...'),
+      screen.getByPlaceholderText(
+        'Have a Question? Ask or enter a search term...'
+      )
     ).toBeInTheDocument();
   });
 
@@ -72,7 +74,7 @@ describe('HeaderCard Component', () => {
   test('calls onSearchChange when typing in input', () => {
     render(<HeaderCard {...defaultProps} />);
     const input = screen.getByPlaceholderText(
-      'Have a Question? Ask or enter a search term...',
+      'Have a Question? Ask or enter a search term...'
     );
     fireEvent.change(input, { target: { value: 'baby' } });
     expect(defaultProps.onSearchChange).toHaveBeenCalledWith('baby');
@@ -87,7 +89,7 @@ describe('HeaderCard Component', () => {
   test('calls onSearch when Enter key is pressed in input', () => {
     render(<HeaderCard {...defaultProps} />);
     const input = screen.getByPlaceholderText(
-      'Have a Question? Ask or enter a search term...',
+      'Have a Question? Ask or enter a search term...'
     );
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(defaultProps.onSearch).toHaveBeenCalledTimes(1);
@@ -96,7 +98,7 @@ describe('HeaderCard Component', () => {
   test('does not call onSearch when non-Enter key is pressed', () => {
     render(<HeaderCard {...defaultProps} />);
     const input = screen.getByPlaceholderText(
-      'Have a Question? Ask or enter a search term...',
+      'Have a Question? Ask or enter a search term...'
     );
     fireEvent.keyDown(input, { key: 'a' });
     expect(defaultProps.onSearch).not.toHaveBeenCalled();
@@ -105,7 +107,7 @@ describe('HeaderCard Component', () => {
   test('displays provided searchValue in input', () => {
     render(<HeaderCard {...defaultProps} searchValue="aquaponics" />);
     const input = screen.getByPlaceholderText(
-      'Have a Question? Ask or enter a search term...',
+      'Have a Question? Ask or enter a search term...'
     ) as HTMLInputElement;
     expect(input.value).toBe('aquaponics');
   });
@@ -119,7 +121,10 @@ describe('HeaderCard Component', () => {
     render(<HeaderCard {...defaultProps} />);
     fireEvent.click(screen.getByText('Call Us').closest('div')!);
     expect(window.location.href).toBe('tel:+18008301416');
-    Object.defineProperty(window, 'location', { writable: true, value: originalLocation });
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: originalLocation,
+    });
   });
 
   test('navigates to email when Email Support card is clicked', () => {
@@ -131,6 +136,9 @@ describe('HeaderCard Component', () => {
     render(<HeaderCard {...defaultProps} />);
     fireEvent.click(screen.getByText('Email Support').closest('div')!);
     expect(window.location.href).toBe('mailto:information@realityworks.com');
-    Object.defineProperty(window, 'location', { writable: true, value: originalLocation });
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: originalLocation,
+    });
   });
 });

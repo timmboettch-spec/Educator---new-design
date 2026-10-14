@@ -4,8 +4,8 @@
  * Controllers that call extractUserId() strip "Bearer " then "token-" to get the userId,
  * e.g.  `auth.replace('Bearer ', '').replace('token-', '')` → userId.
  *
- * For routes protected by JwtAuthGuard, override the guard in the test module:
- *   .overrideGuard(JwtAuthGuard).useValue({ canActivate: () => true })
+ * Controller-only test modules don't register the global AuthGuard, so routes are reachable
+ * without a token unless the test adds `{ provide: APP_GUARD, useClass: AuthGuard }`.
  */
 
 export const TEST_STUDENT_ID = 'test-student-001';

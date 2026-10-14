@@ -1,16 +1,17 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ClassSimulation } from './entity/class-simulation.entity';
-import { Simulation } from 'src/simulations/entity/simulation.entity';
+import { Global, Module, forwardRef } from '@nestjs/common';
+
 import { ClassSimulationService } from './class-simulation.service';
 import { ClassSimulationController } from './class-simulation.controller';
-import { Class } from 'src/class/entity/class.entity';
-import { EducatorsModule } from 'src/educators/educators.module';
 
+import { EducatorsModule } from 'src/educators/educators.module';
+import { GoogleModule } from 'src/google/google.module';
+
+@Global()
 @Module({
-  imports: [TypeOrmModule.forFeature([ClassSimulation, Class, Simulation]), EducatorsModule],
+  // forwardRef: ClassSimulationsModule ↔ GoogleModule ↔ StudentsModule cycle
+  imports: [EducatorsModule, forwardRef(() => GoogleModule)],
   controllers: [ClassSimulationController],
   providers: [ClassSimulationService],
   exports: [ClassSimulationService],
 })
-export class ClassSimulationsModule {}
+export class ClassSimulationsModule { }

@@ -46,16 +46,10 @@ export interface DashboardOverview {
   activeClasses: number;
   totalClasses: number;
   classesWithSimsThisWeek: number;
-  activeSimulationAssignments?: number;
   studentsActive: number;
   studentsActiveLast30Days: number;
   totalStudents: number;
   activeEducators: number;
   totalEducators: number;
-  inactiveSchools?: number;
-  pendingEducators?: number;
-  inactiveEducators?: number;
-  // Active schools that have at least one associated educator.
-  schoolsWithEducators?: number;
   studentIds: string[];
 }

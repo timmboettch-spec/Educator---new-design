@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
+import { LoggerService } from '../../../common/services';
+
 import {
   type ChecklistItem,
   type ChecklistItemStatus,
@@ -160,7 +162,7 @@ function normalizeLabel(text: string): string {
 
 @Injectable()
 export class PpePrivacyService {
-  private readonly logger = new Logger(PpePrivacyService.name);
+  constructor(private readonly logger: LoggerService) {}
 
   /**
    * Action-log-based PPE / privacy score.

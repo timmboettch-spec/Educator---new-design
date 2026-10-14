@@ -14,11 +14,11 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
 
   it('renders safe HTML tags (strong, em, a mailto) unchanged', () => {
     const html =
-      "<strong>Bold</strong> and <em>italic</em> with " +
+      '<strong>Bold</strong> and <em>italic</em> with ' +
       "<a href='mailto:info@example.com'>contact</a>.";
 
     const { container } = render(
-      <TermsCard id="01" title="Section" content={html} isActive={false} />,
+      <TermsCard id="01" title="Section" content={html} isActive={false} />
     );
 
     expect(container.querySelector('strong')?.textContent).toBe('Bold');
@@ -31,11 +31,10 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
   });
 
   it('removes <script> tags and never executes their code', () => {
-    const html =
-      'Hello<script>window.__xssPwned = true;</script>World';
+    const html = 'Hello<script>window.__xssPwned = true;</script>World';
 
     const { container } = render(
-      <TermsCard id="01" title="T" content={html} isActive={false} />,
+      <TermsCard id="01" title="T" content={html} isActive={false} />
     );
 
     expect(container.querySelector('script')).toBeNull();
@@ -51,7 +50,7 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
       '<img src="x" onerror="window.__xssPwned = true">';
 
     const { container } = render(
-      <TermsCard id="01" title="T" content={html} isActive={false} />,
+      <TermsCard id="01" title="T" content={html} isActive={false} />
     );
 
     const anchor = container.querySelector('a');
@@ -62,10 +61,10 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
   });
 
   it('removes javascript: URLs from anchor href', () => {
-    const html = "<a href=\"javascript:window.__xssPwned = true\">click</a>";
+    const html = '<a href="javascript:window.__xssPwned = true">click</a>';
 
     const { container } = render(
-      <TermsCard id="01" title="T" content={html} isActive={false} />,
+      <TermsCard id="01" title="T" content={html} isActive={false} />
     );
 
     const link = container.querySelector('a');
@@ -85,12 +84,12 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
       "<iframe src='https://evil.example'></iframe>" +
       "<object data='https://evil.example'></object>" +
       "<embed src='https://evil.example'>" +
-      "<svg><g/></svg>" +
-      "<style>*{color:red}</style>" +
+      '<svg><g/></svg>' +
+      '<style>*{color:red}</style>' +
       'Visible text';
 
     const { container } = render(
-      <TermsCard id="01" title="T" content={html} isActive={false} />,
+      <TermsCard id="01" title="T" content={html} isActive={false} />
     );
 
     expect(container.querySelector('iframe')).toBeNull();
@@ -107,7 +106,7 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
       "style='background:url(javascript:window.__xssPwned=true)'>link</a>";
 
     const { container } = render(
-      <TermsCard id="01" title="T" content={html} isActive={false} />,
+      <TermsCard id="01" title="T" content={html} isActive={false} />
     );
 
     const link = container.querySelector('a');
@@ -122,7 +121,7 @@ describe('TermsCard - DOMPurify sanitization (XSS defenses)', () => {
         title="Submission"
         content="<strong>Bold notice</strong> body text"
         isActive
-      />,
+      />
     );
 
     expect(screen.getByText('07')).toBeTruthy();

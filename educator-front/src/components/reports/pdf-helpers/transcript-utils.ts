@@ -37,7 +37,7 @@ export const SPEAKER_PRIORITY: Record<string, number> = {
  */
 export function parseElapsedTimeToSeconds(elapsedTime: string): number {
   if (!elapsedTime) return 0;
-  const parts = elapsedTime.split(":");
+  const parts = elapsedTime.split(':');
   if (parts.length === 2) {
     const minutes = parseInt(parts[0], 10) || 0;
     const seconds = parseInt(parts[1], 10) || 0;
@@ -74,22 +74,25 @@ interface TimelineItemShape {
  * rendered order; falls back to absolute epoch-ms timestamps.
  */
 export function getTimelineSortValue(item: TimelineItemShape): number {
-  const data = (item.data ?? (item as Record<string, unknown>)) as Record<string, unknown> & {
+  const data = (item.data ?? (item as Record<string, unknown>)) as Record<
+    string,
+    unknown
+  > & {
     elapsedSeconds?: number;
     elapsedTime?: string;
     timestampValue?: number;
     timestampMs?: number;
   };
 
-  if (typeof data.elapsedSeconds === "number") {
+  if (typeof data.elapsedSeconds === 'number') {
     return data.elapsedSeconds * 1000;
   }
-  if (typeof data.elapsedTime === "string" && data.elapsedTime) {
+  if (typeof data.elapsedTime === 'string' && data.elapsedTime) {
     return parseElapsedTimeToSeconds(data.elapsedTime) * 1000;
   }
 
   const ts = data.timestampValue ?? data.timestampMs;
-  if (typeof ts === "number" && ts > 0) return ts;
+  if (typeof ts === 'number' && ts > 0) return ts;
 
   return 0;
 }
@@ -101,7 +104,7 @@ export function getTimelineSortValue(item: TimelineItemShape): number {
  */
 export function timelineComparator(
   a: TimelineItemShape,
-  b: TimelineItemShape,
+  b: TimelineItemShape
 ): number {
   const valA = getTimelineSortValue(a);
   const valB = getTimelineSortValue(b);
@@ -126,12 +129,12 @@ export function timelineComparator(
 
   // Student/patient tiebreaker for equal elapsed second — student always first.
   if (
-    (sA === "user" && sB === "assistant") ||
-    (sA === "assistant" && sB === "user")
+    (sA === 'user' && sB === 'assistant') ||
+    (sA === 'assistant' && sB === 'user')
   ) {
     const getElapsed = (d: typeof dataA): number | undefined => {
-      if (typeof d.elapsedSeconds === "number") return d.elapsedSeconds;
-      if (typeof d.elapsedTime === "string" && d.elapsedTime) {
+      if (typeof d.elapsedSeconds === 'number') return d.elapsedSeconds;
+      if (typeof d.elapsedTime === 'string' && d.elapsedTime) {
         return parseElapsedTimeToSeconds(d.elapsedTime);
       }
       return undefined;
@@ -143,7 +146,7 @@ export function timelineComparator(
       elapsedB !== undefined &&
       elapsedA === elapsedB
     ) {
-      return sA === "user" ? -1 : 1;
+      return sA === 'user' ? -1 : 1;
     }
   }
 
@@ -153,10 +156,10 @@ export function timelineComparator(
   const getPriority = (item: TimelineItemShape): number => {
     const type = item.type;
     const data = (item.data ?? item) as { speaker?: string; category?: string };
-    if (type === "message" || data.speaker) {
-      return SPEAKER_PRIORITY[data.speaker ?? ""] ?? 99;
+    if (type === 'message' || data.speaker) {
+      return SPEAKER_PRIORITY[data.speaker ?? ''] ?? 99;
     }
-    if (type === "summary" || data.category) {
+    if (type === 'summary' || data.category) {
       return SPEAKER_PRIORITY.summary;
     }
     return 50; // commonAction
@@ -179,7 +182,7 @@ export function formatElapsedLabel(seconds: number): string {
   const safeValue = Math.max(0, Math.round(seconds));
   const mins = Math.floor(safeValue / 60);
   const secs = safeValue % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 /** Format seconds as a compact duration string (`6s` or `1m 5s`). */
@@ -199,44 +202,49 @@ export function formatDurationLabel(seconds: number): string {
  */
 export function cleanDetails(
   details: string | undefined,
-  hasAnswer?: boolean,
+  hasAnswer?: boolean
 ): string {
-  if (!details) return "";
+  if (!details) return '';
 
   // Strip everything from "| Started:" onwards.
   let cleaned = details.split(/\|\s*Started:/i)[0];
 
-  cleaned = cleaned.replace(/\s*Duration:\s*(\d+m?\s*\d*s?)\s*/i, "");
-  cleaned = cleaned.replace(/\s*Score:\s*(\d+%)\s*/i, "");
+  cleaned = cleaned.replace(/\s*Duration:\s*(\d+m?\s*\d*s?)\s*/i, '');
+  cleaned = cleaned.replace(/\s*Score:\s*(\d+%)\s*/i, '');
 
-  cleaned = cleaned.replace(/\s*Prompt:\s*.*?(?=\n|$|\|)/gi, "");
-  cleaned = cleaned.replace(/\s*Response:\s*.*?(?=\n|$|\|)/gi, "");
-  cleaned = cleaned.replace(/Student responded to question: ".*?"\n?/gi, "");
+  cleaned = cleaned.replace(/\s*Prompt:\s*.*?(?=\n|$|\|)/gi, '');
+  cleaned = cleaned.replace(/\s*Response:\s*.*?(?=\n|$|\|)/gi, '');
+  cleaned = cleaned.replace(/Student responded to question: ".*?"\n?/gi, '');
 
   if (hasAnswer) {
-    cleaned = cleaned.replace(/\s*Result:\s*.*?(?=\n|$|\|)/gi, "");
-    cleaned = cleaned.replace(/\s*Submitted:\s*.*?(?=\n|$|\|)/gi, "");
+    cleaned = cleaned.replace(/\s*Result:\s*.*?(?=\n|$|\|)/gi, '');
+    cleaned = cleaned.replace(/\s*Submitted:\s*.*?(?=\n|$|\|)/gi, '');
   }
 
   cleaned = cleaned.trim();
-  cleaned = cleaned.replace(/[|\s]+$/, "").replace(/^[|\s]+/, "");
+  cleaned = cleaned.replace(/[|\s]+$/, '').replace(/^[|\s]+/, '');
 
-  if (details.toLowerCase().startsWith("started:")) return "";
+  if (details.toLowerCase().startsWith('started:')) return '';
 
   return cleaned;
 }
 
 /** Map an internal question sub-type to a display label. */
 export function formatActionType(type: string): string {
+  if (!type) return '';
+  const lower = type.toLowerCase();
+  if (lower.startsWith('vital')) return 'Vital Signs';
   switch (type) {
-    case "single":
-      return "Multiple Choice Question";
-    case "question":
-      return "Open-Ended Question";
-    case "ordering":
-      return "Sequential Question";
-    case "vital-signs":
-      return "Vital Signs";
+    case 'single':
+      return 'Multiple Choice Question';
+    case 'question':
+      return 'Open-Ended Question';
+    case 'ordering':
+      return 'Sequential Question';
+    case 'vital-signs':
+    case 'vitals':
+    case 'vital':
+      return 'Vital Signs';
     default:
       return type;
   }
@@ -244,38 +252,38 @@ export function formatActionType(type: string): string {
 
 /** Format an epoch-ms timestamp as `MM/DD/YYYY, HH:MM:SS` (24h). */
 export function formatWallClock(epochMs: number | null | undefined): string {
-  if (!epochMs) return "";
+  if (!epochMs) return '';
   try {
     const d = new Date(epochMs);
-    return d.toLocaleString("en-US", {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
+    return d.toLocaleString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false,
     });
   } catch {
-    return "";
+    return '';
   }
 }
 
 /** Format an epoch-ms timestamp as `Jan 01, 06:15` (short, 24h). */
 export function formatAdminDate(epochMs: number | null | undefined): string {
-  if (!epochMs) return "";
+  if (!epochMs) return '';
   try {
     const d = new Date(epochMs);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleString("en-US", {
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
       hour12: false,
     });
   } catch {
-    return "";
+    return '';
   }
 }
 
@@ -283,12 +291,12 @@ export function formatAdminDate(epochMs: number | null | undefined): string {
 
 /** Vital-title → display unit mapping (matches Student vitalUnitMap). */
 export const vitalUnitMap: Record<string, { unit: string; suffix: boolean }> = {
-  "heart rate recorded": { unit: "bpm", suffix: false },
-  "blood pressure recorded": { unit: "mmHg", suffix: false },
-  "respiratory rate recorded": { unit: "breaths/min", suffix: false },
-  "temperature recorded": { unit: "\u00B0F", suffix: true },
-  "spo2 recorded": { unit: "%", suffix: true },
-  "oxygen saturation recorded": { unit: "%", suffix: true },
+  'heart rate recorded': { unit: 'bpm', suffix: false },
+  'blood pressure recorded': { unit: 'mmHg', suffix: false },
+  'respiratory rate recorded': { unit: 'breaths/min', suffix: false },
+  'temperature recorded': { unit: '\u00B0F', suffix: true },
+  'spo2 recorded': { unit: '%', suffix: true },
+  'oxygen saturation recorded': { unit: '%', suffix: true },
 };
 
 /**
@@ -297,10 +305,10 @@ export const vitalUnitMap: Record<string, { unit: string; suffix: boolean }> = {
  */
 export function getVitalValue(
   title: string,
-  details: string | undefined,
+  details: string | undefined
 ): string | null {
   const vitalMeta = vitalUnitMap[title.toLowerCase()];
-  const rawValue = details?.replace(/^Value:\s*/i, "").trim();
+  const rawValue = details?.replace(/^Value:\s*/i, '').trim();
 
   if (!rawValue) return null;
   if (!vitalMeta) return rawValue;

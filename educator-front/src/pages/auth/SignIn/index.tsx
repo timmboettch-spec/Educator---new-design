@@ -1,7 +1,9 @@
 'use client';
 
 import loginImage from '@/assets/redeem/RW AI UI orange gradient -07.jpg';
-import { FormEvent, useMemo, useRef, useState } from 'react';
+import { AuthLanguageSwitcher } from '@/components/auth/AuthLanguageSwitcher';
+import { useAuthLanguage } from '@/hooks/useAuthLanguage';
+import { type FormEvent, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ConfirmModal from '../../../components/modal/ConfirmationModal';
@@ -9,7 +11,11 @@ import Logo from '../../../components/logo/Logo';
 import { Button } from '../../../components/ui/Button';
 import Checkbox from '../../../components/ui/Checkbox';
 import InputField from '../../../components/ui/Input';
-import { toast, SESSION_TOAST_KEY, sonnerToast } from '../../../components/common/Toast';
+import {
+  toast,
+  SESSION_TOAST_KEY,
+  sonnerToast,
+} from '../../../components/common/Toast';
 import loginEn from '../../../locales/auth/login/en.json';
 import loginEs from '../../../locales/auth/login/es.json';
 import {
@@ -20,43 +26,33 @@ import {
   restoreSession,
   type EducatorUser,
 } from '../../../redux/auth/LoginRedux';
+import { SelectRoleRequest } from '../../../redux/auth/SelectRoleRedux';
 import { clearPendingToast } from '../../../redux/loader/loaderSlice';
+import { refreshCsrfToken } from '../../../redux/api';
 import { useAppDispatch } from '../../../store/hooks';
 import { isValidEmail } from '../../../utils/validation';
 import { COMMON_VALIDATION } from '../../../utils/messages/common';
+import {
+  findRoleById,
+  getActiveRole,
+  getUserRoles,
+  isSupportedRoleSlug,
+  normalizeAuthUser,
+  type AuthUserRole,
+} from '../../../utils/normalizeAuthUser';
 import { setAuthData, setSecondaryAuthData } from '../../../utils/storage';
+import { translateApiMessage } from '../../../utils/translateMessage';
 
 import {
   hasUnsafePasswordPattern,
   sanitizePasswordForTyping,
 } from '../../../utils/inputSecurity';
 
-type SupportedLang = 'en' | 'es';
-const LANGUAGE_STORAGE_KEY = 'app_language';
-const getInitialLanguage = (): SupportedLang => {
-  if (typeof window === 'undefined') {
-    return 'en';
-  }
-
-  const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY)?.toLowerCase();
-  if (saved === 'es' || saved === 'en') {
-    return saved;
-  }
-
-  const browserLang = window.navigator.language.toLowerCase();
-  return browserLang.startsWith('es') ? 'es' : 'en';
-};
-
 export default function SignIn() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useAppDispatch();
-  const [language, setLanguage] = useState<SupportedLang>(getInitialLanguage);
-
-  const handleSetLanguage = (lang: SupportedLang) => {
-    setLanguage(lang);
-    localStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
-  };
+  const { language, setLanguage: handleSetLanguage } = useAuthLanguage();
   const rememberedEmail = useSelector(selectRememberedEmail);
   const [email, setEmail] = useState(rememberedEmail || '');
   const [password, setPassword] = useState('');
@@ -71,31 +67,49 @@ export default function SignIn() {
     sonnerToast.dismiss();
   };
 
-  const locale = useMemo(() => (language === 'es' ? loginEs : loginEn), [language]);
+  const locale = useMemo(
+    () => (language === 'es' ? loginEs : loginEn),
+    [language]
+  );
   const [validationError, setValidationError] = useState<string>('');
 
   const [dualRoleModal, setDualRoleModal] = useState<{
-    adminTokens: { accessToken: string; csrfToken: string };
+    adminTokens: { accessToken: string; csrfToken?: string };
     adminUser: Record<string, unknown>;
-    educatorTokens: { accessToken: string; csrfToken: string };
+    educatorTokens: { accessToken: string; csrfToken?: string };
     educatorUser: EducatorUser;
     rememberMe: boolean;
     message: string;
   } | null>(null);
 
+  const [roleSelection, setRoleSelection] = useState<{
+    adminRole: AuthUserRole;
+    educatorRole: AuthUserRole;
+    tokens?: { accessToken: string; csrfToken?: string };
+    rememberMe: boolean;
+    message: string;
+  } | null>(null);
+  const [pendingRoleId, setPendingRoleId] = useState<string | null>(null);
+
   const finishLogin = async (
-    tokens: { accessToken: string; csrfToken: string },
+    tokens: { accessToken: string; csrfToken?: string },
     user: Record<string, unknown>,
     remember: boolean,
-    message: string,
+    message: string
   ) => {
     setAuthData(tokens, user as Parameters<typeof setAuthData>[1], remember);
+    if (!tokens.csrfToken) {
+      // Not every login response still bundles a CSRF token — fetch one
+      // explicitly instead of waiting for the first mutating request to 403
+      // and self-heal via the axios interceptor's retry path.
+      void refreshCsrfToken();
+    }
     dispatch(
       restoreSession({
         data: { tokens, user },
         message: '',
         status: 'success',
-      }),
+      })
     );
     dispatch(setRememberedEmail(remember ? email : ''));
 
@@ -109,11 +123,17 @@ export default function SignIn() {
 
     if (userRole === 'educator') {
       setSuccessMessage(message);
-      sessionStorage.setItem(SESSION_TOAST_KEY, JSON.stringify({ type: 'success', message }));
+      sessionStorage.setItem(
+        SESSION_TOAST_KEY,
+        JSON.stringify({ type: 'success', message })
+      );
       navigate(from || '/educator-dashboard', { replace: true });
     } else if (user.is_license_active === true) {
       setSuccessMessage(message);
-      sessionStorage.setItem(SESSION_TOAST_KEY, JSON.stringify({ type: 'success', message }));
+      sessionStorage.setItem(
+        SESSION_TOAST_KEY,
+        JSON.stringify({ type: 'success', message })
+      );
       navigate(from || '/admin-dashboard', { replace: true });
     } else {
       navigate('/redeem');
@@ -131,7 +151,7 @@ export default function SignIn() {
       data.educatorTokens,
       data.educatorUser as unknown as Record<string, unknown>,
       data.rememberMe,
-      data.message,
+      data.message
     );
   };
 
@@ -144,9 +164,14 @@ export default function SignIn() {
     setSecondaryAuthData(
       data.educatorTokens,
       data.educatorUser as unknown as Record<string, unknown>,
-      data.rememberMe,
+      data.rememberMe
     );
-    await finishLogin(data.adminTokens, data.adminUser, data.rememberMe, data.message);
+    await finishLogin(
+      data.adminTokens,
+      data.adminUser,
+      data.rememberMe,
+      data.message
+    );
   };
 
   const handleDualRoleCancel = () => {
@@ -155,6 +180,72 @@ export default function SignIn() {
     // Clear any pending state
     isSubmittingRef.current = false;
     // User stays on the login page - no navigation or authentication
+  };
+
+  const handleRoleSelect = async (role: AuthUserRole) => {
+    if (!roleSelection || pendingRoleId) return;
+
+    setPendingRoleId(role.id);
+    try {
+      const res = await dispatch(
+        SelectRoleRequest({
+          roleId: role.id,
+          accessToken: roleSelection.tokens?.accessToken,
+          csrfToken: roleSelection.tokens?.csrfToken,
+        })
+      ).unwrap();
+
+      // The response still lists every role, so `userRoles[0]` says nothing
+      // about the choice: trust an explicit `activeRole`, else the one picked.
+      const activeRole =
+        (res.data.activeRole
+          ? getActiveRole(res.data.user, res.data.activeRole)
+          : null) ??
+        findRoleById(res.data.user, role.id) ??
+        role;
+
+      if (!isSupportedRoleSlug(activeRole.slug)) {
+        toast.error(locale.toast.roleNotSupported);
+        return;
+      }
+
+      if (!res.data.tokens?.accessToken) {
+        toast.error(locale.toast.genericError);
+        return;
+      }
+
+      setRoleSelection(null);
+      await finishLogin(
+        res.data.tokens,
+        normalizeAuthUser(res.data.user, activeRole) ?? {},
+        roleSelection.rememberMe,
+        translateApiMessage(res.message || roleSelection.message, language)
+      );
+    } catch (err: unknown) {
+      const { message: msg, status } = err as {
+        message?: string;
+        status?: number;
+      };
+      // 401 means the ~120s login token lapsed or the role is gone; either
+      // way the only way forward is a fresh sign-in.
+      if (status === 401) {
+        toast.error(locale.toast.roleSelectionExpired);
+        setRoleSelection(null);
+        isSubmittingRef.current = false;
+      } else {
+        toast.error(msg || locale.toast.roleSelectionFailed);
+      }
+    } finally {
+      setPendingRoleId(null);
+    }
+  };
+
+  const handleRoleSelectionClose = () => {
+    // Ignore close while a selection is in flight: ConfirmModal disables its
+    // buttons, but Escape and the backdrop still fire onClose.
+    if (pendingRoleId) return;
+    setRoleSelection(null);
+    isSubmittingRef.current = false;
   };
 
   const handleLogin = async () => {
@@ -193,12 +284,53 @@ export default function SignIn() {
         LoginRequest({
           email,
           password,
-        }),
+        })
       ).unwrap();
-      const message = res.message || locale.toast.loginSuccess;
+      const message = translateApiMessage(
+        res.message || locale.toast?.loginSuccess || 'Login successful',
+        language
+      );
+
+      // Multi-role account: the cookie currently holds a short-lived
+      // (~120s) login-purpose token that only select-role accepts, so no
+      // session is committed until a role is picked.
+      if (res.data.accessStatus === 'required_role_selection') {
+        // Only district admin + educator can share a login, so the picker
+        // is a fixed two-choice prompt.
+        const roles = getUserRoles(res.data.user);
+        const adminRole = roles.find((r) => r.slug === 'district_admin');
+        const educatorRole = roles.find((r) => r.slug === 'educator');
+        if (!adminRole || !educatorRole) {
+          toast.error(locale.toast.genericError);
+          return;
+        }
+        setRoleSelection({
+          adminRole,
+          educatorRole,
+          tokens: res.data.tokens,
+          rememberMe,
+          message,
+        });
+        return;
+      }
+
+      const activeRole = getActiveRole(res.data.user, res.data.activeRole);
+      if (activeRole && !isSupportedRoleSlug(activeRole.slug)) {
+        toast.error(locale.toast.roleNotSupported);
+        return;
+      }
+
+      if (!res.data.tokens?.accessToken) {
+        toast.error(locale.toast.genericError);
+        return;
+      }
 
       // Dual-role: show popup before committing any session data
-      if (res.data.has_dual_role && res.data.educator_tokens && res.data.educator_user) {
+      if (
+        res.data.has_dual_role &&
+        res.data.educator_tokens &&
+        res.data.educator_user
+      ) {
         setDualRoleModal({
           adminTokens: res.data.tokens,
           adminUser: res.data.user as Record<string, unknown>,
@@ -212,9 +344,9 @@ export default function SignIn() {
 
       await finishLogin(
         res.data.tokens,
-        res.data.user as Record<string, unknown>,
+        normalizeAuthUser(res.data.user, res.data.activeRole) ?? {},
         rememberMe,
-        message,
+        message
       );
     } catch (err: unknown) {
       clearQueuedToasts();
@@ -239,44 +371,15 @@ export default function SignIn() {
             <div className="flex justify-center lg:justify-start">
               <Logo />
             </div>
-            <div className="mt-3 flex items-center justify-center gap-2 lg:justify-end">
-              <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                {locale.login.languageLabel}
-              </span>
-              <div className="inline-flex rounded-full border border-[#F4C6AD] bg-[#FFF7F2] p-1">
-                <button
-                  type="button"
-                  onClick={() => handleSetLanguage('en')}
-                  aria-pressed={language === 'en'}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${language === 'en'
-                      ? 'bg-[#db8833] text-white'
-                      : 'text-[#A6522A] hover:bg-[#FFE6D8]'
-                    }`}
-                >
-                  {locale.login.languageEnglish}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSetLanguage('es')}
-                  aria-pressed={language === 'es'}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${language === 'es'
-                      ? 'bg-[#db8833] text-white'
-                      : 'text-[#A6522A] hover:bg-[#FFE6D8]'
-                    }`}
-                >
-                  {locale.login.languageSpanish}
-                </button>
-              </div>
-            </div>
+            <AuthLanguageSwitcher
+              language={language}
+              onChange={handleSetLanguage}
+              label={locale.login.languageLabel}
+              englishLabel={locale.login.languageEnglish}
+              spanishLabel={locale.login.languageSpanish}
+            />
           </div>
-          <h2
-            className="text-2xl font-bold mb-6 text-center lg:text-left pb-3"
-            style={{
-              borderBottom: '0.76px solid #E2E1E1',
-              color: '#db8833',
-              fontWeight: 700,
-            }}
-          >
+          <h2 className="text-2xl font-bold mb-6 text-center lg:text-left pb-3 text-primary-500 border-b-[0.76px] border-[#E2E1E1]">
             {locale.login.title}
           </h2>
           <form onSubmit={handleSubmit} noValidate className="flex flex-col">
@@ -286,7 +389,12 @@ export default function SignIn() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLogin(); } }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLogin();
+                  }
+                }}
                 label={locale.login.emailLabel}
                 placeholder={locale.login.emailPlaceholder}
                 required
@@ -295,16 +403,29 @@ export default function SignIn() {
                 name="password"
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(sanitizePasswordForTyping(e.target.value))}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLogin(); } }}
+                onChange={(e) =>
+                  setPassword(sanitizePasswordForTyping(e.target.value))
+                }
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleLogin();
+                  }
+                }}
                 label={locale.login.passwordLabel}
                 placeholder={locale.login.passwordPlaceholder}
                 required
               />
             </div>
 
-            {validationError && <p className="mt-2 text-xs text-red-500">{validationError}</p>}
-            {successMessage && <p className="mt-2 text-xs text-green-500">{successMessage}</p>}
+            {validationError && (
+              <p role="alert" className="mt-2 text-xs text-red-500">
+                {validationError}
+              </p>
+            )}
+            {successMessage && (
+              <p className="mt-2 text-xs text-green-500">{successMessage}</p>
+            )}
 
             <div className="flex items-center justify-between mt-4">
               <button
@@ -346,11 +467,7 @@ export default function SignIn() {
           </p>
         </div>
         <div className="hidden md:block md:w-1/2">
-          <img
-            src={loginImage}
-            alt=""
-            className="w-full h-full object-cover"
-          />
+          <img src={loginImage} alt="" className="w-full h-full object-cover" />
         </div>
       </div>
 
@@ -364,6 +481,23 @@ export default function SignIn() {
         onConfirm={() => void handleDualRoleEducator()}
         onCancel={() => void handleDualRoleAdmin()}
         onClose={handleDualRoleCancel}
+      />
+
+      {/* Multi-role picker — shown when login returns required_role_selection */}
+      <ConfirmModal
+        isOpen={!!roleSelection}
+        title={locale.login.dualRoleTitle}
+        message={locale.login.dualRoleMessage}
+        cancelText={locale.login.dualRoleAdmin}
+        confirmText={locale.login.dualRoleEducator}
+        isLoading={!!pendingRoleId}
+        onCancel={() =>
+          roleSelection && void handleRoleSelect(roleSelection.adminRole)
+        }
+        onConfirm={() =>
+          roleSelection && void handleRoleSelect(roleSelection.educatorRole)
+        }
+        onClose={handleRoleSelectionClose}
       />
     </div>
   );

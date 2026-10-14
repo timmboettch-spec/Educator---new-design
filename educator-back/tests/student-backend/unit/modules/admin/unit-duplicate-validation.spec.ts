@@ -1,50 +1,59 @@
-﻿import { Test } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
-import { AdminService } from '@/modules/admin/admin.service';
-import { JsonDataService } from '@/data/json-data.service';
+import { DataSource } from 'typeorm';
+import { AdminService } from 'src/student-backend/modules/admin/admin.service';
+import { ClassSimulationService } from 'src/class-simulations/class-simulation.service';
+import { VoiceProfilesService } from 'src/voice-profiles/voice-profiles.service';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { LoggerService } from 'src/common/services';
+import {
+  SIMULATION_ACTION_REPOSITORY,
+  SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+  SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+  SIMULATION_ORDER_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockDataSource,
+  createMockSimulationChildRepository,
+  createMockSimulationOrderLinkedActionRepository,
+  createMockSimulationRepository,
+  createMockClassSimulationService,
+  createMockUnitRepository,
+} from '../../common/utils/mock-factory';
+
+const mockLoggerService = {
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+  verbose: jest.fn(),
+  fatal: jest.fn(),
+};
 
 // ---------------------------------------------------------------------------
 // Shared mock factory
 // ---------------------------------------------------------------------------
-const buildJsonDataServiceMock = () => ({
-  getUsers: jest.fn(),
-  getPermissionsData: jest.fn(),
-  getTranscripts: jest.fn(),
-  getScenarios: jest.fn(),
-  getScenarioById: jest.fn(),
-  addScenario: jest.fn(),
-  updateScenario: jest.fn(),
-  deleteScenario: jest.fn(),
-  getUnits: jest.fn(),
-  getUnitById: jest.fn(),
-  addUnit: jest.fn(),
-  updateUnit: jest.fn(),
-  deleteUnit: jest.fn(),
-  getScenariosByUnitId: jest.fn(),
-  updatePermissions: jest.fn(),
-  getReports: jest.fn(),
-  deleteReport: jest.fn(),
-});
 
 // ---------------------------------------------------------------------------
-// Fixtures
+// Fixtures — shaped like the `units` table row (src/database/entities/unit.entity.ts)
 // ---------------------------------------------------------------------------
 const UNIT_ALPHA = {
+  unitId: 'uuid-alpha',
   id: 'unit-001',
   name: 'Alpha Unit',
   category: 'AI Only',
   imageUrl: '',
-  scenarioCount: 0,
-  completedCount: 0,
 };
 const UNIT_BETA = {
+  unitId: 'uuid-beta',
   id: 'unit-002',
   name: 'Beta Unit',
   category: 'AI Only',
   imageUrl: '',
-  scenarioCount: 0,
-  completedCount: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -52,17 +61,52 @@ const UNIT_BETA = {
 // ---------------------------------------------------------------------------
 describe('Unit Duplicate Validation — AdminService', () => {
   let service: AdminService;
-  let db: ReturnType<typeof buildJsonDataServiceMock>;
+  let unitRepository: ReturnType<typeof createMockUnitRepository>;
 
   beforeEach(async () => {
-    db = buildJsonDataServiceMock();
+    unitRepository = createMockUnitRepository();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [AdminService, { provide: JsonDataService, useValue: db }],
+      providers: [
+        AdminService,
+        {
+          provide: VoiceProfilesService,
+          useValue: {
+            resolveForScenario: jest.fn().mockResolvedValue(null),
+            assertValidForScenarioWrite: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        { provide: DataSource, useValue: createMockDataSource() },
+        { provide: LoggerService, useValue: mockLoggerService },
+        { provide: UNIT_REPOSITORY, useValue: unitRepository },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: createMockSimulationRepository() },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: { find: jest.fn().mockResolvedValue([]) } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: { findDetailRowByReportId: jest.fn() } },
+        { provide: SIMULATION_ACTION_REPOSITORY, useValue: createMockSimulationChildRepository() },
+        { provide: SIMULATION_ORDER_REPOSITORY, useValue: createMockSimulationChildRepository() },
+        {
+          provide: SIMULATION_ORDER_LINKED_ACTION_REPOSITORY,
+          useValue: createMockSimulationOrderLinkedActionRepository(),
+        },
+        {
+          provide: SIMULATION_GRADING_RUBRIC_ITEM_REPOSITORY,
+          useValue: createMockSimulationChildRepository(),
+        },
+        { provide: ClassSimulationService, useValue: createMockClassSimulationService() },
+      ],
     }).compile();
 
     service = module.get<AdminService>(AdminService);
     jest.clearAllMocks();
+
+    // AdminService looks up duplicate names via findUniqueByName (case-insensitive,
+    // trimmed) rather than scanning find() results itself — delegate to whatever
+    // list each test configures via unitRepository.find.mockResolvedValue(...).
+    unitRepository.findUniqueByName.mockImplementation(async (name: string) => {
+      const list = (await unitRepository.find()) as Array<{ name: string }>;
+      const needle = (name || '').trim().toLowerCase();
+      return list.find((u) => u.name.trim().toLowerCase() === needle) ?? null;
+    });
   });
 
   // =========================================================================
@@ -70,7 +114,7 @@ describe('Unit Duplicate Validation — AdminService', () => {
   // =========================================================================
   describe('createUnit — duplicate ID checks', () => {
     it('throws BadRequestException when unit ID already exists', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA); // ID exists
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never); // ID exists
 
       await expect(async () =>
         service.createUnit({ id: 'unit-001', name: 'Different Name' }),
@@ -78,7 +122,7 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('error message mentions the duplicate ID', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-001', name: 'Different Name' }),
@@ -109,8 +153,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
   // =========================================================================
   describe('createUnit — duplicate name checks', () => {
     it('throws BadRequestException when name already exists (exact match)', async () => {
-      db.getUnitById.mockReturnValue(null); // ID is free
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null); // ID is free
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'Alpha Unit' }),
@@ -118,8 +162,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException for case-insensitive duplicate name (lowercase input)', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([UNIT_ALPHA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'alpha unit' }),
@@ -127,8 +171,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException for case-insensitive duplicate name (uppercase input)', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([UNIT_ALPHA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'ALPHA UNIT' }),
@@ -136,8 +180,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException for case-insensitive duplicate with mixed case', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([UNIT_ALPHA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'aLpHa UnIt' }),
@@ -145,8 +189,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('error message mentions the duplicate name', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([UNIT_BETA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'Beta Unit' }),
@@ -154,8 +198,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('error message says "Unit name must be unique"', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([UNIT_BETA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'Beta Unit' }),
@@ -163,8 +207,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException when name is empty string', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([]);
 
       await expect(async () => service.createUnit({ id: 'unit-new', name: '' })).rejects.toThrow(
         BadRequestException,
@@ -172,8 +216,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException when name is whitespace-only', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([]);
 
       await expect(async () => service.createUnit({ id: 'unit-new', name: '   ' })).rejects.toThrow(
         BadRequestException,
@@ -181,8 +225,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException when name is missing', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([]);
 
       await expect(async () => service.createUnit({ id: 'unit-new' })).rejects.toThrow(
         BadRequestException,
@@ -195,27 +239,27 @@ describe('Unit Duplicate Validation — AdminService', () => {
   // =========================================================================
   describe('createUnit — valid / unique creation (regression)', () => {
     it('creates and returns unit when ID and name are both unique', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
-      const result = service.createUnit({
+      const result = await service.createUnit({
         id: 'unit-003',
         name: 'Gamma Unit',
       });
 
       expect(result.id).toBe('unit-003');
       expect(result.name).toBe('Gamma Unit');
-      expect(db.addUnit).toHaveBeenCalledTimes(1);
-      expect(db.addUnit).toHaveBeenCalledWith(
+      expect(unitRepository.create).toHaveBeenCalledTimes(1);
+      expect(unitRepository.create).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'unit-003', name: 'Gamma Unit' }),
       );
     });
 
     it('unit is created with default category "AI Only" when not specified', async () => {
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([]);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([]);
 
-      const result = service.createUnit({
+      const result = await service.createUnit({
         id: 'unit-x',
         name: 'New Unit',
       });
@@ -223,14 +267,14 @@ describe('Unit Duplicate Validation — AdminService', () => {
       expect(result.category).toBe('AI Only');
     });
 
-    it('does NOT call addUnit when validation fails', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA); // ID conflict
+    it('does NOT call create when validation fails', async () => {
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never); // ID conflict
 
       await expect(async () =>
         service.createUnit({ id: 'unit-001', name: 'Alpha Unit' }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(db.addUnit).not.toHaveBeenCalled();
+      expect(unitRepository.create).not.toHaveBeenCalled();
     });
   });
 
@@ -239,8 +283,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
   // =========================================================================
   describe('updateUnit — duplicate name checks', () => {
     it('throws BadRequestException when renaming to a name used by another unit', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.updateUnit('unit-001', { name: 'Beta Unit' }),
@@ -248,8 +292,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException for case-insensitive duplicate on update', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.updateUnit('unit-001', { name: 'beta unit' }),
@@ -257,8 +301,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException for UPPERCASE duplicate during update', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.updateUnit('unit-001', { name: 'BETA UNIT' }),
@@ -266,8 +310,8 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('error message mentions the conflicting name', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.updateUnit('unit-001', { name: 'Beta Unit' }),
@@ -275,7 +319,7 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException when name is cleared to empty string', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
 
       await expect(async () => service.updateUnit('unit-001', { name: '' })).rejects.toThrow(
         BadRequestException,
@@ -283,22 +327,22 @@ describe('Unit Duplicate Validation — AdminService', () => {
     });
 
     it('throws BadRequestException when name is set to whitespace only', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
 
       await expect(async () => service.updateUnit('unit-001', { name: '   ' })).rejects.toThrow(
         BadRequestException,
       );
     });
 
-    it('does NOT call updateUnit (data layer) when validation fails', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA);
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+    it('does NOT call update (data layer) when validation fails', async () => {
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.updateUnit('unit-001', { name: 'Beta Unit' }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(db.updateUnit).not.toHaveBeenCalled();
+      expect(unitRepository.update).not.toHaveBeenCalled();
     });
   });
 
@@ -307,52 +351,55 @@ describe('Unit Duplicate Validation — AdminService', () => {
   // =========================================================================
   describe('updateUnit — no false positives (regression)', () => {
     it('allows keeping the same name on the same unit without error', async () => {
-      db.getUnitById
-        .mockReturnValueOnce(UNIT_ALPHA) // existence check
-        .mockReturnValueOnce(UNIT_ALPHA); // return after update
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId
+        .mockResolvedValueOnce(UNIT_ALPHA as never) // existence check
+        .mockResolvedValueOnce(UNIT_ALPHA as never); // return after update
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
-      service.updateUnit('unit-001', {
+      await service.updateUnit('unit-001', {
         name: 'Alpha Unit',
       });
 
-      expect(db.updateUnit).toHaveBeenCalledWith('unit-001', {
-        name: 'Alpha Unit',
-      });
+      expect(unitRepository.update).toHaveBeenCalledWith(
+        { id: 'unit-001' },
+        expect.objectContaining({ name: 'Alpha Unit' }),
+      );
     });
 
     it('allows renaming to a completely new unique name', async () => {
-      db.getUnitById
-        .mockReturnValueOnce(UNIT_ALPHA)
-        .mockReturnValueOnce({ ...UNIT_ALPHA, name: 'Alpha Renamed' });
-      db.getUnits.mockReturnValue([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId
+        .mockResolvedValueOnce(UNIT_ALPHA as never)
+        .mockResolvedValueOnce({ ...UNIT_ALPHA, name: 'Alpha Renamed' } as never);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA, UNIT_BETA] as never);
 
-      service.updateUnit('unit-001', { name: 'Alpha Renamed' });
+      await service.updateUnit('unit-001', { name: 'Alpha Renamed' });
 
-      expect(db.updateUnit).toHaveBeenCalledWith('unit-001', {
-        name: 'Alpha Renamed',
-      });
+      expect(unitRepository.update).toHaveBeenCalledWith(
+        { id: 'unit-001' },
+        expect.objectContaining({ name: 'Alpha Renamed' }),
+      );
     });
 
     it('skips name check entirely when name field is not in the update payload', async () => {
-      db.getUnitById
-        .mockReturnValueOnce(UNIT_ALPHA) // existence check
-        .mockReturnValueOnce(UNIT_ALPHA); // return after update
+      unitRepository.findByBusinessId
+        .mockResolvedValueOnce(UNIT_ALPHA as never) // existence check
+        .mockResolvedValueOnce(UNIT_ALPHA as never); // return after update
 
       // Updating imageUrl only — no name field
-      service.updateUnit('unit-001', {
+      await service.updateUnit('unit-001', {
         imageUrl: '/updated-image.jpg',
       });
 
-      expect(db.updateUnit).toHaveBeenCalledWith('unit-001', {
-        imageUrl: '/updated-image.jpg',
-      });
-      // getUnits should NOT have been called (no name in payload)
-      expect(db.getUnits).not.toHaveBeenCalled();
+      expect(unitRepository.update).toHaveBeenCalledWith(
+        { id: 'unit-001' },
+        expect.objectContaining({ imageUrl: '/updated-image.jpg' }),
+      );
+      // find (used for the name-duplicate check) should NOT have been called — no name in payload
+      expect(unitRepository.find).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when unit does not exist', async () => {
-      db.getUnitById.mockReturnValue(null);
+      unitRepository.findByBusinessId.mockResolvedValue(null);
 
       await expect(async () =>
         service.updateUnit('non-existent', { name: 'Anything' }),
@@ -366,28 +413,28 @@ describe('Unit Duplicate Validation — AdminService', () => {
   describe('Integration — create → duplicate → error cycle', () => {
     it('rejects a second createUnit call with the same name (simulated sequence)', async () => {
       // First call succeeds
-      db.getUnitById.mockReturnValue(null);
-      db.getUnits.mockReturnValue([]); // empty list → no duplicates
+      unitRepository.findByBusinessId.mockResolvedValue(null);
+      unitRepository.find.mockResolvedValue([]); // empty list → no duplicates
 
-      service.createUnit({ id: 'unit-new', name: 'Brand New Unit' });
+      await service.createUnit({ id: 'unit-new', name: 'Brand New Unit' });
 
-      expect(db.addUnit).toHaveBeenCalledTimes(1);
+      expect(unitRepository.create).toHaveBeenCalledTimes(1);
 
       // Second call: same name now exists
-      db.getUnitById.mockReturnValue(null); // different ID
-      db.getUnits.mockReturnValue([{ id: 'unit-new', name: 'Brand New Unit' }]);
+      unitRepository.findByBusinessId.mockResolvedValue(null); // different ID
+      unitRepository.find.mockResolvedValue([{ id: 'unit-new', name: 'Brand New Unit' }] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-another', name: 'Brand New Unit' }),
       ).rejects.toThrow(BadRequestException);
 
-      // addUnit should still have been called only once (first call)
-      expect(db.addUnit).toHaveBeenCalledTimes(1);
+      // create should still have been called only once (first call)
+      expect(unitRepository.create).toHaveBeenCalledTimes(1);
     });
 
     it('rejects createUnit with same ID as existing unit even if name is unique', async () => {
-      db.getUnitById.mockReturnValue(UNIT_ALPHA); // ID collision
-      db.getUnits.mockReturnValue([UNIT_ALPHA]);
+      unitRepository.findByBusinessId.mockResolvedValue(UNIT_ALPHA as never); // ID collision
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA] as never);
 
       await expect(async () =>
         service.createUnit({
@@ -396,51 +443,51 @@ describe('Unit Duplicate Validation — AdminService', () => {
         }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(db.addUnit).not.toHaveBeenCalled();
+      expect(unitRepository.create).not.toHaveBeenCalled();
     });
 
     it('after a failed createUnit (name conflict), a valid createUnit with different name succeeds', async () => {
       // First: name conflict
-      db.getUnitById.mockReturnValueOnce(null);
-      db.getUnits.mockReturnValue([UNIT_ALPHA]);
+      unitRepository.findByBusinessId.mockResolvedValueOnce(null);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA] as never);
 
       await expect(async () =>
         service.createUnit({ id: 'unit-new', name: 'Alpha Unit' }),
       ).rejects.toThrow(BadRequestException);
 
       // Second: unique name
-      db.getUnitById.mockReturnValueOnce(null);
-      db.getUnits.mockReturnValue([UNIT_ALPHA]);
+      unitRepository.findByBusinessId.mockResolvedValueOnce(null);
+      unitRepository.find.mockResolvedValue([UNIT_ALPHA] as never);
 
-      const result = service.createUnit({
+      const result = await service.createUnit({
         id: 'unit-new',
         name: 'Unique Name Here',
       });
 
       expect(result.id).toBe('unit-new');
-      expect(db.addUnit).toHaveBeenCalledTimes(1);
+      expect(unitRepository.create).toHaveBeenCalledTimes(1);
     });
 
     it('after a failed updateUnit (duplicate name), a valid rename to unique name succeeds', async () => {
       // First attempt: duplicate name
-      db.getUnitById.mockReturnValueOnce(UNIT_ALPHA);
-      db.getUnits.mockReturnValueOnce([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId.mockResolvedValueOnce(UNIT_ALPHA as never);
+      unitRepository.find.mockResolvedValueOnce([UNIT_ALPHA, UNIT_BETA] as never);
 
       await expect(async () =>
         service.updateUnit('unit-001', { name: 'Beta Unit' }),
       ).rejects.toThrow(BadRequestException);
 
-      expect(db.updateUnit).not.toHaveBeenCalled();
+      expect(unitRepository.update).not.toHaveBeenCalled();
 
       // Second attempt: unique name
-      db.getUnitById
-        .mockReturnValueOnce(UNIT_ALPHA)
-        .mockReturnValueOnce({ ...UNIT_ALPHA, name: 'Unique Rename' });
-      db.getUnits.mockReturnValueOnce([UNIT_ALPHA, UNIT_BETA]);
+      unitRepository.findByBusinessId
+        .mockResolvedValueOnce(UNIT_ALPHA as never)
+        .mockResolvedValueOnce({ ...UNIT_ALPHA, name: 'Unique Rename' } as never);
+      unitRepository.find.mockResolvedValueOnce([UNIT_ALPHA, UNIT_BETA] as never);
 
-      service.updateUnit('unit-001', { name: 'Unique Rename' });
+      await service.updateUnit('unit-001', { name: 'Unique Rename' });
 
-      expect(db.updateUnit).toHaveBeenCalledTimes(1);
+      expect(unitRepository.update).toHaveBeenCalledTimes(1);
     });
   });
 });

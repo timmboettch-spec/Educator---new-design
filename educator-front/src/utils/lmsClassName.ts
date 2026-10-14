@@ -31,7 +31,9 @@ export function extractClassNameFromDetail(detail: LmsClassDetail): string {
     (typeof detail.course_name === 'string' ? detail.course_name : '') ||
     (typeof detail.courseName === 'string' ? detail.courseName : '') ||
     (typeof detail.name === 'string' ? detail.name : '') ||
-    (typeof detail.resource_link_title === 'string' ? detail.resource_link_title : '') ||
+    (typeof detail.resource_link_title === 'string'
+      ? detail.resource_link_title
+      : '') ||
     (typeof detail.label === 'string' ? detail.label : '') ||
     (typeof detail.context_label === 'string' ? detail.context_label : '') ||
     (typeof detail.shortname === 'string' ? detail.shortname : '');
@@ -56,28 +58,39 @@ export function getLtiLaunchCourseContextFromStorage(): LtiLaunchCourseContext {
  */
 export function resolveLmsClassName(
   detail: LmsClassDetail | null | undefined,
-  ltiContext?: LtiLaunchCourseContext,
+  ltiContext?: LtiLaunchCourseContext
 ): string {
   if (!detail) {
     return '';
   }
 
-  const lmsClassId = String(detail.contextId ?? detail.context_id ?? detail.id ?? '').trim();
+  const lmsClassId = String(
+    detail.contextId ?? detail.context_id ?? detail.id ?? ''
+  ).trim();
   const ltiCourseId = (ltiContext?.courseId ?? '').trim();
   const ltiCourseName = (ltiContext?.courseName ?? '').trim();
 
-  if (ltiCourseName && ltiCourseId && lmsClassId && ltiCourseId === lmsClassId) {
+  if (
+    ltiCourseName &&
+    ltiCourseId &&
+    lmsClassId &&
+    ltiCourseId === lmsClassId
+  ) {
     return ltiCourseName;
   }
 
   return extractClassNameFromDetail(detail);
 }
 
-export function normalizeLmsCourseId(value: string | number | null | undefined): string {
+export function normalizeLmsCourseId(
+  value: string | number | null | undefined
+): string {
   const trimmed = String(value ?? '').trim();
   if (!trimmed) return '';
 
-  const contextMatch = trimmed.match(/\/(?:course|CourseSection|Context)\/(\d+)/i);
+  const contextMatch = trimmed.match(
+    /\/(?:course|CourseSection|Context)\/(\d+)/i
+  );
   if (contextMatch) {
     return String(Number(contextMatch[1]));
   }
@@ -90,7 +103,9 @@ export function normalizeLmsCourseId(value: string | number | null | undefined):
 }
 
 export function normalizeNrpsUrl(value: string | null | undefined): string {
-  return String(value ?? '').trim().replace(/\/+$/, '');
+  return String(value ?? '')
+    .trim()
+    .replace(/\/+$/, '');
 }
 
 export interface ExistingClassByCourseId {
@@ -100,7 +115,11 @@ export interface ExistingClassByCourseId {
 
 /** Build lookup of Moodle course ID to existing portal class. */
 export function indexExistingClassesByNrpsUrl(
-  mappedClasses: Array<{ classId?: string; className?: string; nrpsUrl?: string | null }>,
+  mappedClasses: Array<{
+    classId?: string;
+    className?: string;
+    nrpsUrl?: string | null;
+  }>
 ): Map<string, ExistingClassByCourseId> {
   const byNrpsUrl = new Map<string, ExistingClassByCourseId>();
 
@@ -120,8 +139,16 @@ export function indexExistingClassesByNrpsUrl(
 }
 
 export function indexExistingClassesByCourseId(
-  mappedClasses: Array<{ classId?: string; className?: string; lmsCourseId?: string | number }>,
-  portalClasses: Array<{ id?: string; class_name?: string; lms_class_reference?: string }>,
+  mappedClasses: Array<{
+    classId?: string;
+    className?: string;
+    lmsCourseId?: string | number;
+  }>,
+  portalClasses: Array<{
+    id?: string;
+    class_name?: string;
+    lms_class_reference?: string;
+  }>
 ): Map<string, ExistingClassByCourseId> {
   const byCourseId = new Map<string, ExistingClassByCourseId>();
 
@@ -154,7 +181,7 @@ export function indexExistingClassesByCourseId(
 
 export function shouldRenameExistingClass(
   existingName: string,
-  desiredName: string,
+  desiredName: string
 ): boolean {
   const current = existingName.trim();
   const desired = desiredName.trim();

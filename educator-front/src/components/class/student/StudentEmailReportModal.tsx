@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from '../../../components/common/Toast';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
+import { translateApiError } from '../../../utils/translateApiError';
 import {
   clearEmailReportState,
   selectEmailReportError,
@@ -12,6 +15,13 @@ import { Button } from '../../ui/Button';
 import Input from '../../ui/Input';
 import Modal from '../../ui/Modal';
 import Textarea from '../../ui/Textarea';
+
+type SupportedLang = 'en' | 'es';
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
 
 interface Props {
   student: {
@@ -29,39 +39,61 @@ interface Props {
   };
   report_id?: string;
   report_key?: string;
- 
+
   report_type?: 'assessment' | 'progress';
   pdfGeneratorFn?: () => string | null;
   onClose: () => void;
 }
 
-export default function StudentEmailReportModal({ student, report_id, report_key, report_type, pdfGeneratorFn, onClose }: Props) {
+export default function StudentEmailReportModal({
+  student,
+  report_id,
+  report_key,
+  report_type,
+  pdfGeneratorFn,
+  onClose,
+}: Props) {
   const dispatch = useAppDispatch();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
   const isLoading = useAppSelector(selectEmailReportLoading);
   const isSuccess = useAppSelector(selectEmailReportSuccess);
   const error = useAppSelector(selectEmailReportError);
 
   const [subject, setSubject] = useState(
-    report_type === 'assessment' ? 'Student Assessment Report' : 'Student Progress Report',
+    report_type === 'assessment'
+      ? 'Student Assessment Report'
+      : 'Student Progress Report'
   );
   const [message, setMessage] = useState('');
   const [messageError, setMessageError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [includePdf, setIncludePdf] = useState(false);
-  const successMessage = useAppSelector((state) => state.StudentEmailReport.message);
+  const successMessage = useAppSelector(
+    (state) => state.StudentEmailReport.message
+  );
 
   useEffect(() => {
     if (isSuccess) {
       const msg = successMessage;
       dispatch(clearEmailReportState());
       onClose();
-      setTimeout(() => toast.success(msg || 'Email sent successfully'), 100);
+      setTimeout(
+        () => toast.success(msg || locale.toast.emailSentSuccessfully),
+        100
+      );
     }
-  }, [isSuccess, successMessage]);
+  }, [
+    isSuccess,
+    successMessage,
+    dispatch,
+    onClose,
+    locale.toast.emailSentSuccessfully,
+  ]);
 
   useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+    if (error) toast.error(translateApiError(error, language));
+  }, [error, language]);
 
   useEffect(() => {
     return () => {
@@ -72,19 +104,20 @@ export default function StudentEmailReportModal({ student, report_id, report_key
   const handleSend = () => {
     if (!student.email?.trim()) {
       setEmailError('Email is required');
-      toast.error('Student email is required');
+      toast.error(locale.toast.studentEmailRequired);
       return;
     }
     setEmailError('');
     if (!message.trim()) {
-      setMessageError('Message is required');
+      setMessageError(locale.emailModal.messageRequired);
       return;
     }
     setMessageError('');
 
-    const pdfBase64 = includePdf && pdfGeneratorFn ? pdfGeneratorFn() : undefined;
+    const pdfBase64 =
+      includePdf && pdfGeneratorFn ? pdfGeneratorFn() : undefined;
     if (includePdf && !pdfBase64) {
-      toast.error('Unable to generate the PDF attachment. Please wait for the report to finish loading and try again.');
+      toast.error(locale.toast.unableToGeneratePdf);
       return;
     }
 
@@ -106,15 +139,15 @@ export default function StudentEmailReportModal({ student, report_id, report_key
         report_key,
         report_type,
         pdf_base64: pdfBase64 ?? undefined,
-      }),
+      })
     );
   };
 
   return (
-    <Modal isOpen onClose={onClose} title="Email Report">
+    <Modal isOpen onClose={onClose} title={locale.emailModal.titleReport}>
       <div className="flex flex-col gap-4">
         <Input
-          label="To"
+          label={locale.emailModal.to}
           value={student.email ?? ''}
           disabled
           inputClassName="bg-gray-100 text-gray-500 cursor-not-allowed"
@@ -122,24 +155,26 @@ export default function StudentEmailReportModal({ student, report_id, report_key
         />
 
         <Input
-          label="Subject"
+          label={locale.emailModal.subject}
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          placeholder="Student Progress Report"
+          placeholder={locale.emailModal.subjectPlaceholderReport}
         />
 
         <Textarea
-          label="Message *"
+          label={`${locale.emailModal.message} *`}
           value={message}
           onChange={(e) => {
             setMessage(e.target.value);
             if (e.target.value.trim()) setMessageError('');
           }}
-          placeholder="Add a message..."
+          placeholder={locale.emailModal.messagePlaceholder}
           rows={5}
           textareaClassName={`py-2.5 ${messageError ? 'border-red-400 focus:ring-red-300' : ''}`}
         />
-        {messageError && <p className="text-xs text-red-500 -mt-2">{messageError}</p>}
+        {messageError && (
+          <p className="text-xs text-red-500 -mt-2">{messageError}</p>
+        )}
 
         <div className="flex items-center gap-2.5 pt-1">
           <input
@@ -147,15 +182,20 @@ export default function StudentEmailReportModal({ student, report_id, report_key
             type="checkbox"
             checked={includePdf}
             onChange={(e) => setIncludePdf(e.target.checked)}
-            className="h-4 w-4 accent-primary-500 cursor-pointer rounded"
+            className="h-4 w-4 accent-orange-500 cursor-pointer rounded"
           />
-          <label htmlFor="includePdf" className="text-sm leading-none text-gray-700 cursor-pointer select-none">
-            Include PDF Report
+          <label
+            htmlFor="includePdf"
+            className="text-sm leading-none text-gray-700 cursor-pointer select-none"
+          >
+            {locale.emailModal.includePdfReport}
           </label>
         </div>
 
         {student.last_sent_date && (
-          <p className="text-xs text-gray-500">Last Sent {student.last_sent_date}</p>
+          <p className="text-xs text-gray-400">
+            {locale.emailModal.lastSent} {student.last_sent_date}
+          </p>
         )}
 
         <div className="flex gap-3 mt-2">
@@ -165,16 +205,16 @@ export default function StudentEmailReportModal({ student, report_id, report_key
             onClick={onClose}
             disabled={isLoading}
           >
-            Back
+            {locale.emailModal.back}
           </Button>
           <Button
             variant="gradient"
             className="flex-1 h-11 rounded-full text-sm"
             onClick={handleSend}
             loading={isLoading}
-            loadingText="Sending..."
+            loadingText={locale.common.sending}
           >
-            Send Mail
+            {locale.emailModal.sendMail}
           </Button>
         </div>
       </div>

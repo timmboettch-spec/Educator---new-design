@@ -59,7 +59,7 @@ runs:
 
     - name: Upsert sticky PR comment
       if: inputs.branch == '' || steps.resolve.outputs.number != ''
-      uses: marocchino/sticky-pull-request-comment@v2
+      uses: marocchino/sticky-pull-request-comment@v3
       with:
         header: ${{ inputs.header }}
         path: ${{ steps.write.outputs.path }}

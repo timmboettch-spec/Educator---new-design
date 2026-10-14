@@ -1,34 +1,34 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { LtiStateService } from '../../../src/lti/lti-state.service';
+import { LtiConstants } from '../../../src/lti/lti.constants';
+import { RedisService } from '../../../src/redis/redis.service';
+import { Messages } from '../../../src/common/utils/messages';
+import { createRedisServiceStub, RedisServiceStub } from './helpers/redis-service.stub';
+import { LoggerService } from '../../../src/common/services';
 
-interface StateRecord {
-  nonce: string;
-  createdAt: number;
-  toolType: 'educator' | 'student';
-}
-
-function setStateAge(service: LtiStateService, state: string, ageMs: number): void {
-  const stateStore = (service as unknown as { stateStore: Map<string, StateRecord> }).stateStore;
-  const record = stateStore.get(state);
-  if (!record) {
-    throw new Error(`State not found: ${state}`);
-  }
-  record.createdAt = Date.now() - ageMs;
-}
+const keyOf = (state: string): string => `${LtiConstants.REDIS.STATE_KEY_PREFIX}${state}`;
 
 describe('LtiStateService', () => {
   let service: LtiStateService;
+  let redis: RedisServiceStub;
 
   beforeEach(async () => {
+    redis = createRedisServiceStub();
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         LtiStateService,
+        { provide: RedisService, useValue: redis },
         {
-          provide: ConfigService,
+          provide: LoggerService,
           useValue: {
-            get: jest.fn(),
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
           },
         },
       ],
@@ -37,325 +37,217 @@ describe('LtiStateService', () => {
     service = module.get<LtiStateService>(LtiStateService);
   });
 
-  afterEach(() => {
-    // Stop the cleanup timer to prevent Jest from hanging
-    service.stopCleanupTimer();
-    service.clearAll();
-  });
-
   describe('createStatePair', () => {
-    it('should store state/nonce pair for educator tool', () => {
-      const state = 'state-uuid-123';
-      const nonce = 'nonce-uuid-456';
+    it('should store nonce and toolType in Redis under the lti:state key', async () => {
+      await service.createStatePair('state-uuid-123', 'nonce-uuid-456', 'educator');
 
-      service.createStatePair(state, nonce, 'educator');
-
-      expect(service.getStoreSize()).toBe(1);
+      expect(redis.setStrict).toHaveBeenCalledWith(
+        keyOf('state-uuid-123'),
+        { nonce: 'nonce-uuid-456', toolType: 'educator' },
+        LtiConstants.REDIS.STATE_TTL_SECONDS,
+      );
     });
 
-    it('should store state/nonce pair for student tool', () => {
-      const state = 'state-uuid-789';
-      const nonce = 'nonce-uuid-012';
-
-      service.createStatePair(state, nonce, 'student');
-
-      expect(service.getStoreSize()).toBe(1);
+    it('should use a 10 minute TTL', () => {
+      expect(LtiConstants.REDIS.STATE_TTL_SECONDS).toBe(600);
     });
 
-    it('should store multiple state/nonce pairs', () => {
-      service.createStatePair('state1', 'nonce1', 'educator');
-      service.createStatePair('state2', 'nonce2', 'student');
-      service.createStatePair('state3', 'nonce3', 'educator');
+    it('should store student pairs under the same prefix', async () => {
+      await service.createStatePair('state-uuid-789', 'nonce-uuid-012', 'student');
 
-      expect(service.getStoreSize()).toBe(3);
+      expect(redis.store.get(keyOf('state-uuid-789'))).toEqual({
+        nonce: 'nonce-uuid-012',
+        toolType: 'student',
+      });
     });
 
-    it('should overwrite existing state if called twice with same state', () => {
-      const state = 'state-same';
-      service.createStatePair(state, 'nonce1', 'educator');
-      service.createStatePair(state, 'nonce2', 'educator');
+    it('should keep each state under its own key', async () => {
+      await service.createStatePair('state1', 'nonce1', 'educator');
+      await service.createStatePair('state2', 'nonce2', 'student');
 
-      expect(service.getStoreSize()).toBe(1);
+      expect(redis.store.size).toBe(2);
+    });
+
+    it('should overwrite when the same state is created twice', async () => {
+      await service.createStatePair('same-state', 'nonce1', 'educator');
+      await service.createStatePair('same-state', 'nonce2', 'educator');
+
+      expect(redis.store.size).toBe(1);
+      expect(redis.store.get(keyOf('same-state'))).toEqual({
+        nonce: 'nonce2',
+        toolType: 'educator',
+      });
     });
   });
 
   describe('validateAndConsume - success cases', () => {
-    it('should successfully validate and consume valid educator state/nonce', () => {
-      const state = 'state-valid-edu';
-      const nonce = 'nonce-valid-edu';
+    it('should validate a matching educator state/nonce pair', async () => {
+      await service.createStatePair('state-abc', 'nonce-xyz', 'educator');
 
-      service.createStatePair(state, nonce, 'educator');
-      
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).not.toThrow();
-
-      // State should be deleted after consumption
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-abc', 'nonce-xyz', 'educator'),
+      ).resolves.toMatchObject({ nonce: 'nonce-xyz', toolType: 'educator' });
     });
 
-    it('should successfully validate and consume valid student state/nonce', () => {
-      const state = 'state-valid-stu';
-      const nonce = 'nonce-valid-stu';
+    it('should validate a matching student state/nonce pair', async () => {
+      await service.createStatePair('state-def', 'nonce-uvw', 'student');
 
-      service.createStatePair(state, nonce, 'student');
-      
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'student');
-      }).not.toThrow();
-
-      // State should be deleted after consumption
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-def', 'nonce-uvw', 'student'),
+      ).resolves.toMatchObject({ nonce: 'nonce-uvw', toolType: 'student' });
     });
 
-    it('should allow multiple pairs to exist but consume only one', () => {
-      service.createStatePair('state1', 'nonce1', 'educator');
-      service.createStatePair('state2', 'nonce2', 'student');
-      service.createStatePair('state3', 'nonce3', 'educator');
+    it('should return canvasReviewToken when stored on the state pair', async () => {
+      await service.createStatePair('state-rev', 'nonce-rev', 'educator', {
+        canvasReviewToken: 'review.jwt.token',
+      });
 
-      expect(service.getStoreSize()).toBe(3);
+      await expect(
+        service.validateAndConsume('state-rev', 'nonce-rev', 'educator'),
+      ).resolves.toMatchObject({
+        toolType: 'educator',
+        canvasReviewToken: 'review.jwt.token',
+      });
+    });
 
-      service.validateAndConsume('state2', 'nonce2', 'student');
-      expect(service.getStoreSize()).toBe(2);
+    it('should read and delete atomically via getDelStrict', async () => {
+      await service.createStatePair('state-abc', 'nonce-xyz', 'educator');
+      await service.validateAndConsume('state-abc', 'nonce-xyz', 'educator');
+
+      expect(redis.getDelStrict).toHaveBeenCalledWith(keyOf('state-abc'));
+      expect(redis.store.has(keyOf('state-abc'))).toBe(false);
+    });
+
+    it('should only consume the state it was given', async () => {
+      await service.createStatePair('state1', 'nonce1', 'educator');
+      await service.createStatePair('state2', 'nonce2', 'student');
+
+      await service.validateAndConsume('state2', 'nonce2', 'student');
+
+      expect(redis.store.has(keyOf('state1'))).toBe(true);
+      expect(redis.store.has(keyOf('state2'))).toBe(false);
     });
   });
 
   describe('validateAndConsume - missing state parameter', () => {
-    it('should throw when state is undefined', () => {
-      expect(() => {
-        service.validateAndConsume(undefined, 'nonce123', 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume(undefined, 'nonce123', 'educator');
-      }).toThrow('Missing state parameter');
-    });
-
-    it('should throw when state is empty string', () => {
-      expect(() => {
-        service.validateAndConsume('', 'nonce123', 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume('', 'nonce123', 'educator');
-      }).toThrow('Missing state parameter');
-    });
-
-    it('should throw when state is whitespace only', () => {
-      expect(() => {
-        service.validateAndConsume('   ', 'nonce123', 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume('   ', 'nonce123', 'educator');
-      }).toThrow('Missing state parameter');
+    it.each([
+      ['undefined', undefined],
+      ['empty', ''],
+      ['whitespace-only', '   '],
+    ])('should reject a %s state without touching Redis', async (_label, state) => {
+      await expect(service.validateAndConsume(state, 'nonce123', 'educator')).rejects.toThrow(
+        UnauthorizedException,
+      );
+      await expect(service.validateAndConsume(state, 'nonce123', 'educator')).rejects.toThrow(
+        'Missing state parameter',
+      );
+      expect(redis.getDelStrict).not.toHaveBeenCalled();
     });
   });
 
   describe('validateAndConsume - missing nonce parameter', () => {
-    it('should throw when nonce is undefined', () => {
-      const state = 'state-valid';
-      service.createStatePair(state, 'nonce123', 'educator');
+    it.each([
+      ['undefined', undefined],
+      ['empty', ''],
+      ['whitespace-only', '   '],
+    ])('should reject a %s nonce without consuming the state', async (_label, nonce) => {
+      await service.createStatePair('state-abc', 'nonce123', 'educator');
 
-      expect(() => {
-        service.validateAndConsume(state, undefined, 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume(state, undefined, 'educator');
-      }).toThrow('Missing nonce in id_token');
-    });
-
-    it('should throw when nonce is empty string', () => {
-      const state = 'state-valid';
-      service.createStatePair(state, 'nonce123', 'educator');
-
-      expect(() => {
-        service.validateAndConsume(state, '', 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume(state, '', 'educator');
-      }).toThrow('Missing nonce in id_token');
-    });
-
-    it('should throw when nonce is whitespace only', () => {
-      const state = 'state-valid';
-      service.createStatePair(state, 'nonce123', 'educator');
-
-      expect(() => {
-        service.validateAndConsume(state, '   ', 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume(state, '   ', 'educator');
-      }).toThrow('Missing nonce in id_token');
+      await expect(service.validateAndConsume('state-abc', nonce, 'educator')).rejects.toThrow(
+        'Missing nonce in id_token',
+      );
+      expect(redis.store.has(keyOf('state-abc'))).toBe(true);
     });
   });
 
   describe('validateAndConsume - state not found (CSRF protection)', () => {
-    it('should throw when state does not exist in store', () => {
-      expect(() => {
-        service.validateAndConsume('forged-state', 'nonce123', 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume('forged-state', 'nonce123', 'educator');
-      }).toThrow('Invalid or expired state parameter');
+    it('should reject a forged state', async () => {
+      await expect(
+        service.validateAndConsume('forged-state', 'nonce123', 'educator'),
+      ).rejects.toThrow('Invalid or expired state parameter');
     });
 
-    it('should throw when attempting to reuse already consumed state', () => {
-      const state = 'state-once';
-      const nonce = 'nonce-once';
+    it('should reject reuse of an already-consumed state (one-time use)', async () => {
+      await service.createStatePair('state-abc', 'nonce-xyz', 'educator');
+      await service.validateAndConsume('state-abc', 'nonce-xyz', 'educator');
 
-      service.createStatePair(state, nonce, 'educator');
-      service.validateAndConsume(state, nonce, 'educator');
-
-      // Second attempt should fail
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).toThrow('Invalid or expired state parameter');
-    });
-  });
-
-  describe('validateAndConsume - state expiration', () => {
-    it('should reject expired state (older than 10 minutes)', () => {
-      const state = 'state-old';
-      const nonce = 'nonce-old';
-
-      service.createStatePair(state, nonce, 'educator');
-
-      // Manually set createdAt to 11 minutes ago (exceed TTL)
-      setStateAge(service, state, 11 * 60 * 1000);
-
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).toThrow(UnauthorizedException);
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).toThrow('expired');
-
-      // State should be deleted after expiration check
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-abc', 'nonce-xyz', 'educator'),
+      ).rejects.toThrow('Invalid or expired state parameter');
     });
 
-    it('should accept state that is just under TTL (9 minutes old)', () => {
-      const state = 'state-fresh';
-      const nonce = 'nonce-fresh';
+    it('should reject a state that Redis has already expired', async () => {
+      await service.createStatePair('state-abc', 'nonce-xyz', 'educator');
+      redis.store.clear();
 
-      service.createStatePair(state, nonce, 'educator');
-
-      // Set createdAt to 9 minutes ago (within TTL)
-      setStateAge(service, state, 9 * 60 * 1000);
-
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).not.toThrow();
+      await expect(
+        service.validateAndConsume('state-abc', 'nonce-xyz', 'educator'),
+      ).rejects.toThrow('Invalid or expired state parameter');
     });
   });
 
   describe('validateAndConsume - tool type mismatch', () => {
-    it('should reject educator state used for student tool', () => {
-      const state = 'state-edu';
-      const nonce = 'nonce-edu';
+    it('should reject an educator state used on the student callback', async () => {
+      await service.createStatePair('state-abc', 'nonce-xyz', 'educator');
 
-      service.createStatePair(state, nonce, 'educator');
-
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'student');
-      }).toThrow('tool type mismatch');
-
-      // State should be deleted after mismatch
-      expect(service.getStoreSize()).toBe(0);
+      await expect(service.validateAndConsume('state-abc', 'nonce-xyz', 'student')).rejects.toThrow(
+        'State parameter tool type mismatch',
+      );
+      expect(redis.store.has(keyOf('state-abc'))).toBe(false);
     });
 
-    it('should reject student state used for educator tool', () => {
-      const state = 'state-stu';
-      const nonce = 'nonce-stu';
+    it('should reject a student state used on the educator callback', async () => {
+      await service.createStatePair('state-abc', 'nonce-xyz', 'student');
 
-      service.createStatePair(state, nonce, 'student');
-
-      expect(() => {
-        service.validateAndConsume(state, nonce, 'educator');
-      }).toThrow('tool type mismatch');
-
-      // State should be deleted after mismatch
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-abc', 'nonce-xyz', 'educator'),
+      ).rejects.toThrow('State parameter tool type mismatch');
+      expect(redis.store.has(keyOf('state-abc'))).toBe(false);
     });
   });
 
   describe('validateAndConsume - nonce mismatch (replay protection)', () => {
-    it('should reject when nonce does not match stored nonce', () => {
-      const state = 'state-valid';
-      const storedNonce = 'nonce-original';
-      const wrongNonce = 'nonce-forged';
+    it('should reject a mismatched nonce and consume the state', async () => {
+      await service.createStatePair('state-abc', 'stored-nonce', 'educator');
 
-      service.createStatePair(state, storedNonce, 'educator');
-
-      expect(() => {
-        service.validateAndConsume(state, wrongNonce, 'educator');
-      }).toThrow('Nonce mismatch');
-
-      // State should be deleted after nonce mismatch
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-abc', 'attacker-nonce', 'educator'),
+      ).rejects.toThrow('Nonce mismatch - possible replay attack');
+      expect(redis.store.has(keyOf('state-abc'))).toBe(false);
     });
 
-    it('should be case-sensitive for nonce matching', () => {
-      const state = 'state-case';
-      const storedNonce = 'Nonce-CaseSensitive';
-      const wrongCaseNonce = 'nonce-casesensitive';
+    it('should compare nonces case-sensitively', async () => {
+      await service.createStatePair('state-abc', 'NonceABC123', 'educator');
 
-      service.createStatePair(state, storedNonce, 'educator');
-
-      expect(() => {
-        service.validateAndConsume(state, wrongCaseNonce, 'educator');
-      }).toThrow('Nonce mismatch');
+      await expect(
+        service.validateAndConsume('state-abc', 'nonceabc123', 'educator'),
+      ).rejects.toThrow('Nonce mismatch - possible replay attack');
     });
   });
 
-  describe('clearAll', () => {
-    it('should clear all entries', () => {
-      service.createStatePair('state1', 'nonce1', 'educator');
-      service.createStatePair('state2', 'nonce2', 'student');
-      service.createStatePair('state3', 'nonce3', 'educator');
+  describe('Redis unavailable - no in-memory fallback', () => {
+    it('should fail login initiation as 503 when Redis rejects the write', async () => {
+      redis.setStrict.mockRejectedValueOnce(new Error('Connection is closed.'));
 
-      expect(service.getStoreSize()).toBe(3);
-
-      service.clearAll();
-
-      expect(service.getStoreSize()).toBe(0);
+      await expect(service.createStatePair('state-abc', 'nonce-xyz', 'educator')).rejects.toThrow(
+        ServiceUnavailableException,
+      );
     });
 
-    it('should allow new entries after clearing', () => {
-      service.createStatePair('state1', 'nonce1', 'educator');
-      service.clearAll();
+    it('should fail the launch as 503 when Redis rejects the read', async () => {
+      redis.getDelStrict.mockRejectedValueOnce(new Error('Connection is closed.'));
 
-      expect(service.getStoreSize()).toBe(0);
-
-      service.createStatePair('state2', 'nonce2', 'educator');
-      expect(service.getStoreSize()).toBe(1);
-    });
-  });
-
-  describe('getStoreSize', () => {
-    it('should return 0 for empty store', () => {
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-abc', 'nonce-xyz', 'educator'),
+      ).rejects.toThrow(ServiceUnavailableException);
     });
 
-    it('should return correct size as entries are added', () => {
-      expect(service.getStoreSize()).toBe(0);
-      service.createStatePair('state1', 'nonce1', 'educator');
-      expect(service.getStoreSize()).toBe(1);
-      service.createStatePair('state2', 'nonce2', 'student');
-      expect(service.getStoreSize()).toBe(2);
-    });
+    it('should not disguise an outage as an invalid state parameter', async () => {
+      redis.getDelStrict.mockRejectedValueOnce(new Error('Connection is closed.'));
 
-    it('should return correct size as entries are consumed', () => {
-      service.createStatePair('state1', 'nonce1', 'educator');
-      service.createStatePair('state2', 'nonce2', 'student');
-      expect(service.getStoreSize()).toBe(2);
-
-      service.validateAndConsume('state1', 'nonce1', 'educator');
-      expect(service.getStoreSize()).toBe(1);
-
-      service.validateAndConsume('state2', 'nonce2', 'student');
-      expect(service.getStoreSize()).toBe(0);
+      await expect(
+        service.validateAndConsume('state-abc', 'nonce-xyz', 'educator'),
+      ).rejects.toThrow(Messages.LTI_STORAGE_UNAVAILABLE);
     });
   });
 });

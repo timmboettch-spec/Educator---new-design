@@ -10,11 +10,15 @@ import {
 
 describe('lmsNrpsStudentImport', () => {
   it('detects Moodle guest by userId 1', () => {
-    expect(isNrpsGuestUser({ userId: '1', email: 'root@localhost' })).toBe(true);
+    expect(isNrpsGuestUser({ userId: '1', email: 'root@localhost' })).toBe(
+      true
+    );
   });
 
   it('detects guest by root@localhost email', () => {
-    expect(isNrpsGuestUser({ userId: '99', email: 'root@localhost' })).toBe(true);
+    expect(isNrpsGuestUser({ userId: '99', email: 'root@localhost' })).toBe(
+      true
+    );
   });
 
   it('detects guest by display name', () => {
@@ -27,7 +31,7 @@ describe('lmsNrpsStudentImport', () => {
         userId: '8',
         name: 'Test Student',
         email: 'student@school.edu',
-      }),
+      })
     ).toBe(false);
   });
 
@@ -36,7 +40,9 @@ describe('lmsNrpsStudentImport', () => {
     expect(normalizeImportableEmail('')).toBeUndefined();
     expect(normalizeImportableEmail('not-an-email')).toBeUndefined();
     expect(normalizeImportableEmail('root@localhost')).toBeUndefined();
-    expect(normalizeImportableEmail('student@school.edu')).toBe('student@school.edu');
+    expect(normalizeImportableEmail('student@school.edu')).toBe(
+      'student@school.edu'
+    );
   });
 
   it('toBulkCreateStudent skips guest', () => {
@@ -45,7 +51,7 @@ describe('lmsNrpsStudentImport', () => {
         userId: '1',
         name: 'Guest user',
         email: 'root@localhost',
-      }),
+      })
     ).toBeNull();
   });
 
@@ -55,7 +61,7 @@ describe('lmsNrpsStudentImport', () => {
         userId: '8',
         name: 'Test Student',
         email: 'student@school.edu',
-      }),
+      })
     ).toEqual({
       student_id: '8',
       student_name: 'Test Student',
@@ -70,7 +76,7 @@ describe('lmsNrpsStudentImport', () => {
         userId: '9',
         name: 'No Email Student',
         email: '',
-      }),
+      })
     ).toEqual({
       student_id: '9',
       student_name: 'No Email Student',
@@ -81,11 +87,27 @@ describe('lmsNrpsStudentImport', () => {
   it('extractImportableNrpsStudents keeps valid learners and drops guest', () => {
     const result = extractImportableNrpsStudents(
       [
-        { userId: '1', name: 'Guest user', email: 'root@localhost', roles: ['Learner'] },
-        { userId: '8', name: 'Real Student', email: 'student@school.edu', roles: ['Learner'] },
-        { userId: '2', name: 'Teacher', email: 'teacher@school.edu', roles: ['Instructor'] },
+        {
+          userId: '1',
+          name: 'Guest user',
+          email: 'root@localhost',
+          roles: ['Learner'],
+        },
+        {
+          userId: '8',
+          name: 'Real Student',
+          email: 'student@school.edu',
+          roles: ['Learner'],
+        },
+        {
+          userId: '2',
+          name: 'Teacher',
+          email: 'teacher@school.edu',
+          roles: ['Instructor'],
+        },
       ],
-      (member) => Array.isArray(member.roles) && member.roles.includes('Learner'),
+      (member) =>
+        Array.isArray(member.roles) && member.roles.includes('Learner')
     );
 
     expect(result).toEqual([
@@ -99,10 +121,18 @@ describe('lmsNrpsStudentImport', () => {
   });
 
   it('hasInstructorOrAdminRole detects instructor', () => {
-    expect(hasInstructorOrAdminRole({ userId: '1', roles: ['Instructor'] })).toBe(true);
-    expect(hasInstructorOrAdminRole({ userId: '2', roles: ['Teacher'] })).toBe(true);
-    expect(hasInstructorOrAdminRole({ userId: '3', roles: ['Administrator'] })).toBe(true);
-    expect(hasInstructorOrAdminRole({ userId: '4', roles: ['Learner'] })).toBe(false);
+    expect(
+      hasInstructorOrAdminRole({ userId: '1', roles: ['Instructor'] })
+    ).toBe(true);
+    expect(hasInstructorOrAdminRole({ userId: '2', roles: ['Teacher'] })).toBe(
+      true
+    );
+    expect(
+      hasInstructorOrAdminRole({ userId: '3', roles: ['Administrator'] })
+    ).toBe(true);
+    expect(hasInstructorOrAdminRole({ userId: '4', roles: ['Learner'] })).toBe(
+      false
+    );
   });
 
   it('hasInstructorOrAdminRole detects LTI 1.3 role URNs', () => {
@@ -110,7 +140,7 @@ describe('lmsNrpsStudentImport', () => {
       hasInstructorOrAdminRole({
         userId: '1',
         roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
-      }),
+      })
     ).toBe(true);
   });
 
@@ -119,7 +149,7 @@ describe('lmsNrpsStudentImport', () => {
       hasLearnerOnlyRole({
         userId: '1',
         roles: ['Learner', 'Instructor'],
-      }),
+      })
     ).toBe(false);
   });
 
@@ -128,13 +158,13 @@ describe('lmsNrpsStudentImport', () => {
       hasLearnerOnlyRole({
         userId: '1',
         roles: ['Learner'],
-      }),
+      })
     ).toBe(true);
     expect(
       hasLearnerOnlyRole({
         userId: '2',
         roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
-      }),
+      })
     ).toBe(true);
   });
 
@@ -145,7 +175,7 @@ describe('lmsNrpsStudentImport', () => {
         name: 'Test Teacher',
         email: 'teacher@school.edu',
         roles: ['Instructor'],
-      }),
+      })
     ).toBeNull();
   });
 
@@ -165,7 +195,8 @@ describe('lmsNrpsStudentImport', () => {
           roles: ['Learner', 'Instructor'],
         },
       ],
-      (member) => Array.isArray(member.roles) && member.roles.includes('Learner'),
+      (member) =>
+        Array.isArray(member.roles) && member.roles.includes('Learner')
     );
 
     expect(result).toEqual([

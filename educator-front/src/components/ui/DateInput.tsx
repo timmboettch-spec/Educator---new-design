@@ -45,7 +45,12 @@ export default function DateInput({
   return (
     <div className={cn('flex flex-col w-full', className)}>
       {label && (
-        <label className={cn('text-sm font-medium text-gray-700 mb-0.5', labelClassName)}>
+        <label
+          className={cn(
+            'text-sm font-medium text-gray-700 mb-0.5',
+            labelClassName
+          )}
+        >
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
@@ -58,9 +63,9 @@ export default function DateInput({
         minDate={minDate}
         className={cn(
           'w-full h-[38px] px-3 rounded-xl border-2 border-gray-300 text-sm [outline:none] transition-[border-color,background-color,box-shadow]',
-          'focus:border-primary-400',
-          'placeholder:text-gray-500 cursor-pointer',
-          disabled && 'opacity-50 cursor-not-allowed bg-gray-100',
+          'focus:border-orange-400',
+          'placeholder:text-gray-400 cursor-pointer',
+          disabled && 'opacity-50 cursor-not-allowed bg-gray-100'
         )}
         wrapperClassName="w-full"
         popperPlacement="bottom-start"

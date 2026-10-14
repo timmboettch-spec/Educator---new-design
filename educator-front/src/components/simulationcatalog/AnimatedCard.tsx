@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from 'react';
 
 export const AnimatedCard = ({
   children,
@@ -25,7 +25,7 @@ export const AnimatedCard = ({
           observer.disconnect();
         }
       },
-      { threshold: 0.08 },
+      { threshold: 0.08 }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -37,7 +37,9 @@ export const AnimatedCard = ({
       onClick={onClick}
       style={{
         opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(28px) scale(0.97)',
+        transform: isVisible
+          ? 'translateY(0) scale(1)'
+          : 'translateY(28px) scale(0.97)',
         transition: 'opacity 0.5s ease, transform 0.5s ease',
       }}
     >

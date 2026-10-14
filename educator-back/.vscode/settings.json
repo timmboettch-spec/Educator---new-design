@@ -1,0 +1,24 @@
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "prettier.requireConfig": true,
+  "antigravity.cliPath": "C:\\Users\\DELL\\AppData\\Local\\agy\\bin\\agy.exe",
+  "antigravity.defaultArgs": [
+    "C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\agy\\\\bin\\\\agy.exe"
+  ],
+  "[handlebars]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  }
+}

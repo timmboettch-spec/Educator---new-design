@@ -1,27 +1,65 @@
 import * as os from 'os';
 
 import { BlobServiceClient, type ContainerClient } from '@azure/storage-blob';
-import { HttpService } from '@nestjs/axios';
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as ExcelJS from 'exceljs';
-import * as nodemailer from 'nodemailer';
-import { firstValueFrom } from 'rxjs';
+import {
+  SimulationReportRepository,
+  SimulationV2Repository,
+  StudentRepository,
+  StudentSimulationProgressRepository,
+  TranscriptRepository,
+  UnitRepository,
+} from 'src/database/repositories';
+import {
+  SIMULATION_REPORT_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  STUDENT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
+import { type SimulationReport } from 'src/database/entities';
+import {
+  buildAttemptRow,
+  mapRowToReportDetail,
+  mapRowToReportListEntry,
+  resolveStudentId,
+} from 'src/common/utils/simulation-report.util';
+import { ERROR_MSG } from 'src/common/messages/error.message';
+import { ReportModeType } from 'src/common/constants/simulation-report.constants';
+import { SimulationAttemptConstants, SimulationProgressStatus } from 'src/common/constants';
+import { type Transcript } from 'src/database/entities';
 
 import {
-  JsonDataService,
+  type ICurrentUser,
+  type ReportDetail,
+  type ReportListEntry,
+  type SimulationReportEntry,
+  type TimelineBlock,
+  type TimelineSummaryByCategory,
+  AiGateway,
+  type AiMatchVerdict,
+  type AiMedicationRouteSiteVerdict,
+} from '../../../common/interfaces';
+import { AiMessageRole } from '../../../common/constants';
+import { AiNotConfiguredException } from '../../../common/exceptions/ai.exception';
+import { LoggerService } from '../../../common/services';
+import { MailService } from '../../../mail/mail.service';
+import { MailRetryService } from '../../../mail/mail-retry.service';
+import {
   type CommunicationCriterion,
   type Report,
   type RubricItem,
   type Scenario,
-  type Transcript,
-} from '../../data/json-data.service';
+} from 'src/common/interfaces/student-scenario.interface';
 import {
   LIFECYCLE_SCHEMA_VERSION,
   GradingType,
   SubsystemStopReason,
 } from '../telemetry/dto/lifecycle-events.dto';
 import { LifecycleTelemetryService } from '../telemetry/lifecycle-telemetry.service';
+import { ScenariosService } from '../scenarios/scenarios.service';
 
 import {
   ActionsInterventionsService,
@@ -49,6 +87,43 @@ import {
 } from './types/scoring.types';
 
 // -- Medication normalization helpers -------------------------------------------
+/**
+ * Recomputes a Communication rubric item's score deterministically from
+ * `criteriaResults`, never trusting the AI's own top-level `score` field.
+ * If `criteriaResults` is missing/empty there is no evidence to support a
+ * score, so `item.score` is explicitly reset to `null` (RWAI-communication-score-bug).
+ */
+export function recomputeCommunicationScore(
+  item: RubricItemRecord,
+  enabledCriteriaCount: number,
+  logger: LoggerService,
+): void {
+  const criteriaResults = item.criteriaResults;
+  if (!Array.isArray(criteriaResults) || criteriaResults.length === 0) {
+    logger.warn({
+      topic: 'ReportsService',
+      subTopic: 'recomputeCommunicationScore',
+      operation: 'communication-criteria-results-missing',
+      message:
+        'Communication criteriaResults missing/empty; discarding AI topline score and setting item.score=null',
+      metadata: { aiTopLineScore: item.score, subCategory: item.subCategory },
+    });
+    item.score = null;
+    return;
+  }
+  const passedCount = criteriaResults.filter((cr) => cr.passed === true).length;
+  // Enabled criteria count from scenario config is the authoritative denominator;
+  // this prevents diluted scores if the AI hallucinates extra criteriaResults entries.
+  const totalCount = enabledCriteriaCount > 0 ? enabledCriteriaCount : criteriaResults.length;
+  item.score = Math.round((passedCount / totalCount) * 100);
+  logger.debug({
+    topic: 'ReportsService',
+    subTopic: 'recomputeCommunicationScore',
+    operation: 'communication-score-recomputed',
+    metadata: { passedCount, totalCount, enabledCriteriaCount, score: item.score },
+  });
+}
+
 export function normalizeMedicationName(name?: string): string {
   if (!name || typeof name !== 'string') {
     return '';
@@ -74,16 +149,6 @@ export function normalizeMedicationKey(nameOrTitle?: string, medicationId?: stri
 const SCORE_EXCEPTIONAL_MIN = 90;
 /** Score threshold above which performance is labelled "Meets Expectations". */
 const SCORE_MEETS_EXPECTATIONS_MIN = 75;
-/** Coverage/completion rate threshold for "high" label (85 %). */
-const COVERAGE_HIGH_PCT = 85;
-/** Coverage/completion rate threshold for "medium-high" label (80 %). */
-const COVERAGE_MEDIUM_HIGH_PCT = 80;
-/** Coverage/completion rate threshold for "medium" label (70 %). */
-const COVERAGE_MEDIUM_PCT = 70;
-/** Coverage/completion rate threshold for "low-medium" label (60 %). */
-const COVERAGE_LOW_MEDIUM_PCT = 60;
-/** Coverage/completion rate threshold for "low" label (50 %). */
-const COVERAGE_LOW_PCT = 50;
 /** Temperature for unified reporting LLM call (slightly creative for narrative). */
 const UNIFIED_REPORT_AI_TEMPERATURE = 0.2;
 /** Maximum tokens for the unified reporting LLM response. */
@@ -94,19 +159,8 @@ const EXTRACTION_AI_TEMPERATURE = 0;
 const EXTRACTION_AI_MAX_TOKENS_SHORT = 250;
 /** Maximum tokens for a medium JSON-extraction LLM response. */
 const EXTRACTION_AI_MAX_TOKENS_MEDIUM = 300;
-/** Maximum number of attempts to fetch a transcript before giving up. */
-const TRANSCRIPT_FETCH_MAX_RETRIES = 10;
-/** Delay (ms) between transcript fetch retries. */
-const TRANSCRIPT_FETCH_RETRY_DELAY_MS = 1000;
-/** Default SMTP port used when EMAIL_PORT env-var is absent. */
-const DEFAULT_SMTP_PORT = 587;
-/**
- * Maximum number of graded Assessment attempts a student may have per
- * scenario. Once this many Assessment reports exist for a given
- * (scenarioId, studentId) pair, further createReport calls return the most
- * recent existing report instead of generating another one.
- */
-const MAX_ASSESSMENT_ATTEMPTS = 3;
+/** Max retries of the unified grading AI call when Communication comes back with no criteriaResults. */
+const COMMUNICATION_EMPTY_CRITERIA_MAX_RETRIES = 2;
 
 type ScenarioRubricItem = RubricItem;
 
@@ -196,35 +250,6 @@ interface SequenceViolation {
   actualTime?: number;
 }
 
-interface ScenarioTitleLike {
-  title?: string;
-  requirements?: Array<{ text?: string; keywords?: string[]; required?: boolean }>;
-  [key: string]: unknown;
-}
-
-interface ReportExportRow {
-  id?: string;
-  studentName?: string;
-  studentClass?: string;
-  scenarioTitle?: string;
-  scenarioId?: string;
-  scenarioStartTime?: string;
-  scenarioEndTime?: string;
-  totalTimeSeconds?: number;
-  score?: number;
-  createdAt?: string;
-  [key: string]: unknown;
-}
-
-interface OpenAIRawResponse {
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  };
-  choices?: Array<{ message?: { content?: string } }>;
-}
-
 interface EnrichedMessage {
   elapsedSeconds: number;
   elapsedTimeFormatted: string;
@@ -280,7 +305,7 @@ interface EmailRubricItem {
   strengths?: Array<{ point?: string; example?: string } | string>;
   weaknesses?: Array<{ point?: string; example?: string } | string>;
   recommendations?: string[];
-  actionDetails?: Array<{ type?: string; title?: string; [key: string]: unknown }>;
+  actionDetails?: Array<{ type?: string; title?: string;[key: string]: unknown }>;
   [key: string]: unknown;
 }
 
@@ -328,25 +353,22 @@ interface FullReport extends Record<string, unknown> {
       recommendations?: string[];
     };
   };
-  transcript?: { scenario?: { title?: string; [key: string]: unknown }; [key: string]: unknown };
+  transcript?: { scenario?: { title?: string;[key: string]: unknown };[key: string]: unknown };
 }
 
 @Injectable()
 export class ReportsService {
-  private readonly azureConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING ?? '';
-  private readonly blobContainerName =
-    process.env.AZURE_BLOB_CONTAINER_NAME ??
-    process.env.AZURE_STORAGE_CONTAINER_NAME ??
-    'json-data';
-  private readonly blobPrefix = process.env.AZURE_BLOB_PREFIX ?? '';
-  private readonly azureEnabled = this.azureConnectionString.trim().length > 0;
+  private readonly azureConnectionString: string;
+  private readonly blobContainerName: string;
+  private readonly blobPrefix: string;
+  private readonly azureEnabled: boolean;
   private containerClient?: ContainerClient;
-  private readonly logger = new Logger(ReportsService.name);
 
   constructor(
-    private httpService: HttpService,
+    private readonly aiGateway: AiGateway,
     private configService: ConfigService,
-    private jsonDataService: JsonDataService,
+    private mailService: MailService,
+    private mailRetryService: MailRetryService,
     private actionsService: ActionsInterventionsService,
     private ppeService: PpePrivacyService,
     private documentationService: ClinicalDocumentationService,
@@ -354,30 +376,29 @@ export class ReportsService {
     private timelineTimingService: TimelineTimingService,
     private sequencingService: SequencingService,
     private lifecycleTelemetry: LifecycleTelemetryService,
+    private readonly logger: LoggerService,
+    @Inject(UNIT_REPOSITORY) private readonly unitRepository: UnitRepository,
+    @Inject(SIMULATION_V2_REPOSITORY)
+    private readonly simulationV2Repository: SimulationV2Repository,
+    @Inject(TRANSCRIPT_REPOSITORY)
+    private readonly transcriptRepository: TranscriptRepository,
+    @Inject(SIMULATION_REPORT_REPOSITORY)
+    private readonly simulationReportRepository: SimulationReportRepository,
+    @Inject(STUDENT_REPOSITORY)
+    private readonly studentRepository: StudentRepository,
+    @Inject(STUDENT_SIMULATION_PROGRESS_REPOSITORY)
+    private readonly simulationProgressRepository: StudentSimulationProgressRepository,
+    private readonly scenariosService: ScenariosService,
   ) {
+    this.azureConnectionString = this.configService.get<string>('azureBlob.connectionString') ?? '';
+    this.blobContainerName =
+      this.configService.get<string>('azureBlob.jsonCatalogContainer') ?? 'json-data';
+    this.azureEnabled = this.azureConnectionString.trim().length > 0;
+    this.blobPrefix = this.configService.get<string>('azureBlob.prefix') ?? '';
     if (this.azureEnabled) {
       const blobServiceClient = BlobServiceClient.fromConnectionString(this.azureConnectionString);
       this.containerClient = blobServiceClient.getContainerClient(this.blobContainerName);
     }
-  }
-
-  // Backward-compatible helpers (previously local-file based)
-  readReports(): Report[] {
-    return this.jsonDataService.getReports();
-  }
-
-  async getReportsFresh(): Promise<Report[]> {
-    return this.jsonDataService.getReportsFresh();
-  }
-
-  private async writeReports(reports: Report[]): Promise<void> {
-    // Always refresh before overwriting to avoid clobbering existing reports
-    // in multi-instance deployments.
-    const current = await this.jsonDataService.getReportsFresh();
-    const byId = new Map<string, Report>(current.map((r) => [r.id, r]));
-    reports.forEach((r) => byId.set(r.id, r));
-    this.jsonDataService.setReports(Array.from(byId.values()));
-    await this.jsonDataService.flushJson('reports.json');
   }
 
   // Blob name helper for non-JSON payloads (email fallback HTML)
@@ -386,160 +407,50 @@ export class ReportsService {
     return prefix ? `${prefix}/${relativeName}` : relativeName;
   }
 
-  async generate(transcriptId: string, userId: string): Promise<Report> {
-    // Find the transcript with retries (helps with latency between save and report generation)
-    let transcript: Transcript | undefined;
-    const maxRetries = TRANSCRIPT_FETCH_MAX_RETRIES;
-    const delayMs = TRANSCRIPT_FETCH_RETRY_DELAY_MS;
+  /** The caller's Report list from Postgres; an unresolvable caller has no Reports. */
+  async findAll(currentUser: ICurrentUser | undefined, mode?: string): Promise<ReportListEntry[]> {
+    const studentId = resolveStudentId(currentUser);
+    if (!studentId) return [];
 
-    for (let i = 0; i < maxRetries; i++) {
-      transcript = await this.jsonDataService.getTranscriptByIdFresh(transcriptId);
-      if (transcript) {
-        break;
-      }
-
-      if (i < maxRetries - 1) {
-        this.logger.warn(
-          `[ReportsService] Transcript ${transcriptId} not found, retrying (${i + 1}/${maxRetries})...`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-    }
-
-    if (!transcript || (transcript.userId && transcript.userId !== userId)) {
-      throw new NotFoundException(`Transcript with ID ${transcriptId} not found`);
-    }
-
-    // Check if report already exists
-    const existingReport = this.jsonDataService.getReportByTranscriptId(transcriptId);
-    if (existingReport) {
-      return existingReport;
-    }
-
-    // Get scenario and unit info
-    const scenario = this.jsonDataService.getScenarioById(transcript.scenarioId);
-    /* const unit = scenario
-      ? this.jsonDataService.getUnitById(scenario.unitId)
-      : null; */
-
-    // Get user actions for this scenario
-    // const actions = this.jsonDataService.getActionsByUserId(userId, transcript.scenarioId);
-
-    // Build dynamic assessment based on transcript, scenario, and actions
-    const staticAssessment = this.buildDynamicAssessment({
-      messages: transcript.messages,
-      scenario: scenario,
-      expectedActions: scenario?.expectedActions,
-      // actions: actions,
-    });
-
-    const createdAt = transcript.endedAt ?? transcript.startedAt ?? new Date().toISOString();
-
-    const report = {
-      id: this.jsonDataService.generateId(),
-      userId,
-      scenarioId: transcript.scenarioId,
-      transcriptId,
-      score: staticAssessment.score,
-      scoreJson: staticAssessment.scoreJson,
-      summary: staticAssessment.summary,
-      strengths: staticAssessment.strengths,
-      improvements: staticAssessment.improvements,
-      feedback: staticAssessment.feedback,
-      createdAt,
-    };
-
-    await this.jsonDataService.addReportFresh(report);
-    return report;
+    const rows = await this.simulationReportRepository.findListRowsByStudentId(studentId, mode);
+    return rows.map(mapRowToReportListEntry);
   }
 
-  async generateMockAssessment(transcriptId: string, userId: string, scenarioId: string) {
-    // Create mock assessment with 18-component grading
-    const report = {
-      id: this.jsonDataService.generateId(),
-      userId,
-      scenarioId,
-      transcriptId,
-      score: 85,
-      scoreJson: {
-        communication: 4,
-        clinicalJudgment: 4,
-        technicalAccuracy: 4,
-        ethicalCompetence: 5,
-        reflection: 4,
-        overallScore: 85,
-      },
-      summary:
-        'Student demonstrated strong communication skills and followed appropriate assessment protocols. Good attention to patient comfort and safety throughout the scenario.',
-      strengths: [
-        'Clear and professional communication with patient',
-        'Systematic approach to assessment',
-        'Proper hand hygiene and infection control',
-        'Accurate documentation of findings',
-      ],
-      improvements: [
-        'Include more follow-up questions about symptoms',
-        'Check vital signs more thoroughly',
-        'Explain procedures to patient before performing',
-      ],
-      feedback:
-        'Student demonstrated good communication skills and followed appropriate assessment protocols. Strong ethical awareness and professional conduct. Continue to focus on thorough clinical reasoning and technical accuracy.',
-      createdAt: new Date().toISOString(),
-    };
+  async findOne(id: string, currentUser: ICurrentUser | undefined) {
+    const studentId = resolveStudentId(currentUser);
+    const row = studentId
+      ? await this.simulationReportRepository.findDetailRowByReportIdForStudent(studentId, id)
+      : null;
 
-    await this.jsonDataService.addReportFresh(report);
-    return report;
-  }
-
-  async findAll(userId?: string): Promise<Report[]> {
-    const reports = await this.getReportsFresh();
-    if (userId) {
-      return reports.filter((r) => r.userId === userId);
-    }
-    return reports;
-  }
-
-  async findOne(id: string, userId?: string) {
-    const report = await this.jsonDataService.getReportByIdFresh(id);
-
-    if (!report) {
+    if (!row) {
       throw new NotFoundException(`Report with ID ${id} not found`);
     }
-
-    const transcript = this.jsonDataService.getTranscriptById(report.transcriptId);
-    const ownerId = transcript?.userId ?? report.userId;
-
-    // Check ownership if userId provided
-    if (userId && ownerId && ownerId !== userId) {
-      throw new NotFoundException(`Report with ID ${id} not found`);
-    }
-
-    const scenario = this.jsonDataService.getScenarioById(report.scenarioId);
-
-    return {
-      ...report,
-      _transcript: {
-        ...transcript,
-        scenario,
-      },
-    };
+    return this.withTranscriptAndScenario(mapRowToReportDetail(row));
   }
 
-  async findByTranscriptId(transcriptId: string, userId: string) {
-    const report = await this.jsonDataService.getReportByTranscriptIdFresh(transcriptId);
+  async findByTranscriptId(transcriptId: string, currentUser: ICurrentUser | undefined) {
+    const studentId = resolveStudentId(currentUser);
+    const row = studentId
+      ? await this.simulationReportRepository.findDetailRowByTranscriptIdForStudent(
+        studentId,
+        transcriptId,
+      )
+      : null;
 
-    if (!report) {
+    if (!row) {
       throw new NotFoundException(`Report for transcript ${transcriptId} not found`);
     }
+    return this.withTranscriptAndScenario(mapRowToReportDetail(row));
+  }
 
-    const transcript = this.jsonDataService.getTranscriptById(transcriptId);
-    const ownerId = transcript?.userId ?? report.userId;
-
-    if (ownerId && ownerId !== userId) {
-      throw new NotFoundException(`Report for transcript ${transcriptId} not found`);
-    }
-
-    const scenario = this.jsonDataService.getScenarioById(report.scenarioId);
+  /** Adds the `_transcript` (with its Scenario) enrichment the detail response carries. */
+  private async withTranscriptAndScenario(report: ReportDetail) {
+    const transcript = report.transcriptId
+      ? await this.transcriptRepository.findByBusinessId(report.transcriptId)
+      : null;
+    const scenario = report.scenarioId
+      ? await this.simulationV2Repository.findByBusinessId(report.scenarioId)
+      : null;
 
     return {
       ...report,
@@ -551,26 +462,30 @@ export class ReportsService {
   }
 
   async sendReportEmail(options: SendReportEmailOptions) {
-    const reportRaw = await this.findOne(options.reportId);
+    const reportRaw = await this.findOne(options.reportId, options.currentUser);
     const report = reportRaw as unknown as FullReport;
     const scenario =
       (reportRaw._transcript?.scenario as { title?: string } | undefined) ??
-      this.jsonDataService.getScenarioById(reportRaw.scenarioId);
+      (report.scenarioId
+        ? await this.simulationV2Repository.findByBusinessId(report.scenarioId)
+        : null);
 
     const recipient =
       options.recipient ??
-      this.configService.get<string>('REPORT_EMAIL_TO') ??
+      this.configService.get<string>('mail.reportEmailTo') ??
       'timm.boettcher@rwthrive.com';
 
     if (!recipient) {
       throw new Error('No recipient email configured');
     }
 
-    const user = this.configService.get<string>('EMAIL_USER');
-    const pass = this.configService.get<string>('EMAIL_PASS');
-    const host = this.configService.get<string>('EMAIL_HOST') ?? 'smtp.gmail.com';
-    const port = Number(this.configService.get<string>('EMAIL_PORT') ?? DEFAULT_SMTP_PORT);
-    const from = this.configService.get<string>('EMAIL_FROM') ?? user ?? 'reports@realityworks.ai';
+    // Explicit override only — omitting this lets MailService fall back to
+    // its own MAIL_FROM (the per-env managed-identity ACS sender address).
+    const from = this.configService.get<string>('mail.emailFrom');
+    // EMAIL_MODE=file skips email delivery entirely and always falls back to
+    // the blob-storage copy below (useful for local/dev testing without
+    // spending Azure Communication Services send quota).
+    const forceBlobFallback = this.configService.get<string>('mail.emailMode') === 'file';
 
     const studentName = options.studentName ?? report.studentName;
     const studentClass = options.studentClass ?? report.studentClass;
@@ -591,8 +506,8 @@ export class ReportsService {
     const hasRubrics = !!rubrics?.items && Object.keys(rubrics.items ?? {}).length > 0;
 
     const executiveSummaryText = rubrics?.overallSummary ?? reportRaw.summary ?? '';
-    const keyStrengths = rubrics?.strengths ?? reportRaw.strengths ?? [];
-    const areasForImprovement = rubrics?.improvements ?? reportRaw.improvements ?? [];
+    const keyStrengths = rubrics?.strengths ?? report.strengths ?? [];
+    const areasForImprovement = rubrics?.improvements ?? report.improvements ?? [];
     const _detailedFeedbackText = rubrics?.feedback ?? reportRaw.feedback ?? '';
     const debriefReflectionText = report.debriefReflection ?? '';
 
@@ -661,9 +576,8 @@ export class ReportsService {
           ? `
         <div style="margin-bottom: 24px;">
           <h3 style="color: #1f4e79;">Communication Assessment</h3>
-          ${
-            hasRubrics
-              ? `
+          ${hasRubrics
+            ? `
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px;">
             <h4 style="margin-top: 0; color: #1f4e79;">Rubrics Breakdown</h4>
             ${(() => {
@@ -707,15 +621,15 @@ export class ReportsService {
                 return `
                     <ul style="margin: 0 0 0 18px;">
                       ${items
-                        .map((x) => {
-                          const point = typeof x === 'string' ? x : (x.point ?? '');
-                          const example = typeof x === 'string' ? '' : (x.example ?? '');
-                          return `
+                    .map((x) => {
+                      const point = typeof x === 'string' ? x : (x.point ?? '');
+                      const example = typeof x === 'string' ? '' : (x.example ?? '');
+                      return `
                         <li style="margin-bottom: 6px;">
                           <strong>${point}</strong>${showExamples && example ? `: "${example}"` : ''}
                         </li>`;
-                        })
-                        .join('')}
+                    })
+                    .join('')}
                     </ul>
                   `;
               };
@@ -752,32 +666,30 @@ export class ReportsService {
                     <div style="margin-bottom: 18px;">
                       <h4 style="color: #1f4e79; margin: 0 0 10px 0;">${subCategory}</h4>
                       ${items
-                        .map((item) => {
-                          const score = item?.score;
-                          const strengths = item?.strengths ?? [];
-                          const weaknesses = item?.weaknesses ?? [];
-                          const recommendations = item?.recommendations ?? [];
+                    .map((item) => {
+                      const score = item?.score;
+                      const strengths = item?.strengths ?? [];
+                      const weaknesses = item?.weaknesses ?? [];
+                      const recommendations = item?.recommendations ?? [];
 
-                          const distractors =
-                            Array.isArray(item?.actionDetails) &&
-                            item.actionDetails.filter((d) => d?.type === 'distractor');
+                      const distractors =
+                        Array.isArray(item?.actionDetails) &&
+                        item.actionDetails.filter((d) => d?.type === 'distractor');
 
-                          const subCat = (item?.subCategory ?? '').toLowerCase();
-                          const showDistractors =
-                            (subCat === 'action' || subCat === 'action / clinical interventions') &&
-                            distractors &&
-                            distractors.length > 0;
+                      const subCat = (item?.subCategory ?? '').toLowerCase();
+                      const showDistractors =
+                        (subCat === 'action' || subCat === 'action / clinical interventions') &&
+                        distractors &&
+                        distractors.length > 0;
 
-                          return `
+                      return `
                             <div style="margin-bottom: 15px; padding: 12px; border: 1px solid #d9e2ec; border-radius: 6px; background-color: #ffffff;">
-                              <h5 style="margin: 0 0 6px 0; color:#1f4e79;">${
-                                item?.name ?? 'Rubric Item'
-                              }</h5>
-                              ${
-                                item?.summary
-                                  ? `<p style="margin: 0 0 10px 0; color:#333;">${item.summary}</p>`
-                                  : ''
-                              }
+                              <h5 style="margin: 0 0 6px 0; color:#1f4e79;">${item?.name ?? 'Rubric Item'
+                        }</h5>
+                              ${item?.summary
+                          ? `<p style="margin: 0 0 10px 0; color:#333;">${item.summary}</p>`
+                          : ''
+                        }
                               <p style="margin: 0 0 10px 0; font-size: 13px; color:#555;">
                                 <strong>Score:</strong> ${score ?? '—'}% — ${getPerformanceLabel(score).text}
                               </p>
@@ -794,39 +706,37 @@ export class ReportsService {
                               </p>
                               ${renderStrengthWeakness(weaknesses, true)}
 
-                              ${
-                                Array.isArray(recommendations) && recommendations.length > 0
-                                  ? `
+                              ${Array.isArray(recommendations) && recommendations.length > 0
+                          ? `
                                 <div style="height: 10px;"></div>
                                 <p style="margin: 0 0 6px 0; color: #0984e3; font-weight: bold; font-size: 13px;">
                                   Improvement Recommendations
                                 </p>
                                 ${renderRecommendations(recommendations)}
                               `
-                                  : ''
-                              }
+                          : ''
+                        }
 
-                              ${
-                                showDistractors
-                                  ? `
+                              ${showDistractors
+                          ? `
                                 <div style="height: 14px;"></div>
                                 <h5 style="margin: 0 0 8px 0;">Inappropriate Actions</h5>
                                 <p style="margin: 0 0 10px 0; color:#444; line-height: 1.6;">${distSummary}</p>
                                 <p style="margin: 0 0 8px 0; color:#444;">Inappropriate actions may reflect:</p>
                                 <ul style="margin: 0 0 12px 18px;">
                                   ${distractors
-                                    .map(
-                                      (d) =>
-                                        `<li style="margin-bottom: 6px;">� ${d?.title ?? ''}</li>`,
-                                    )
-                                    .join('')}
+                            .map(
+                              (d) =>
+                                `<li style="margin-bottom: 6px;">� ${d?.title ?? ''}</li>`,
+                            )
+                            .join('')}
                                 </ul>
                                 <div style="padding: 12px; border-radius: 6px; border: 1px solid #d9e2ec; background-color: #f0f7ff;">
                                   <p style="margin: 0 0 10px 0; font-weight: bold;">Improvement Recommendations</p>
                                   <ul style="margin: 0 0 12px 18px;">
                                     ${improvementRecommendations
-                                      .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
-                                      .join('')}
+                            .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
+                            .join('')}
                                   </ul>
                                   <p style="margin: 0; color:#666; font-size: 12px;">This report is made available for administrative review through the admin side of the application.</p>
                                 </div>
@@ -835,12 +745,12 @@ export class ReportsService {
                                   <p style="margin: 0; color:#a00; font-size: 13px; line-height: 1.6;">${disclaimerText}</p>
                                 </div>
                               `
-                                  : ''
-                              }
+                          : ''
+                        }
                             </div>
                           `;
-                        })
-                        .join('')}
+                    })
+                    .join('')}
                     </div>
                   `;
               }
@@ -848,41 +758,119 @@ export class ReportsService {
               return out;
             })()}
           </div>`
-              : `
-          ${
-            ca?.technicalSkills
+            : `
+          ${ca?.technicalSkills
               ? `
           <h4>Technical Skills Assessment</h4>
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px;">
             <p><strong>Total Score:</strong> ${ca.technicalSkills?.totalScore ?? 0}/${ca.technicalSkills?.totalWeight ?? 0}</p>
             ${(() => {
-              const technicalSkillsRaw: EmailRubricItem[] = Object.values(
-                ca.technicalSkills?.items ?? {},
-              );
-              const technicalSkillItemsMap = new Map<string, EmailRubricItem>();
-              technicalSkillsRaw.forEach((item) => {
-                const key = (item.subCategory ??
-                  item.name ??
-                  item.aiCheckId ??
-                  item.id ??
-                  '') as string;
-                if (technicalSkillItemsMap.has(key)) {
-                  const existing = technicalSkillItemsMap.get(key);
-                  if (
-                    !existing ||
-                    (item.score ?? 0) > (existing.score ?? 0) ||
-                    ((item.score ?? 0) === (existing.score ?? 0) &&
-                      item.summary &&
-                      !existing.summary)
-                  ) {
+                const technicalSkillsRaw: EmailRubricItem[] = Object.values(
+                  ca.technicalSkills?.items ?? {},
+                );
+                const technicalSkillItemsMap = new Map<string, EmailRubricItem>();
+                technicalSkillsRaw.forEach((item) => {
+                  const key = (item.subCategory ??
+                    item.name ??
+                    item.aiCheckId ??
+                    item.id ??
+                    '') as string;
+                  if (technicalSkillItemsMap.has(key)) {
+                    const existing = technicalSkillItemsMap.get(key);
+                    if (
+                      !existing ||
+                      (item.score ?? 0) > (existing.score ?? 0) ||
+                      ((item.score ?? 0) === (existing.score ?? 0) &&
+                        item.summary &&
+                        !existing.summary)
+                    ) {
+                      technicalSkillItemsMap.set(key, item);
+                    }
+                  } else {
                     technicalSkillItemsMap.set(key, item);
                   }
-                } else {
-                  technicalSkillItemsMap.set(key, item);
-                }
-              });
+                });
 
-              return Array.from(technicalSkillItemsMap.values())
+                return Array.from(technicalSkillItemsMap.values())
+                  .map((item) => {
+                    const score = item?.score ?? 0;
+                    const maxScore = item?.maxScore ?? 10;
+                    const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                    const performanceData =
+                      percentage > SCORE_EXCEPTIONAL_MIN
+                        ? { text: 'Exceptional', color: '#0066cc' }
+                        : percentage >= SCORE_MEETS_EXPECTATIONS_MIN
+                          ? { text: 'Meets Expectations', color: '#00a651' }
+                          : { text: 'Needs Improvement', color: '#d63031' };
+                    const strengths = Array.isArray(item?.strengths) ? item.strengths : [];
+                    const weaknesses = Array.isArray(item?.weaknesses) ? item.weaknesses : [];
+                    const recommendations = Array.isArray(item?.recommendations)
+                      ? item.recommendations
+                      : [];
+
+                    return `
+                    <div style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #1f4e79;">
+                      <h5 style="margin: 0 0 6px 0; color:#1f4e79;">
+                        ${item?.name ?? 'Technical skill'}
+                      </h5>
+                      <p style="margin: 0 0 10px 0; font-size: 14px;">
+                        <strong style="color: ${performanceData.color};">${performanceData.text}</strong>
+                      </p>
+                      ${item.summary ? `<p style="margin: 0 0 10px 0;">${item.summary}</p>` : ''}
+                      ${strengths.length > 0
+                        ? `
+                        <p style="margin: 0 0 6px 0; color:#0d7377; font-weight: bold; font-size: 13px;">Strengths</p>
+                        <ul style="margin: 0 0 10px 18px;">
+                          ${strengths
+                          .map((x) => {
+                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                            const ex =
+                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                          })
+                          .join('')}
+                        </ul>`
+                        : ''
+                      }
+                      ${weaknesses.length > 0
+                        ? `
+                        <p style="margin: 0 0 6px 0; color:#d63031; font-weight: bold; font-size: 13px;">Weaknesses</p>
+                        <ul style="margin: 0 0 10px 18px;">
+                          ${weaknesses
+                          .map((x) => {
+                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                            const ex =
+                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                          })
+                          .join('')}
+                        </ul>`
+                        : ''
+                      }
+                      ${recommendations.length > 0
+                        ? `
+                        <p style="margin: 0 0 6px 0; color:#0984e3; font-weight: bold; font-size: 13px;">Improvement Recommendations</p>
+                        <ul style="margin: 0 0 0 18px;">
+                          ${recommendations
+                          .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
+                          .join('')}
+                        </ul>`
+                        : ''
+                      }
+                    </div>
+                  `;
+                  })
+                  .join('');
+              })()}
+          </div>`
+              : ''
+            }
+          ${ca?.softSkills
+              ? `
+          <h4>Soft Skills Assessment</h4>
+          <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
+            <p><strong>Total Score:</strong> ${ca.softSkills?.totalScore ?? 0}/${ca.softSkills?.totalWeight ?? 0}</p>
+            ${Object.values(ca.softSkills?.items ?? {})
                 .map((item) => {
                   const score = item?.score ?? 0;
                   const maxScore = item?.maxScore ?? 10;
@@ -893,98 +881,15 @@ export class ReportsService {
                       : percentage >= SCORE_MEETS_EXPECTATIONS_MIN
                         ? { text: 'Meets Expectations', color: '#00a651' }
                         : { text: 'Needs Improvement', color: '#d63031' };
-                  const strengths = Array.isArray(item?.strengths) ? item.strengths : [];
-                  const weaknesses = Array.isArray(item?.weaknesses) ? item.weaknesses : [];
-                  const recommendations = Array.isArray(item?.recommendations)
+                  const strengths: Array<{ point?: string; example?: string } | string> =
+                    Array.isArray(item?.strengths) ? item.strengths : [];
+                  const weaknesses: Array<{ point?: string; example?: string } | string> =
+                    Array.isArray(item?.weaknesses) ? item.weaknesses : [];
+                  const recommendations: string[] = Array.isArray(item?.recommendations)
                     ? item.recommendations
                     : [];
 
                   return `
-                    <div style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #1f4e79;">
-                      <h5 style="margin: 0 0 6px 0; color:#1f4e79;">
-                        ${item?.name ?? 'Technical skill'}
-                      </h5>
-                      <p style="margin: 0 0 10px 0; font-size: 14px;">
-                        <strong style="color: ${performanceData.color};">${performanceData.text}</strong>
-                      </p>
-                      ${item.summary ? `<p style="margin: 0 0 10px 0;">${item.summary}</p>` : ''}
-                      ${
-                        strengths.length > 0
-                          ? `
-                        <p style="margin: 0 0 6px 0; color:#0d7377; font-weight: bold; font-size: 13px;">Strengths</p>
-                        <ul style="margin: 0 0 10px 18px;">
-                          ${strengths
-                            .map((x) => {
-                              const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                              const ex =
-                                typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                              return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                            })
-                            .join('')}
-                        </ul>`
-                          : ''
-                      }
-                      ${
-                        weaknesses.length > 0
-                          ? `
-                        <p style="margin: 0 0 6px 0; color:#d63031; font-weight: bold; font-size: 13px;">Weaknesses</p>
-                        <ul style="margin: 0 0 10px 18px;">
-                          ${weaknesses
-                            .map((x) => {
-                              const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                              const ex =
-                                typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                              return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                            })
-                            .join('')}
-                        </ul>`
-                          : ''
-                      }
-                      ${
-                        recommendations.length > 0
-                          ? `
-                        <p style="margin: 0 0 6px 0; color:#0984e3; font-weight: bold; font-size: 13px;">Improvement Recommendations</p>
-                        <ul style="margin: 0 0 0 18px;">
-                          ${recommendations
-                            .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
-                            .join('')}
-                        </ul>`
-                          : ''
-                      }
-                    </div>
-                  `;
-                })
-                .join('');
-            })()}
-          </div>`
-              : ''
-          }
-          ${
-            ca?.softSkills
-              ? `
-          <h4>Soft Skills Assessment</h4>
-          <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
-            <p><strong>Total Score:</strong> ${ca.softSkills?.totalScore ?? 0}/${ca.softSkills?.totalWeight ?? 0}</p>
-            ${Object.values(ca.softSkills?.items ?? {})
-              .map((item) => {
-                const score = item?.score ?? 0;
-                const maxScore = item?.maxScore ?? 10;
-                const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                const performanceData =
-                  percentage > SCORE_EXCEPTIONAL_MIN
-                    ? { text: 'Exceptional', color: '#0066cc' }
-                    : percentage >= SCORE_MEETS_EXPECTATIONS_MIN
-                      ? { text: 'Meets Expectations', color: '#00a651' }
-                      : { text: 'Needs Improvement', color: '#d63031' };
-                const strengths: Array<{ point?: string; example?: string } | string> =
-                  Array.isArray(item?.strengths) ? item.strengths : [];
-                const weaknesses: Array<{ point?: string; example?: string } | string> =
-                  Array.isArray(item?.weaknesses) ? item.weaknesses : [];
-                const recommendations: string[] = Array.isArray(item?.recommendations)
-                  ? item.recommendations
-                  : [];
-
-                return `
                   <div style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #1f4e79;">
                     <h5 style="margin: 0 0 6px 0; color:#1f4e79;">
                       ${item?.name ?? 'Soft skill'}
@@ -993,56 +898,53 @@ export class ReportsService {
                       <strong style="color: ${performanceData.color};">${performanceData.text}</strong>
                     </p>
                     ${item?.summary ? `<p style="margin: 0 0 10px 0;">${item.summary}</p>` : ''}
-                    ${
-                      strengths.length > 0
-                        ? `
+                    ${strengths.length > 0
+                      ? `
                       <p style="margin: 0 0 6px 0; color:#0d7377; font-weight: bold; font-size: 13px;">Strengths</p>
                       <ul style="margin: 0 0 10px 18px;">
                         ${strengths
-                          .map((x) => {
-                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                            const ex =
-                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                          })
-                          .join('')}
+                        .map((x) => {
+                          const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                          const ex =
+                            typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                          return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                        })
+                        .join('')}
                       </ul>`
-                        : ''
+                      : ''
                     }
-                    ${
-                      weaknesses.length > 0
-                        ? `
+                    ${weaknesses.length > 0
+                      ? `
                       <p style="margin: 0 0 6px 0; color:#d63031; font-weight: bold; font-size: 13px;">Weaknesses</p>
                       <ul style="margin: 0 0 10px 18px;">
                         ${weaknesses
-                          .map((x) => {
-                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                            const ex =
-                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                          })
-                          .join('')}
+                        .map((x) => {
+                          const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                          const ex =
+                            typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                          return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                        })
+                        .join('')}
                       </ul>`
-                        : ''
+                      : ''
                     }
-                    ${
-                      recommendations.length > 0
-                        ? `
+                    ${recommendations.length > 0
+                      ? `
                       <p style="margin: 0 0 6px 0; color:#0984e3; font-weight: bold; font-size: 13px;">Improvement Recommendations</p>
                       <ul style="margin: 0 0 0 18px;">
                         ${recommendations
-                          .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
-                          .join('')}
+                        .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
+                        .join('')}
                       </ul>`
-                        : ''
+                      : ''
                     }
                   </div>
                 `;
-              })
-              .join('')}
+                })
+                .join('')}
           </div>`
               : ''
-          }
+            }
         `
           }
         </div>`
@@ -1054,36 +956,34 @@ export class ReportsService {
           <h3 style="color: #1f4e79;">Technical Skills Overview</h3>
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
             <p><strong>Total Score:</strong> ${ca.technicalSkills?.totalScore ?? 0}/${ca.technicalSkills?.totalWeight ?? 0}</p>
-            ${
-              ca.technicalSkills?.overallstrengths?.length
-                ? `
+            ${ca.technicalSkills?.overallstrengths?.length
+            ? `
               <h4 style="color: #0d7377; margin: 15px 0 10px 0;">Strengths:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.technicalSkills.overallstrengths
-                  .map((s) => {
-                    const pt = typeof s === 'string' ? s : (s?.point ?? '');
-                    const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
-                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-                  })
-                  .join('')}
+              .map((s) => {
+                const pt = typeof s === 'string' ? s : (s?.point ?? '');
+                const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
+                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+              })
+              .join('')}
               </ul>`
-                : ''
-            }
-            ${
-              ca.technicalSkills?.overallweaknesses?.length
-                ? `
+            : ''
+          }
+            ${ca.technicalSkills?.overallweaknesses?.length
+            ? `
               <h4 style="color: #d63031; margin: 15px 0 10px 0;">Weaknesses:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.technicalSkills.overallweaknesses
-                  .map((w) => {
-                    const pt = typeof w === 'string' ? w : (w?.point ?? '');
-                    const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
-                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-                  })
-                  .join('')}
+              .map((w) => {
+                const pt = typeof w === 'string' ? w : (w?.point ?? '');
+                const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
+                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+              })
+              .join('')}
               </ul>`
-                : ''
-            }
+            : ''
+          }
           </div>
         </div>`
           : '',
@@ -1095,36 +995,34 @@ export class ReportsService {
           <h3 style="color: #1f4e79;">Soft Skills Overview</h3>
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
             <p><strong>Total Score:</strong> ${ca.softSkills?.totalScore ?? 0}/${ca.softSkills?.totalWeight ?? 0}</p>
-            ${
-              ca.softSkills?.overallstrengths?.length
-                ? `
+            ${ca.softSkills?.overallstrengths?.length
+            ? `
               <h4 style="color: #0d7377; margin: 15px 0 10px 0;">Strengths:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.softSkills.overallstrengths
-                  .map((s) => {
-                    const pt = typeof s === 'string' ? s : (s?.point ?? '');
-                    const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
-                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-                  })
-                  .join('')}
+              .map((s) => {
+                const pt = typeof s === 'string' ? s : (s?.point ?? '');
+                const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
+                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+              })
+              .join('')}
               </ul>`
-                : ''
-            }
-            ${
-              ca.softSkills?.overallweaknesses?.length
-                ? `
+            : ''
+          }
+            ${ca.softSkills?.overallweaknesses?.length
+            ? `
               <h4 style="color: #d63031; margin: 15px 0 10px 0;">Weaknesses:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.softSkills.overallweaknesses
-                  .map((w) => {
-                    const pt = typeof w === 'string' ? w : (w?.point ?? '');
-                    const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
-                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-                  })
-                  .join('')}
+              .map((w) => {
+                const pt = typeof w === 'string' ? w : (w?.point ?? '');
+                const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
+                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+              })
+              .join('')}
               </ul>`
-                : ''
-            }
+            : ''
+          }
           </div>
         </div>`
           : '',
@@ -1158,25 +1056,23 @@ export class ReportsService {
           : '',
         /* Strengths & Improvements */
         `<div style="margin-bottom: 24px;">
-          ${
-            keyStrengths?.length
-              ? `
+          ${keyStrengths?.length
+          ? `
             <h3 style="color: #1f4e79;">Key Strengths</h3>
             <ul>
               ${keyStrengths.map((s: string) => `<li>${s}</li>`).join('')}
             </ul>`
-              : ''
-          }
+          : ''
+        }
     
-          ${
-            areasForImprovement?.length
-              ? `
+          ${areasForImprovement?.length
+          ? `
             <h3 style="color: #1f4e79;">Areas for Improvement</h3>
             <ul>
               ${areasForImprovement.map((i: string) => `<li>${i}</li>`).join('')}
             </ul>`
-              : ''
-          }
+          : ''
+        }
         </div>`,
         /* Session Details */
         // (report as any).summaryByCategory ? `
@@ -1207,7 +1103,6 @@ export class ReportsService {
     };
 
     const mailPayload = {
-      from,
       to: recipient,
       subject: `Assessment Report - ${scenario?.title ?? report.scenarioId}`,
       text: [
@@ -1233,30 +1128,32 @@ export class ReportsService {
       html: buildEmailContent(),
     };
 
-    const smtpConfigured = Boolean(user && pass);
-    const shouldFallbackToFile =
-      !smtpConfigured || this.configService.get<string>('EMAIL_MODE') === 'file';
-
-    if (smtpConfigured) {
+    if (!forceBlobFallback) {
+      const emailOptions = {
+        from,
+        to: mailPayload.to,
+        subject: mailPayload.subject,
+        text: mailPayload.text,
+        html: mailPayload.html,
+      };
       try {
-        const transporter = nodemailer.createTransport({
-          host,
-          port,
-          secure: port === 465,
-          auth: {
-            user,
-            pass,
-          },
-        });
-
-        await transporter.sendMail(mailPayload);
+        await this.mailService.sendMail(emailOptions);
 
         return { success: true, message: `Report emailed to ${recipient}` };
       } catch (error) {
-        console.error('[ReportsService] Failed to send report email via SMTP:', error);
-        if (!shouldFallbackToFile) {
-          throw new Error('Unable to deliver email via configured SMTP server');
-        }
+        this.logger.error(
+          '[ReportsService] Failed to send report email via Azure Communication Services:',
+          error,
+        );
+        // Best-effort: still try to deliver the real email in the background
+        // (src/mail/mail-retry.service.ts — delayed retry via Redis, with an
+        // in-memory fallback if Redis is unavailable). Not awaited — the
+        // blob-storage copy below is written regardless, so the caller isn't
+        // blocked on this succeeding, and enqueue() itself never throws.
+        void this.mailRetryService.enqueue(
+          emailOptions,
+          `sendReportEmail:report=${options.reportId}`,
+        );
       }
     }
 
@@ -1268,21 +1165,27 @@ export class ReportsService {
           `email-outbox/report-${options.reportId}-${Date.now()}.html`,
         );
         const blobClient = this.containerClient.getBlockBlobClient(blobName);
-        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Assessment Report</title></head><body>\n<!-- Email saved because SMTP delivery is unavailable -->\n${mailPayload.html}</body></html>`;
+        const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Assessment Report</title></head><body>\n<!-- Email saved because delivery is unavailable -->\n${mailPayload.html}</body></html>`;
         await blobClient.uploadData(Buffer.from(html, 'utf-8'), {
           blobHTTPHeaders: { blobContentType: 'text/html; charset=utf-8' },
         });
 
         return {
           success: true,
-          message: `SMTP not configured. Email saved to blob ${blobName}`,
+          message: forceBlobFallback
+            ? `Email sending disabled (EMAIL_MODE=file). Email saved to blob ${blobName}`
+            : `Email delivery unavailable. Email saved to blob ${blobName}`,
         };
       } catch (error) {
-        console.error('[ReportsService] Failed to save email fallback to blob:', error);
+        this.logger.error('[ReportsService] Failed to save email fallback to blob:', error);
       }
     }
-
-    return { success: true, message: 'SMTP not configured. Email not sent.' };
+    return {
+      success: false,
+      message: forceBlobFallback
+        ? 'Email sending disabled (EMAIL_MODE=file) and blob fallback storage is unavailable. Email not sent.'
+        : 'Email delivery failed: SMTP/ACS is unavailable and blob fallback storage is unavailable. Email not sent.',
+    };
   }
 
   async evaluateCommunication(transcript: string, threshold?: number) {
@@ -1319,12 +1222,10 @@ export class ReportsService {
       return deterministic;
     }
 
-    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (!openaiApiKey) {
+    if (!this.aiGateway.isConfigured()) {
       return this.evaluateMedicationSiteHeuristic(exp, act);
     }
 
-    const model = this.configService.get<string>('AI_MODEL', 'gpt-4.1');
     const prompt = `
 You are evaluating whether a documented medication administration site is clinically equivalent to the expected site.
 
@@ -1347,45 +1248,19 @@ Return ONLY JSON with this schema:
 }`;
 
     try {
-      const response = await firstValueFrom(
-        this.httpService.post<OpenAIRawResponse>(
-          'https://api.openai.com/v1/chat/completions',
+      const parsed = await this.aiGateway.completeJson<AiMatchVerdict>({
+        caller: 'reports.medication-site-evaluation',
+        messages: [
           {
-            model,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a nursing medication administration evaluator. Return valid JSON only.',
-              },
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: EXTRACTION_AI_TEMPERATURE,
-            max_tokens: EXTRACTION_AI_MAX_TOKENS_SHORT,
-            response_format: { type: 'json_object' },
+            role: AiMessageRole.System,
+            content:
+              'You are a nursing medication administration evaluator. Return valid JSON only.',
           },
-          {
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (!content) {
-        return this.evaluateMedicationSiteHeuristic(exp, act);
-      }
-
-      const parsed = JSON.parse(content) as {
-        match?: boolean;
-        confidence?: number;
-        explanation?: string;
-      };
+          { role: AiMessageRole.User, content: prompt },
+        ],
+        temperature: EXTRACTION_AI_TEMPERATURE,
+        maxTokens: EXTRACTION_AI_MAX_TOKENS_SHORT,
+      });
 
       const confidenceNum =
         typeof parsed.confidence === 'number' && !Number.isNaN(parsed.confidence)
@@ -1510,15 +1385,13 @@ Return ONLY JSON with this schema:
     const expSite = (expectedSite ?? '').trim();
     const actSite = (actualSite ?? '').trim();
 
-    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-    if (!openaiApiKey) {
+    if (!this.aiGateway.isConfigured()) {
       return {
         route: this.evaluateMedicationRouteHeuristic(expRoute, actRoute, actSite),
         site: this.evaluateMedicationSiteHeuristic(expSite, actSite),
       };
     }
 
-    const model = this.configService.get<string>('AI_MODEL', 'gpt-4.1');
     const prompt = `
 You are a nursing expert evaluating whether a documented medication administration is clinically correct.
 
@@ -1577,50 +1450,22 @@ Return ONLY JSON with this schema:
 }`;
 
     try {
-      const response = await firstValueFrom(
-        this.httpService.post<OpenAIRawResponse>(
-          'https://api.openai.com/v1/chat/completions',
+      const parsed = await this.aiGateway.completeJson<AiMedicationRouteSiteVerdict>({
+        caller: 'reports.medication-route-site-evaluation',
+        messages: [
           {
-            model,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are a nursing medication administration evaluator. Return valid JSON only.',
-              },
-              {
-                role: 'user',
-                content: prompt,
-              },
-            ],
-            temperature: EXTRACTION_AI_TEMPERATURE,
-            max_tokens: EXTRACTION_AI_MAX_TOKENS_MEDIUM,
-            response_format: { type: 'json_object' },
+            role: AiMessageRole.System,
+            content:
+              'You are a nursing medication administration evaluator. Return valid JSON only.',
           },
-          {
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (!content) {
-        return {
-          route: this.evaluateMedicationRouteHeuristic(expRoute, actRoute, actSite),
-          site: this.evaluateMedicationSiteHeuristic(expSite, actSite),
-        };
-      }
-
-      const parsed = JSON.parse(content) as {
-        route?: { match?: boolean; confidence?: number; explanation?: string };
-        site?: { match?: boolean; confidence?: number; explanation?: string };
-      };
+          { role: AiMessageRole.User, content: prompt },
+        ],
+        temperature: EXTRACTION_AI_TEMPERATURE,
+        maxTokens: EXTRACTION_AI_MAX_TOKENS_MEDIUM,
+      });
 
       const parseResult = (
-        result: { match?: boolean; confidence?: number; explanation?: string } | undefined,
+        result: AiMatchVerdict | undefined,
         fallback: {
           match: boolean;
           confidence: number;
@@ -1956,1615 +1801,11 @@ Return ONLY JSON with this schema:
     }
   }
 
-  private buildDynamicAssessment(args: BuildDynamicAssessmentArgs) {
-    const scenario = args.scenario;
-    const studentMessages = args.messages.filter((m) => m.speaker === 'student');
-    const studentTexts = studentMessages.map((m) => normalize(m.text || ''));
-
-    // CRITICAL: If no student messages/questions, check actions performance before setting score
-    if (studentTexts.length === 0 || studentTexts.every((t) => t.trim().length === 0)) {
-      // Get actions analysis to check if actions were performed well
-      const actionsAnalysis = this.analyzeActions(
-        studentTexts,
-        args.actions ?? [],
-        args.expectedActions ?? {},
-      );
-
-      // If actions completion rate is high, don't zero out score completely
-      let score = 0;
-      if (actionsAnalysis.completionRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-        score = 40; // Allow minimum score of 40 if actions are good
-      } else if (actionsAnalysis.completionRate >= COVERAGE_LOW_MEDIUM_PCT) {
-        score = 20; // Allow minimum score of 20 if actions are decent
-      }
-
-      return {
-        score,
-        scoreJson: {
-          communication: 1,
-          clinicalJudgment: 1,
-          technicalAccuracy: 1,
-          ethicalCompetence: 1,
-          reflection: 1,
-          overallScore: score,
-        },
-        summary: 'No conversation detected. Student did not engage with the patient.',
-        strengths: [],
-        improvements: [
-          'CRITICAL: No questions were asked to the patient',
-          "Begin the encounter by introducing yourself and asking about the patient's condition",
-          'Engage in conversation to gather patient information',
-        ],
-        feedback:
-          'No conversation was detected between you and the patient. To provide proper care, you must communicate with the patient, ask questions about their condition, verify their identity, check for allergies, and gather medical history. Please engage with the patient in future scenarios.',
-      };
-    }
-
-    // const allConversationText = studentTexts.join(" ");
-    /* const avatarResponses = args.messages
-      .filter((m) => m.speaker === "avatar")
-      .map((m) => normalize(m.text || ""))
-      .join(" "); */
-
-    // 1. Analyze Patient Data Coverage (Enhanced)
-    const patientDataCoverage = this.analyzePatientDataCoverageEnhanced(
-      studentTexts,
-      studentMessages,
-      scenario?.patientData,
-      scenario?.conversationResponses,
-    );
-
-    // 2. Check Phases and Tasks Completion
-    const phaseTaskAnalysis = this.analyzePhaseTaskCompletion(studentTexts, scenario?.phases);
-
-    // 3. Check Expected Actions vs Actions Taken
-    const actionsAnalysis = this.analyzeActions(
-      studentTexts,
-      args.actions ?? [],
-      args.expectedActions ?? {},
-    );
-
-    // 4. Evaluate Conversation Quality (Enhanced)
-    const conversationQuality = this.evaluateConversationQualityEnhanced(args.messages);
-
-    // 5. Check Scenario-Specific Requirements
-    const scenarioRequirements = this.checkScenarioRequirements(
-      studentTexts,
-      scenario as unknown as Record<string, unknown> | null,
-    );
-
-    // 6. Calculate Scores Based on Analysis (Stricter)
-    const scores = this.calculateScoresStrict(
-      patientDataCoverage,
-      phaseTaskAnalysis,
-      actionsAnalysis,
-      conversationQuality,
-      scenarioRequirements,
-      studentTexts.length,
-      scenario?.grading,
-    );
-
-    // 7. Generate Strengths and Improvements
-    const { strengths, improvements } = this.generateFeedbackEnhanced(
-      patientDataCoverage,
-      phaseTaskAnalysis,
-      actionsAnalysis,
-      conversationQuality,
-      scenarioRequirements,
-      studentTexts.length,
-    );
-
-    // 8. Generate Summary and Detailed Feedback
-    const summary = this.generateSummaryEnhanced(
-      patientDataCoverage,
-      phaseTaskAnalysis,
-      actionsAnalysis,
-      scores.overallScore,
-      studentTexts.length,
-      scenario as unknown as ScenarioTitleLike | undefined,
-    );
-
-    const feedback = this.generateDetailedFeedbackEnhanced(
-      patientDataCoverage,
-      phaseTaskAnalysis,
-      actionsAnalysis,
-      conversationQuality,
-      scenarioRequirements,
-      scores,
-      studentTexts.length,
-    );
-
-    return {
-      score: scores.overallScore,
-      scoreJson: scores,
-      summary,
-      strengths,
-      improvements,
-      feedback,
-    };
-  }
-
-  private analyzePatientDataCoverageEnhanced(
-    studentTexts: string[],
-    studentMessages: Array<{ speaker: string; text?: string }>,
-    patientData?: Record<string, unknown>,
-    conversationResponses?: Record<string, unknown>,
-  ): PatientDataCoverage {
-    if (!patientData) {
-      return {
-        coverage: 0,
-        askedFields: [],
-        missingFields: [],
-        criticalMissing: [],
-        availableFields: [],
-      };
-    }
-
-    // Enhanced keyword matching with more variations
-    const coverageMap: Record<string, string[]> = {
-      name: [
-        'name',
-        'what is your name',
-        'who are you',
-        'identify',
-        'identity',
-        'verify identity',
-        'can you tell me your name',
-        'may i have your name',
-      ],
-      age: [
-        'age',
-        'how old',
-        'date of birth',
-        'birthday',
-        'dob',
-        'born',
-        'when were you born',
-        'what is your age',
-      ],
-      gender: ['gender', 'sex', 'male', 'female', 'are you male or female'],
-      chiefComplaint: [
-        'chief complaint',
-        'why are you here',
-        'what brings you',
-        'reason for visit',
-        'problem',
-        'symptom',
-        'what is wrong',
-        'what is the problem',
-        'how can i help',
-        'what brings you in',
-        'what is bothering you',
-      ],
-      medicalHistory: [
-        'medical history',
-        'past medical',
-        'previous illness',
-        'health problems',
-        'chronic conditions',
-        'diagnosis',
-        'any medical conditions',
-        'past medical history',
-        'have you been diagnosed',
-        'any health issues',
-      ],
-      allergies: [
-        'allergies',
-        'allergic',
-        'allergy',
-        'reaction',
-        'sensitive',
-        'are you allergic',
-        'do you have allergies',
-        'any allergies',
-        'allergic to anything',
-      ],
-      currentMedications: [
-        'medications',
-        'meds',
-        'prescriptions',
-        'taking any',
-        'current medications',
-        'drugs',
-        'are you taking',
-        'what medications',
-        'any medications',
-        'prescribed medications',
-      ],
-      vitals: [
-        'vitals',
-        'vital signs',
-        'blood pressure',
-        'heart rate',
-        'pulse',
-        'respiration',
-        'temperature',
-        'oxygen',
-        'spo2',
-        'bp',
-        'hr',
-        'rr',
-        'temp',
-        'o2',
-      ],
-      presentingNote: ['presenting', 'presentation', 'why here', 'what happened'],
-    };
-
-    const allText = studentTexts.join(' ').toLowerCase();
-    const askedFields: string[] = [];
-    const availableFields: string[] = [];
-    const criticalFields = ['name', 'allergies', 'chiefComplaint', 'medicalHistory'];
-
-    // Check basic fields with better matching
-    Object.entries(coverageMap).forEach(([field, keywords]) => {
-      if (field === 'vitals') {
-        // Check vitals separately - check individual vital signs
-        if (patientData.vitals && Object.keys(patientData.vitals).length > 0) {
-          availableFields.push('vitals');
-          // Check if any vital sign keywords are mentioned
-          const vitalKeywords = [
-            'blood pressure',
-            'bp',
-            'heart rate',
-            'pulse',
-            'hr',
-            'respiration',
-            'breathing',
-            'temperature',
-            'temp',
-            'oxygen',
-            'spo2',
-            'o2',
-          ];
-          if (vitalKeywords.some((kw) => allText.includes(kw))) {
-            askedFields.push('vitals');
-          }
-        }
-      } else if (
-        patientData[field] !== undefined &&
-        patientData[field] !== null &&
-        patientData[field] !== ''
-      ) {
-        availableFields.push(field);
-        // Check if any keyword is found in the conversation
-        const found = keywords.some((kw) => {
-          const lowerKw = kw.toLowerCase();
-          // Check for exact phrase or word boundary matching
-          return (
-            allText.includes(lowerKw) ||
-            studentTexts.some((text) => {
-              const lowerText = text.toLowerCase();
-              return (
-                lowerText.includes(lowerKw) ||
-                lowerText.split(/\s+/).some((word) => word === lowerKw || word.startsWith(lowerKw))
-              );
-            })
-          );
-        });
-        if (found) {
-          askedFields.push(field);
-        }
-      }
-    });
-
-    // Check conversationResponses from scenario for expected questions
-    if (conversationResponses) {
-      Object.keys(conversationResponses).forEach((category) => {
-        const responses = conversationResponses[category];
-        if (Array.isArray(responses)) {
-          responses.forEach((response: unknown) => {
-            const responseRecord = (response ?? {}) as Record<string, unknown>;
-            const keywords = responseRecord.keywords;
-            if (Array.isArray(keywords)) {
-              const found = keywords.some(
-                (keyword) => typeof keyword === 'string' && allText.includes(normalize(keyword)),
-              );
-              if (found && !askedFields.includes(category)) {
-                // Map category to patient data field if applicable
-                if (category.includes('identity') || category.includes('verification')) {
-                  if (!askedFields.includes('name')) {
-                    askedFields.push('name');
-                  }
-                } else if (category.includes('allergy')) {
-                  if (!askedFields.includes('allergies')) {
-                    askedFields.push('allergies');
-                  }
-                } else if (category.includes('medical') || category.includes('history')) {
-                  if (!askedFields.includes('medicalHistory')) {
-                    askedFields.push('medicalHistory');
-                  }
-                }
-              }
-            }
-          });
-        }
-      });
-    }
-
-    const missingFields = availableFields.filter((f) => !askedFields.includes(f));
-    const criticalMissing = missingFields.filter((f) => criticalFields.includes(f));
-
-    const coverage =
-      availableFields.length > 0
-        ? Math.round((askedFields.length / availableFields.length) * 100)
-        : 0;
-
-    return {
-      coverage,
-      askedFields,
-      missingFields,
-      criticalMissing,
-      availableFields,
-    };
-  }
-
-  private analyzePatientDataCoverage(
-    studentTexts: string[],
-    patientData?: Record<string, unknown>,
-  ): PatientDataCoverage {
-    if (!patientData) {
-      return {
-        coverage: 0,
-        askedFields: [],
-        missingFields: [],
-        criticalMissing: [],
-      };
-    }
-
-    const coverageMap: Record<string, string[]> = {
-      name: ['name', 'what is your name', 'who are you', 'identify', 'identity', 'verify identity'],
-      age: ['age', 'how old', 'date of birth', 'birthday', 'dob', 'born'],
-      gender: ['gender', 'sex', 'male', 'female'],
-      chiefComplaint: [
-        'chief complaint',
-        'why are you here',
-        'what brings you',
-        'reason for visit',
-        'problem',
-        'symptom',
-      ],
-      medicalHistory: [
-        'medical history',
-        'past medical',
-        'previous illness',
-        'health problems',
-        'chronic conditions',
-        'diagnosis',
-      ],
-      allergies: ['allergies', 'allergic', 'allergy', 'reaction', 'sensitive'],
-      currentMedications: [
-        'medications',
-        'meds',
-        'prescriptions',
-        'taking any',
-        'current medications',
-        'drugs',
-      ],
-      vitals: [
-        'vitals',
-        'vital signs',
-        'blood pressure',
-        'heart rate',
-        'pulse',
-        'respiration',
-        'temperature',
-        'oxygen',
-        'spo2',
-      ],
-    };
-
-    const allText = studentTexts.join(' ');
-    const askedFields: string[] = [];
-    const availableFields: string[] = [];
-    const criticalFields = ['name', 'allergies', 'chiefComplaint', 'medicalHistory'];
-
-    // Check basic fields
-    Object.entries(coverageMap).forEach(([field, keywords]) => {
-      if (field === 'vitals') {
-        // Check vitals separately
-        if (patientData.vitals && Object.keys(patientData.vitals).length > 0) {
-          availableFields.push('vitals');
-          if (keywords.some((kw) => allText.includes(kw))) {
-            askedFields.push('vitals');
-          }
-        }
-      } else if (patientData[field] !== undefined && patientData[field] !== null) {
-        availableFields.push(field);
-        if (keywords.some((kw) => allText.includes(kw))) {
-          askedFields.push(field);
-        }
-      }
-    });
-
-    const missingFields = availableFields.filter((f) => !askedFields.includes(f));
-    const criticalMissing = missingFields.filter((f) => criticalFields.includes(f));
-
-    const coverage =
-      availableFields.length > 0
-        ? Math.round((askedFields.length / availableFields.length) * 100)
-        : 0;
-
-    return {
-      coverage,
-      askedFields,
-      missingFields,
-      criticalMissing,
-      availableFields,
-    };
-  }
-
-  private analyzePhaseTaskCompletion(
-    studentTexts: string[],
-    phases?: Array<{
-      id?: string;
-      name?: string;
-      tasks?: Array<{ id?: string; label?: string; required?: boolean }>;
-    }>,
-  ): PhaseTaskAnalysis {
-    if (!phases || phases.length === 0) {
-      return {
-        completedPhases: 0,
-        totalPhases: 0,
-        completedTasks: 0,
-        totalTasks: 0,
-        phaseDetails: [],
-      };
-    }
-
-    const allText = studentTexts.join(' ');
-    const phaseDetails: PhaseDetail[] = [];
-    let totalTasks = 0;
-    let completedTasks = 0;
-
-    phases.forEach((phase) => {
-      if (!phase.tasks || phase.tasks.length === 0) {
-        return;
-      }
-
-      totalTasks += phase.tasks.length;
-
-      const phaseCompletedTasks = phase.tasks.filter((task) => {
-        const label = task.label ?? '';
-        const taskKeywords = normalize(label).split(' ');
-        return taskKeywords.some(
-          (keyword) =>
-            allText.includes(keyword) ||
-            label
-              .toLowerCase()
-              .split(' ')
-              .some((word: string) => allText.includes(word.toLowerCase())),
-        );
-      }).length;
-
-      completedTasks += phaseCompletedTasks;
-
-      phaseDetails.push({
-        phaseId: phase.id ?? '',
-        phaseName: phase.name ?? '',
-        completedTasks: phaseCompletedTasks,
-        totalTasks: phase.tasks.length,
-        tasks: phase.tasks.map((task) => ({
-          taskId: task.id ?? '',
-          taskLabel: task.label ?? '',
-          required: task.required ?? false,
-          completed: taskKeywordsCheck(task.label ?? '', allText),
-        })),
-      });
-    });
-
-    function taskKeywordsCheck(label: string, text: string): boolean {
-      const keywords = normalize(label).split(' ');
-      return keywords.some(
-        (kw) =>
-          text.includes(kw) ||
-          label
-            .toLowerCase()
-            .split(' ')
-            .some((word) => text.includes(word.toLowerCase())),
-      );
-    }
-
-    const completedPhases = phaseDetails.filter((p) => p.completedTasks === p.totalTasks).length;
-
-    return {
-      completedPhases,
-      totalPhases: phases.length,
-      completedTasks,
-      totalTasks,
-      phaseDetails,
-    };
-  }
-
-  private analyzeActions(
-    studentTexts: string[],
-    actionsTaken: unknown[],
-    expectedActions: Record<string, unknown>,
-  ): ActionsAnalysis {
-    // const allText = studentTexts.join(" ");
-    const expected = {
-      labs: ((expectedActions.labs as string[] | undefined) ?? []).map(normalize),
-      imaging: ((expectedActions.imaging as string[] | undefined) ?? []).map(normalize),
-      physicalExam: ((expectedActions.physicalExam as string[] | undefined) ?? []).map(normalize),
-      medications: ((expectedActions.medications as string[] | undefined) ?? []).map(normalize),
-    };
-
-    /* const taken = {
-      labs: actionsTaken
-        .filter((a) => a.type === "lab")
-        .map((a) => normalize(a.details?.name || "")),
-      imaging: actionsTaken
-        .filter((a) => a.type === "imaging")
-        .map((a) => normalize(a.details?.name || "")),
-      physicalExam: actionsTaken
-        .filter((a) => a.type === "exam")
-        .map((a) => normalize(a.details?.name || "")),
-      medications: actionsTaken
-        .filter((a) => a.type === "medication")
-        .map((a) => normalize(a.details?.name || "")),
-    }; */
-
-    // Check if mentioned in conversation
-    const mentionedInConversation = {
-      labs: expected.labs.filter((e: string) => studentTexts.some((t) => t.includes(e))).length,
-      imaging: expected.imaging.filter((e: string) => studentTexts.some((t) => t.includes(e)))
-        .length,
-      physicalExam: expected.physicalExam.filter((e: string) =>
-        studentTexts.some((t) => t.includes(e)),
-      ).length,
-      medications: expected.medications.filter((e: string) =>
-        studentTexts.some((t) => t.includes(e)),
-      ).length,
-    };
-
-    const totalExpected = Object.values(expected).reduce((sum, arr) => sum + arr.length, 0);
-    const totalMentioned = Object.values(mentionedInConversation).reduce(
-      (sum, val) => sum + val,
-      0,
-    );
-    const totalTaken = actionsTaken.length;
-
-    return {
-      totalExpected,
-      totalMentioned,
-      totalTaken,
-      mentionedInConversation,
-      completionRate: totalExpected > 0 ? Math.round((totalMentioned / totalExpected) * 100) : 0,
-    };
-  }
-
-  private evaluateConversationQualityEnhanced(messages: TranscriptMessage[]): ConversationQuality {
-    const studentMessages = messages.filter((m) => m.speaker === 'student');
-    // const avatarMessages = messages.filter((m) => m.speaker === "avatar");
-
-    // Check for professional communication
-    const professionalKeywords = [
-      'please',
-      'thank you',
-      'understand',
-      'explain',
-      'help',
-      'may i',
-      'could you',
-      'would you',
-    ];
-    const unprofessionalKeywords = ['hey', 'um', 'uh', 'like', 'whatever'];
-
-    const allStudentText = studentMessages.map((m) => normalize(m.text ?? '')).join(' ');
-    const professionalismScore =
-      professionalKeywords.filter((kw) => allStudentText.includes(kw)).length * 2 -
-      unprofessionalKeywords.filter((kw) => allStudentText.includes(kw)).length;
-
-    // Check response timing and length
-    const avgResponseLength =
-      studentMessages.length > 0
-        ? studentMessages.reduce((sum, m) => sum + (m.text?.length ?? 0), 0) /
-          studentMessages.length
-        : 0;
-
-    // Check if student asked clarifying questions (more sophisticated)
-    const questionWords = [
-      'what',
-      'why',
-      'how',
-      'when',
-      'where',
-      'can',
-      'do',
-      'does',
-      'is',
-      'are',
-      'did',
-      'have',
-      'has',
-      'tell me',
-      'explain',
-    ];
-    const questionCount = studentMessages.filter((m) => {
-      const text = normalize(m.text ?? '');
-      return questionWords.some(
-        (qw) => text.startsWith(qw) || text.includes(` ${qw} `) || text.includes(`?`),
-      );
-    }).length;
-
-    // Check for patient-centered language
-    const patientCenteredKeywords = [
-      'how are you',
-      'how do you feel',
-      'tell me about',
-      'describe',
-      'can you tell me',
-    ];
-    const patientCenteredCount = studentMessages.filter((m) => {
-      const text = normalize(m.text ?? '');
-      return patientCenteredKeywords.some((kw) => text.includes(kw));
-    }).length;
-
-    // Check for empathy and reassurance
-    const empatheticKeywords = [
-      'i understand',
-      'i can see',
-      'that must be',
-      "i'm sorry",
-      'i hear you',
-    ];
-    const empathyCount = studentMessages.filter((m) => {
-      const text = normalize(m.text ?? '');
-      return empatheticKeywords.some((kw) => text.includes(kw));
-    }).length;
-
-    // Engagement score based on multiple factors
-    const engagementScore = Math.min(
-      10,
-      studentMessages.length * 0.5 +
-        questionCount * 0.3 +
-        patientCenteredCount * 0.5 +
-        empathyCount * 0.5,
-    );
-
-    return {
-      messageCount: studentMessages.length,
-      avgResponseLength,
-      professionalismScore,
-      questionCount,
-      engagementScore,
-    };
-  }
-
-  private evaluateConversationQuality(messages: TranscriptMessage[]): ConversationQuality {
-    const studentMessages = messages.filter((m) => m.speaker === 'student');
-    // const avatarMessages = messages.filter((m) => m.speaker === "avatar");
-
-    // Check for professional communication
-    const professionalKeywords = ['please', 'thank you', 'understand', 'explain', 'help'];
-    const unprofessionalKeywords = ['hey', 'um', 'uh', 'like'];
-
-    const allStudentText = studentMessages.map((m) => normalize(m.text ?? '')).join(' ');
-    const professionalismScore =
-      professionalKeywords.filter((kw) => allStudentText.includes(kw)).length * 2 -
-      unprofessionalKeywords.filter((kw) => allStudentText.includes(kw)).length;
-
-    // Check response timing (basic - could be enhanced with actual timestamps)
-    const avgResponseLength =
-      studentMessages.length > 0
-        ? studentMessages.reduce((sum, m) => sum + (m.text?.length ?? 0), 0) /
-          studentMessages.length
-        : 0;
-
-    // Check if student asked clarifying questions
-    const questionWords = ['what', 'why', 'how', 'when', 'where', 'can', 'do', 'does', 'is', 'are'];
-    const questionCount = studentMessages.filter((m) =>
-      questionWords.some((qw) => normalize(m.text ?? '').startsWith(qw)),
-    ).length;
-
-    return {
-      messageCount: studentMessages.length,
-      avgResponseLength,
-      professionalismScore,
-      questionCount,
-      engagementScore: Math.min(10, studentMessages.length + questionCount / 2),
-    };
-  }
-
-  private checkScenarioRequirements(
-    studentTexts: string[],
-    scenario?: Record<string, unknown> | null,
-  ): { met: number; total: number; details: string[] } {
-    if (!scenario) {
-      return { met: 0, total: 0, details: [] };
-    }
-
-    const allText = studentTexts.join(' ').toLowerCase();
-    const details: string[] = [];
-    let met = 0;
-    let total = 0;
-
-    // Check if scenario has specific requirements
-    const learningObjective = scenario.learningObjective;
-    const learningObjectiveText = Array.isArray(learningObjective)
-      ? learningObjective.filter((x) => typeof x === 'string').join(' ')
-      : typeof learningObjective === 'string'
-        ? learningObjective
-        : '';
-    if (learningObjectiveText) {
-      total++;
-      // Check if student addressed learning objective (basic check)
-      const objectiveKeywords = normalize(learningObjectiveText).split(' ');
-      const addressed = objectiveKeywords.some((kw) => allText.includes(kw));
-      if (addressed) {
-        met++;
-        details.push('Addressed learning objectives');
-      } else {
-        details.push('Did not fully address learning objectives');
-      }
-    }
-
-    // Check conversationResponses requirements
-    const conversationResponses = scenario.conversationResponses as
-      Record<string, unknown> | undefined;
-    if (conversationResponses) {
-      Object.keys(conversationResponses).forEach((category) => {
-        total++;
-        const responses = conversationResponses[category];
-        if (Array.isArray(responses)) {
-          const found = responses.some((response: unknown) => {
-            const responseRecord = (response ?? {}) as Record<string, unknown>;
-            const keywords = responseRecord.keywords;
-            if (!Array.isArray(keywords)) {
-              return false;
-            }
-            return keywords.some(
-              (keyword) => typeof keyword === 'string' && allText.includes(normalize(keyword)),
-            );
-          });
-          if (found) {
-            met++;
-            details.push(`Asked about ${category}`);
-          } else {
-            details.push(`Missing: ${category} questions`);
-          }
-        }
-      });
-    }
-
-    return { met, total, details };
-  }
-
-  private calculateScoresStrict(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    conversation: ConversationQuality,
-    scenarioRequirements: { met: number; total: number; details: string[] },
-    messageCount: number,
-    // eslint-disable-next-line unused-imports/no-unused-vars
-    grading?: unknown,
-  ): ScoreComponents {
-    // Start with base scores - much stricter
-    let communication = 1;
-    let clinicalJudgment = 1;
-    let technicalAccuracy = 1;
-    let ethicalCompetence = 1;
-    let reflection = 1;
-
-    // Communication Score - based on actual engagement
-    if (messageCount === 0) {
-      communication = 1;
-    } else if (messageCount < 3) {
-      communication = 2;
-    } else {
-      communication = 3;
-      // Add points for quality
-      communication += Math.min(2, Math.floor(conversation.questionCount / 5));
-      communication += Math.min(1, Math.floor(conversation.professionalismScore / 3));
-      communication = Math.min(5, communication);
-    }
-
-    // Clinical Judgment Score - based on patient data coverage
-    if (patientData.coverage === 0) {
-      clinicalJudgment = 1;
-    } else if (patientData.coverage < 30) {
-      clinicalJudgment = 2;
-    } else if (patientData.coverage < 50) {
-      clinicalJudgment = 3;
-    } else if (patientData.coverage >= COVERAGE_HIGH_PCT) {
-      clinicalJudgment = 5;
-    } else if (patientData.coverage >= COVERAGE_MEDIUM_PCT) {
-      clinicalJudgment = 4;
-    } else {
-      clinicalJudgment = 3;
-    }
-
-    // Penalties for critical missing data
-    if (patientData.criticalMissing.includes('allergies')) {
-      clinicalJudgment = Math.max(1, clinicalJudgment - 2);
-    }
-    if (patientData.criticalMissing.includes('chiefComplaint')) {
-      clinicalJudgment = Math.max(1, clinicalJudgment - 1);
-    }
-
-    // Phase completion boost
-    if (phases.totalTasks > 0) {
-      const taskRate = phases.completedTasks / phases.totalTasks;
-      if (taskRate >= 0.8) {
-        clinicalJudgment = Math.min(5, clinicalJudgment + 1);
-      } else if (taskRate < 0.5) {
-        clinicalJudgment = Math.max(1, clinicalJudgment - 1);
-      }
-    }
-
-    // Technical Accuracy Score - based on actions
-    if (actions.totalExpected === 0) {
-      technicalAccuracy = 3; // No expected actions, neutral score
-    } else if (actions.completionRate === 0) {
-      technicalAccuracy = 1;
-    } else if (actions.completionRate < 30) {
-      technicalAccuracy = 2;
-    } else if (actions.completionRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-      technicalAccuracy = 5;
-    } else if (actions.completionRate >= COVERAGE_LOW_MEDIUM_PCT) {
-      technicalAccuracy = 4;
-    } else {
-      technicalAccuracy = 3;
-    }
-
-    // Ethical Competence Score - critical for patient safety
-    if (patientData.askedFields.includes('name')) {
-      ethicalCompetence = 3;
-    } else {
-      ethicalCompetence = 1; // Didn't verify identity
-    }
-
-    if (patientData.askedFields.includes('allergies')) {
-      ethicalCompetence = Math.min(5, ethicalCompetence + 2);
-    } else {
-      ethicalCompetence = Math.max(1, ethicalCompetence - 2); // Critical safety issue
-    }
-
-    if (patientData.askedFields.includes('chiefComplaint')) {
-      ethicalCompetence = Math.min(5, ethicalCompetence + 1);
-    }
-
-    // Reflection Score - based on engagement depth
-    if (messageCount === 0) {
-      reflection = 1;
-    } else if (messageCount < 3) {
-      reflection = 2;
-    } else if (messageCount >= 10) {
-      reflection = 5;
-    } else if (messageCount >= 5) {
-      reflection = 4;
-    } else {
-      reflection = 3;
-    }
-
-    // Calculate overall score
-    const baseScore = Math.round(
-      ((communication + clinicalJudgment + technicalAccuracy + ethicalCompetence + reflection) /
-        25) *
-        100,
-    );
-
-    // Apply strict penalties
-    let finalScore = baseScore;
-
-    // DEBUG: Log values to understand scoring
-    this.logger.debug(
-      '[DEBUG] Score calculation:',
-      JSON.stringify({
-        baseScore,
-        messageCount,
-        actionsCompletionRate: actions.completionRate,
-        criticalMissing: patientData.criticalMissing.length,
-        coverage: patientData.coverage,
-      }),
-    );
-
-    // Penalty for no conversation - zero out regardless of action completion
-    if (messageCount === 0) {
-      finalScore = 0;
-      this.logger.debug('[DEBUG] Zeroed score due to no conversation messages');
-    } else if (messageCount < 3) {
-      finalScore = Math.max(0, finalScore - 30);
-      this.logger.debug(
-        '[DEBUG] Applied low message count penalty, finalScore:',
-        String(finalScore),
-      );
-    }
-
-    // Penalty for critical missing data
-    const criticalPenalty = patientData.criticalMissing.length * 15;
-    finalScore -= criticalPenalty;
-    this.logger.debug(
-      '[DEBUG] Applied critical missing data penalty:',
-      String(criticalPenalty),
-      'finalScore:',
-      String(finalScore),
-    );
-
-    // Penalty for very low coverage
-    if (patientData.coverage < 30) {
-      finalScore = Math.max(0, finalScore - 20);
-      this.logger.debug('[DEBUG] Applied low coverage penalty, finalScore:', String(finalScore));
-    }
-
-    // Ensure score is between 0 and 100
-    finalScore = Math.max(0, Math.min(100, finalScore));
-    this.logger.debug('[DEBUG] Final score after all penalties:', String(finalScore));
-
-    return {
-      communication,
-      clinicalJudgment,
-      technicalAccuracy,
-      ethicalCompetence,
-      reflection,
-      overallScore: finalScore,
-    };
-  }
-
-  private calculateScores(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    conversation: ConversationQuality,
-    grading?: { components?: unknown } | null,
-  ): ScoreComponents {
-    let communication = 3;
-    let clinicalJudgment = 3;
-    let technicalAccuracy = 3;
-    let ethicalCompetence = 4;
-    let reflection = 3;
-
-    // Communication Score
-    communication += Math.min(2, Math.floor(conversation.questionCount / 5));
-    communication += Math.min(1, Math.floor(conversation.professionalismScore / 3));
-    communication = Math.min(5, Math.max(1, communication));
-
-    // Clinical Judgment Score
-    const coverageBoost =
-      patientData.coverage >= COVERAGE_HIGH_PCT
-        ? 2
-        : patientData.coverage >= COVERAGE_MEDIUM_PCT
-          ? 1
-          : 0;
-    const phaseBoost =
-      phases.totalPhases > 0
-        ? Math.min(1, Math.floor((phases.completedPhases / phases.totalPhases) * 2))
-        : 0;
-    clinicalJudgment = Math.min(5, Math.max(1, 3 + coverageBoost + phaseBoost));
-
-    // Technical Accuracy Score
-    const actionBoost =
-      actions.completionRate >= COVERAGE_MEDIUM_HIGH_PCT
-        ? 2
-        : actions.completionRate >= COVERAGE_LOW_MEDIUM_PCT
-          ? 1
-          : 0;
-    technicalAccuracy = Math.min(5, Math.max(1, 3 + actionBoost));
-
-    // Ethical Competence Score
-    if (patientData.askedFields.includes('name')) {
-      ethicalCompetence = Math.min(5, ethicalCompetence + 1);
-    }
-    if (patientData.askedFields.includes('allergies')) {
-      ethicalCompetence = Math.min(5, ethicalCompetence + 1);
-    }
-    if (patientData.criticalMissing.includes('allergies')) {
-      ethicalCompetence = Math.max(1, ethicalCompetence - 2);
-    }
-    if (patientData.criticalMissing.includes('name')) {
-      ethicalCompetence = Math.max(1, ethicalCompetence - 1);
-    }
-
-    // Reflection Score
-    reflection += conversation.messageCount > 5 ? 1 : 0;
-    reflection = Math.min(5, Math.max(1, reflection));
-
-    // Apply grading rubric weights if available
-    if (grading?.components) {
-      // Could apply custom weights here
-    }
-
-    const overallScore = Math.round(
-      ((communication + clinicalJudgment + technicalAccuracy + ethicalCompetence + reflection) /
-        25) *
-        100,
-    );
-
-    // Adjust for critical missing data
-    const finalScore = Math.max(0, overallScore - patientData.criticalMissing.length * 10);
-
-    return {
-      communication,
-      clinicalJudgment,
-      technicalAccuracy,
-      ethicalCompetence,
-      reflection,
-      overallScore: finalScore,
-    };
-  }
-
-  private generateFeedbackEnhanced(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    conversation: ConversationQuality,
-    scenarioRequirements: { met: number; total: number; details: string[] },
-    messageCount: number,
-  ): { strengths: string[]; improvements: string[] } {
-    const strengths: string[] = [];
-    const improvements: string[] = [];
-
-    // If no conversation, all improvements
-    if (messageCount === 0) {
-      return {
-        strengths: [],
-        improvements: [
-          'CRITICAL: No conversation with patient detected',
-          'You must engage with the patient to provide care',
-          "Start by introducing yourself and asking about the patient's condition",
-        ],
-      };
-    }
-
-    // Patient Data Coverage Feedback
-    if (patientData.askedFields.includes('name')) {
-      strengths.push('Verified patient identity appropriately');
-    } else {
-      improvements.push('CRITICAL: Always verify patient identity at the start of the encounter');
-    }
-
-    if (patientData.askedFields.includes('allergies')) {
-      strengths.push('Checked for allergies and contraindications - critical for patient safety');
-    } else {
-      improvements.push(
-        'CRITICAL SAFETY ISSUE: Always ask about allergies before any intervention or medication',
-      );
-    }
-
-    if (patientData.askedFields.includes('chiefComplaint')) {
-      strengths.push('Identified chief complaint and reason for visit');
-    } else {
-      improvements.push(
-        'CRITICAL: Clarify chief complaint early in the assessment - this is the primary reason for the visit',
-      );
-    }
-
-    if (patientData.askedFields.includes('medicalHistory')) {
-      strengths.push('Obtained relevant medical history');
-    } else {
-      improvements.push(
-        'Gather complete medical history to inform clinical decisions and avoid complications',
-      );
-    }
-
-    // Coverage feedback
-    if (patientData.coverage >= COVERAGE_HIGH_PCT) {
-      strengths.push(
-        `Excellent comprehensive patient data assessment (${patientData.coverage}% coverage)`,
-      );
-    } else if (patientData.coverage >= COVERAGE_MEDIUM_PCT) {
-      strengths.push(`Good patient data assessment (${patientData.coverage}% coverage)`);
-    } else if (patientData.coverage >= COVERAGE_LOW_PCT) {
-      improvements.push(
-        `Patient data coverage was ${patientData.coverage}% - aim for at least 70% for comprehensive assessment`,
-      );
-    } else if (patientData.coverage > 0) {
-      improvements.push(
-        `Patient data coverage was only ${patientData.coverage}% - many important questions were not asked`,
-      );
-    } else {
-      improvements.push(
-        "CRITICAL: No patient data was gathered - you must ask questions to understand the patient's condition",
-      );
-    }
-
-    // Missing critical fields
-    if (patientData.criticalMissing.length > 0) {
-      improvements.push(`Missing critical information: ${patientData.criticalMissing.join(', ')}`);
-    }
-
-    // Phase/Task Completion Feedback
-    if (phases.totalTasks > 0) {
-      const taskCompletionRate = Math.round((phases.completedTasks / phases.totalTasks) * 100);
-      if (taskCompletionRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-        strengths.push(
-          `Completed most required tasks (${phases.completedTasks}/${phases.totalTasks} tasks, ${taskCompletionRate}%)`,
-        );
-      } else if (taskCompletionRate >= COVERAGE_LOW_MEDIUM_PCT) {
-        improvements.push(
-          `Complete more required tasks (${phases.completedTasks}/${phases.totalTasks} completed, ${taskCompletionRate}%)`,
-        );
-      } else {
-        improvements.push(
-          `CRITICAL: Only completed ${phases.completedTasks}/${phases.totalTasks} required tasks (${taskCompletionRate}%) - many essential tasks were missed`,
-        );
-      }
-
-      // Check required tasks
-      const missingRequired = phases.phaseDetails.flatMap((p) =>
-        p.tasks.filter((t) => t.required && !t.completed),
-      );
-      if (missingRequired.length > 0) {
-        improvements.push(
-          `Missing ${missingRequired.length} REQUIRED task(s): ${missingRequired
-            .slice(0, 3)
-            .map((t) => t.taskLabel)
-            .join(', ')}`,
-        );
-      }
-    }
-
-    // Actions Feedback
-    if (actions.totalExpected > 0) {
-      if (actions.completionRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-        strengths.push(
-          `Appropriately selected and ordered expected clinical actions (${actions.completionRate}% completion)`,
-        );
-      } else if (actions.completionRate >= COVERAGE_LOW_MEDIUM_PCT) {
-        improvements.push(
-          `Order more appropriate clinical actions (${actions.totalMentioned}/${actions.totalExpected} expected actions addressed, ${actions.completionRate}%)`,
-        );
-      } else if (actions.completionRate > 0) {
-        improvements.push(
-          `CRITICAL: Only addressed ${actions.completionRate}% of expected clinical actions (${actions.totalMentioned}/${actions.totalExpected}) - many necessary interventions were missed`,
-        );
-      } else {
-        improvements.push(
-          `CRITICAL: No expected clinical actions were addressed (0/${actions.totalExpected}) - patient care may be incomplete`,
-        );
-      }
-    }
-
-    // Conversation Quality Feedback
-    if (conversation.questionCount >= 10) {
-      strengths.push(
-        `Asked ${conversation.questionCount} clarifying questions, demonstrating excellent active engagement`,
-      );
-    } else if (conversation.questionCount >= 5) {
-      strengths.push(
-        `Asked ${conversation.questionCount} clarifying questions, showing good engagement`,
-      );
-    } else if (conversation.questionCount > 0) {
-      improvements.push(
-        `Ask more clarifying questions (only ${conversation.questionCount} questions asked) to better understand the patient`,
-      );
-    } else {
-      improvements.push(
-        "CRITICAL: No clarifying questions were asked - you must ask questions to understand the patient's condition",
-      );
-    }
-
-    if (conversation.professionalismScore >= 5) {
-      strengths.push('Maintained professional communication throughout the encounter');
-    } else if (conversation.professionalismScore < 0) {
-      improvements.push(
-        'Improve professional communication - use appropriate language and maintain professional demeanor',
-      );
-    }
-
-    // Message count feedback
-    if (messageCount < 3) {
-      improvements.push(
-        `Very limited conversation (only ${messageCount} message(s)) - engage more with the patient`,
-      );
-    } else if (messageCount >= 10) {
-      strengths.push(
-        `Engaged in comprehensive conversation (${messageCount} exchanges with patient)`,
-      );
-    }
-
-    // Scenario requirements
-    if (scenarioRequirements.total > 0) {
-      const reqRate = Math.round((scenarioRequirements.met / scenarioRequirements.total) * 100);
-      if (reqRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-        strengths.push(
-          `Met ${scenarioRequirements.met}/${scenarioRequirements.total} scenario-specific requirements`,
-        );
-      } else {
-        improvements.push(
-          `Only met ${scenarioRequirements.met}/${scenarioRequirements.total} scenario-specific requirements - review scenario expectations`,
-        );
-      }
-    }
-
-    // Defaults if empty
-    if (strengths.length === 0 && messageCount > 0) {
-      strengths.push('Engaged with patient');
-    }
-    if (improvements.length === 0 && messageCount > 0) {
-      improvements.push('Continue to refine clinical assessment skills');
-    }
-
-    return { strengths, improvements };
-  }
-
-  private generateFeedback(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    conversation: ConversationQuality,
-  ): { strengths: string[]; improvements: string[] } {
-    const strengths: string[] = [];
-    const improvements: string[] = [];
-
-    // Patient Data Coverage Feedback
-    if (patientData.askedFields.includes('name')) {
-      strengths.push('Verified patient identity appropriately');
-    } else {
-      improvements.push('Always verify patient identity at the start of the encounter');
-    }
-
-    if (patientData.askedFields.includes('allergies')) {
-      strengths.push('Checked for allergies and contraindications');
-    } else {
-      improvements.push('CRITICAL: Always ask about allergies before any intervention');
-    }
-
-    if (patientData.askedFields.includes('medicalHistory')) {
-      strengths.push('Obtained relevant medical history');
-    } else {
-      improvements.push('Gather complete medical history to inform clinical decisions');
-    }
-
-    if (patientData.askedFields.includes('chiefComplaint')) {
-      strengths.push('Identified chief complaint and reason for visit');
-    } else {
-      improvements.push('Clarify chief complaint early in the assessment');
-    }
-
-    if (patientData.coverage >= COVERAGE_MEDIUM_PCT) {
-      strengths.push('Comprehensive patient data assessment');
-    } else if (patientData.coverage < 50) {
-      improvements.push('Conduct more thorough patient assessment');
-    }
-
-    // Phase/Task Completion Feedback
-    if (phases.totalTasks > 0) {
-      const taskCompletionRate = (phases.completedTasks / phases.totalTasks) * 100;
-      if (taskCompletionRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-        strengths.push('Completed most required tasks in the scenario');
-      } else if (taskCompletionRate < 60) {
-        improvements.push(
-          `Complete more required tasks (${phases.completedTasks}/${phases.totalTasks} completed)`,
-        );
-      }
-
-      // Check required tasks
-      const missingRequired = phases.phaseDetails.flatMap((p) =>
-        p.tasks.filter((t) => t.required && !t.completed),
-      );
-      if (missingRequired.length > 0) {
-        improvements.push(
-          `Missing ${missingRequired.length} required task(s): ${missingRequired
-            .slice(0, 2)
-            .map((t) => t.taskLabel)
-            .join(', ')}`,
-        );
-      }
-    }
-
-    // Actions Feedback
-    if (actions.completionRate >= COVERAGE_MEDIUM_HIGH_PCT) {
-      strengths.push('Appropriately selected and ordered expected clinical actions');
-    } else if (actions.totalExpected > 0 && actions.completionRate < 60) {
-      improvements.push(
-        `Order more appropriate clinical actions (${actions.totalMentioned}/${actions.totalExpected} expected actions addressed)`,
-      );
-    }
-
-    // Conversation Quality Feedback
-    if (conversation.questionCount >= 5) {
-      strengths.push('Asked appropriate clarifying questions');
-    } else {
-      improvements.push('Ask more clarifying questions to better understand the patient');
-    }
-
-    if (conversation.professionalismScore >= 5) {
-      strengths.push('Maintained professional communication throughout');
-    }
-
-    // Defaults if empty
-    if (strengths.length === 0) {
-      strengths.push('Followed basic assessment protocols');
-    }
-    if (improvements.length === 0) {
-      improvements.push('Continue to refine clinical assessment skills');
-    }
-
-    return { strengths, improvements };
-  }
-
-  private generateSummaryEnhanced(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    score: number,
-    messageCount: number,
-    scenario?: ScenarioTitleLike,
-  ): string {
-    if (messageCount === 0) {
-      return `No conversation detected. Student did not engage with the patient in the ${scenario?.title ?? 'scenario'} simulation. Score: ${score}%.`;
-    }
-
-    const parts: string[] = [];
-
-    parts.push(`Student completed the ${scenario?.title ?? 'scenario'} simulation`);
-
-    if (messageCount > 0) {
-      parts.push(`with ${messageCount} conversation exchange${messageCount !== 1 ? 's' : ''}`);
-    }
-
-    if (patientData.coverage > 0) {
-      parts.push(`achieving ${patientData.coverage}% patient data coverage`);
-    } else {
-      parts.push(`with 0% patient data coverage (no questions asked)`);
-    }
-
-    if (phases.totalTasks > 0) {
-      const taskRate = Math.round((phases.completedTasks / phases.totalTasks) * 100);
-      parts.push(
-        `completing ${phases.completedTasks}/${phases.totalTasks} required tasks (${taskRate}%)`,
-      );
-    }
-
-    if (actions.totalExpected > 0) {
-      parts.push(
-        `addressing ${actions.totalMentioned}/${actions.totalExpected} expected clinical actions (${actions.completionRate}%)`,
-      );
-    }
-
-    if (patientData.criticalMissing.length > 0) {
-      parts.push(
-        `. CRITICAL: Missing essential information (${patientData.criticalMissing.join(', ')})`,
-      );
-    }
-
-    parts.push(`. Overall score: ${score}%`);
-
-    return parts.join(' ') + '.';
-  }
-
-  private generateSummary(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    score: number,
-    scenario?: ScenarioTitleLike,
-  ): string {
-    const parts: string[] = [];
-
-    parts.push(`Student completed the ${scenario?.title ?? 'scenario'} simulation`);
-
-    if (patientData.coverage > 0) {
-      parts.push(`with ${patientData.coverage}% patient data coverage`);
-    }
-
-    if (phases.totalTasks > 0) {
-      parts.push(`completing ${phases.completedTasks}/${phases.totalTasks} required tasks`);
-    }
-
-    parts.push(
-      `and addressing ${actions.totalMentioned}/${actions.totalExpected} expected actions`,
-    );
-
-    if (patientData.criticalMissing.length > 0) {
-      parts.push(
-        `. Note: Missing critical information (${patientData.criticalMissing.join(', ')})`,
-      );
-    }
-
-    return parts.join(' ') + '.';
-  }
-
-  private generateDetailedFeedbackEnhanced(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    conversation: ConversationQuality,
-    scenarioRequirements: { met: number; total: number; details: string[] },
-    scores: ScoreComponents,
-    messageCount: number,
-  ): string {
-    if (messageCount === 0) {
-      return 'No conversation was detected between you and the patient. To provide proper care, you must communicate with the patient, ask questions about their condition, verify their identity, check for allergies, and gather medical history. Please engage with the patient in future scenarios.';
-    }
-
-    const feedback: string[] = [];
-
-    feedback.push(`Overall Performance Score: ${scores.overallScore}%`);
-    feedback.push(`\nComponent Scores:`);
-    feedback.push(`- Communication: ${scores.communication}/5`);
-    feedback.push(`- Clinical Judgment: ${scores.clinicalJudgment}/5`);
-    feedback.push(`- Technical Accuracy: ${scores.technicalAccuracy}/5`);
-    feedback.push(`- Ethical Competence: ${scores.ethicalCompetence}/5`);
-    feedback.push(`- Reflection & Critical Thinking: ${scores.reflection}/5`);
-
-    feedback.push(`\nConversation Analysis:`);
-    feedback.push(`- Total exchanges with patient: ${messageCount}`);
-    feedback.push(`- Questions asked: ${conversation.questionCount}`);
-
-    if (patientData.coverage >= COVERAGE_HIGH_PCT) {
-      feedback.push(
-        `\n[OK] Excellent patient data gathering with ${patientData.coverage}% coverage.`,
-      );
-    } else if (patientData.coverage >= COVERAGE_MEDIUM_PCT) {
-      feedback.push(`\n[OK] Good patient data gathering with ${patientData.coverage}% coverage.`);
-    } else if (patientData.coverage >= COVERAGE_LOW_PCT) {
-      feedback.push(
-        `\n[!] Patient data coverage was ${patientData.coverage}% - aim for at least 70% for comprehensive assessment.`,
-      );
-    } else if (patientData.coverage > 0) {
-      feedback.push(
-        `\n[!] Patient data coverage was only ${patientData.coverage}% - many important questions were not asked.`,
-      );
-    } else {
-      feedback.push(
-        `\n[-] CRITICAL: No patient data was gathered (0% coverage) - you must ask questions to understand the patient's condition.`,
-      );
-    }
-
-    if (patientData.askedFields.length > 0) {
-      feedback.push(`\nPatient information you asked about: ${patientData.askedFields.join(', ')}`);
-    }
-
-    if (patientData.missingFields.length > 0) {
-      feedback.push(
-        `\nMissing patient information: ${patientData.missingFields.slice(0, 5).join(', ')}${patientData.missingFields.length > 5 ? ` and ${patientData.missingFields.length - 5} more` : ''}`,
-      );
-    }
-
-    if (patientData.criticalMissing.length > 0) {
-      feedback.push(
-        `\n[-] CRITICAL MISSING: ${patientData.criticalMissing.join(', ')} - These are essential for patient safety and proper care.`,
-      );
-    }
-
-    if (phases.totalTasks > 0) {
-      const taskRate = Math.round((phases.completedTasks / phases.totalTasks) * 100);
-      feedback.push(
-        `\nTask Completion: ${taskRate}% (${phases.completedTasks}/${phases.totalTasks} tasks completed)`,
-      );
-
-      const missingRequired = phases.phaseDetails.flatMap((p) =>
-        p.tasks.filter((t) => t.required && !t.completed),
-      );
-      if (missingRequired.length > 0) {
-        feedback.push(
-          `[-] Missing ${missingRequired.length} REQUIRED task(s): ${missingRequired
-            .slice(0, 3)
-            .map((t) => t.taskLabel)
-            .join(', ')}`,
-        );
-      }
-    }
-
-    if (actions.totalExpected > 0) {
-      if (actions.completionRate >= COVERAGE_MEDIUM_PCT) {
-        feedback.push(
-          `\n[OK] Appropriately addressed ${actions.completionRate}% of expected clinical actions (${actions.totalMentioned}/${actions.totalExpected}).`,
-        );
-      } else if (actions.completionRate > 0) {
-        feedback.push(
-          `\n[!] Only addressed ${actions.completionRate}% of expected clinical actions (${actions.totalMentioned}/${actions.totalExpected}) - consider additional interventions.`,
-        );
-      } else {
-        feedback.push(
-          `\n[-] CRITICAL: No expected clinical actions were addressed (0/${actions.totalExpected}) - patient care may be incomplete.`,
-        );
-      }
-    }
-
-    if (conversation.questionCount >= 5) {
-      feedback.push(
-        `\n[OK] Asked ${conversation.questionCount} clarifying questions, demonstrating active engagement and thorough assessment.`,
-      );
-    } else if (conversation.questionCount > 0) {
-      feedback.push(
-        `\n[!] Only asked ${conversation.questionCount} question(s) - ask more clarifying questions to better understand the patient.`,
-      );
-    } else {
-      feedback.push(
-        `\n[-] CRITICAL: No clarifying questions were asked - you must ask questions to understand the patient's condition.`,
-      );
-    }
-
-    if (scenarioRequirements.total > 0) {
-      const reqRate = Math.round((scenarioRequirements.met / scenarioRequirements.total) * 100);
-      feedback.push(
-        `\nScenario-Specific Requirements: ${reqRate}% met (${scenarioRequirements.met}/${scenarioRequirements.total})`,
-      );
-    }
-
-    feedback.push(
-      `\nRecommendations: Continue to focus on comprehensive patient assessment, patient safety protocols, and thorough clinical reasoning.`,
-    );
-
-    return feedback.join(' ');
-  }
-
-  private generateDetailedFeedback(
-    patientData: PatientDataCoverage,
-    phases: PhaseTaskAnalysis,
-    actions: ActionsAnalysis,
-    conversation: ConversationQuality,
-    scores: ScoreComponents,
-  ): string {
-    const feedback: string[] = [];
-
-    feedback.push(`Overall performance score: ${scores.overallScore}%. `);
-    feedback.push(
-      `Communication: ${scores.communication}/5, Clinical Judgment: ${scores.clinicalJudgment}/5, Technical Accuracy: ${scores.technicalAccuracy}/5. `,
-    );
-
-    if (patientData.coverage >= COVERAGE_MEDIUM_PCT) {
-      feedback.push(`Excellent patient data gathering with ${patientData.coverage}% coverage. `);
-    } else if (patientData.coverage >= COVERAGE_LOW_PCT) {
-      feedback.push(`Good patient data gathering with ${patientData.coverage}% coverage. `);
-    } else {
-      feedback.push(`Patient data coverage was ${patientData.coverage}% - aim for at least 70%. `);
-    }
-
-    if (phases.totalTasks > 0) {
-      const taskRate = Math.round((phases.completedTasks / phases.totalTasks) * 100);
-      feedback.push(
-        `Task completion: ${taskRate}% (${phases.completedTasks}/${phases.totalTasks} tasks). `,
-      );
-    }
-
-    if (actions.completionRate >= COVERAGE_MEDIUM_PCT) {
-      feedback.push(
-        `Appropriately addressed ${actions.completionRate}% of expected clinical actions. `,
-      );
-    } else {
-      feedback.push(
-        `Consider addressing more expected clinical actions (${actions.completionRate}% completion). `,
-      );
-    }
-
-    if (conversation.questionCount >= 5) {
-      feedback.push(
-        `Asked ${conversation.questionCount} clarifying questions, demonstrating active engagement. `,
-      );
-    }
-
-    feedback.push('Continue to focus on comprehensive assessment and patient safety.');
-
-    return feedback.join('');
-  }
-
-  async createReport(dto: CreateReportDto) {
-    const existing = this.jsonDataService.getReportByTranscriptId(dto.transcriptId);
-    if (existing) {
-      return existing;
-    }
-
-    const dtoExtended = dto as CreateReportDto & {
-      score?: number;
-      scoreJson?: Report['scoreJson'];
-      feedback?: string;
-    };
-    const newReport: Report = {
-      id: this.jsonDataService.generateId(),
-      key: os.userInfo().username,
-      ...dtoExtended,
-      score: dtoExtended.score ?? 0,
-      scoreJson: dtoExtended.scoreJson ?? {
-        communication: 0,
-        clinicalJudgment: 0,
-        technicalAccuracy: 0,
-        ethicalCompetence: 0,
-        reflection: 0,
-        overallScore: 0,
-      },
-      feedback: dtoExtended.feedback ?? '',
-      createdAt: new Date().toISOString(),
-    };
-
-    await this.jsonDataService.addReportFresh(newReport);
-    return newReport;
-  }
-
-  async createReportWithAI(dto: CreateReportDto, language: 'en' | 'es' = 'en'): Promise<Report> {
+  async createReportWithAI(
+    currentUser: ICurrentUser,
+    dto: CreateReportDto,
+    language: 'en' | 'es' = 'en',
+  ): Promise<Report> {
     const gradingInstanceId = LifecycleTelemetryService.generateInstanceId();
     const gradingStartTime = Date.now();
 
@@ -3580,54 +1821,68 @@ Return ONLY JSON with this schema:
       throw new BadRequestException('transcriptId is required for report generation');
     }
 
+    await this.scenariosService.assertScenarioAssigned(currentUser, dto.scenarioId);
+
     // ── Duplicate-report guard ──────────────────────────────────────────────
-    // 1. Check by transcriptId first (fresh read — works across all workers /
-    //    deployment instances that share the same blob storage).
-    const existingByTranscript = await this.jsonDataService.getReportByTranscriptIdFresh(
+    // 1. The transcript is the Attempt's identity: a retry returns the stored Attempt without
+    //    regrading it.
+    const existingByTranscript = await this.simulationReportRepository.findByTranscriptId(
       dto.transcriptId,
     );
     if (existingByTranscript) {
       this.logger.log(
-        `[ReportsService] Duplicate report detected by transcriptId "${dto.transcriptId}" — returning existing report ${existingByTranscript.id}`,
+        `[ReportsService] Duplicate report detected by transcriptId "${dto.transcriptId}" — returning existing report ${existingByTranscript.reportId ?? existingByTranscript.id}`,
       );
-      return existingByTranscript;
+      return this.toReport(existingByTranscript);
     }
 
-    // 2. Assessment mode only: enforce the per-student attempt limit
-    //    (`MAX_ASSESSMENT_ATTEMPTS`).  Concurrent tabs on the *same* attempt
-    //    are already deduplicated above via transcriptId.  Once the student
-    //    has consumed all allotted graded attempts for a scenario, return
-    //    the most recent existing report instead of generating another one.
-    const isAssessment = (dto.mode ?? 'Assessment') === 'Assessment';
-    if (isAssessment && dto.scenarioId && dto.student_id) {
-      const existingAssessments =
-        await this.jsonDataService.getAssessmentReportsByScenarioAndStudentFresh(
+    // Resolve the `students.id` the Attempt row belongs to before paying for AI grading.
+    const studentId = this.resolveCurrentStudentId(currentUser);
+
+    // 2. Simulation Progress is the source of truth for the attempt limit. A Completed or
+    //    Forfeited Simulation, or an Assessment past Max Attempts, returns the most recent stored
+    //    Attempt instead of spending AI tokens on another one. The transaction below re-checks
+    //    under a row lock, so two concurrent tabs can't both pass.
+    const isAssessment = (dto.mode ?? ReportModeType.ASSESSMENT) === ReportModeType.ASSESSMENT;
+    if (dto.scenarioId) {
+      const progress = await this.simulationProgressRepository.findByStudentAndScenarioId(
+        studentId,
+        dto.scenarioId,
+      );
+      const isClosed =
+        progress &&
+        (progress.status !== SimulationProgressStatus.IN_PROGRESS ||
+          (isAssessment &&
+            progress.assessmentAttemptsCount >=
+            SimulationAttemptConstants.MAX_ASSESSMENT_ATTEMPTS));
+      const mostRecent = isClosed
+        ? await this.simulationReportRepository.findLatestAttemptByStudentAndScenario(
+          studentId,
           dto.scenarioId,
-          dto.student_id,
-        );
-      if (existingAssessments.length >= MAX_ASSESSMENT_ATTEMPTS) {
-        const mostRecent = existingAssessments[0];
+        )
+        : null;
+      if (mostRecent) {
         this.logger.log(
-          `[ReportsService] Assessment attempt limit (${MAX_ASSESSMENT_ATTEMPTS}) reached for scenarioId "${dto.scenarioId}" + studentId "${dto.student_id}" — returning most recent report ${mostRecent.id}`,
+          `[ReportsService] Simulation closed or Assessment attempt limit (${SimulationAttemptConstants.MAX_ASSESSMENT_ATTEMPTS}) reached for scenarioId "${dto.scenarioId}" + studentId "${studentId}" — returning most recent report ${mostRecent.reportId ?? mostRecent.id}`,
         );
-        return mostRecent;
+        return this.toReport(mostRecent);
       }
     }
     // ────────────────────────────────────────────────────────────────────────
 
     // Get transcript data with retries to handle Azure Storage sync delays
-    let transcript: Transcript | undefined;
+    let transcript: Transcript | null | undefined;
     const maxRetries = 10;
     const delayMs = 1000;
 
     for (let i = 0; i < maxRetries; i++) {
-      transcript = await this.jsonDataService.getTranscriptByIdFresh(dto.transcriptId);
+      transcript = await this.transcriptRepository.findByBusinessId(dto.transcriptId);
       if (transcript) {
         break;
       }
 
       if (i < maxRetries - 1) {
-        console.warn(
+        this.logger.warn(
           `[ReportsService] createReportWithAI: Transcript ${dto.transcriptId} not found, retrying (${i + 1}/${maxRetries})...`,
         );
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -3635,7 +1890,7 @@ Return ONLY JSON with this schema:
     }
 
     if (!transcript) {
-      console.error(
+      this.logger.error(
         `[ReportsService] ERROR: Transcript "${dto.transcriptId}" not found after ${maxRetries} retries`,
       );
       throw new NotFoundException(`Transcript with ID ${dto.transcriptId} not found`);
@@ -3657,41 +1912,41 @@ Return ONLY JSON with this schema:
       this.logger.warn(`Failed to emit Grading.Started: ${error}`);
     }
 
-    // Get scenario details — fetch the localized variant when a non-English
-    // language is requested so that action/order titles resolved by
-    // `resolveDisplayLabelForRef` (sequencing, actions analysis) are already
-    // in the target language. Falls back to the English scenario transparently
-    // when no localized file exists for this scenario.
-    const scenario = await this.jsonDataService.getScenarioByIdLocalized(dto.scenarioId, language);
-    if (!scenario) {
+    // Get scenario details from the database (SimulationV2 has no locale
+    // dimension, so `language` no longer selects a localized variant).
+    const scenarioEntity = await this.simulationV2Repository.findByBusinessIdWithChildrenJoined(
+      dto.scenarioId,
+    );
+    if (!scenarioEntity) {
       throw new NotFoundException(`Scenario with ID ${dto.scenarioId} not found`);
     }
+    const scenario = scenarioEntity as unknown as Scenario;
 
     // Prepare conversation text for AI analysis with timing
     const scenarioStart = new Date(
       dto.scenarioStartTime ?? transcript.startedAt ?? new Date(),
     ).getTime();
-    const enrichedMessages: EnrichedMessage[] = transcript.messages.map(
-      (msg: Record<string, unknown>) => {
-        let elapsedSeconds: number;
-        if (
-          typeof msg.elapsedSeconds === 'number' &&
-          Number.isFinite(msg.elapsedSeconds) &&
-          msg.elapsedSeconds >= 0
-        ) {
-          elapsedSeconds = msg.elapsedSeconds;
-        } else {
-          const tsValue = typeof msg.timestampValue === 'number' ? msg.timestampValue : undefined;
-          const msgTime = tsValue ?? new Date(msg.timestamp as string).getTime();
-          elapsedSeconds = Math.max(0, Math.round((msgTime - scenarioStart) / 1000));
-        }
-        return {
-          ...msg,
-          elapsedSeconds,
-          elapsedTimeFormatted: this.formatSecondsToTime(elapsedSeconds),
-        };
-      },
-    );
+    const enrichedMessages: EnrichedMessage[] = (
+      (transcript.messages ?? []) as unknown as Record<string, unknown>[]
+    ).map((msg: Record<string, unknown>) => {
+      let elapsedSeconds: number;
+      if (
+        typeof msg.elapsedSeconds === 'number' &&
+        Number.isFinite(msg.elapsedSeconds) &&
+        msg.elapsedSeconds >= 0
+      ) {
+        elapsedSeconds = msg.elapsedSeconds;
+      } else {
+        const tsValue = typeof msg.timestampValue === 'number' ? msg.timestampValue : undefined;
+        const msgTime = tsValue ?? new Date(msg.timestamp as string).getTime();
+        elapsedSeconds = Math.max(0, Math.round((msgTime - scenarioStart) / 1000));
+      }
+      return {
+        ...msg,
+        elapsedSeconds,
+        elapsedTimeFormatted: this.formatSecondsToTime(elapsedSeconds),
+      };
+    });
 
     const conversationText = enrichedMessages
       .map(
@@ -3710,6 +1965,49 @@ Return ONLY JSON with this schema:
       scenarioStart,
     ) as EnrichedMessage[];
 
+    // Consolidate legacy separate Medications weight into Action if present in scenario rubric.
+    // Old scenarios that haven't been re-saved via the Grading tab may still carry a standalone
+    // Medications rubric item — fold its weight into Actions and drop the item entirely so report
+    // generation never produces a separate Medications category for them.
+    if (Array.isArray(scenario?.grading?.rubric)) {
+      const legacyMedsItem = scenario.grading.rubric.find(
+        (r) =>
+          String(r?.subCategory ?? '')
+            .trim()
+            .toLowerCase() === 'medications',
+      );
+      if (legacyMedsItem) {
+        const legacyMedsWeight =
+          typeof legacyMedsItem?.weight === 'number'
+            ? legacyMedsItem.weight
+            : Number(legacyMedsItem?.weight) || 0;
+        scenario.grading.rubric = scenario.grading.rubric
+          .filter(
+            (item) =>
+              String(item?.subCategory ?? '')
+                .trim()
+                .toLowerCase() !== 'medications',
+          )
+          .map((item) => {
+            const sub = String(item?.subCategory ?? '')
+              .trim()
+              .toLowerCase();
+            if (
+              sub === 'action' ||
+              sub === 'actions & interventions' ||
+              sub === 'action / clinical interventions' ||
+              sub === 'expected actions'
+            ) {
+              const currentWeight =
+                typeof item.weight === 'number' ? item.weight : Number(item.weight) || 0;
+              return { ...item, weight: currentWeight + legacyMedsWeight };
+            }
+            return item;
+          });
+      }
+    }
+
+    let persistenceStarted = false;
     try {
       // Send to OpenAI for analysis
       const aiAnalysis = await this.analyzeWithOpenAI(
@@ -3719,7 +2017,7 @@ Return ONLY JSON with this schema:
         dto.scenarioStartTime,
         actionsTimeline,
         commonActionTracker,
-        dto.mode ?? 'Assessment',
+        dto.mode ?? ReportModeType.ASSESSMENT,
         { ...transcript, messages: enrichedMessages },
         (dto.summaryEntries ?? []) as ActionAttempt[],
         language,
@@ -3760,7 +2058,7 @@ Return ONLY JSON with this schema:
         actionsToGrade as Parameters<
           ActionsInterventionsService['computeDeterministicActionMarks']
         >[1],
-        dto.mode ?? 'Assessment',
+        dto.mode ?? ReportModeType.ASSESSMENT,
         summaryByCategory as Parameters<
           ActionsInterventionsService['computeDeterministicActionMarks']
         >[3],
@@ -3843,8 +2141,8 @@ Return ONLY JSON with this schema:
       const actionsArray = (dto.summaryByCategory as Record<string, unknown>)?.['actions'];
       const teamCommActionEntry = Array.isArray(actionsArray)
         ? (actionsArray as Array<{ title?: string }>).find(
-            (item) => item.title === 'Team Communication',
-          )
+          (item) => item.title === 'Team Communication',
+        )
         : null;
 
       this.logger.debug(
@@ -4002,7 +2300,8 @@ Return ONLY JSON with this schema:
         // item.score is a 0–100 percentage after all deterministic overrides (or null / N/A when zero mandatory items)
         const score = recordItem?.score;
         if (typeof score === 'number' && isFinite(score)) {
-          rubricPoints += (score / 100) * weight;
+          const itemContribution = (score / 100) * weight;
+          rubricPoints += itemContribution;
           rubricMax += weight;
         }
       }
@@ -4013,6 +2312,7 @@ Return ONLY JSON with this schema:
       let overallScore0to100: number;
       if (rubricMax > 0) {
         overallScore0to100 = (rubricPoints / rubricMax) * 100;
+        overallScore0to100 = this.clampOverallScore(overallScore0to100);
       } else {
         const fallbackTotal =
           typeof rubricsBucket.totalScore === 'number' && isFinite(rubricsBucket.totalScore)
@@ -4023,9 +2323,10 @@ Return ONLY JSON with this schema:
             ? rubricsBucket.totalWeight
             : 0;
         overallScore0to100 = fallbackWeight > 0 ? (fallbackTotal / fallbackWeight) * 100 : 0;
+        overallScore0to100 = this.clampOverallScore(overallScore0to100);
         this.logger.warn(
           `[createReportWithAI] rubricMax=0 – no rubric items matched scenario.grading.rubric. ` +
-            `Falling back to rubrics.totalScore=${fallbackTotal} / totalWeight=${fallbackWeight} → ${overallScore0to100.toFixed(1)}%`,
+          `Falling back to rubrics.totalScore=${fallbackTotal} / totalWeight=${fallbackWeight} → ${overallScore0to100.toFixed(1)}%`,
         );
       }
 
@@ -4052,7 +2353,7 @@ Return ONLY JSON with this schema:
         scenarioEndTime: dto.scenarioEndTime,
         totalTimeSeconds: dto.totalTimeSeconds,
         commonActionTracker: dto.commonActionTracker,
-        mode: dto.mode ?? 'Assessment',
+        mode: dto.mode ?? ReportModeType.ASSESSMENT,
         // Use AI-generated dynamic values
         score: overallScore,
         performanceLabel: performanceLabel,
@@ -4112,7 +2413,7 @@ Return ONLY JSON with this schema:
               `[enrichedActionsArray] Processing ${actionsArray.length} actions, actionsTimeline length: ${Array.isArray(dto.actionsTimeline) ? dto.actionsTimeline.length : 'N/A'}`,
             );
             const enrichedActionsArray = actionsArray.map((actionEntry, index) => {
-              const entry = actionEntry as { title?: string; [key: string]: unknown };
+              const entry = actionEntry as { title?: string;[key: string]: unknown };
 
               this.logger.debug(
                 `[enrichedActionsArray] Processing action index ${index}: title="${String(entry.title)}", existing elapsedTime="${String(entry.elapsedTime)}", existing timestampValue="${String(entry.timestampValue)}"`,
@@ -4189,8 +2490,7 @@ Return ONLY JSON with this schema:
                 // For vital-type actions the `grading` field is always stored as `false`
                 // by the simulation engine regardless of whether the student recorded
                 // report and cause "Unsatisfactory" to appear on completed vital entries.
-                const rawEntryType =
-                  (entry as { type?: unknown }).type ?? timelineData.type ?? '';
+                const rawEntryType = (entry as { type?: unknown }).type ?? timelineData.type ?? '';
                 const entryType = (
                   typeof rawEntryType === 'string'
                     ? rawEntryType
@@ -4274,8 +2574,13 @@ Return ONLY JSON with this schema:
         createdAt: new Date().toISOString(),
       };
 
-      // Persist safely (refresh + merge + flush) to avoid 404 right after create
-      await this.jsonDataService.addReportFresh(dynamicReport as unknown as Report);
+      // Storage failures (a 409 from Simulation Progress, a database error) must reach the global
+      // exception filter as-is, not be disguised as an AI failure below.
+      persistenceStarted = true;
+      const savedReport = await this.saveAttempt(
+        dynamicReport as unknown as SimulationReportEntry,
+        studentId,
+      );
 
       this.logger.log('Report saved with ID:', dynamicReport.id);
 
@@ -4299,7 +2604,7 @@ Return ONLY JSON with this schema:
         this.logger.warn(`Failed to emit Grading.Stopped: ${error}`);
       }
 
-      return dynamicReport as unknown as Report;
+      return savedReport;
     } catch (error) {
       this.logger.error('AI analysis failed:', error);
 
@@ -4324,8 +2629,42 @@ Return ONLY JSON with this schema:
         this.logger.warn(`Failed to emit Grading.Stopped: ${telemetryError}`);
       }
 
-      throw new Error('Failed to analyze transcript with AI');
+      throw error;
+      // if (persistenceStarted) {
+      // }
+      // throw new Error('Failed to analyze transcript with AI', { cause: error });
     }
+  }
+
+  /** The `students.id` uuid of the student behind the token (its `sub` is the Student Code). */
+  private resolveCurrentStudentId(currentUser: ICurrentUser): string {
+    const studentId = currentUser.studentId ?? currentUser.userId ?? null;
+    if (!studentId) {
+      throw new NotFoundException(ERROR_MSG.DB.NOT_FOUND('Student'));
+    }
+    return studentId;
+  }
+
+  /**
+   * Stores one graded Attempt. When a concurrent request for the same transcript inserted first,
+   * returns that request's stored Attempt instead.
+   */
+  private async saveAttempt(report: SimulationReportEntry, studentId: string): Promise<Report> {
+    const { report: stored, recorded } =
+      await this.simulationProgressRepository.recordSubmittedAttempt({
+        attempt: buildAttemptRow(report, studentId),
+      });
+    if (!recorded) {
+      this.logger.log(
+        `[ReportsService] Concurrent report for transcriptId "${report.transcriptId}" won the insert — returning it`,
+      );
+    }
+    return this.toReport(stored);
+  }
+
+  /** `report_data` is empty on Attempt rows, so the response is rebuilt from the typed columns. */
+  private toReport(row: SimulationReport): Report {
+    return mapRowToReportDetail(row) as unknown as Report;
   }
 
   private enrichCommunicationAssessment(aiAnalysis: unknown): unknown {
@@ -4438,7 +2777,7 @@ Return ONLY JSON with this schema:
     });
 
     // Generate overall summary based on score
-    let summary = '';
+    let summary: string;
     if (sbarResult.score >= 80) {
       summary = `Excellent SBAR communication with a score of ${sbarResult.score}%. Student demonstrated strong proficiency in structured clinical handoff communication.`;
     } else if (sbarResult.score >= 60) {
@@ -4478,25 +2817,65 @@ Return ONLY JSON with this schema:
     scenarioStartTime?: string,
     actionsTimeline?: EnrichedMessage[],
     commonActionTracker?: Record<string, unknown> | EnrichedMessage[],
-    mode: 'Practice' | 'Assessment' = 'Assessment',
+    mode: ReportModeType = ReportModeType.ASSESSMENT,
     _transcript?: unknown,
     summaryEntries?: ActionAttempt[],
     language: 'en' | 'es' = 'en',
   ): Promise<CommunicationAssessment> {
-    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.logger.debug(JSON.stringify([summaryByCategory]));
-    this.logger.debug(JSON.stringify([actionsTimeline]));
-    this.logger.debug('convo', conversationText);
-    this.logger.debug([commonActionTracker], 'commonActionTracker');
+    this.logger.debug({
+      topic: 'ReportsService',
+      subTopic: 'analyzeWithOpenAI',
+      operation: 'debug-inputs',
+      metadata: { summaryByCategory, actionsTimeline, conversationText, commonActionTracker },
+    });
 
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key not configured');
+    if (!this.aiGateway.isConfigured()) {
+      throw new AiNotConfiguredException();
     }
 
     // Extract all rubric items from the scenario
-    const rubricItems: ScenarioRubricItem[] = Array.isArray(scenario?.grading?.rubric)
+    let rubricItems: ScenarioRubricItem[] = Array.isArray(scenario?.grading?.rubric)
       ? scenario.grading.rubric
       : [];
+
+    // Consolidate legacy separate Medications weight into Action, then drop the standalone
+    // Medications item entirely so scenarios that haven't been re-saved never produce a
+    // separate Medications category in the generated report.
+    const legacyMeds = rubricItems.find(
+      (r) =>
+        String(r?.subCategory ?? '')
+          .trim()
+          .toLowerCase() === 'medications',
+    );
+    if (legacyMeds) {
+      const legacyMedsWeight =
+        typeof legacyMeds?.weight === 'number'
+          ? legacyMeds.weight
+          : Number(legacyMeds?.weight) || 0;
+      rubricItems = rubricItems
+        .filter(
+          (item) =>
+            String(item?.subCategory ?? '')
+              .trim()
+              .toLowerCase() !== 'medications',
+        )
+        .map((item) => {
+          const sub = String(item?.subCategory ?? '')
+            .trim()
+            .toLowerCase();
+          if (
+            sub === 'action' ||
+            sub === 'actions & interventions' ||
+            sub === 'action / clinical interventions' ||
+            sub === 'expected actions'
+          ) {
+            const currentWeight =
+              typeof item.weight === 'number' ? item.weight : Number(item.weight) || 0;
+            return { ...item, weight: currentWeight + legacyMedsWeight };
+          }
+          return item;
+        });
+    }
 
     // Separate soft skills and technical skills
     const softSkillItems = rubricItems.filter((item) => item?.categoryType === 'Soft Skill');
@@ -4517,7 +2896,7 @@ Return ONLY JSON with this schema:
         name: String(item.name ?? item.subCategory ?? ''),
         categoryType: String(item.categoryType ?? ''),
         subCategory: String(item.subCategory ?? ''),
-        weight: typeof item.weight === 'number' ? item.weight : (Number(item.weight) || 0),
+        weight: typeof item.weight === 'number' ? item.weight : Number(item.weight) || 0,
         scoringModel: String(item.scoringModel ?? 'Graded'),
         evaluationSource: String(item.evaluationSource ?? 'AI'),
         aiDescription: String(item.aiMapping?.aiDescription ?? ''),
@@ -4530,8 +2909,8 @@ Return ONLY JSON with this schema:
 
     // Extract technical skill configurations
     /* const _learningObjectivesItem = */ technicalSkillItems.find(
-      (item) => item?.subCategory === 'Learning Objectives',
-    );
+        (item) => item?.subCategory === 'Learning Objectives',
+      );
     const patientDataCoverageItem = technicalSkillItems.find(
       (item) => item?.subCategory === 'Patient Data Coverage',
     );
@@ -4575,7 +2954,12 @@ Return ONLY JSON with this schema:
       .map((item) => item.subCategory)
       .map((subCat) => subCat?.toLowerCase())
       .filter(Boolean);
-    this.logger.debug({ configuredSubCats }, 'configuredSubCats');
+    this.logger.debug({
+      topic: 'ReportsService',
+      subTopic: 'analyzeWithOpenAI',
+      operation: 'configured-sub-categories',
+      metadata: { configuredSubCats },
+    });
 
     if (configuredSubCats.includes('vitals') && studentSummary.vitals) {
       filteredStudentSummary.vitals = studentSummary.vitals;
@@ -4620,8 +3004,8 @@ Return ONLY JSON with this schema:
     const expectedActionsList = expectedActionsItem?.expectedActions ?? [];
 
     // Get unit actions (pre-defined correct answers)
-    const unit = scenario ? this.jsonDataService.getUnitById(scenario.unitId) : null;
-    const unitActions = unit?.actions ?? [];
+    const unit = scenario ? await this.unitRepository.findByBusinessId(scenario.unitId) : null;
+    const unitActions = (unit?.actions ?? []) as Array<{ name?: string; title?: string }>;
 
     // Get patient data fields for Patient Data Coverage
     const _patientDataFields = patientDataCoverageItem?.patientDataFields ?? [];
@@ -4647,10 +3031,10 @@ Return ONLY JSON with this schema:
 
     const timelineAnalysis = computeTimelineAnalysis(
       actionsTimeline ?? [],
-      scenario?.timeline?.blocks ?? [],
+      (scenario?.timeline?.blocks ?? []) as TimelineBlock[],
       scenarioStartTime,
       (seconds: number): string => this.formatSecondsToTime(seconds),
-      studentSummary,
+      studentSummary as unknown as TimelineSummaryByCategory,
       commonActionTracker,
       // Array.isArray(transcript?.messages) ? transcript.messages : [],
       (scenario?.timeline?.sequenceChain ?? []) as string[],
@@ -4746,10 +3130,10 @@ Return ONLY JSON with this schema:
         ? (rawTracker as unknown as Array<{ label: string; timestamp: string; type: string }>)
         : Array.isArray((rawTracker as Record<string, unknown>)?.actionLog)
           ? ((rawTracker as Record<string, unknown>).actionLog as Array<{
-              label: string;
-              timestamp: string;
-              type: string;
-            }>)
+            label: string;
+            timestamp: string;
+            type: string;
+          }>)
           : [];
 
     const ppeAnalysis = this.computePPEScore(
@@ -4775,8 +3159,8 @@ Return ONLY JSON with this schema:
       (commonActionTracker as Record<string, unknown>)?.actionLog,
     )
       ? ((commonActionTracker as Record<string, unknown>).actionLog as Array<
-          Record<string, unknown>
-        >)
+        Record<string, unknown>
+      >)
       : Array.isArray(commonActionTracker)
         ? commonActionTracker
         : [];
@@ -5006,7 +3390,9 @@ OUTPUT FORMAT (strict � follow exactly):
         ClinicalDocumentationService['buildDocumentationInstructions']
       >[0],
       technicalSkillItems,
-      scenario as Parameters<ClinicalDocumentationService['buildDocumentationInstructions']>[2],
+      scenario as unknown as Parameters<
+        ClinicalDocumentationService['buildDocumentationInstructions']
+      >[2],
     );
 
     const actionInstructions = actionItem
@@ -5295,20 +3681,20 @@ ${studentSummaryText}
 DYNAMIC GRADING RUBRIC:
 
 ${rubricItems
-  .map((item) => {
-    const subCatRaw = String(item.subCategory ?? '')
-      .trim()
-      .toLowerCase();
-    if (subCatRaw === 'communication' && Array.isArray(item.communicationCriteria)) {
-      const sanitized = {
-        ...item,
-        communicationCriteria: item.communicationCriteria.filter((c) => c.enabled !== false),
-      };
-      return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(sanitized)}`;
-    }
-    return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(item)}`;
-  })
-  .join('\n\n')}
+          .map((item) => {
+            const subCatRaw = String(item.subCategory ?? '')
+              .trim()
+              .toLowerCase();
+            if (subCatRaw === 'communication' && Array.isArray(item.communicationCriteria)) {
+              const sanitized = {
+                ...item,
+                communicationCriteria: item.communicationCriteria.filter((c) => c.enabled !== false),
+              };
+              return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(sanitized)}`;
+            }
+            return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(item)}`;
+          })
+          .join('\n\n')}
 
 ASSESSMENT INSTRUCTIONS:
 
@@ -5319,67 +3705,67 @@ GENERAL FEEDBACK RULES FOR ALL RUBRICS:
 - NEVER provide generic recommendations when performance is perfect or near-perfect
 
 ${rubricItems
-  .map((item, index: number) => {
-    const subCat = String(item.subCategory ?? '')
-      .trim()
-      .toLowerCase();
-    if (subCat === 'expected actions') {
-      return `${index + 1}. EXPECTED ACTIONS:\n${expectedActionsInstructions}`;
-    }
-    if (subCat === 'communication') {
-      const commDesc = String(item.description ?? '').trim();
-      const communicationCriteria: CommunicationCriterion[] = item.communicationCriteria ?? [];
-      const enabledCriteria: CommunicationCriterion[] = communicationCriteria.filter(
-        (c) => c.enabled,
-      );
+          .map((item, index: number) => {
+            const subCat = String(item.subCategory ?? '')
+              .trim()
+              .toLowerCase();
+            if (subCat === 'expected actions') {
+              return `${index + 1}. EXPECTED ACTIONS:\n${expectedActionsInstructions}`;
+            }
+            if (subCat === 'communication') {
+              const commDesc = String(item.description ?? '').trim();
+              const communicationCriteria: CommunicationCriterion[] = item.communicationCriteria ?? [];
+              const enabledCriteria: CommunicationCriterion[] = communicationCriteria.filter(
+                (c) => c.enabled,
+              );
 
-      // Check FIRST: if all criteria are disabled, award full marks regardless of student messages
-      if (communicationCriteria.length > 0 && enabledCriteria.length === 0) {
-        this.logger.debug(
-          '[Communication] All criteria disabled � awarding full marks, skipping AI evaluation.',
-        );
-        return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: All communication criteria are disabled by the instructor.\n- score MUST be 100\n- summary: "Communication evaluation will be determined by system configuration."\n- strengths: []\n- weaknesses: []\n- recommendations: []`;
-      }
+              // Check FIRST: if all criteria are disabled, award full marks regardless of student messages
+              if (communicationCriteria.length > 0 && enabledCriteria.length === 0) {
+                this.logger.debug(
+                  '[Communication] All criteria disabled � awarding full marks, skipping AI evaluation.',
+                );
+                return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: All communication criteria are disabled by the instructor.\n- score MUST be 100\n- summary: "Communication evaluation will be determined by system configuration."\n- strengths: []\n- weaknesses: []\n- recommendations: []`;
+              }
 
-      if (studentMessageCount === 0) {
-        // Generate weaknesses based on enabled criteria, or use generic if no criteria configured
-        const weaknessesJson =
-          enabledCriteria.length > 0
-            ? enabledCriteria
-                .map(
-                  (criterion) =>
-                    `{"point": "Criterion not met: ${criterion.title}", "example": "No verbal communication was present in the transcript to demonstrate this criterion."}`,
-                )
-                .join(',')
-            : `{"point": "No communication demonstrated.", "example": "There is no evidence of any verbal communication with the patient in the transcript."}`;
+              if (studentMessageCount === 0) {
+                // Generate weaknesses based on enabled criteria, or use generic if no criteria configured
+                const weaknessesJson =
+                  enabledCriteria.length > 0
+                    ? enabledCriteria
+                      .map(
+                        (criterion) =>
+                          `{"point": "Criterion not met: ${criterion.title}", "example": "No verbal communication was present in the transcript to demonstrate this criterion."}`,
+                      )
+                      .join(',')
+                    : `{"point": "No communication demonstrated.", "example": "There is no evidence of any verbal communication with the patient in the transcript."}`;
 
-        return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: The student transcript contains ZERO student messages.\n- score MUST be 0\n- summary: "No verbal communication with the patient was documented in the conversation transcript."\n- strengths: []\n- weaknesses: [${weaknessesJson}]\n- recommendations: ["Engage verbally with the patient during the simulation."]`;
-      }
+                return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: The student transcript contains ZERO student messages.\n- score MUST be 0\n- summary: "No verbal communication with the patient was documented in the conversation transcript."\n- strengths: []\n- weaknesses: [${weaknessesJson}]\n- recommendations: ["Engage verbally with the patient during the simulation."]`;
+              }
 
-      // Multi-criteria evaluation mode
-      if (enabledCriteria.length > 0) {
-        const criteriaInstructions: string = enabledCriteria
-          .map(
-            (criterion: CommunicationCriterion, idx: number) => `
+              // Multi-criteria evaluation mode
+              if (enabledCriteria.length > 0) {
+                const criteriaInstructions: string = enabledCriteria
+                  .map(
+                    (criterion: CommunicationCriterion, idx: number) => `
   Criterion ${idx + 1}: "${criterion.title}"
   Evaluator Prompt: ${criterion.prompt}
   Return: {"passed": true/false, "rationale": "Brief explanation with evidence from transcript"}
 `,
-          )
-          .join('\n');
+                  )
+                  .join('\n');
 
-        const summaryPrompt = item.communicationSummaryPrompt
-          ? `
+                const summaryPrompt = item.communicationSummaryPrompt
+                  ? `
 
 [CRITICAL - SUMMARY GENERATION INSTRUCTIONS]
 ${item.communicationSummaryPrompt}
 
 YOU MUST follow the above instruction when writing the "summary" field in your response. This is a mandatory requirement from the instructor.`
-          : `
+                  : `
 
 Generate a balanced "summary" field that reflects both strengths and weaknesses identified in the criteria evaluation.`;
 
-        return `${index + 1}. COMMUNICATION (Multi-Criteria Evaluation):
+                return `${index + 1}. COMMUNICATION (Multi-Criteria Evaluation):
 [!] STRICT RULE: Evaluate ONLY the STUDENT MESSAGES below. DO NOT use documentation, action notes, summaryByCategory, commonactions, or any other data source.
 
 STUDENT MESSAGES FROM TRANSCRIPT (this is the ONLY source you may use):
@@ -5411,34 +3797,34 @@ OUTPUT FORMAT:
   "weaknesses": [{"point": "Criterion title that failed", "example": "What was missing"}],
   "recommendations": ["Actionable suggestions based on failed criteria"]
 }`;
-      }
+              }
 
-      // Legacy single evaluation mode (fallback when no criteria are configured at all)
-      const summaryPromptLegacy = item.communicationSummaryPrompt
-        ? `
+              // Legacy single evaluation mode (fallback when no criteria are configured at all)
+              const summaryPromptLegacy = item.communicationSummaryPrompt
+                ? `
 
 [CRITICAL - SUMMARY GENERATION INSTRUCTIONS]
 ${item.communicationSummaryPrompt}
 
 YOU MUST follow the above instruction when writing your summary. This is a mandatory requirement from the instructor.`
-        : '';
-      return `${index + 1}. COMMUNICATION:\n[!] STRICT RULE: Evaluate ONLY the STUDENT MESSAGES below. DO NOT use documentation, action notes, summaryByCategory, commonactions, or any other data source.\n\nSTUDENT MESSAGES FROM TRANSCRIPT (this is the ONLY source you may use):\n${studentOnlyTranscript}\n\nADMIN-DEFINED ASSESSMENT LOGIC:\n  ${commDesc || 'Evaluate professional, empathetic, and clear communication with the patient.'}\n\n- Score based ONLY on what the student said in the messages above\n- If a student message exists, score MUST be > 0 and reflect actual quality\n- Provide: strengths (quote from student messages), weaknesses (gaps per admin criteria), recommendations, summary${summaryPromptLegacy}`;
-    }
-    if (subCat === 'documentation') {
-      return `${index + 1}. DOCUMENTATION:\n${documentationInstructions}`;
-    }
-    if (subCat === 'action' || subCat === 'action / clinical interventions') {
-      return `${index + 1}. ACTION:\n${actionInstructions}`;
-    }
-    if (subCat === 'timeline') {
-      return `${index + 1}. TIMELINE:\n${timelineInstructions}`;
-    }
-    if (subCat === 'sequencing & prioritization') {
-      return `${index + 1}. SEQUENCING & PRIORITIZATION:\n${sequencingInstructions}`;
-    }
-    return `${index + 1}. ${subCat.toUpperCase()}:\n- Assess based on transcript and rubric configuration\n- Apply general feedback rules: If score is 100%, recommendations should be "No items identified."\n- Provide: strengths, weaknesses, recommendations, summary`;
-  })
-  .join('\n\n')}
+                : '';
+              return `${index + 1}. COMMUNICATION:\n[!] STRICT RULE: Evaluate ONLY the STUDENT MESSAGES below. DO NOT use documentation, action notes, summaryByCategory, commonactions, or any other data source.\n\nSTUDENT MESSAGES FROM TRANSCRIPT (this is the ONLY source you may use):\n${studentOnlyTranscript}\n\nADMIN-DEFINED ASSESSMENT LOGIC:\n  ${commDesc || 'Evaluate professional, empathetic, and clear communication with the patient.'}\n\n- Score based ONLY on what the student said in the messages above\n- If a student message exists, score MUST be > 0 and reflect actual quality\n- Provide: strengths (quote from student messages), weaknesses (gaps per admin criteria), recommendations, summary${summaryPromptLegacy}`;
+            }
+            if (subCat === 'documentation') {
+              return `${index + 1}. DOCUMENTATION:\n${documentationInstructions}`;
+            }
+            if (subCat === 'action' || subCat === 'action / clinical interventions') {
+              return `${index + 1}. ACTION:\n${actionInstructions}`;
+            }
+            if (subCat === 'timeline') {
+              return `${index + 1}. TIMELINE:\n${timelineInstructions}`;
+            }
+            if (subCat === 'sequencing & prioritization') {
+              return `${index + 1}. SEQUENCING & PRIORITIZATION:\n${sequencingInstructions}`;
+            }
+            return `${index + 1}. ${subCat.toUpperCase()}:\n- Assess based on transcript and rubric configuration\n- Apply general feedback rules: If score is 100%, recommendations should be "No items identified."\n- Provide: strengths, weaknesses, recommendations, summary`;
+          })
+          .join('\n\n')}
 
 
 OUTPUT REQUIREMENTS (STRICT JSON ONLY):
@@ -5519,59 +3905,19 @@ IMPORTANT:
         language === 'es'
           ? 'You are an expert nursing education assessor. Always return valid JSON exactly matching the requested structure. Every free-text (prose) field value in your reply MUST be written in natural, professional Spanish (es-419) using formal usted-form. Field names, enum values, IDs and numeric scores stay in English.'
           : 'You are an expert nursing education assessor. Always return valid JSON exactly matching the requested structure.';
+      const analysisRaw = await this.callUnifiedGradingCompletion<
+        CommunicationAssessment & { communicationAssessment?: CommunicationAssessment }
+      >(systemMessage, unifiedPrompt);
 
-      const response = await firstValueFrom(
-        this.httpService.post<OpenAIRawResponse>(
-          'https://api.openai.com/v1/chat/completions',
-          {
-            model: 'gpt-4.1',
-            messages: [
-              {
-                role: 'system',
-                content: systemMessage,
-              },
-              {
-                role: 'user',
-                content: unifiedPrompt,
-              },
-            ],
-            temperature: UNIFIED_REPORT_AI_TEMPERATURE,
-            max_tokens: UNIFIED_REPORT_AI_MAX_TOKENS,
-            response_format: { type: 'json_object' },
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${openaiApiKey}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        ),
-      );
-
-      const usage = response.data?.usage;
-      this.logger.debug(
-        'Unified Assessment Token Usage:',
-        JSON.stringify({
-          promptTokens: usage?.prompt_tokens,
-          completionTokens: usage?.completion_tokens,
-          totalTokens: usage?.total_tokens,
-        }),
-      );
-
-      const content = response.data?.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('Empty response from OpenAI');
-      }
-
-      let analysisRaw: CommunicationAssessment & {
-        communicationAssessment?: CommunicationAssessment;
-      };
-      try {
-        analysisRaw = JSON.parse(content) as typeof analysisRaw;
-      } catch (parseError) {
-        this.logger.error('Invalid JSON returned from OpenAI:', content);
-        throw new Error('Failed to parse OpenAI response JSON');
-      }
+      // Clamp every raw AI rubric score to [0, 100]
+      const rawAiRoot = ((analysisRaw as Record<string, unknown>)?.communicationAssessment ??
+        analysisRaw) as Record<string, unknown> | undefined;
+      const rawAiRubrics = (rawAiRoot?.rubrics ?? {}) as Record<string, unknown>;
+      const rawAiItemsRecord = (rawAiRubrics?.items ?? {}) as Record<
+        string,
+        Record<string, unknown>
+      >;
+      this.clampAiRubricScores(rawAiItemsRecord);
 
       const analysis: CommunicationAssessment =
         analysisRaw.communicationAssessment ?? analysisRaw ?? {};
@@ -5582,11 +3928,7 @@ IMPORTANT:
       const seqItemRaw = Object.values(comm.rubrics?.items ?? {}).find((v) => {
         const rawSub = (v as { subCategory?: unknown })?.subCategory;
         const sub = (
-          typeof rawSub === 'string'
-            ? rawSub
-            : typeof rawSub === 'number'
-              ? String(rawSub)
-              : ''
+          typeof rawSub === 'string' ? rawSub : typeof rawSub === 'number' ? String(rawSub) : ''
         ).toLowerCase();
         return (
           sub === 'sequencing & prioritization' || sub === 'timeline' || sub.includes('sequenc')
@@ -5596,11 +3938,11 @@ IMPORTANT:
       // Capture AI-generated narrative for the sequencing rubric BEFORE any overrides wipe it
       const seqAINarrative = seqItemRaw
         ? {
-            strengths: (seqItemRaw as Record<string, unknown>).strengths,
-            weaknesses: (seqItemRaw as Record<string, unknown>).weaknesses,
-            summary: (seqItemRaw as Record<string, unknown>).summary,
-            recommendations: (seqItemRaw as Record<string, unknown>).recommendations,
-          }
+          strengths: (seqItemRaw as Record<string, unknown>).strengths,
+          weaknesses: (seqItemRaw as Record<string, unknown>).weaknesses,
+          summary: (seqItemRaw as Record<string, unknown>).summary,
+          recommendations: (seqItemRaw as Record<string, unknown>).recommendations,
+        }
         : null;
       this.logger.debug('Assessment Analysis:', JSON.stringify(comm));
 
@@ -5629,13 +3971,25 @@ IMPORTANT:
           return;
         }
 
-        // Try matching by ID first, then by subCategory as fallback
+        // Try matching by ID first, then by subCategory as fallback. AI-returned
+        // items are keyed by their own UUID (with `id` set to that same UUID, not
+        // to the config's `rubric_actions`-style id), so subCategory must match
+        // even when the item already has an `id` — otherwise this creates a
+        // duplicate stub item per rubric (see report duplication bug).
         const existingItem =
           rubricItemsRecord[id] ??
           Object.values(rubricItemsRecord).find(
-            (item) =>
-              item.id === id || (item.subCategory === subCategory && item.subCategory && !item.id),
+            (item) => item.id === id || (!!subCategory && item.subCategory === subCategory),
           );
+
+        // The AI intermittently omits `subCategory` on items it did return (seen when it
+        // truncates/abbreviates less prominent fields). All deterministic overrides below
+        // gate on `item.subCategory`, so a missing value silently skips overriding that
+        // rubric and lets the AI's own unreliable score/text through. Force it from the
+        // scenario config whenever we matched this item by ID.
+        if (existingItem && !existingItem.subCategory && subCategory) {
+          existingItem.subCategory = subCategory;
+        }
 
         if (!existingItem) {
           const rubricId = id || `rubric_${subCategory.toLowerCase().replace(/\s+/g, '_')}`;
@@ -5673,17 +4027,10 @@ IMPORTANT:
       // returns score=0 while criteriaResults contain passed:true entries and
       // strengths are populated. Always recompute the score deterministically
       // from criteriaResults so the AI's arithmetic is never trusted.
-      Object.values(rubricItemsRecord).forEach((item) => {
+      for (const item of Object.values(rubricItemsRecord)) {
         if (String(item.subCategory ?? '').toLowerCase() !== 'communication') {
-          return;
+          continue;
         }
-        const criteriaResults = item.criteriaResults;
-        if (!Array.isArray(criteriaResults) || criteriaResults.length === 0) {
-          return;
-        }
-        const passedCount = criteriaResults.filter((cr) => cr.passed === true).length;
-        // Use enabled criteria count from scenario config as the authoritative denominator.
-        // This prevents diluted scores if the AI hallucinates extra criteriaResults entries.
         const scenarioCommRubric = (scenario?.grading?.rubric ?? []).find(
           (r) =>
             String(r?.subCategory ?? '')
@@ -5693,12 +4040,53 @@ IMPORTANT:
         const enabledCount = (scenarioCommRubric?.communicationCriteria ?? []).filter(
           (c) => c.enabled,
         ).length;
-        const totalCount = enabledCount > 0 ? enabledCount : criteriaResults.length;
-        item.score = Math.round((passedCount / totalCount) * 100);
-        this.logger.debug(
-          `[Communication] Recomputed score from criteriaResults: ${passedCount}/${totalCount} (enabledCount=${enabledCount}) = ${item.score}%`,
-        );
-      });
+        recomputeCommunicationScore(item, enabledCount, this.logger);
+
+        // Empty/missing criteriaResults with enabled criteria configured means the AI
+        // truncated its response (seen on slow connections/Chromebooks) rather than
+        // Communication genuinely having nothing to grade. Retry the AI call a few
+        // times to recover a real criteriaResults array before giving up on N/A.
+        for (
+          let attempt = 1;
+          item.score === null &&
+          enabledCount > 0 &&
+          attempt <= COMMUNICATION_EMPTY_CRITERIA_MAX_RETRIES;
+          attempt++
+        ) {
+          this.logger.warn({
+            topic: 'ReportsService',
+            subTopic: 'createReportWithAI',
+            operation: 'communication-criteria-results-retry',
+            message: 'Retrying unified grading AI call to recover Communication criteriaResults',
+            metadata: { attempt, enabledCount, subCategory: item.subCategory },
+          });
+          const retryItem = await this.retryCommunicationCriteriaResults(
+            systemMessage,
+            unifiedPrompt,
+          );
+          if (retryItem) {
+            item.criteriaResults = retryItem.criteriaResults as RubricItemRecord['criteriaResults'];
+            item.strengths =
+              (retryItem.strengths as RubricItemRecord['strengths']) ?? item.strengths;
+            item.weaknesses =
+              (retryItem.weaknesses as RubricItemRecord['weaknesses']) ?? item.weaknesses;
+            item.summary = (retryItem.summary as string) ?? item.summary;
+            item.recommendations = (retryItem.recommendations as string[]) ?? item.recommendations;
+            recomputeCommunicationScore(item, enabledCount, this.logger);
+          }
+        }
+
+        if (item.score === null && enabledCount > 0) {
+          this.logger.error({
+            topic: 'ReportsService',
+            subTopic: 'createReportWithAI',
+            operation: 'communication-criteria-results-exhausted',
+            message:
+              'Communication criteriaResults still missing/empty after retries; leaving score as N/A',
+            metadata: { retries: COMMUNICATION_EMPTY_CRITERIA_MAX_RETRIES, enabledCount },
+          });
+        }
+      }
       // ---------------------------------------------------------------------------
 
       // ── DETERMINISTIC COMMUNICATION OVERRIDE ──────────────────────────────
@@ -5788,11 +4176,11 @@ IMPORTANT:
 
             item.recommendations = es
               ? [
-                  'Interactúe verbalmente con el paciente durante la simulación. Preséntese, pregunte sobre sus inquietudes y demuestre empatía y profesionalismo a lo largo del encuentro.',
-                ]
+                'Interactúe verbalmente con el paciente durante la simulación. Preséntese, pregunte sobre sus inquietudes y demuestre empatía y profesionalismo a lo largo del encuentro.',
+              ]
               : [
-                  'Engage verbally with the patient during the simulation. Introduce yourself, ask about their concerns, and demonstrate empathy and professionalism throughout the encounter.',
-                ];
+                'Engage verbally with the patient during the simulation. Introduce yourself, ask about their concerns, and demonstrate empathy and professionalism throughout the encounter.',
+              ];
           }
         });
       }
@@ -5910,12 +4298,14 @@ IMPORTANT:
         }
 
         // Action: override with deterministic action marks
-        if (
-          (id === deterministicIds.action ||
-            ((sub === 'action' || sub === 'action / clinical interventions') &&
-              !deterministicIds.action)) &&
-          expectedActionMarks
-        ) {
+        const isActionRubric =
+          id === deterministicIds.action ||
+          ((sub === 'action' ||
+            sub === 'actions & interventions' ||
+            sub === 'action / clinical interventions') &&
+            !deterministicIds.action);
+
+        if (isActionRubric && expectedActionMarks) {
           // Compute Medications counts for combining with Actions
           let medMandatoryTotal = 0;
           let medMandatoryCorrect = 0;
@@ -5929,21 +4319,25 @@ IMPORTANT:
               gradingConfig?: { enabled?: boolean; gradingType?: string };
             };
           }>;
+
           const mandatoryMedicationOrders = scenarioOrders
             .filter((o) => {
               if (o?.category !== 'Medication') {
                 return false;
               }
               const gc = o?.medicationConfig?.gradingConfig;
-              return gc?.gradingType
+              const isMandatory = gc?.gradingType
                 ? gc.gradingType === 'Mandatory'
                 : gc?.enabled === true;
+              return isMandatory;
             })
             .map((o) => ({
               id: o.id,
               title: (o.title ?? '').trim(),
               idKey: o.id ? `id:${o.id.trim().toLowerCase()}` : '',
-              nameKey: normalizeMedicationName(o.title) ? `name:${normalizeMedicationName(o.title)}` : '',
+              nameKey: normalizeMedicationName(o.title)
+                ? `name:${normalizeMedicationName(o.title)}`
+                : '',
             }))
             .filter((o) => o.title.length > 0);
 
@@ -5965,23 +4359,33 @@ IMPORTANT:
             };
           }>;
 
+          const medActionDetails: Array<Record<string, unknown>> = [];
+          const medStrengths: Array<{ point: string; example: string }> = [];
+          const medWeaknesses: Array<{ point: string; example: string }> = [];
+
           if (studentMeds) {
             const seenMedKeys = new Set<string>();
             const dedupedResults = studentMeds
-              .map((entry) => ({
-                medicationId:
-                  entry.administrationDetails?.gradingResult?.medicationId ??
-                  entry.administrationDetails?.medicationId,
-                orderTitle:
+              .map((entry) => {
+                const gr = entry.administrationDetails?.gradingResult;
+                const orderTitle =
                   entry.administrationDetails?.orderTitle ??
-                  entry.administrationDetails?.gradingResult?.medicationName ??
+                  gr?.medicationName ??
                   entry.administrationDetails?.medicationName ??
-                  '',
-                gradingResult: entry.administrationDetails?.gradingResult,
-              }))
+                  '';
+                const medicationId = gr?.medicationId ?? entry.administrationDetails?.medicationId;
+                return {
+                  medicationId,
+                  orderTitle,
+                  gradingResult: gr,
+                };
+              })
               .filter(
-                (r): r is typeof r & { gradingResult: NonNullable<typeof r.gradingResult> } =>
-                  !!r.gradingResult,
+                (
+                  r,
+                ): r is typeof r & {
+                  gradingResult: NonNullable<(typeof r)['gradingResult']>;
+                } => !!r.gradingResult,
               )
               .filter((r) => {
                 const key = normalizeMedicationKey(r.orderTitle, r.medicationId);
@@ -5997,13 +4401,17 @@ IMPORTANT:
 
             for (const entry of dedupedResults) {
               const gr = entry.gradingResult;
-              const medName = entry.orderTitle ?? gr.medicationName ?? '';
-              const idKey = entry.medicationId ? `id:${entry.medicationId.trim().toLowerCase()}` : '';
-              const nameKey = normalizeMedicationName(medName) ? `name:${normalizeMedicationName(medName)}` : '';
+              const medName: string = entry.orderTitle || gr.medicationName || 'Medication';
+              const idKey = entry.medicationId
+                ? `id:${entry.medicationId.trim().toLowerCase()}`
+                : '';
+              const nameKey = normalizeMedicationName(medName)
+                ? `name:${normalizeMedicationName(medName)}`
+                : '';
               if (idKey) administeredKeys.add(idKey);
               if (nameKey) administeredKeys.add(nameKey);
 
-              const isCorrect = (gr.overallScore ?? 0) >= 100;
+              const isCorrect = typeof gr.overallScore === 'number' && gr.overallScore >= 100;
               const isMandatory = gr.mandatory !== false;
               if (!isMandatory) {
                 continue;
@@ -6011,7 +4419,27 @@ IMPORTANT:
               medMandatoryTotal += 1;
               if (isCorrect) {
                 medMandatoryCorrect += 1;
+                medStrengths.push({
+                  point: medName,
+                  example: 'Medication administered correctly.',
+                });
+              } else {
+                medWeaknesses.push({
+                  point: medName,
+                  example: 'Medication was not administered correctly.',
+                });
               }
+              medActionDetails.push({
+                title: medName,
+                type: 'medication',
+                attemptsCount: 1,
+                isOptional: false,
+                response: String(gr.medicationName ?? medName),
+                isCorrect,
+                pointsAwarded: isCorrect ? 1 : 0,
+                firstAttemptCorrect: isCorrect,
+                anyAttemptCorrect: isCorrect,
+              });
             }
           }
 
@@ -6024,6 +4452,18 @@ IMPORTANT:
               continue;
             }
             medMandatoryTotal += 1;
+            medActionDetails.push({
+              title: order.title,
+              type: 'medication',
+              attemptsCount: 0,
+              isOptional: false,
+              isCorrect: false,
+              pointsAwarded: 0,
+            });
+            medWeaknesses.push({
+              point: order.title,
+              example: 'Mandatory medication was not administered.',
+            });
           }
 
           const totalRequired = expectedActionMarks.totalRequiredActions + medMandatoryTotal;
@@ -6031,7 +4471,20 @@ IMPORTANT:
 
           const percentage = totalRequired > 0 ? (positiveActions / totalRequired) * 100 : null;
           item.score = percentage !== null ? Number(percentage.toFixed(2)) : null;
-          item.actionDetails = expectedActionMarks.details;
+
+          // Log deterministic override result
+          this.logger.debug(
+            `[DETERMINISTIC-OVERRIDE] Action/Intervention Score Override: ` +
+            `ItemId: ${id}, SubCategory: ${sub}, ` +
+            `DeterministicPercentage: ${percentage?.toFixed(2) ?? 'N/A'}%, ` +
+            `FinalScore: ${item.score ?? 'N/A'}, ` +
+            `PositiveActions: ${positiveActions}/${totalRequired}`,
+          );
+
+          item.actionDetails = [
+            ...(expectedActionMarks.details || []),
+            ...medActionDetails,
+          ] as typeof item.actionDetails;
 
           const vitalFeedback = this.generateVitalActionFeedback(
             (actionsTimeline ?? []) as unknown as ActionAttempt[],
@@ -6040,8 +4493,12 @@ IMPORTANT:
             summaryEntriesForVitals,
           );
           const actionFeedback = this.buildActionFeedback(expectedActionMarks.details);
-          item.strengths = vitalFeedback.strengths.concat(actionFeedback.strengths);
-          item.weaknesses = vitalFeedback.improvements.concat(actionFeedback.weaknesses);
+          item.strengths = vitalFeedback.strengths
+            .concat(actionFeedback.strengths)
+            .concat(medStrengths);
+          item.weaknesses = vitalFeedback.improvements
+            .concat(actionFeedback.weaknesses)
+            .concat(medWeaknesses);
 
           // When Spanish is active, translate the deterministic English templates
           // produced by buildActionFeedback / generateVitalActionFeedback (those
@@ -6117,8 +4574,8 @@ IMPORTANT:
               a.typeRequirement?.toLowerCase() !== 'distractor',
           ).length;
           const nonVitalTotal = expectedActionMarks.totalRequiredActions - vitalTotal;
-          const reconciledTotal = nonVitalTotal + vitalTotal;
-          const reconciledPositive = nonVitalPositive + vitalPositive;
+          const reconciledTotal = nonVitalTotal + vitalTotal + medMandatoryTotal;
+          const reconciledPositive = nonVitalPositive + vitalPositive + medMandatoryCorrect;
           const reconciledPercentage =
             reconciledTotal > 0 ? (reconciledPositive / reconciledTotal) * 100 : null;
           // Store as percentage (0-100), weight will be applied in final calculation
@@ -6136,9 +4593,8 @@ IMPORTANT:
           }
 
           // Sync actionDetails so vital actions reflect the reconciled isCorrect value.
-          // Also sync firstAttemptCorrect and anyAttemptCorrect so they are consistent
-          // with isCorrect and the AI no longer receives conflicting signals.
-          item.actionDetails = expectedActionMarks.details.map((d) => {
+          // Also append medActionDetails so medications are preserved in the table.
+          const reconciledActionDetails = expectedActionMarks.details.map((d) => {
             if (String(d.type ?? '').toLowerCase() !== 'vital') {
               return d;
             }
@@ -6150,6 +4606,41 @@ IMPORTANT:
               anyAttemptCorrect: isCorrect,
               pointsAwarded: isCorrect && !d.isOptional ? 1 : 0,
             };
+          });
+
+          const allActionDetails = [...reconciledActionDetails, ...medActionDetails];
+          const seenActionKeys = new Set<string>();
+          item.actionDetails = allActionDetails.filter((d) => {
+            const title = (typeof d?.title === 'string' ? d.title : '').trim().toLowerCase();
+            const type = (typeof d?.type === 'string' ? d.type : '').trim().toLowerCase();
+            const key = `${title}|||${type}`;
+            if (seenActionKeys.has(key)) {
+              return false;
+            }
+            seenActionKeys.add(key);
+            return true;
+          });
+
+          const seenWeaknessKeys = new Set<string>();
+          item.weaknesses = (item.weaknesses || []).filter((w) => {
+            const pt = typeof w === 'string' ? w : (w?.point ?? '');
+            const key = pt.trim().toLowerCase();
+            if (!key || seenWeaknessKeys.has(key)) {
+              return false;
+            }
+            seenWeaknessKeys.add(key);
+            return true;
+          });
+
+          const seenStrengthKeys = new Set<string>();
+          item.strengths = (item.strengths || []).filter((s) => {
+            const pt = typeof s === 'string' ? s : (s?.point ?? '');
+            const key = pt.trim().toLowerCase();
+            if (!key || seenStrengthKeys.has(key)) {
+              return false;
+            }
+            seenStrengthKeys.add(key);
+            return true;
           });
         }
 
@@ -6176,9 +4667,7 @@ IMPORTANT:
             expectedStartSeconds?: number;
             expectedEndSeconds?: number;
           }>;
-          const patientDataBlocksMap = new Map(
-            rawPatientDataBlocks.map((b) => [b.blockId, b]),
-          );
+          const patientDataBlocksMap = new Map(rawPatientDataBlocks.map((b) => [b.blockId, b]));
 
           // Update ONLY patient data blocks with AI analysis
           // NEVER override deterministic action/vital/PPE blocks
@@ -6596,7 +5085,7 @@ IMPORTANT:
                 followupsCorrect;
 
               // Build point message
-              let point = '';
+              let point: string;
               if (hasCircularDependency) {
                 // Circular dependency detected - just say completed on time without sequence judgment
                 point = `${detail.blockLabel} completed on time`;
@@ -6653,7 +5142,7 @@ IMPORTANT:
             } else if (detail.completed && detail.withinTimeWindow === false) {
               // Block completed but outside time window - always a weakness
               const point = `${detail.blockLabel} completed outside time window`;
-              let example = '';
+              let example: string;
 
               if (detail.expectedStartFormatted && detail.expectedEndFormatted) {
                 const timeInfo =
@@ -6897,15 +5386,15 @@ IMPORTANT:
                 return false;
               }
               const gc = o?.medicationConfig?.gradingConfig;
-              return gc?.gradingType
-                ? gc.gradingType === 'Mandatory'
-                : gc?.enabled === true;
+              return gc?.gradingType ? gc.gradingType === 'Mandatory' : gc?.enabled === true;
             })
             .map((o) => ({
               id: o.id,
               title: (o.title ?? '').trim(),
               idKey: o.id ? `id:${o.id.trim().toLowerCase()}` : '',
-              nameKey: normalizeMedicationName(o.title) ? `name:${normalizeMedicationName(o.title)}` : '',
+              nameKey: normalizeMedicationName(o.title)
+                ? `name:${normalizeMedicationName(o.title)}`
+                : '',
             }))
             .filter((o) => o.title.length > 0);
 
@@ -6949,7 +5438,9 @@ IMPORTANT:
             const gr = entry.gradingResult;
             const medName = entry.orderTitle || gr.medicationName;
             const idKey = entry.medicationId ? `id:${entry.medicationId.trim().toLowerCase()}` : '';
-            const nameKey = normalizeMedicationName(medName) ? `name:${normalizeMedicationName(medName)}` : '';
+            const nameKey = normalizeMedicationName(medName)
+              ? `name:${normalizeMedicationName(medName)}`
+              : '';
             if (idKey) administeredKeys.add(idKey);
             if (nameKey) administeredKeys.add(nameKey);
 
@@ -7034,16 +5525,15 @@ IMPORTANT:
 
         // ── Normalize & deduplicate checklist items ───────────────────────
         // Scenarios may have stale legacy doc-* text saved before a rename
-        // (e.g. "Interventions documented" → "Actions, Assessment & Intervention
-        // Documentation"). Normalise the text here so reports always show the
-        // current canonical labels.
+        // (e.g. "Interventions documented" → "Documented observations on actions/tasks").
+        // Normalise the text here so reports always show the current canonical labels.
         // Also deduplicate: if both a legacy doc-* item AND a newer checklist-*
         // item cover the same evaluation rule, the checklist-* duplicate is
         // removed so it doesn't produce spurious Optional criteria in the report.
         const DOC_CANONICAL_TEXTS: Record<string, string> = {
-          'doc-1': 'Actions, Assessment & Intervention Documentation',
-          'doc-2': 'Medical and health history updated',
-          'doc-3': 'Patient emotional response documented',
+          'doc-1': 'Documented observations on actions/tasks',
+          'doc-2': 'Documented updates to overview or medical and health history',
+          'doc-3': 'Documented patient emotional response',
         };
 
         // Step 1: normalise legacy doc-* texts
@@ -7064,7 +5554,9 @@ IMPORTANT:
           studentSummary as Parameters<
             ClinicalDocumentationService['computeDocumentationScore']
           >[1],
-          scenario as Parameters<ClinicalDocumentationService['computeDocumentationScore']>[2],
+          scenario as unknown as Parameters<
+            ClinicalDocumentationService['computeDocumentationScore']
+          >[2],
           language,
         );
 
@@ -7180,12 +5672,29 @@ IMPORTANT:
         this.logger.debug(`[DOC-3-DEBUG] doc3PassedDeterministic: ${doc3PassedDeterministic}`);
         this.logger.debug(`[DOC-3-DEBUG] doc3PassedInAI (final): ${doc3PassedInAI}`);
 
-        // NOTE: doc-3 is already included in the deterministic calculation (docResult),
-        // so we don't need to adjust the totals. The deterministic check uses emotional keywords
-        // and is accurate. We just need to ensure AI strengths/weaknesses are used for display.
+        // docResult's own doc-3 pass/fail (keyword-list only) can disagree with doc3PassedInAI
+        // (AI/NLU + broader fallback), which is what strengths/weaknesses/criteria below use for
+        // display. Reconcile them here so the numeric score never contradicts the displayed pass state.
+        let { passedMandatory, docScore } = docResult;
+        const doc3Result = docResult.results.find((r) =>
+          doc3Items.some((ci) => ci.text === r.text),
+        );
+        if (
+          doc3IsMandatory &&
+          doc3Result &&
+          doc3Result.status === 'Mandatory' &&
+          doc3Result.passed !== doc3PassedInAI
+        ) {
+          passedMandatory += doc3PassedInAI ? 1 : -1;
+          docScore =
+            docResult.totalMandatory > 0 ? (passedMandatory / docResult.totalMandatory) * 100 : 100;
+          this.logger.debug(
+            `[DOC-3-SCORE-RECONCILE] Overriding doc-3 passed=${doc3Result.passed} with doc3PassedInAI=${doc3PassedInAI}, docScore=${docScore}`,
+          );
+        }
 
-        // Use the deterministic score directly when mandatory items exist, otherwise null (N/A)
-        item.score = docResult.totalMandatory > 0 ? Number(docResult.docScore.toFixed(2)) : null;
+        // Use the reconciled score when mandatory items exist, otherwise null (N/A)
+        item.score = docResult.totalMandatory > 0 ? Number(docScore.toFixed(2)) : null;
         if (docResult.totalMandatory === 0) {
           item.summary = es
             ? 'No se configuraron elementos obligatorios de documentación para este escenario.'
@@ -7281,9 +5790,19 @@ IMPORTANT:
             'Intervenciones documentadas mediante observaciones de la pestaña de acciones',
           'interventions documented': 'Intervenciones documentadas',
           'vital signs documented': 'Signos vitales documentados',
+          // Legacy names for backward compatibility
+          'actions, assessment & intervention documentation':
+            'Documentación de acciones, evaluación e intervención',
           'medical & health history updated': 'Historia médica y de salud actualizada',
+          'medical and health history updated': 'Historia médica y de salud actualizada',
           'medical history updated': 'Historia médica actualizada',
           'patient emotional response documented': 'Respuesta emocional del paciente documentada',
+          // New canonical names
+          'documented observations on actions/tasks':
+            'Observaciones documentadas sobre acciones/tareas',
+          'documented updates to overview or medical and health history':
+            'Actualizaciones documentadas a la descripción general o historial médico y de salud',
+          'documented patient emotional response': 'Respuesta emocional del paciente documentada',
           'patient education documented': 'Educación al paciente documentada',
         };
         const translateDocText = (text?: string | null) => {
@@ -7545,7 +6064,11 @@ IMPORTANT:
           return;
         }
 
-        const score = typeof rawScore === 'number' && isFinite(rawScore) ? rawScore : 0;
+        const numericScore = typeof rawScore === 'number' && isFinite(rawScore) ? rawScore : 0;
+        // Defense-in-depth: clamp at the weighted-calc site so an unclamped value cannot inflate the total.
+        const score = this.clampWeightedRubricScore(numericScore, item);
+        // Persist the clamped value back so downstream consumers/serialization see the enforced score.
+        item.score = score;
 
         // Score is a percentage (0-100), apply weight to get weighted score
         const weightedScore = (score * weight) / 100;
@@ -7653,17 +6176,17 @@ IMPORTANT:
         rubrics,
         overall: comm.overall ??
           analysisRaw.overall ?? {
-            summary: comm.feedback ?? 'Assessment completed',
-            score: rubrics.totalScore,
-            label: this.getPerformanceCategory(rubrics.totalScore),
-          },
+          summary: comm.feedback ?? 'Assessment completed',
+          score: rubrics.totalScore,
+          label: this.getPerformanceCategory(rubrics.totalScore),
+        },
         communicationAssessment: comm,
       };
 
       return finalAnalysis;
     } catch (error: unknown) {
       const errWithResponse = error as { response?: { data?: unknown } };
-      console.error('OpenAI API error:', errWithResponse?.response?.data ?? error);
+      this.logger.error('OpenAI API error:', errWithResponse?.response?.data ?? error);
       throw error;
     }
   }
@@ -7761,7 +6284,7 @@ IMPORTANT:
   private async computeDeterministicActionMarks(
     actionsTimeline: ActionAttempt[],
     scenarioActions: Parameters<ActionsInterventionsService['computeDeterministicActionMarks']>[1],
-    mode: 'Practice' | 'Assessment' = 'Assessment',
+    mode: ReportModeType = ReportModeType.ASSESSMENT,
     summaryByCategory?: Parameters<
       ActionsInterventionsService['computeDeterministicActionMarks']
     >[3],
@@ -7841,245 +6364,145 @@ IMPORTANT:
       scenario,
     );
   }
-  async generateExcelReport(startDate?: string, endDate?: string): Promise<Buffer> {
-    const allReports = (await this.getReportsFresh()) as unknown as ReportExportRow[];
-
-    // Filter reports by date range if provided
-    let reports = allReports;
-    if (startDate ?? endDate) {
-      reports = allReports.filter((report: ReportExportRow) => {
-        const reportDate = report.scenarioStartTime ?? report.createdAt;
-        if (!reportDate) {
-          return false;
-        }
-
-        // Convert report date to CST for comparison
-        const reportTime = new Date(reportDate).toLocaleString('en-US', {
-          timeZone: 'America/Chicago',
-        });
-        const reportDateOnly = new Date(reportTime).toDateString();
-
-        if (startDate && endDate) {
-          const startDateOnly = new Date(startDate).toDateString();
-          const endDateOnly = new Date(endDate).toDateString();
-          return reportDateOnly >= startDateOnly && reportDateOnly <= endDateOnly;
-        } else if (startDate) {
-          const startDateOnly = new Date(startDate).toDateString();
-          return reportDateOnly >= startDateOnly;
-        } else if (endDate) {
-          const endDateOnly = new Date(endDate).toDateString();
-          return reportDateOnly <= endDateOnly;
-        }
-        return true;
-      });
-    }
-
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Simulation Reports');
-
-    // Define columns
-    worksheet.columns = [
-      { header: 'Report ID', key: 'id', width: 20 },
-      { header: 'Student Name', key: 'studentName', width: 25 },
-      { header: 'Student Class', key: 'studentClass', width: 20 },
-      { header: 'Scenario Title', key: 'scenarioTitle', width: 30 },
-      { header: 'Start Time', key: 'startTime', width: 25 },
-      { header: 'End Time', key: 'endTime', width: 25 },
-      { header: 'Duration', key: 'duration', width: 15 },
-      { header: 'Score', key: 'score', width: 10 },
-    ];
-
-    // Style header row
-    worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    worksheet.getRow(1).fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFFF6600' },
-    };
-
-    // Add data rows
-    reports.forEach((report: ReportExportRow) => {
-      const startTime = report.scenarioStartTime
-        ? this.formatDateTime(report.scenarioStartTime)
-        : 'N/A';
-
-      const endTime = report.scenarioEndTime ? this.formatDateTime(report.scenarioEndTime) : 'N/A';
-
-      const duration = this.calculateDuration(
-        report.scenarioStartTime,
-        report.scenarioEndTime,
-        report.totalTimeSeconds,
-      );
-
-      const scenario = this.jsonDataService.getScenarioById(report.scenarioId ?? '');
-
-      worksheet.addRow({
-        id: report.id ?? 'N/A',
-        studentName: report.studentName ?? 'N/A',
-        studentClass: report.studentClass ?? 'N/A',
-        scenarioTitle: scenario?.title ?? report.scenarioTitle ?? 'N/A',
-        startTime,
-        endTime,
-        duration,
-        score: report.score ?? 0,
-      });
+  /**
+   * Issues the unified grading chat-completion call and returns the parsed JSON content.
+   * Extracted so the Communication empty-criteriaResults path can re-issue the same call.
+   */
+  private async callUnifiedGradingCompletion<T>(
+    systemMessage: string,
+    unifiedPrompt: string,
+  ): Promise<T> {
+    return this.aiGateway.completeJson<T>({
+      caller: 'reports.unified-grading',
+      messages: [
+        { role: AiMessageRole.System, content: systemMessage },
+        { role: AiMessageRole.User, content: unifiedPrompt },
+      ],
+      temperature: UNIFIED_REPORT_AI_TEMPERATURE,
+      maxTokens: UNIFIED_REPORT_AI_MAX_TOKENS,
     });
-
-    // Generate buffer
-    const buffer = await workbook.xlsx.writeBuffer();
-    return Buffer.from(buffer);
   }
 
-  private formatDateTime(timestamp: string | Date): string {
-    if (!timestamp) {
-      return 'N/A';
-    }
-
+  /**
+   * Re-issues the unified grading call solely to recover a Communication `criteriaResults`
+   * array when the first pass came back empty (seen on slow connections/Chromebooks).
+   * Returns the AI's raw Communication rubric item, or null if the retry also failed/was empty.
+   */
+  private async retryCommunicationCriteriaResults(
+    systemMessage: string,
+    unifiedPrompt: string,
+  ): Promise<Record<string, unknown> | null> {
     try {
-      const date = new Date(timestamp);
-      if (isNaN(date.getTime())) {
-        return 'N/A';
+      const parsed = await this.callUnifiedGradingCompletion<Record<string, unknown>>(
+        systemMessage,
+        unifiedPrompt,
+      );
+      const root = (parsed?.communicationAssessment ?? parsed) as Record<string, unknown>;
+      const rubrics = root?.rubrics as Record<string, unknown> | undefined;
+      const items = (rubrics?.items ?? {}) as Record<string, Record<string, unknown>>;
+      const commItem = Object.values(items).find((it) => {
+        const subCategory = it?.subCategory;
+        const sub =
+          typeof subCategory === 'string'
+            ? subCategory
+            : typeof subCategory === 'number'
+              ? String(subCategory)
+              : '';
+        return sub.trim().toLowerCase() === 'communication';
+      });
+      const retryCriteriaResults = commItem?.criteriaResults;
+      if (!Array.isArray(retryCriteriaResults) || retryCriteriaResults.length === 0) {
+        return null;
       }
-
-      // Format: "09 Apr 2026, 03:53 PM"
-      const options: Intl.DateTimeFormatOptions = {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-        timeZone: 'America/Chicago',
-      };
-
-      return date.toLocaleString('en-US', options);
-    } catch (error) {
-      return 'N/A';
+      return commItem ?? null;
+    } catch (retryError) {
+      this.logger.error('Communication criteriaResults retry call failed:', retryError);
+      return null;
     }
   }
 
-  private calculateDuration(
-    startTime?: string | Date,
-    endTime?: string | Date,
-    totalTimeSeconds?: number,
-  ): string {
-    // If totalTimeSeconds is provided, use it
-    if (totalTimeSeconds && totalTimeSeconds > 0) {
-      return this.formatDuration(totalTimeSeconds);
-    }
-
-    // Otherwise calculate from start and end times
-    if (!startTime || !endTime) {
-      return 'N/A';
-    }
-
-    try {
-      const start = new Date(startTime).getTime();
-      const end = new Date(endTime).getTime();
-
-      if (isNaN(start) || isNaN(end)) {
-        return 'N/A';
+  /**
+   * Validates and clamps AI-generated rubric scores to [0, 100] range.
+   * Logs any scores that were out of bounds.
+   */
+  private clampAiRubricScores(rubricItemsRecord: Record<string, Record<string, unknown>>): void {
+    Object.values(rubricItemsRecord).forEach((v) => {
+      if (typeof v?.score === 'number' && (v.score > 100 || v.score < 0)) {
+        const originalScore = v.score;
+        const clampedScore = Math.min(100, Math.max(0, v.score));
+        v.score = clampedScore;
+        const itemId =
+          typeof v.id === 'string'
+            ? v.id
+            : typeof v.id === 'number' || typeof v.id === 'boolean'
+              ? String(v.id)
+              : typeof v.id === 'object' && v.id !== null
+                ? JSON.stringify(v.id)
+                : 'unknown';
+        const itemSubCategory =
+          typeof v.subCategory === 'string'
+            ? v.subCategory
+            : typeof v.subCategory === 'number' || typeof v.subCategory === 'boolean'
+              ? String(v.subCategory)
+              : typeof v.subCategory === 'object' && v.subCategory !== null
+                ? JSON.stringify(v.subCategory)
+                : 'unknown';
+        this.logger.warn(
+          `[SCORE-VALIDATION] Invalid AI-generated rubric score detected and clamped. ` +
+          `Item: ${itemId}, SubCategory: ${itemSubCategory}, ` +
+          `Original Score: ${originalScore}, Clamped Score: ${clampedScore}`,
+        );
       }
-
-      const durationSeconds = Math.floor((end - start) / 1000);
-      return this.formatDuration(durationSeconds);
-    } catch (error) {
-      return 'N/A';
-    }
+    });
   }
 
-  private formatDuration(seconds: number): string {
-    if (seconds < 0) {
-      return 'N/A';
+  /**
+   * Clamps an overall score to [0, 100] range. Returns clamped value and logs if adjustment was made.
+   */
+  private clampOverallScore(score: number): number {
+    if (score > 100 || score < 0) {
+      const originalScore = score;
+      const clampedScore = Math.min(100, Math.max(0, score));
+      this.logger.warn(
+        `[SCORE-VALIDATION] Final overall score exceeded bounds and was clamped. ` +
+        `Original Score: ${originalScore.toFixed(2)}%, Clamped Score: ${clampedScore.toFixed(2)}%`,
+      );
+      return clampedScore;
     }
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (minutes === 0) {
-      return `${remainingSeconds} sec`;
-    }
-
-    return `${minutes} min ${remainingSeconds} sec`;
+    return score;
   }
-}
 
-interface BuildDynamicAssessmentArgs {
-  messages: Array<{
-    id: string;
-    timestamp: string;
-    text: string;
-    speaker: 'student' | 'avatar';
-  }>;
-  scenario?: Scenario;
-  expectedActions?: {
-    labs?: string[];
-    imaging?: string[];
-    physicalExam?: string[];
-    medications?: string[];
-  };
-  actions?: unknown[];
-}
-
-interface PatientDataCoverage {
-  coverage: number;
-  askedFields: string[];
-  missingFields: string[];
-  criticalMissing: string[];
-  availableFields?: string[];
-}
-
-interface PhaseTaskAnalysis {
-  completedPhases: number;
-  totalPhases: number;
-  completedTasks: number;
-  totalTasks: number;
-  phaseDetails: PhaseDetail[];
-}
-
-interface PhaseDetail {
-  phaseId: string;
-  phaseName: string;
-  completedTasks: number;
-  totalTasks: number;
-  tasks: TaskDetail[];
-}
-
-interface TaskDetail {
-  taskId: string;
-  taskLabel: string;
-  required: boolean;
-  completed: boolean;
-}
-
-interface ActionsAnalysis {
-  totalExpected: number;
-  totalMentioned: number;
-  totalTaken: number;
-  mentionedInConversation: {
-    labs: number;
-    imaging: number;
-    physicalExam: number;
-    medications: number;
-  };
-  completionRate: number;
-}
-
-interface ConversationQuality {
-  messageCount: number;
-  avgResponseLength: number;
-  professionalismScore: number;
-  questionCount: number;
-  engagementScore: number;
-}
-
-export interface ScoreComponents {
-  communication: number;
-  clinicalJudgment: number;
-  technicalAccuracy: number;
-  ethicalCompetence: number;
-  reflection: number;
-  overallScore: number;
+  /**
+   * Defense-in-depth clamp applied at the weighted rubric calculation site.
+   * Guarantees no rubric score above 100 or below 0 can inflate the weighted total,
+   * even if upstream clamping is skipped or bypassed.
+   */
+  private clampWeightedRubricScore(
+    score: number,
+    item: { id?: unknown; name?: unknown; subCategory?: unknown },
+  ): number {
+    if (score > 100 || score < 0) {
+      const originalScore = score;
+      const clampedScore = Math.min(100, Math.max(0, score));
+      const itemId =
+        typeof item.id === 'string' || typeof item.id === 'number' ? String(item.id) : 'unknown';
+      const itemName =
+        typeof item.name === 'string' || typeof item.name === 'number'
+          ? String(item.name)
+          : 'unknown';
+      const itemSubCategory =
+        typeof item.subCategory === 'string' || typeof item.subCategory === 'number'
+          ? String(item.subCategory)
+          : 'unknown';
+      this.logger.warn(
+        `[SCORE-VALIDATION] Rubric score exceeded bounds at weighted-calc site and was clamped. ` +
+        `Item: ${itemId}, Name: ${itemName}, SubCategory: ${itemSubCategory}, ` +
+        `Original Score: ${originalScore}, Clamped Score: ${clampedScore}`,
+      );
+      return clampedScore;
+    }
+    return score;
+  }
 }
 
 // Simple, deterministic scoring based on whether the student asked about key topics
@@ -8087,6 +6510,7 @@ export interface ScoreComponents {
 interface SendReportEmailOptions {
   reportId: string;
   userId: string;
+  currentUser: ICurrentUser | undefined;
   recipient?: string;
   message?: string;
   studentName?: string;

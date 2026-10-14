@@ -1,6 +1,15 @@
-import { type TextareaHTMLAttributes, type ChangeEvent, useRef, useEffect } from 'react';
+import {
+  type TextareaHTMLAttributes,
+  type ChangeEvent,
+  useRef,
+  useEffect,
+} from 'react';
 import { cn } from '../../lib/utils';
-import { containsEmoji, stripEmoji, extractClipboardText } from '../../utils/emojiFilter';
+import {
+  containsEmoji,
+  stripEmoji,
+  extractClipboardText,
+} from '../../utils/emojiFilter';
 
 interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -42,11 +51,14 @@ export default function Textarea({
       const target = el;
       const start = target.selectionStart ?? target.value.length;
       const end = target.selectionEnd ?? target.value.length;
-      const newValue = target.value.slice(0, start) + (cleanText ?? '') + target.value.slice(end);
+      const newValue =
+        target.value.slice(0, start) +
+        (cleanText ?? '') +
+        target.value.slice(end);
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       if (nativeSetter) {
         nativeSetter.call(target, newValue);
@@ -80,7 +92,7 @@ export default function Textarea({
       const cleanValue = stripEmoji(target.value);
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       if (nativeSetter) {
         nativeSetter.call(target, cleanValue);
@@ -104,7 +116,7 @@ export default function Textarea({
     const target = e.target as HTMLTextAreaElement;
     const nativeSetter = Object.getOwnPropertyDescriptor(
       window.HTMLTextAreaElement.prototype,
-      'value',
+      'value'
     )?.set;
     if (nativeSetter) {
       nativeSetter.call(target, cleanText);
@@ -121,7 +133,7 @@ export default function Textarea({
       const cleanValue = stripEmoji(e.target.value);
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       if (nativeSetter) {
         nativeSetter.call(e.target, cleanValue);
@@ -132,13 +144,15 @@ export default function Textarea({
     onChange?.(e);
   };
 
-  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+  const handleCompositionEnd = (
+    e: React.CompositionEvent<HTMLTextAreaElement>
+  ) => {
     const target = e.target as HTMLTextAreaElement;
     if (containsEmoji(target.value)) {
       const cleanValue = stripEmoji(target.value);
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLTextAreaElement.prototype,
-        'value',
+        'value'
       )?.set;
       if (nativeSetter) {
         nativeSetter.call(target, cleanValue);
@@ -153,7 +167,12 @@ export default function Textarea({
   return (
     <div className={cn('flex flex-col w-full', className)}>
       {label && (
-        <label className={cn('text-sm font-medium text-gray-700 mb-0.5', labelClassName)}>
+        <label
+          className={cn(
+            'text-sm font-medium text-gray-700 mb-0.5',
+            labelClassName
+          )}
+        >
           {label}
         </label>
       )}
@@ -163,8 +182,8 @@ export default function Textarea({
           emojiBlockerRef.current = el;
         }}
         className={cn(
-          'w-full [outline:none] transition-[border-color,background-color,box-shadow] duration-200 placeholder:text-gray-500 text-sm px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-primary-400 focus:ring-inset focus:bg-gray-100',
-          textareaClassName,
+          'w-full [outline:none] transition-[border-color,background-color,box-shadow] duration-200 placeholder:text-gray-400 text-sm px-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-orange-400 focus:ring-inset focus:bg-gray-100',
+          textareaClassName
         )}
         onBeforeInput={handleBeforeInput}
         onInput={handleInput}

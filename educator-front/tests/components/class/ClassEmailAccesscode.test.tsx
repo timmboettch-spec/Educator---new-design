@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  cleanup,
+} from '@testing-library/react';
 import { vi } from 'vitest';
 import BulkEmailAccessCodeModal from '../../../src/components/class/ClassEmailAccesscode';
 import { toast } from '../../../src/components/common/Toast';
@@ -10,7 +16,8 @@ const mockSelector = vi.fn();
 
 vi.mock('../../../src/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
-  useAppSelector: (selector: (state: RootState) => unknown) => mockSelector(selector),
+  useAppSelector: (selector: (state: RootState) => unknown) =>
+    mockSelector(selector),
 }));
 
 vi.mock('../../../src/components/common/Toast', () => ({
@@ -29,14 +36,44 @@ vi.mock('../../../src/redux/class/StudentEmailAccessRedux', () => ({
 }));
 
 const mockStudentsAllEmails: Student[] = [
-  { id: '1', student_id: 'S001', student_name: 'Alice', email: 'alice@test.com', score: null },
-  { id: '2', student_id: 'S002', student_name: 'Bob', email: 'bob@test.com', score: null },
+  {
+    id: '1',
+    student_id: 'S001',
+    student_name: 'Alice',
+    email: 'alice@test.com',
+    score: null,
+  },
+  {
+    id: '2',
+    student_id: 'S002',
+    student_name: 'Bob',
+    email: 'bob@test.com',
+    score: null,
+  },
 ];
 
 const mockStudentsMissingEmails: Student[] = [
-  { id: '1', student_id: 'S001', student_name: 'Alice', email: 'alice@test.com', score: null },
-  { id: '2', student_id: 'S002', student_name: 'Bob', email: null, score: null },
-  { id: '3', student_id: 'S003', student_name: 'Carol', email: '', score: null },
+  {
+    id: '1',
+    student_id: 'S001',
+    student_name: 'Alice',
+    email: 'alice@test.com',
+    score: null,
+  },
+  {
+    id: '2',
+    student_id: 'S002',
+    student_name: 'Bob',
+    email: null,
+    score: null,
+  },
+  {
+    id: '3',
+    student_id: 'S003',
+    student_name: 'Carol',
+    email: '',
+    score: null,
+  },
 ];
 
 describe('BulkEmailAccessCodeModal', () => {
@@ -75,7 +112,11 @@ describe('BulkEmailAccessCodeModal', () => {
 
   it('shows validation error when message is empty and does not dispatch', () => {
     render(
-      <BulkEmailAccessCodeModal class_id="1" students={mockStudentsAllEmails} onClose={onClose} />,
+      <BulkEmailAccessCodeModal
+        class_id="1"
+        students={mockStudentsAllEmails}
+        onClose={onClose}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Send Via Email/i }));
@@ -86,7 +127,11 @@ describe('BulkEmailAccessCodeModal', () => {
 
   it('clears validation error when message is typed', () => {
     render(
-      <BulkEmailAccessCodeModal class_id="1" students={mockStudentsAllEmails} onClose={onClose} />,
+      <BulkEmailAccessCodeModal
+        class_id="1"
+        students={mockStudentsAllEmails}
+        onClose={onClose}
+      />
     );
 
     fireEvent.click(screen.getByText(/Send Via Email/i));
@@ -104,7 +149,11 @@ describe('BulkEmailAccessCodeModal', () => {
     });
 
     render(
-      <BulkEmailAccessCodeModal class_id="1" students={mockStudentsAllEmails} onClose={onClose} />,
+      <BulkEmailAccessCodeModal
+        class_id="1"
+        students={mockStudentsAllEmails}
+        onClose={onClose}
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Add a message/i), {
@@ -113,7 +162,9 @@ describe('BulkEmailAccessCodeModal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Send Via Email/i }));
 
-    fireEvent.click(screen.getByRole('button', { name: /Send to 2 Students/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Send to 2 Students/i })
+    );
 
     await waitFor(() => {
       expect(mockDispatch).toHaveBeenCalled();
@@ -128,7 +179,7 @@ describe('BulkEmailAccessCodeModal', () => {
         class_id="1"
         students={mockStudentsMissingEmails}
         onClose={onClose}
-      />,
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Add a message/i), {
@@ -137,7 +188,9 @@ describe('BulkEmailAccessCodeModal', () => {
     fireEvent.click(screen.getByText(/Send Via Email/i));
 
     expect(
-      screen.getByText(/students do not have an email address\. Reports cannot be sent to them\./i),
+      screen.getByText(
+        /students do not have an email address\. Reports cannot be sent to them\./i
+      )
     ).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
   });
@@ -148,7 +201,7 @@ describe('BulkEmailAccessCodeModal', () => {
         class_id="1"
         students={mockStudentsMissingEmails}
         onClose={onClose}
-      />,
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Add a message/i), {
@@ -156,43 +209,67 @@ describe('BulkEmailAccessCodeModal', () => {
     });
     fireEvent.click(screen.getByText(/Send Via Email/i));
     expect(
-      screen.getByText(/students do not have an email address\. Reports cannot be sent to them\./i),
+      screen.getByText(
+        /students do not have an email address\. Reports cannot be sent to them\./i
+      )
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Cancel/i }));
 
-    expect(screen.queryByText(/Missing Email Addresses/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Missing Email Addresses/i)
+    ).not.toBeInTheDocument();
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 
   it('dispatches send when Yes is clicked in confirmation popup', async () => {
-    mockDispatch.mockReturnValue({ unwrap: () => Promise.resolve({ message: 'sent' }) });
+    mockDispatch.mockReturnValue({
+      unwrap: () => Promise.resolve({ message: 'sent' }),
+    });
 
     render(
       <BulkEmailAccessCodeModal
         class_id="1"
         students={mockStudentsMissingEmails}
         onClose={onClose}
-      />,
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Add a message/i), {
       target: { value: 'Hello' },
     });
     fireEvent.click(screen.getByText(/Send Via Email/i));
-    fireEvent.click(screen.getByRole('button', { name: /Send to 1 Students/i }));
+    fireEvent.click(
+      screen.getByRole('button', { name: /Send to 1 Students/i })
+    );
 
     await waitFor(() => expect(mockDispatch).toHaveBeenCalled());
   });
 
   it('shows singular message when exactly 1 student has missing email', () => {
     const oneStudentMissing: Student[] = [
-      { id: '1', student_id: 'S001', student_name: 'Alice', email: 'alice@test.com', score: null },
-      { id: '2', student_id: 'S002', student_name: 'Bob', email: null, score: null },
+      {
+        id: '1',
+        student_id: 'S001',
+        student_name: 'Alice',
+        email: 'alice@test.com',
+        score: null,
+      },
+      {
+        id: '2',
+        student_id: 'S002',
+        student_name: 'Bob',
+        email: null,
+        score: null,
+      },
     ];
 
     render(
-      <BulkEmailAccessCodeModal class_id="1" students={oneStudentMissing} onClose={onClose} />,
+      <BulkEmailAccessCodeModal
+        class_id="1"
+        students={oneStudentMissing}
+        onClose={onClose}
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Add a message/i), {
@@ -200,15 +277,23 @@ describe('BulkEmailAccessCodeModal', () => {
     });
     fireEvent.click(screen.getByText(/Send Via Email/i));
 
-    expect(screen.getByText(/1 students do not have an email address/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/1 students do not have an email address/i)
+    ).toBeInTheDocument();
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows success toast when email is sent successfully', async () => {
-    mockDispatch.mockReturnValue({ unwrap: () => Promise.resolve({ message: 'sent', count: 2 }) });
+    mockDispatch.mockReturnValue({
+      unwrap: () => Promise.resolve({ message: 'sent', count: 2 }),
+    });
 
     render(
-      <BulkEmailAccessCodeModal class_id="1" students={mockStudentsAllEmails} onClose={onClose} />,
+      <BulkEmailAccessCodeModal
+        class_id="1"
+        students={mockStudentsAllEmails}
+        onClose={onClose}
+      />
     );
 
     fireEvent.change(screen.getByPlaceholderText(/Add a message/i), {
@@ -218,11 +303,13 @@ describe('BulkEmailAccessCodeModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /Send to 2 Students/i,
-      }),
+      })
     );
 
     await waitFor(() =>
-      expect(toast.success).toHaveBeenCalledWith('Email sent successfully to 2 students.'),
+      expect(toast.success).toHaveBeenCalledWith(
+        'Email sent successfully to 2 students.'
+      )
     );
     expect(onClose).toHaveBeenCalled();
   });

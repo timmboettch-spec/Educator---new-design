@@ -5,29 +5,29 @@
  * in plain English — what it validates, and (on failure) why it failed.
  */
 
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
 /* ------------------------ helpers ------------------------ */
 
-function stripAnsi(str = "") {
+function stripAnsi(str = '') {
   // eslint-disable-next-line no-control-regex
-  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 }
 
-function escapeHtml(s = "") {
+function escapeHtml(s = '') {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function moduleFromPath(testPath) {
-  const norm = testPath.replace(/\\/g, "/");
+  const norm = testPath.replace(/\\/g, '/');
   const m = norm.match(/\/tests\/api\/modules\/([^/]+)\//);
-  return m ? m[1] : "other";
+  return m ? m[1] : 'other';
 }
 
 function fileBase(testPath) {
@@ -35,52 +35,54 @@ function fileBase(testPath) {
 }
 
 function humanizeTitle(title) {
-  if (!title) return "Validates expected behavior.";
+  if (!title) return 'Validates expected behavior.';
   let t = title.trim();
-  t = t.replace(/^should\s+/i, "");
+  t = t.replace(/^should\s+/i, '');
   t = t.charAt(0).toUpperCase() + t.slice(1);
-  if (!/[.!?]$/.test(t)) t += ".";
+  if (!/[.!?]$/.test(t)) t += '.';
   return t;
 }
 
 function whyPassed(title) {
-  const lower = (title || "").toLowerCase();
+  const lower = (title || '').toLowerCase();
 
   const statusMatch = lower.match(/\b([1-5]\d{2})\b/);
   if (statusMatch) {
     return `The API returned the expected HTTP ${statusMatch[1]} response, confirming correct behavior for this scenario.`;
   }
   if (/(unauthor|forbidden|token|jwt|auth)/.test(lower))
-    return "Authentication & authorization rules were enforced correctly.";
+    return 'Authentication & authorization rules were enforced correctly.';
   if (/(create|post|add)/.test(lower))
-    return "The resource was created successfully and the response matched the expected structure.";
+    return 'The resource was created successfully and the response matched the expected structure.';
   if (/(update|put|patch|edit)/.test(lower))
-    return "The resource was updated successfully and the response matched the expected structure.";
+    return 'The resource was updated successfully and the response matched the expected structure.';
   if (/(delete|remove)/.test(lower))
-    return "The resource was deleted successfully and the API responded as expected.";
+    return 'The resource was deleted successfully and the API responded as expected.';
   if (/(get|list|fetch|read|retrieve)/.test(lower))
-    return "The API returned the expected data with the correct shape and status.";
+    return 'The API returned the expected data with the correct shape and status.';
   if (/(validation|invalid|missing|required|payload|schema)/.test(lower))
-    return "Input validation rejected the bad payload exactly as expected.";
+    return 'Input validation rejected the bad payload exactly as expected.';
   if (/(timeout|unavailable|failure|down|outage|gateway|503|504|502|500)/.test(lower))
-    return "The system handled the simulated service failure gracefully and returned the expected error.";
+    return 'The system handled the simulated service failure gracefully and returned the expected error.';
   if (/(conflict|duplicate|already exists)/.test(lower))
-    return "Duplicate / conflicting state was correctly detected and rejected.";
+    return 'Duplicate / conflicting state was correctly detected and rejected.';
   if (/(rate.?limit|too many)/.test(lower))
-    return "Rate limiting rejected the excess requests as expected.";
+    return 'Rate limiting rejected the excess requests as expected.';
   if (/(contract|schema|shape|structure)/.test(lower))
-    return "The response payload matched the API contract.";
-  return "The behavior matched the expected outcome described by the test.";
+    return 'The response payload matched the API contract.';
+  return 'The behavior matched the expected outcome described by the test.';
 }
 
 function whyFailed(failureMessages = []) {
-  if (!failureMessages.length) return "The test did not meet the expected outcome.";
-  const raw = stripAnsi(failureMessages.join("\n"));
+  if (!failureMessages.length) return 'The test did not meet the expected outcome.';
+  const raw = stripAnsi(failureMessages.join('\n'));
 
-  const expectMatch = raw.match(/Expected:\s*([\s\S]*?)\nReceived:\s*([\s\S]*?)(?:\n\n|\n\s+at\s|$)/);
+  const expectMatch = raw.match(
+    /Expected:\s*([\s\S]*?)\nReceived:\s*([\s\S]*?)(?:\n\n|\n\s+at\s|$)/,
+  );
   if (expectMatch) {
-    const expected = expectMatch[1].trim().split("\n")[0].slice(0, 200);
-    const received = expectMatch[2].trim().split("\n")[0].slice(0, 200);
+    const expected = expectMatch[1].trim().split('\n')[0].slice(0, 200);
+    const received = expectMatch[2].trim().split('\n')[0].slice(0, 200);
     return `The API returned <code>${escapeHtml(received)}</code> but the test expected <code>${escapeHtml(expected)}</code>.`;
   }
   const statusMatch = raw.match(/expected (\d{3})[^\d].*?(?:got|received)\s*(\d{3})/i);
@@ -88,12 +90,12 @@ function whyFailed(failureMessages = []) {
     return `Expected HTTP status <code>${statusMatch[1]}</code> but received <code>${statusMatch[2]}</code>.`;
   }
   if (/timeout/i.test(raw))
-    return "The test exceeded its allowed time — the API did not respond in time.";
+    return 'The test exceeded its allowed time — the API did not respond in time.';
   if (/ECONNREFUSED|ENOTFOUND|ETIMEDOUT/i.test(raw))
-    return "A network/connection error occurred — a required service (e.g. Redis, DB, API) was unreachable.";
-  const firstLine = raw.split("\n").find((l) => l.trim().length > 0 && !/^\s*at\s/.test(l));
+    return 'A network/connection error occurred — a required service (e.g. Redis, DB, API) was unreachable.';
+  const firstLine = raw.split('\n').find((l) => l.trim().length > 0 && !/^\s*at\s/.test(l));
   if (firstLine) return escapeHtml(firstLine.trim().slice(0, 400));
-  return "The test did not meet the expected outcome.";
+  return 'The test did not meet the expected outcome.';
 }
 
 /* ------------------------ reporter ------------------------ */
@@ -102,11 +104,9 @@ class FriendlyHtmlReporter {
   constructor(globalConfig, options = {}) {
     this._globalConfig = globalConfig;
     this._options = options;
-    const rawOut =
-      options.outputPath ||
-      "<rootDir>/tests/api/reports/html/api-test-report.html";
+    const rawOut = options.outputPath || '<rootDir>/tests/api/reports/html/api-test-report.html';
     this._outputPath = rawOut.replace(/<rootDir>/g, globalConfig.rootDir);
-    this._pageTitle = options.pageTitle || "Backend API Test Report";
+    this._pageTitle = options.pageTitle || 'Backend API Test Report';
   }
 
   onRunComplete(_contexts, results) {
@@ -148,7 +148,7 @@ class FriendlyHtmlReporter {
     });
 
     fs.mkdirSync(path.dirname(this._outputPath), { recursive: true });
-    fs.writeFileSync(this._outputPath, html, "utf-8");
+    fs.writeFileSync(this._outputPath, html, 'utf-8');
     // eslint-disable-next-line no-console
     console.log(`\nAPI Test Report: ${this._outputPath}\n`);
   }
@@ -162,31 +162,33 @@ class FriendlyHtmlReporter {
     const moduleSections = moduleKeys
       .map((modKey) => {
         const fileEntries = Object.entries(modules[modKey].files);
-        let modPassed = 0, modFailed = 0, modSkipped = 0;
+        let modPassed = 0,
+          modFailed = 0,
+          modSkipped = 0;
         fileEntries.forEach(([, tests]) => {
           tests.forEach((t) => {
-            if (t.status === "passed") modPassed++;
-            else if (t.status === "failed") modFailed++;
+            if (t.status === 'passed') modPassed++;
+            else if (t.status === 'failed') modFailed++;
             else modSkipped++;
           });
         });
         const modTotal = modPassed + modFailed + modSkipped;
-        const modStatus = modFailed > 0 ? "fail" : "pass";
+        const modStatus = modFailed > 0 ? 'fail' : 'pass';
 
         const fileBlocks = fileEntries
           .map(([file, tests]) => {
             const rows = tests
               .map((t) => {
-                const isPass = t.status === "passed";
-                const isFail = t.status === "failed";
-                const badgeCls = isPass ? "pass" : isFail ? "fail" : "skip";
-                const badgeText = isPass ? "PASS" : isFail ? "FAIL" : t.status.toUpperCase();
+                const isPass = t.status === 'passed';
+                const isFail = t.status === 'failed';
+                const badgeCls = isPass ? 'pass' : isFail ? 'fail' : 'skip';
+                const badgeText = isPass ? 'PASS' : isFail ? 'FAIL' : t.status.toUpperCase();
                 const explanation = isFail
                   ? whyFailed(t.failureMessages)
                   : isPass
-                  ? whyPassed(t.title)
-                  : "Test was skipped or pending.";
-                const explLabel = isFail ? "Why it failed" : isPass ? "Why it passed" : "Note";
+                    ? whyPassed(t.title)
+                    : 'Test was skipped or pending.';
+                const explLabel = isFail ? 'Why it failed' : isPass ? 'Why it passed' : 'Note';
 
                 return `
                 <div class="test-row ${badgeCls}" data-status="${badgeCls}">
@@ -201,7 +203,7 @@ class FriendlyHtmlReporter {
                   </div>
                 </div>`;
               })
-              .join("");
+              .join('');
 
             return `
             <div class="file-block">
@@ -209,7 +211,7 @@ class FriendlyHtmlReporter {
               ${rows}
             </div>`;
           })
-          .join("");
+          .join('');
 
         return `
         <section class="module-section ${modStatus}" data-module="${escapeHtml(modKey)}">
@@ -218,8 +220,8 @@ class FriendlyHtmlReporter {
             <span class="module-name">${escapeHtml(modKey.charAt(0).toUpperCase() + modKey.slice(1))}</span>
             <span class="module-stats">
               <span class="chip ok">${modPassed} passed</span>
-              ${modFailed ? `<span class="chip bad">${modFailed} failed</span>` : ""}
-              ${modSkipped ? `<span class="chip warn">${modSkipped} skipped</span>` : ""}
+              ${modFailed ? `<span class="chip bad">${modFailed} failed</span>` : ''}
+              ${modSkipped ? `<span class="chip warn">${modSkipped} skipped</span>` : ''}
               <span class="chip total">${modTotal} total</span>
             </span>
           </button>
@@ -228,7 +230,7 @@ class FriendlyHtmlReporter {
           </div>
         </section>`;
       })
-      .join("");
+      .join('');
 
     const generatedAt = new Date().toLocaleString();
     const durationSec = (summary.durationMs / 1000).toFixed(2);

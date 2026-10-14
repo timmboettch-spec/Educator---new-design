@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import Educators from '../../../src/pages/educator/index';
@@ -26,16 +32,20 @@ const reduxState = {
   },
   GetEducatorStatus: 'succeeded',
   GetEducatorError: null,
-  Schools: [{ id: 's1', school_name: 'Alpha School', status: 'ACTIVE', user_id: 'u1' }],
+  Schools: [
+    { id: 's1', school_name: 'Alpha School', status: 'ACTIVE', user_id: 'u1' },
+  ],
   SchoolStatus: 'succeeded',
 };
 
 vi.mock('react-redux', async () => {
-  const actual = await vi.importActual<typeof import('react-redux')>('react-redux');
+  const actual =
+    await vi.importActual<typeof import('react-redux')>('react-redux');
   return {
     ...actual,
     useDispatch: () => mockDispatch,
-    useSelector: (selector: (s: typeof reduxState) => unknown) => selector(reduxState),
+    useSelector: (selector: (s: typeof reduxState) => unknown) =>
+      selector(reduxState),
   };
 });
 
@@ -48,16 +58,23 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   selectGetEducatorResponse: (s: typeof reduxState) => s.GetEducator,
 }));
 vi.mock('../../../src/redux/educator/CreateEducatorRedux', () => ({
-  InviteEducatorRequest: vi.fn((payload: unknown) => ({ type: 'INVITE_EDU', payload })),
+  InviteEducatorRequest: vi.fn((payload: unknown) => ({
+    type: 'INVITE_EDU',
+    payload,
+  })),
 }));
 vi.mock('../../../src/redux/educator/DeleteEducatorRedux', () => ({
   DeleteEducatorRequest: vi.fn((id: string) => ({ type: 'DELETE_EDU', id })),
 }));
 vi.mock('../../../src/redux/educator/UpdateEducatorRedux', () => ({
-  UpdateEducatorRequest: vi.fn((payload: unknown) => ({ type: 'UPDATE_EDU', payload })),
+  UpdateEducatorRequest: vi.fn((payload: unknown) => ({
+    type: 'UPDATE_EDU',
+    payload,
+  })),
 }));
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({ type: 'GET_SCHOOL' })),
   selectSchools: (s: typeof reduxState) => s.Schools,
   selectSchoolStatus: (s: typeof reduxState) => s.SchoolStatus,
@@ -66,7 +83,12 @@ vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -74,8 +96,10 @@ describe('Educators behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDispatch.mockImplementation((action: { type: string }) => {
-      if (action.type === 'INVITE_EDU') return { unwrap: () => Promise.resolve({}) };
-      if (action.type === 'DELETE_EDU') return { unwrap: () => Promise.resolve({}) };
+      if (action.type === 'INVITE_EDU')
+        return { unwrap: () => Promise.resolve({}) };
+      if (action.type === 'DELETE_EDU')
+        return { unwrap: () => Promise.resolve({}) };
       return { unwrap: () => Promise.resolve({}) };
     });
   });
@@ -84,7 +108,7 @@ describe('Educators behavior', () => {
     render(
       <MemoryRouter>
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
     expect(screen.getByText('Jane Doe')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /add educator/i }));
@@ -95,17 +119,19 @@ describe('Educators behavior', () => {
     render(
       <MemoryRouter>
         <Educators />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
-    
+
     // Open create modal
     fireEvent.click(screen.getByRole('button', { name: /add educator/i }));
-    
+
     // Wait for modal to be visible
     await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: /create educator/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('dialog', { name: /create educator/i })
+      ).toBeInTheDocument();
     });
-    
+
     // Fill in form fields
     fireEvent.change(screen.getByPlaceholderText(/enter educator name/i), {
       target: { value: 'Alice' },
@@ -113,14 +139,16 @@ describe('Educators behavior', () => {
     fireEvent.change(screen.getByPlaceholderText(/enter educator email/i), {
       target: { value: 'alice@test.com' },
     });
-    fireEvent.change(screen.getByPlaceholderText(/seats/i), { 
-      target: { value: '5' } 
+    fireEvent.change(screen.getByPlaceholderText(/seats/i), {
+      target: { value: '5' },
     });
-    
+
     // Select school - find the school dropdown button by placeholder text
-    const schoolButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.textContent?.toLowerCase().includes('select school')
-    );
+    const schoolButtons = screen
+      .getAllByRole('button')
+      .filter((btn) =>
+        btn.textContent?.toLowerCase().includes('select school')
+      );
     if (schoolButtons.length > 0) {
       fireEvent.click(schoolButtons[0]);
       await waitFor(() => {
@@ -130,11 +158,13 @@ describe('Educators behavior', () => {
       const schoolOptions = screen.getAllByText('Alpha School');
       fireEvent.click(schoolOptions[schoolOptions.length - 1]);
     }
-    
+
     // Select status - find the status dropdown button by placeholder text
-    const statusButtons = screen.getAllByRole('button').filter(
-      (btn) => btn.textContent?.toLowerCase().includes('select status')
-    );
+    const statusButtons = screen
+      .getAllByRole('button')
+      .filter((btn) =>
+        btn.textContent?.toLowerCase().includes('select status')
+      );
     if (statusButtons.length > 0) {
       fireEvent.click(statusButtons[0]);
       await waitFor(() => {
@@ -144,17 +174,20 @@ describe('Educators behavior', () => {
       const activeOptions = screen.getAllByText('Active');
       fireEvent.click(activeOptions[activeOptions.length - 1]);
     }
-    
+
     // Submit the form
     const modal = screen.getByRole('dialog', { name: /create educator/i });
-    const submitButton = within(modal).getByRole('button', { 
-      name: /add educator|create educator/i 
+    const submitButton = within(modal).getByRole('button', {
+      name: /add educator|create educator/i,
     });
     fireEvent.click(submitButton);
 
     // Wait for dispatch to be called
-    await waitFor(() => {
-      expect(mockDispatch).toHaveBeenCalled();
-    }, { timeout: 10000 });
+    await waitFor(
+      () => {
+        expect(mockDispatch).toHaveBeenCalled();
+      },
+      { timeout: 10000 }
+    );
   }, 10000);
 });

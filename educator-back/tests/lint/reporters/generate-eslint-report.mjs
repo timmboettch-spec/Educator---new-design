@@ -30,7 +30,9 @@ async function loadEslintResults() {
     return { results: liveResults, durationMs: Date.now() - startedAt };
   } catch {
     if (fs.existsSync(INPUT)) {
-      const cachedResults = /** @type {LintResult[]} */ (/** @type {unknown} */ (JSON.parse(fs.readFileSync(INPUT, 'utf-8'))));
+      const cachedResults = /** @type {LintResult[]} */ (
+        /** @type {unknown} */ (JSON.parse(fs.readFileSync(INPUT, 'utf-8')))
+      );
       return { results: cachedResults, durationMs: null };
     }
     process.exit(1);
@@ -44,7 +46,7 @@ const { results: eslintResults, durationMs } = await loadEslintResults();
  * @returns {string}
  */
 function toTitleCase(str) {
-  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -103,24 +105,27 @@ function formatDuration(ms) {
 }
 
 /** @type {LintSuite[]} */
-const suites = eslintResults.map(fileResult => {
+const suites = eslintResults.map((fileResult) => {
   const fileMessages = fileResult.messages ?? [];
   /** @type {LintAssertion[]} */
-  const assertionResults = fileMessages.length > 0
-    ? fileMessages.map(msg => ({
-      status: msg.severity === 2 ? 'failed' : 'skipped',
-      title: `${msg.ruleId ?? 'unknown-rule'} (L${msg.line ?? 0}:C${msg.column ?? 0})`,
-      fullName: msg.message,
-      ancestorTitles: [fileLabel(fileResult.filePath)],
-      failureMessages: [msg.message],
-    }))
-    : [{
-      status: 'passed',
-      title: 'No lint issues',
-      fullName: 'No lint issues',
-      ancestorTitles: [fileLabel(fileResult.filePath)],
-      failureMessages: [],
-    }];
+  const assertionResults =
+    fileMessages.length > 0
+      ? fileMessages.map((msg) => ({
+          status: msg.severity === 2 ? 'failed' : 'skipped',
+          title: `${msg.ruleId ?? 'unknown-rule'} (L${msg.line ?? 0}:C${msg.column ?? 0})`,
+          fullName: msg.message,
+          ancestorTitles: [fileLabel(fileResult.filePath)],
+          failureMessages: [msg.message],
+        }))
+      : [
+          {
+            status: 'passed',
+            title: 'No lint issues',
+            fullName: 'No lint issues',
+            ancestorTitles: [fileLabel(fileResult.filePath)],
+            failureMessages: [],
+          },
+        ];
 
   return {
     name: fileResult.filePath,
@@ -132,9 +137,17 @@ const suites = eslintResults.map(fileResult => {
 const numSuites = suites.length;
 const durationLabel = durationMs !== null ? formatDuration(durationMs) : '—';
 
-const totalIssues = eslintResults.reduce((sum, fileResult) => sum + (fileResult.errorCount ?? 0) + (fileResult.warningCount ?? 0), 0);
-const noIssues = eslintResults.filter(fileResult => (fileResult.errorCount ?? 0) + (fileResult.warningCount ?? 0) === 0).length;
-const errors = eslintResults.reduce((sum, fileResult) => sum + (fileResult.errorCount ?? 0) + (fileResult.fatalErrorCount ?? 0), 0);
+const totalIssues = eslintResults.reduce(
+  (sum, fileResult) => sum + (fileResult.errorCount ?? 0) + (fileResult.warningCount ?? 0),
+  0,
+);
+const noIssues = eslintResults.filter(
+  (fileResult) => (fileResult.errorCount ?? 0) + (fileResult.warningCount ?? 0) === 0,
+).length;
+const errors = eslintResults.reduce(
+  (sum, fileResult) => sum + (fileResult.errorCount ?? 0) + (fileResult.fatalErrorCount ?? 0),
+  0,
+);
 const warnings = eslintResults.reduce((sum, fileResult) => sum + (fileResult.warningCount ?? 0), 0);
 const passRate = numSuites > 0 ? (noIssues / numSuites) * 100 : 0;
 const passRateLabel = Number.isInteger(passRate) ? String(passRate) : passRate.toFixed(1);
@@ -143,7 +156,7 @@ const generated = new Date().toLocaleString();
 /** @type {Map<string, ModuleEntry>} */
 const moduleMap = new Map();
 
-suites.forEach(suite => {
+suites.forEach((suite) => {
   const filePath = suite.name || suite.testFilePath || '';
   const modName = moduleNameFromPath(filePath);
   const label = fileLabel(filePath);
@@ -151,7 +164,7 @@ suites.forEach(suite => {
   const mod = /** @type {ModuleEntry} */ (moduleMap.get(modName));
   if (!mod.files.has(label)) mod.files.set(label, []);
   const fileTests = /** @type {LintAssertion[]} */ (mod.files.get(label));
-  (suite.assertionResults ?? []).forEach(t => {
+  (suite.assertionResults ?? []).forEach((t) => {
     fileTests.push(t);
     if (t.status === 'failed') mod.hasFail = true;
   });
@@ -164,8 +177,8 @@ function buildModuleSections() {
   let html = '';
   for (const [modName, mod] of moduleMap) {
     const allTests = [...mod.files.values()].flat();
-    const modNoIssues = allTests.filter(t => t.status === 'passed').length;
-    const modErrors = allTests.filter(t => t.status === 'failed').length;
+    const modNoIssues = allTests.filter((t) => t.status === 'passed').length;
+    const modErrors = allTests.filter((t) => t.status === 'failed').length;
     const modTotal = allTests.length;
     const failClass = mod.hasFail ? ' mod-fail' : '';
 
@@ -182,16 +195,19 @@ function buildModuleSections() {
       <div class="module-body">`;
 
     for (const [label, tests] of mod.files) {
-      const issueCount = tests.filter(t => t.status !== 'passed').length;
+      const issueCount = tests.filter((t) => t.status !== 'passed').length;
       html += `
         <div class="file-group">
           <div class="file-title">${escapeHtml(label)} (${issueCount} issues)</div>
           <div class="test-list">`;
-      tests.forEach(t => {
-        const status = t.status === 'passed' ? 'passed' : t.status === 'failed' ? 'failed' : 'skipped';
+      tests.forEach((t) => {
+        const status =
+          t.status === 'passed' ? 'passed' : t.status === 'failed' ? 'failed' : 'skipped';
         const ancestors = (t.ancestorTitles ?? []).join(' › ');
         const desc = ancestors ? escapeHtml(ancestors) : '—';
-        const errorMsg = (t.failureMessages ?? []).map(m => escapeHtml(m.split('\n')[0])).join(' ');
+        const errorMsg = (t.failureMessages ?? [])
+          .map((m) => escapeHtml(m.split('\n')[0]))
+          .join(' ');
         html += `
             <div class="test-card" data-status="${status}">
               <div class="test-item">

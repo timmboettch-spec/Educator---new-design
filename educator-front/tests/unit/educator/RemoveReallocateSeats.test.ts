@@ -17,7 +17,9 @@ import RemoveReallocateSeatsReducer, {
 } from '../../../src/redux/educator/RemoveReallocateSeatsRedux';
 
 const createStore = () =>
-  configureStore({ reducer: { RemoveReallocateSeats: RemoveReallocateSeatsReducer } });
+  configureStore({
+    reducer: { RemoveReallocateSeats: RemoveReallocateSeatsReducer },
+  });
 
 describe('RemoveReallocateSeatsRedux', () => {
   beforeEach(() => {
@@ -42,7 +44,10 @@ describe('RemoveReallocateSeatsRedux', () => {
         .unwrap();
 
       expect(mockPost).toHaveBeenCalledTimes(1);
-      const [url, body] = mockPost.mock.calls[0] as [string, { amount: number }];
+      const [url, body] = mockPost.mock.calls[0] as [
+        string,
+        { amount: number },
+      ];
       expect(url).toContain('edu-123/remove-seats');
       expect(body).toEqual({ amount: 10 });
 
@@ -53,31 +58,43 @@ describe('RemoveReallocateSeatsRedux', () => {
 
     it('sets removeStatus to failed and stores error message on rejection', async () => {
       mockPost.mockRejectedValueOnce({
-        response: { data: { message: 'You can remove a maximum of 5 available tokens' } },
+        response: {
+          data: { message: 'You can remove a maximum of 5 available tokens' },
+        },
       });
 
       const store = createStore();
       await expect(
-        store.dispatch(RemoveSeats({ educatorId: 'edu-123', amount: 99 })).unwrap(),
-      ).rejects.toMatchObject({ message: 'You can remove a maximum of 5 available tokens' });
+        store
+          .dispatch(RemoveSeats({ educatorId: 'edu-123', amount: 99 }))
+          .unwrap()
+      ).rejects.toMatchObject({
+        message: 'You can remove a maximum of 5 available tokens',
+      });
 
       const s = store.getState().RemoveReallocateSeats;
       expect(s.removeStatus).toBe('failed');
-      expect(s.removeError).toBe('You can remove a maximum of 5 available tokens');
+      expect(s.removeError).toBe(
+        'You can remove a maximum of 5 available tokens'
+      );
     });
 
     it('uses fallback error message when backend provides none', async () => {
       mockPost.mockRejectedValueOnce({ response: { data: {} } });
       const store = createStore();
       await store.dispatch(RemoveSeats({ educatorId: 'edu-123', amount: 5 }));
-      expect(store.getState().RemoveReallocateSeats.removeError).toBe('Failed to remove seats');
+      expect(store.getState().RemoveReallocateSeats.removeError).toBe(
+        'Failed to remove seats'
+      );
     });
 
     it('sets removeStatus to loading while the request is in flight', () => {
       mockPost.mockReturnValueOnce(new Promise(() => {}));
       const store = createStore();
       void store.dispatch(RemoveSeats({ educatorId: 'edu-abc', amount: 3 }));
-      expect(store.getState().RemoveReallocateSeats.removeStatus).toBe('loading');
+      expect(store.getState().RemoveReallocateSeats.removeStatus).toBe(
+        'loading'
+      );
     });
   });
 
@@ -100,7 +117,7 @@ describe('RemoveReallocateSeatsRedux', () => {
             sourceEducatorId: 'edu-src',
             targetEducatorId: 'edu-tgt',
             amount: 8,
-          }),
+          })
         )
         .unwrap();
 
@@ -119,7 +136,11 @@ describe('RemoveReallocateSeatsRedux', () => {
 
     it('sets reallocateStatus to failed on rejection', async () => {
       mockPost.mockRejectedValueOnce({
-        response: { data: { message: 'You can reallocate a maximum of 20 available tokens' } },
+        response: {
+          data: {
+            message: 'You can reallocate a maximum of 20 available tokens',
+          },
+        },
       });
 
       const store = createStore();
@@ -130,9 +151,9 @@ describe('RemoveReallocateSeatsRedux', () => {
               sourceEducatorId: 'edu-src',
               targetEducatorId: 'edu-tgt',
               amount: 99,
-            }),
+            })
           )
-          .unwrap(),
+          .unwrap()
       ).rejects.toMatchObject({
         message: 'You can reallocate a maximum of 20 available tokens',
       });
@@ -145,10 +166,14 @@ describe('RemoveReallocateSeatsRedux', () => {
       mockPost.mockRejectedValueOnce({});
       const store = createStore();
       await store.dispatch(
-        ReallocateSeats({ sourceEducatorId: 'a', targetEducatorId: 'b', amount: 1 }),
+        ReallocateSeats({
+          sourceEducatorId: 'a',
+          targetEducatorId: 'b',
+          amount: 1,
+        })
       );
       expect(store.getState().RemoveReallocateSeats.reallocateError).toBe(
-        'Failed to reallocate seats',
+        'Failed to reallocate seats'
       );
     });
 
@@ -156,9 +181,15 @@ describe('RemoveReallocateSeatsRedux', () => {
       mockPost.mockReturnValueOnce(new Promise(() => {}));
       const store = createStore();
       void store.dispatch(
-        ReallocateSeats({ sourceEducatorId: 'a', targetEducatorId: 'b', amount: 5 }),
+        ReallocateSeats({
+          sourceEducatorId: 'a',
+          targetEducatorId: 'b',
+          amount: 5,
+        })
       );
-      expect(store.getState().RemoveReallocateSeats.reallocateStatus).toBe('loading');
+      expect(store.getState().RemoveReallocateSeats.reallocateStatus).toBe(
+        'loading'
+      );
     });
   });
 
@@ -166,10 +197,14 @@ describe('RemoveReallocateSeatsRedux', () => {
 
   describe('clearRemoveSeatsState', () => {
     it('resets only remove state', async () => {
-      mockPost.mockRejectedValueOnce({ response: { data: { message: 'err' } } });
+      mockPost.mockRejectedValueOnce({
+        response: { data: { message: 'err' } },
+      });
       const store = createStore();
       await store.dispatch(RemoveSeats({ educatorId: 'x', amount: 1 }));
-      expect(store.getState().RemoveReallocateSeats.removeStatus).toBe('failed');
+      expect(store.getState().RemoveReallocateSeats.removeStatus).toBe(
+        'failed'
+      );
 
       store.dispatch(clearRemoveSeatsState());
       const s = store.getState().RemoveReallocateSeats;
@@ -180,12 +215,20 @@ describe('RemoveReallocateSeatsRedux', () => {
 
   describe('clearReallocateSeatsState', () => {
     it('resets only reallocate state', async () => {
-      mockPost.mockRejectedValueOnce({ response: { data: { message: 'err' } } });
+      mockPost.mockRejectedValueOnce({
+        response: { data: { message: 'err' } },
+      });
       const store = createStore();
       await store.dispatch(
-        ReallocateSeats({ sourceEducatorId: 'a', targetEducatorId: 'b', amount: 1 }),
+        ReallocateSeats({
+          sourceEducatorId: 'a',
+          targetEducatorId: 'b',
+          amount: 1,
+        })
       );
-      expect(store.getState().RemoveReallocateSeats.reallocateStatus).toBe('failed');
+      expect(store.getState().RemoveReallocateSeats.reallocateStatus).toBe(
+        'failed'
+      );
 
       store.dispatch(clearReallocateSeatsState());
       const s = store.getState().RemoveReallocateSeats;
@@ -197,13 +240,21 @@ describe('RemoveReallocateSeatsRedux', () => {
   describe('clearAllRemoveReallocateState', () => {
     it('resets both remove and reallocate state', async () => {
       mockPost
-        .mockRejectedValueOnce({ response: { data: { message: 'err-remove' } } })
-        .mockRejectedValueOnce({ response: { data: { message: 'err-reallocate' } } });
+        .mockRejectedValueOnce({
+          response: { data: { message: 'err-remove' } },
+        })
+        .mockRejectedValueOnce({
+          response: { data: { message: 'err-reallocate' } },
+        });
 
       const store = createStore();
       await store.dispatch(RemoveSeats({ educatorId: 'x', amount: 1 }));
       await store.dispatch(
-        ReallocateSeats({ sourceEducatorId: 'a', targetEducatorId: 'b', amount: 1 }),
+        ReallocateSeats({
+          sourceEducatorId: 'a',
+          targetEducatorId: 'b',
+          amount: 1,
+        })
       );
 
       store.dispatch(clearAllRemoveReallocateState());

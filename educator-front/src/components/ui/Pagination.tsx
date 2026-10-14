@@ -94,11 +94,17 @@ export const Pagination: React.FC<PaginationProps> = ({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1 || loading}
-        className={prevLabel
-          ? 'px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-all'
-          : 'w-10 h-10 flex items-center justify-center rounded-lg bg-background-white border border-gray-200 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all'}
+        className={
+          prevLabel
+            ? 'px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-all'
+            : 'w-10 h-10 flex items-center justify-center rounded-lg bg-background-white border border-gray-200 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all'
+        }
       >
-        {prevLabel ? prevLabel : <ChevronLeft size={18} className="text-text-secondary" />}
+        {prevLabel ? (
+          prevLabel
+        ) : (
+          <ChevronLeft size={18} className="text-text-secondary" />
+        )}
       </button>
 
       {/* Page Numbers */}
@@ -137,22 +143,35 @@ export const Pagination: React.FC<PaginationProps> = ({
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage >= totalPages || loading}
-        className={nextLabel
-          ? 'px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-all'
-          : 'w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all'}
+        className={
+          nextLabel
+            ? 'px-3 py-1 text-sm rounded-md bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-300 transition-all'
+            : 'w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-gray-200 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gray-50 transition-all'
+        }
       >
-        {nextLabel ? nextLabel : <ChevronRight size={18} className="text-text-secondary" />}
+        {nextLabel ? (
+          nextLabel
+        ) : (
+          <ChevronRight size={18} className="text-text-secondary" />
+        )}
       </button>
 
       {/* Items Per Page Dropdown */}
       {!hideItemsPerPage && (
         <div className="flex items-center gap-2 ml-2">
-          <span className="text-body-sm text-text-secondary font-medium">Records per page:</span>
+          <span className="text-body-sm text-text-secondary font-medium">
+            Records per page:
+          </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="w-[70px] h-9 px-3 flex items-center justify-between gap-2 rounded-lg bg-background-white border border-gray-200 shadow-sm hover:bg-gray-50 transition-all">
-                <span className="text-body-sm font-medium text-text-primary">{itemsPerPage}</span>
-                <ChevronRight size={14} className="text-text-placeholder rotate-90" />
+                <span className="text-body-sm font-medium text-text-primary">
+                  {itemsPerPage}
+                </span>
+                <ChevronRight
+                  size={14}
+                  className="text-text-placeholder rotate-90"
+                />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[70px] min-w-[70px]">
@@ -161,7 +180,9 @@ export const Pagination: React.FC<PaginationProps> = ({
                   key={option}
                   onClick={() => onItemsPerPageChange(option)}
                   className={`justify-center text-body-sm ${
-                    option === itemsPerPage ? 'bg-primary/10 text-primary font-medium' : ''
+                    option === itemsPerPage
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : ''
                   }`}
                 >
                   {option}

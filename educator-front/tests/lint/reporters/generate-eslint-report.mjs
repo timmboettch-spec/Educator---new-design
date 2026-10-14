@@ -19,7 +19,7 @@ const inputArg = readArg('--input');
 const reportTitle = readArg('--title', 'Frontend ESLint Report');
 const reportSubtitle = readArg(
   '--subtitle',
-  'User-friendly summary of ESLint findings, grouped by module and file.',
+  'User-friendly summary of ESLint findings, grouped by module and file.'
 );
 
 const REPORTS_DIR = outputDirArg
@@ -41,7 +41,7 @@ if (!fs.existsSync(REPORTS_DIR)) {
 const results = JSON.parse(fs.readFileSync(INPUT, 'utf-8'));
 
 function toTitleCase(str) {
-  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function moduleNameFromPath(filePath) {
@@ -61,7 +61,9 @@ function moduleNameFromPath(filePath) {
 }
 
 function fileLabel(filePath) {
-  const relativePath = path.relative(ROOT, String(filePath)).replace(/\\/g, '/');
+  const relativePath = path
+    .relative(ROOT, String(filePath))
+    .replace(/\\/g, '/');
   return relativePath || String(filePath).replace(/\\/g, '/');
 }
 
@@ -74,8 +76,10 @@ function escapeHtml(str) {
 }
 
 function statusBadge(status) {
-  if (status === 'passed') return '<span class="test-badge badge-pass">CLEAN</span>';
-  if (status === 'failed') return '<span class="test-badge badge-fail">ERROR</span>';
+  if (status === 'passed')
+    return '<span class="test-badge badge-pass">CLEAN</span>';
+  if (status === 'failed')
+    return '<span class="test-badge badge-fail">ERROR</span>';
   return '<span class="test-badge badge-skip">WARN</span>';
 }
 
@@ -83,11 +87,14 @@ const files = Array.isArray(results) ? results : [];
 const numSuites = files.length;
 const durationLabel = '—';
 
-let totalTests = 0, passed = 0, failed = 0, skipped = 0;
-files.forEach(fileResult => {
+let totalTests = 0,
+  passed = 0,
+  failed = 0,
+  skipped = 0;
+files.forEach((fileResult) => {
   const messages = fileResult.messages ?? [];
   if (messages.length === 0) passed++;
-  messages.forEach(msg => {
+  messages.forEach((msg) => {
     totalTests++;
     if (msg.severity === 2) failed++;
     else skipped++;
@@ -98,17 +105,18 @@ const generated = new Date().toLocaleString();
 
 const moduleMap = new Map();
 
-files.forEach(fileResult => {
+files.forEach((fileResult) => {
   const filePath = fileResult.filePath || '';
   const messages = fileResult.messages ?? [];
   if (messages.length === 0) return;
 
   const modName = moduleNameFromPath(filePath);
   const label = fileLabel(filePath);
-  if (!moduleMap.has(modName)) moduleMap.set(modName, { files: new Map(), hasFail: false });
+  if (!moduleMap.has(modName))
+    moduleMap.set(modName, { files: new Map(), hasFail: false });
   const mod = moduleMap.get(modName);
   if (!mod.files.has(label)) mod.files.set(label, []);
-  messages.forEach(msg => {
+  messages.forEach((msg) => {
     const status = msg.severity === 2 ? 'failed' : 'skipped';
     mod.files.get(label).push({
       status,
@@ -125,8 +133,8 @@ function buildModuleSections() {
   let html = '';
   for (const [modName, mod] of moduleMap) {
     const allTests = [...mod.files.values()].flat();
-    const modPassed = allTests.filter(t => t.status === 'skipped').length;
-    const modFailed = allTests.filter(t => t.status === 'failed').length;
+    const modPassed = allTests.filter((t) => t.status === 'skipped').length;
+    const modFailed = allTests.filter((t) => t.status === 'failed').length;
     const modTotal = allTests.length;
     const failClass = mod.hasFail ? ' mod-fail' : '';
 
@@ -147,11 +155,13 @@ function buildModuleSections() {
         <div class="file-group">
           <div class="file-title">${escapeHtml(label)} (${tests.length} findings)</div>
           <div class="test-list">`;
-      tests.forEach(t => {
+      tests.forEach((t) => {
         const status = t.status === 'failed' ? 'failed' : 'skipped';
         const ancestors = (t.ancestorTitles ?? []).join(' › ');
         const desc = ancestors ? escapeHtml(ancestors) : '—';
-        const errorMsg = (t.failureMessages ?? []).map(m => escapeHtml(m.split('\n')[0])).join(' ');
+        const errorMsg = (t.failureMessages ?? [])
+          .map((m) => escapeHtml(m.split('\n')[0]))
+          .join(' ');
         html += `
             <div class="test-card" data-status="${status}">
               <div class="test-item">

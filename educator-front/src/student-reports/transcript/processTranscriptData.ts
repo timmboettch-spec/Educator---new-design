@@ -19,11 +19,16 @@ import {
 import { formatElapsedLabel } from './utils';
 import type { AssessmentReport } from '../../types/assessmentReport';
 import type { TranscriptPDFData } from './generateTranscriptPDF';
-import type { TimelineItem, SummaryEntry, CommonActionEntry, TranscriptMessage } from './types';
+import type {
+  TimelineItem,
+  SummaryEntry,
+  CommonActionEntry,
+  TranscriptMessage,
+} from './types';
 
 export async function processTranscriptData(
   reportId: string,
-  classNameOverride?: string,
+  classNameOverride?: string
 ): Promise<TranscriptPDFData> {
   const reportData = await api.getAdminReportsById(reportId);
   const report = reportData as unknown as AssessmentReport;
@@ -31,11 +36,14 @@ export async function processTranscriptData(
   const displayClassName = resolveDisplayClassName(
     report.studentClass,
     classNameOverride,
-    report.studentName,
+    report.studentName
   );
 
   let timelineItems: TimelineItem[] = [];
-  let vitalsMapState: Record<string, Array<{ title?: string; details?: string }>> | null = null;
+  let vitalsMapState: Record<
+    string,
+    Array<{ title?: string; details?: string }>
+  > | null = null;
   let realSessionStartTime: string | null = null;
   let simulationStartDate: string | null = null;
   let simulationStartTime: string | null = null;
@@ -60,9 +68,12 @@ export async function processTranscriptData(
 
     // Simulation start time/date
     let simTime = reportData.scenario?.simulationStartTime;
-    let simDate = reportData.scenario?.simulationStartDate as string | undefined;
-    if (!simTime && liveScenario?.simulationStartTime) simTime = liveScenario.simulationStartTime;
-    if (!simDate && liveScenario?.simulationStartDate) simDate = liveScenario.simulationStartDate as string;
+    let simDate = reportData.scenario?.simulationStartDate as
+      string | undefined;
+    if (!simTime && liveScenario?.simulationStartTime)
+      simTime = liveScenario.simulationStartTime;
+    if (!simDate && liveScenario?.simulationStartDate)
+      simDate = liveScenario.simulationStartDate as string;
 
     if (simTime) simulationStartTime = simTime;
     if (simDate) simulationStartDate = simDate;
@@ -77,12 +88,16 @@ export async function processTranscriptData(
           const year = d.getFullYear();
           simulationStartDate = `${month} ${day}, ${year}`;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
 
     let dynamicTeamCommPrompt = reportData.scenario?.teamCommunication?.prompt;
     if (liveScenario?.teamCommunication?.prompt) {
-      dynamicTeamCommPrompt = (liveScenario.teamCommunication as Record<string, unknown>).prompt as string;
+      dynamicTeamCommPrompt = (
+        liveScenario.teamCommunication as Record<string, unknown>
+      ).prompt as string;
     }
 
     // ── Process messages ─────────────────────────────────────────────────────
@@ -91,10 +106,18 @@ export async function processTranscriptData(
     )
       ?.filter((msg: Record<string, unknown>) => {
         const msgText = String(msg.text ?? msg.message ?? '').trim();
-        const isOrderRelease = msg.speaker === 'system' && msgText.toLowerCase().startsWith('order released:');
-        const isTeamCommInitiated = msg.speaker === 'system' && msgText.toLowerCase().startsWith('team communication initiated.');
+        const isOrderRelease =
+          msg.speaker === 'system' &&
+          msgText.toLowerCase().startsWith('order released:');
+        const isTeamCommInitiated =
+          msg.speaker === 'system' &&
+          msgText.toLowerCase().startsWith('team communication initiated.');
         if (isOrderRelease || isTeamCommInitiated) return true;
-        if (msg.speaker === 'student_team_comm' || msg.speaker === 'sbar_report') return true;
+        if (
+          msg.speaker === 'student_team_comm' ||
+          msg.speaker === 'sbar_report'
+        )
+          return true;
         if (msg.speaker === 'provider') return false;
         return msg.speaker !== 'system';
       })
@@ -110,7 +133,10 @@ export async function processTranscriptData(
           typeof msg.elapsedSeconds === 'number'
             ? msg.elapsedSeconds
             : timestampValue && scenarioStartMs
-              ? Math.max(0, Math.round((timestampValue - scenarioStartMs) / 1000))
+              ? Math.max(
+                  0,
+                  Math.round((timestampValue - scenarioStartMs) / 1000)
+                )
               : index;
 
         const elapsedTime =
@@ -119,42 +145,72 @@ export async function processTranscriptData(
             : formatElapsedLabel(elapsedSeconds);
 
         const displayTimestamp = timestampValue
-          ? new Date(timestampValue).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          ? new Date(timestampValue).toLocaleTimeString('en-US', {
+              hour12: false,
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+            })
           : `00:${String(index).padStart(2, '0')}:00`;
 
         const messageText = String(msg.text ?? msg.message ?? '').trim();
         const rawMsgText = messageText;
-        const isOrderRelease = msg.speaker === 'system' && rawMsgText.toLowerCase().startsWith('order released:');
-        const isTeamCommInitiated = msg.speaker === 'system' && rawMsgText.toLowerCase().startsWith('team communication initiated.');
+        const isOrderRelease =
+          msg.speaker === 'system' &&
+          rawMsgText.toLowerCase().startsWith('order released:');
+        const isTeamCommInitiated =
+          msg.speaker === 'system' &&
+          rawMsgText.toLowerCase().startsWith('team communication initiated.');
 
         return {
           id: (msg.id as string) || index.toString(),
-          speaker: (isOrderRelease ? 'order' : isTeamCommInitiated ? 'sbar_report' :
-            msg.speaker === 'student' ? 'user' :
-            msg.speaker === 'student_team_comm' ? 'student_team_comm' :
-            msg.speaker === 'avatar' ? 'assistant' :
-            msg.speaker === 'provider' ? 'provider' :
-            msg.speaker === 'sbar_report' ? 'sbar_report' :
-            msg.speaker === 'system' ? 'system' : 'assistant') as TranscriptMessage['speaker'],
+          speaker: (isOrderRelease
+            ? 'order'
+            : isTeamCommInitiated
+              ? 'sbar_report'
+              : msg.speaker === 'student'
+                ? 'user'
+                : msg.speaker === 'student_team_comm'
+                  ? 'student_team_comm'
+                  : msg.speaker === 'avatar'
+                    ? 'assistant'
+                    : msg.speaker === 'provider'
+                      ? 'provider'
+                      : msg.speaker === 'sbar_report'
+                        ? 'sbar_report'
+                        : msg.speaker === 'system'
+                          ? 'system'
+                          : 'assistant') as TranscriptMessage['speaker'],
           message: messageText,
           timestamp: displayTimestamp,
           timestampValue: timestampValue ?? undefined,
           elapsedTime,
           elapsedSeconds,
           duration: typeof msg.duration === 'number' ? msg.duration : undefined,
-          _orderKey: typeof elapsedSeconds === 'number' ? elapsedSeconds :
-            (timestampValue && scenarioStartMs
-              ? Math.max(0, Math.round((timestampValue - scenarioStartMs) / 1000))
-              : index),
+          _orderKey:
+            typeof elapsedSeconds === 'number'
+              ? elapsedSeconds
+              : timestampValue && scenarioStartMs
+                ? Math.max(
+                    0,
+                    Math.round((timestampValue - scenarioStartMs) / 1000)
+                  )
+                : index,
           _originalIndex: index,
         } satisfies TranscriptMessage;
       })
       .filter((msg) => msg.message.length > 0)
-      .sort((a, b) => timelineComparator(a as unknown as TimelineSortItem, b as unknown as TimelineSortItem))
-      ?? []) as TranscriptMessage[];
+      .sort((a, b) =>
+        timelineComparator(
+          a as unknown as TimelineSortItem,
+          b as unknown as TimelineSortItem
+        )
+      ) ?? []) as TranscriptMessage[];
 
     // ── Flatten summaryByCategory ─────────────────────────────────────────────
-    const flattenSummaryCategory = (cat: Record<string, unknown>): unknown[] => {
+    const flattenSummaryCategory = (
+      cat: Record<string, unknown>
+    ): unknown[] => {
       const results: unknown[] = [];
       for (const val of Object.values(cat)) {
         if (typeof val === 'string') continue;
@@ -172,13 +228,15 @@ export async function processTranscriptData(
     };
 
     const summaryEntriesData =
-      reportData?.summaryByCategory && typeof reportData.summaryByCategory === 'object'
+      reportData?.summaryByCategory &&
+      typeof reportData.summaryByCategory === 'object'
         ? (() => {
             const flat = flattenSummaryCategory(reportData.summaryByCategory);
             const seenVitals = new Set<string>();
             return flat
               .filter((e) => {
-                if (typeof e !== 'object' || e === null || Array.isArray(e)) return false;
+                if (typeof e !== 'object' || e === null || Array.isArray(e))
+                  return false;
                 const entry = e as { id?: string; category?: string };
                 if (!entry?.id) return true;
                 if (entry.category?.toLowerCase() === 'system') return false;
@@ -189,164 +247,307 @@ export async function processTranscriptData(
                 }
                 return true;
               })
-              .sort((a, b) =>
-                ((a as { timestampValue?: number })?.timestampValue ?? 0) -
-                ((b as { timestampValue?: number })?.timestampValue ?? 0),
+              .sort(
+                (a, b) =>
+                  ((a as { timestampValue?: number })?.timestampValue ?? 0) -
+                  ((b as { timestampValue?: number })?.timestampValue ?? 0)
               );
           })()
-        : ((reportData?.summaryEntries ?? []) as Array<{ category?: string }>).filter(
-            (e) => e.category?.toLowerCase() !== 'vitals',
-          );
+        : (
+            (reportData?.summaryEntries ?? []) as Array<{ category?: string }>
+          ).filter((e) => e.category?.toLowerCase() !== 'vitals');
 
     // ── Extract vitals map ────────────────────────────────────────────────────
     if (reportData?.summaryByCategory) {
       const rawVitals = reportData.summaryByCategory.vitals;
-      if (rawVitals && typeof rawVitals === 'object' && !Array.isArray(rawVitals)) {
+      if (
+        rawVitals &&
+        typeof rawVitals === 'object' &&
+        !Array.isArray(rawVitals)
+      ) {
         const shortKey: Record<string, string> = {
-          'heart rate': 'hr', 'heart rate recorded': 'hr',
-          'blood pressure': 'bp', 'blood pressure recorded': 'bp',
-          'respiratory rate': 'rr', 'respiratory rate recorded': 'rr',
-          'oxygen saturation': 'spo2', 'oxygen saturation recorded': 'spo2', 'spo2 recorded': 'spo2',
-          'temperature': 'temp', 'temperature recorded': 'temp',
+          'heart rate': 'hr',
+          'heart rate recorded': 'hr',
+          'blood pressure': 'bp',
+          'blood pressure recorded': 'bp',
+          'respiratory rate': 'rr',
+          'respiratory rate recorded': 'rr',
+          'oxygen saturation': 'spo2',
+          'oxygen saturation recorded': 'spo2',
+          'spo2 recorded': 'spo2',
+          temperature: 'temp',
+          'temperature recorded': 'temp',
         };
-        const normalized: Record<string, Array<{ title?: string; details?: string }>> = {};
-        Object.entries(rawVitals as Record<string, unknown>).forEach(([k, v]) => {
-          if (!Array.isArray(v) || v.length === 0) return;
-          const key = shortKey[k.toLowerCase()] ?? k.toLowerCase();
-          normalized[key] = v as Array<{ title?: string; details?: string }>;
-        });
+        const normalized: Record<
+          string,
+          Array<{ title?: string; details?: string }>
+        > = {};
+        Object.entries(rawVitals as Record<string, unknown>).forEach(
+          ([k, v]) => {
+            if (!Array.isArray(v) || v.length === 0) return;
+            const key = shortKey[k.toLowerCase()] ?? k.toLowerCase();
+            normalized[key] = v as Array<{ title?: string; details?: string }>;
+          }
+        );
         if (Object.keys(normalized).length > 0) vitalsMapState = normalized;
       }
     }
 
     // ── Build grading lookup ──────────────────────────────────────────────────
-    const actionGradingMap = new Map<string, { satisfactory: boolean; creditAwarded: boolean }>();
+    const actionGradingMap = new Map<
+      string,
+      { satisfactory: boolean; creditAwarded: boolean }
+    >();
     const allGradedActions = [
-      ...((reportData?.mandatoryActions as Array<{ title: string; type: string; isCorrect: boolean; pointsAwarded?: number }>) || []),
-      ...((reportData?.optionalActions as Array<{ title: string; type: string; isCorrect: boolean; pointsAwarded?: number }>) || []),
+      ...((reportData?.mandatoryActions as Array<{
+        title: string;
+        type: string;
+        isCorrect: boolean;
+        pointsAwarded?: number;
+      }>) || []),
+      ...((reportData?.optionalActions as Array<{
+        title: string;
+        type: string;
+        isCorrect: boolean;
+        pointsAwarded?: number;
+      }>) || []),
     ];
     for (const action of allGradedActions) {
       if (action.title) {
         actionGradingMap.set(action.title.toLowerCase(), {
           satisfactory: action.isCorrect,
-          creditAwarded: action.pointsAwarded !== undefined ? action.pointsAwarded > 0 : action.isCorrect,
+          creditAwarded:
+            action.pointsAwarded !== undefined
+              ? action.pointsAwarded > 0
+              : action.isCorrect,
         });
       }
     }
-    if (actionGradingMap.size === 0 && Array.isArray(reportData?.actionsTimeline)) {
-      for (const entry of reportData.actionsTimeline as Array<{ title?: string; grading?: boolean | number }>) {
-        if (entry.title && entry.grading !== undefined && entry.grading !== null) {
+    if (
+      actionGradingMap.size === 0 &&
+      Array.isArray(reportData?.actionsTimeline)
+    ) {
+      for (const entry of reportData.actionsTimeline as Array<{
+        title?: string;
+        grading?: boolean | number;
+      }>) {
+        if (
+          entry.title &&
+          entry.grading !== undefined &&
+          entry.grading !== null
+        ) {
           const isCorrect = entry.grading === true || entry.grading === 1;
-          actionGradingMap.set(entry.title.toLowerCase(), { satisfactory: isCorrect, creditAwarded: isCorrect });
+          actionGradingMap.set(entry.title.toLowerCase(), {
+            satisfactory: isCorrect,
+            creditAwarded: isCorrect,
+          });
         }
       }
     }
 
     // ── Build summaryTimelineItems ────────────────────────────────────────────
-    const summaryTimelineItems: TimelineItem[] = summaryEntriesData.map((rawEntry) => {
-      const entry = rawEntry as SummaryEntry;
-      const timestampValue = entry.timestampValue || 0;
-      const elapsedSeconds =
-        entry.elapsedSeconds ??
-        (timestampValue && scenarioStartMs
-          ? Math.max(0, Math.round((timestampValue - scenarioStartMs) / 1000))
-          : undefined);
-      const elapsedTime = entry.elapsedTime ?? (elapsedSeconds !== undefined ? formatElapsedLabel(elapsedSeconds) : undefined);
+    const summaryTimelineItems: TimelineItem[] = summaryEntriesData.map(
+      (rawEntry) => {
+        const entry = rawEntry as SummaryEntry;
+        const timestampValue = entry.timestampValue || 0;
+        const elapsedSeconds =
+          entry.elapsedSeconds ??
+          (timestampValue && scenarioStartMs
+            ? Math.max(0, Math.round((timestampValue - scenarioStartMs) / 1000))
+            : undefined);
+        const elapsedTime =
+          entry.elapsedTime ??
+          (elapsedSeconds !== undefined
+            ? formatElapsedLabel(elapsedSeconds)
+            : undefined);
 
-      let duration = entry.duration;
-      let score = entry.score;
-      if (entry.details) {
-        const dMatch = entry.details.match(/Duration:\s*(\d+)s/i);
-        if (dMatch) {
-          duration = parseInt(dMatch[1], 10);
-        } else {
-          const mMatch = entry.details.match(/Duration:\s*(\d+)m\s*(\d+)s/i);
-          if (mMatch) duration = parseInt(mMatch[1], 10) * 60 + parseInt(mMatch[2], 10);
-        }
-        const sMatch = entry.details.match(/Score:\s*(\d+)%/i);
-        if (sMatch) score = parseInt(sMatch[1], 10);
-        if (duration === undefined) {
-          const sM = entry.details.match(/Started:\s*([^|]*)/i);
-          const eM = entry.details.match(/Ended:\s*([^|]*)/i);
-          if (sM && eM) {
-            try {
-              const sDate = new Date(sM[1].trim());
-              const eDate = new Date(eM[1].trim());
-              if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
-                duration = Math.max(0, Math.round((eDate.getTime() - sDate.getTime()) / 1000));
+        let duration = entry.duration;
+        let score = entry.score;
+        if (entry.details) {
+          const dMatch = entry.details.match(/Duration:\s*(\d+)s/i);
+          if (dMatch) {
+            duration = parseInt(dMatch[1], 10);
+          } else {
+            const mMatch = entry.details.match(/Duration:\s*(\d+)m\s*(\d+)s/i);
+            if (mMatch)
+              duration = parseInt(mMatch[1], 10) * 60 + parseInt(mMatch[2], 10);
+          }
+          const sMatch = entry.details.match(/Score:\s*(\d+)%/i);
+          if (sMatch) score = parseInt(sMatch[1], 10);
+          if (duration === undefined) {
+            const sM = entry.details.match(/Started:\s*([^|]*)/i);
+            const eM = entry.details.match(/Ended:\s*([^|]*)/i);
+            if (sM && eM) {
+              try {
+                const sDate = new Date(sM[1].trim());
+                const eDate = new Date(eM[1].trim());
+                if (!isNaN(sDate.getTime()) && !isNaN(eDate.getTime())) {
+                  duration = Math.max(
+                    0,
+                    Math.round((eDate.getTime() - sDate.getTime()) / 1000)
+                  );
+                }
+              } catch {
+                /* ignore */
               }
-            } catch { /* ignore */ }
+            }
           }
         }
+
+        const entryIndividualCorrect =
+          entry.satisfactory !== undefined
+            ? entry.satisfactory
+            : entry.correct !== undefined
+              ? entry.correct
+              : undefined;
+
+        const shouldUseIndividualCorrectness =
+          entryIndividualCorrect !== undefined;
+        const isVitalEntry =
+          entry.type === 'vital' ||
+          entry.type === 'vital-signs' ||
+          entry.category?.toLowerCase() === 'vitals';
+        const rawEntryGrading = (rawEntry as Record<string, unknown>).grading;
+
+        const grading = shouldUseIndividualCorrectness
+          ? {
+              satisfactory: Boolean(entryIndividualCorrect),
+              creditAwarded: Boolean(entryIndividualCorrect),
+            }
+          : isVitalEntry &&
+              rawEntryGrading !== undefined &&
+              rawEntryGrading !== null
+            ? {
+                satisfactory: rawEntryGrading === true || rawEntryGrading === 1,
+                creditAwarded:
+                  rawEntryGrading === true || rawEntryGrading === 1,
+              }
+            : entry.title
+              ? actionGradingMap.get(entry.title.toLowerCase())
+              : undefined;
+
+        const fallbackGrading =
+          !grading && entryIndividualCorrect !== undefined
+            ? {
+                satisfactory: Boolean(entryIndividualCorrect),
+                creditAwarded: Boolean(entryIndividualCorrect),
+              }
+            : undefined;
+
+        return {
+          type: 'summary' as const,
+          data: {
+            ...entry,
+            id: entry.id,
+            category: entry.category || 'summary',
+            title: entry.title,
+            details: entry.details,
+            timestamp: entry.timestamp,
+            timestampValue,
+            elapsedTime,
+            elapsedSeconds,
+            duration,
+            score,
+            ...(entry.type && { type: entry.type }),
+            ...(entry.vitals && { vitals: entry.vitals }),
+            ...(grading && {
+              satisfactory: grading.satisfactory,
+              creditAwarded: grading.creditAwarded,
+            }),
+            ...(fallbackGrading &&
+              !grading && {
+                satisfactory: fallbackGrading.satisfactory,
+                creditAwarded: fallbackGrading.creditAwarded,
+              }),
+          },
+        };
       }
-
-      const isActionOrMedication = ['actions', 'action', 'clinical', 'medications', 'orders'].includes((entry.category ?? '').toLowerCase());
-      const shouldUseIndividualCorrectness = isActionOrMedication && entry.correct !== undefined;
-      const isVitalEntry = entry.type === 'vital' || entry.type === 'vital-signs' || entry.category?.toLowerCase() === 'vitals';
-      const rawEntryGrading = (rawEntry as Record<string, unknown>).grading;
-
-      const grading = shouldUseIndividualCorrectness
-        ? { satisfactory: entry.correct, creditAwarded: entry.correct }
-        : isVitalEntry && rawEntryGrading !== undefined && rawEntryGrading !== null
-          ? { satisfactory: rawEntryGrading === true || rawEntryGrading === 1, creditAwarded: rawEntryGrading === true || rawEntryGrading === 1 }
-          : entry.title ? actionGradingMap.get(entry.title.toLowerCase()) : undefined;
-
-      const fallbackGrading = !grading && entry.correct !== undefined
-        ? { satisfactory: entry.correct, creditAwarded: entry.correct }
-        : undefined;
-
-      return {
-        type: 'summary' as const,
-        data: {
-          ...entry,
-          id: entry.id,
-          category: entry.category || 'summary',
-          title: entry.title,
-          details: entry.details,
-          timestamp: entry.timestamp,
-          timestampValue,
-          elapsedTime,
-          elapsedSeconds,
-          duration,
-          score,
-          ...(entry.type && { type: entry.type }),
-          ...(entry.vitals && { vitals: entry.vitals }),
-          ...(grading && { satisfactory: grading.satisfactory, creditAwarded: grading.creditAwarded }),
-          ...(fallbackGrading && !grading && { satisfactory: fallbackGrading.satisfactory, creditAwarded: fallbackGrading.creditAwarded }),
-        },
-      };
-    });
+    );
 
     // ── Build messageTimelineItems ────────────────────────────────────────────
-    const messageTimelineItems: TimelineItem[] = transcriptMessages.map((msg) => ({
-      type: 'message' as const,
-      data: {
-        ...msg,
-        _orderKey:
-          (typeof msg.elapsedSeconds === 'number' ? msg.elapsedSeconds : undefined) ??
-          msg._orderKey ??
-          (msg.elapsedTime ? parseElapsedTimeToSeconds(msg.elapsedTime) : undefined),
-      },
-    }));
+    const messageTimelineItems: TimelineItem[] = transcriptMessages.map(
+      (msg) => ({
+        type: 'message' as const,
+        data: {
+          ...msg,
+          _orderKey:
+            (typeof msg.elapsedSeconds === 'number'
+              ? msg.elapsedSeconds
+              : undefined) ??
+            msg._orderKey ??
+            (msg.elapsedTime
+              ? parseElapsedTimeToSeconds(msg.elapsedTime)
+              : undefined),
+        },
+      })
+    );
 
     // ── Build commonActionItems ───────────────────────────────────────────────
     const commonActionItems: TimelineItem[] = (
-      (reportData?.commonActionTracker?.actionLog as CommonActionEntry[] | undefined) ?? []
+      (reportData?.commonActionTracker?.actionLog as
+        CommonActionEntry[] | undefined) ?? []
     ).map((action) => ({ type: 'commonAction' as const, data: action }));
 
     // ── Merge and sort ────────────────────────────────────────────────────────
-    const combinedTimeline: TimelineItem[] = [
+    const rawCombinedTimeline: TimelineItem[] = [
       ...messageTimelineItems,
       ...summaryTimelineItems,
       ...commonActionItems,
-    ].sort((a, b) => timelineComparator(a as unknown as TimelineSortItem, b as unknown as TimelineSortItem));
+    ].sort((a, b) =>
+      timelineComparator(
+        a as unknown as TimelineSortItem,
+        b as unknown as TimelineSortItem
+      )
+    );
+
+    // Deduplicate action items representing the exact same attempt event
+    const seenActionAttempts: Array<{
+      title: string;
+      ts: number;
+      elapsed?: string;
+    }> = [];
+    const combinedTimeline: TimelineItem[] = rawCombinedTimeline.filter(
+      (item) => {
+        if (item.type === 'message') return true;
+        const title = (
+          item.type === 'commonAction'
+            ? item.data.label || item.data.title || ''
+            : item.data.title || ''
+        )
+          .trim()
+          .toLowerCase();
+        if (!title) return true;
+        const ts = item.data.timestampValue ?? item.data.timestampMs ?? 0;
+        const elapsed = item.data.elapsedTime ?? '';
+
+        const isDup = seenActionAttempts.some((s) => {
+          const titleMatches =
+            s.title === title ||
+            (s.title.length > 5 &&
+              title.length > 5 &&
+              (s.title.includes(title) || title.includes(s.title)));
+          if (!titleMatches) return false;
+          if (elapsed && s.elapsed && elapsed === s.elapsed) return true;
+          if (ts > 0 && s.ts > 0 && Math.abs(ts - s.ts) <= 4000) return true;
+          if (ts === 0 && s.ts === 0) return true;
+          return false;
+        });
+        if (isDup) return false;
+        seenActionAttempts.push({ title, ts, elapsed });
+        return true;
+      }
+    );
 
     // ── SBAR session merging ──────────────────────────────────────────────────
     type SbarSession = {
-      prompt?: string; submission?: string;
-      startMs?: number; submitMs?: number;
-      startElapsed?: string; submitElapsed?: string;
-      startSeconds?: number; submitSeconds?: number;
+      prompt?: string;
+      submission?: string;
+      startMs?: number;
+      submitMs?: number;
+      startElapsed?: string;
+      submitElapsed?: string;
+      startSeconds?: number;
+      submitSeconds?: number;
     };
     const unifiedTimeline: TimelineItem[] = [];
     let currentSbarSession: SbarSession | null = null;
@@ -356,12 +557,15 @@ export async function processTranscriptData(
       if (item.type === 'message') {
         const msg = item.data;
         const text = (msg.message || '').trim();
-        if (text.toLowerCase().startsWith('team communication initiated. prompt:')) {
+        if (
+          text.toLowerCase().startsWith('team communication initiated. prompt:')
+        ) {
           const promptMatch = text.match(/prompt:\s*(.*)/i);
           const prevSbar: SbarSession = currentSbarSession ?? {};
           currentSbarSession = {
             ...prevSbar,
-            prompt: dynamicTeamCommPrompt ?? (promptMatch ? promptMatch[1] : text),
+            prompt:
+              dynamicTeamCommPrompt ?? (promptMatch ? promptMatch[1] : text),
             startMs: msg.timestampValue ?? prevSbar.startMs,
             startElapsed: msg.elapsedTime ?? prevSbar.startElapsed,
             startSeconds: msg.elapsedSeconds ?? prevSbar.startSeconds,
@@ -371,14 +575,18 @@ export async function processTranscriptData(
         if (msg.speaker === 'sbar_report') {
           const prevSbar: SbarSession = currentSbarSession ?? {};
           currentSbarSession = {
-            ...prevSbar, submission: text,
+            ...prevSbar,
+            submission: text,
             submitMs: msg.timestampValue ?? prevSbar.submitMs,
             submitElapsed: msg.elapsedTime ?? prevSbar.submitElapsed,
             submitSeconds: msg.elapsedSeconds ?? prevSbar.submitSeconds,
           };
           continue;
         }
-        if (msg.speaker === 'student_team_comm' && currentSbarSession !== null) {
+        if (
+          msg.speaker === 'student_team_comm' &&
+          currentSbarSession !== null
+        ) {
           pendingStudentTeamComm.push(item);
           continue;
         }
@@ -390,22 +598,36 @@ export async function processTranscriptData(
             if (!currentSbarSession) currentSbarSession = {};
             const promptMatch = details.match(/prompt:\s*(.*)/i);
             const parsedPrompt = promptMatch ? promptMatch[1] : details;
-            currentSbarSession.prompt = dynamicTeamCommPrompt ?? currentSbarSession.prompt ?? parsedPrompt;
-            if (!currentSbarSession.startMs) currentSbarSession.startMs = entry.timestampValue;
-            if (!currentSbarSession.startElapsed) currentSbarSession.startElapsed = entry.elapsedTime;
-            if (!currentSbarSession.startSeconds) currentSbarSession.startSeconds = entry.elapsedSeconds;
+            currentSbarSession.prompt =
+              dynamicTeamCommPrompt ??
+              currentSbarSession.prompt ??
+              parsedPrompt;
+            if (!currentSbarSession.startMs)
+              currentSbarSession.startMs = entry.timestampValue;
+            if (!currentSbarSession.startElapsed)
+              currentSbarSession.startElapsed = entry.elapsedTime;
+            if (!currentSbarSession.startSeconds)
+              currentSbarSession.startSeconds = entry.elapsedSeconds;
             continue;
           } else if (details.toLowerCase().includes('result:')) {
-            if (!currentSbarSession) { continue; }
+            if (!currentSbarSession) {
+              continue;
+            }
             const resultMatch = details.match(/result:\s*([^|]+)/i);
-            const qualitativeResult = resultMatch ? resultMatch[1].trim() : details;
+            const qualitativeResult = resultMatch
+              ? resultMatch[1].trim()
+              : details;
             const sessionStartMs =
               currentSbarSession?.startMs ??
-              (currentSbarSession?.startSeconds !== undefined && currentSbarSession.startSeconds !== null && scenarioStartMs !== null
+              (currentSbarSession?.startSeconds !== undefined &&
+              currentSbarSession.startSeconds !== null &&
+              scenarioStartMs !== null
                 ? scenarioStartMs + currentSbarSession.startSeconds * 1000
                 : undefined) ??
               (currentSbarSession?.startElapsed && scenarioStartMs !== null
-                ? scenarioStartMs + parseElapsedTimeToSeconds(currentSbarSession.startElapsed) * 1000
+                ? scenarioStartMs +
+                  parseElapsedTimeToSeconds(currentSbarSession.startElapsed) *
+                    1000
                 : undefined) ??
               entry.timestampValue;
 
@@ -413,21 +635,29 @@ export async function processTranscriptData(
               type: 'summary',
               data: {
                 ...entry,
-                category: 'Team Communication', title: 'Team Communication',
+                category: 'Team Communication',
+                title: 'Team Communication',
                 sbarPrompt: currentSbarSession?.prompt ?? 'No prompt recorded',
-                sbarSubmission: currentSbarSession?.submission ?? 'No submission recorded',
+                sbarSubmission:
+                  currentSbarSession?.submission ?? 'No submission recorded',
                 sbarQualitativeResult: qualitativeResult,
-                sbarStartElapsed: currentSbarSession?.startElapsed ?? entry.elapsedTime,
-                sbarSubmitElapsed: currentSbarSession?.submitElapsed ?? entry.elapsedTime,
+                sbarStartElapsed:
+                  currentSbarSession?.startElapsed ?? entry.elapsedTime,
+                sbarSubmitElapsed:
+                  currentSbarSession?.submitElapsed ?? entry.elapsedTime,
                 sbarStartMs: sessionStartMs,
                 sbarSubmitMs:
                   currentSbarSession?.submitMs ??
-                  (currentSbarSession?.submitSeconds !== undefined && currentSbarSession.submitSeconds !== null && scenarioStartMs !== null
+                  (currentSbarSession?.submitSeconds !== undefined &&
+                  currentSbarSession.submitSeconds !== null &&
+                  scenarioStartMs !== null
                     ? scenarioStartMs + currentSbarSession.submitSeconds * 1000
                     : undefined) ??
                   entry.timestampValue,
-                elapsedTime: currentSbarSession?.startElapsed ?? entry.elapsedTime,
-                elapsedSeconds: currentSbarSession?.startSeconds ?? entry.elapsedSeconds,
+                elapsedTime:
+                  currentSbarSession?.startElapsed ?? entry.elapsedTime,
+                elapsedSeconds:
+                  currentSbarSession?.startSeconds ?? entry.elapsedSeconds,
                 timestampValue: sessionStartMs,
               } as SummaryEntry,
             };
@@ -435,8 +665,12 @@ export async function processTranscriptData(
             pendingStudentTeamComm.forEach((tcItem, idx) => {
               const tcMsg = tcItem.data as TranscriptMessage;
               const rawTs = tcMsg.timestampValue ?? 0;
-              const adjustedTs = rawTs > sessionStartMs ? rawTs : sessionStartMs + idx + 1;
-              unifiedTimeline.push({ type: 'message', data: { ...tcMsg, timestampValue: adjustedTs } });
+              const adjustedTs =
+                rawTs > sessionStartMs ? rawTs : sessionStartMs + idx + 1;
+              unifiedTimeline.push({
+                type: 'message',
+                data: { ...tcMsg, timestampValue: adjustedTs },
+              });
             });
             pendingStudentTeamComm = [];
             currentSbarSession = null;
@@ -454,7 +688,10 @@ export async function processTranscriptData(
     }
 
     unifiedTimeline.sort((a, b) =>
-      timelineComparator(a as unknown as TimelineSortItem, b as unknown as TimelineSortItem),
+      timelineComparator(
+        a as unknown as TimelineSortItem,
+        b as unknown as TimelineSortItem
+      )
     );
     timelineItems = unifiedTimeline;
   }

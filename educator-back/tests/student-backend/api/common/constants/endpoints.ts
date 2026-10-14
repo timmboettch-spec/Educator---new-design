@@ -17,7 +17,6 @@ export const ENDPOINTS = {
 
     UNITS: '/admin/units',
     UNIT: (id: string) => `/admin/units/${id}`,
-    UNIT_ASSIGN: (id: string) => `/admin/units/${id}/assign`,
 
     SCENARIOS: '/admin/scenarios',
     SCENARIO: (id: string) => `/admin/scenarios/${id}`,
@@ -29,11 +28,6 @@ export const ENDPOINTS = {
   CLASSES: {
     ROOT: '/classes',
     BY_ID: (id: string) => `/classes/${id}`,
-  },
-
-  UNITS: {
-    ROOT: '/units',
-    BY_ID: (id: string) => `/units/${id}`,
   },
 
   SCENARIOS: {

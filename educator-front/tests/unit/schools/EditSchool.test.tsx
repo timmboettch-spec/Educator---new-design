@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { Provider } from 'react-redux';
 
@@ -47,11 +53,13 @@ let mockState: MockState;
 
 vi.mock('../../../src/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
-  useAppSelector: (selector: (state: MockState) => unknown) => selector(mockState),
+  useAppSelector: (selector: (state: MockState) => unknown) =>
+    selector(mockState),
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({
     type: 'schools/get',
   })),
@@ -63,11 +71,16 @@ vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
 
 vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   GetEducatorByUserRequest: vi.fn(() => ({ type: 'educator/get' })),
-  selectGetEducatorsData: () => ({ items: [], totalItems: 0, currentPage: 1, totalPages: 1 }),
+  selectGetEducatorsData: () => ({
+    items: [],
+    totalItems: 0,
+    currentPage: 1,
+    totalPages: 1,
+  }),
 }));
 
-vi.mock('../../../src/redux/users/GetUserRedux', () => ({
-  getCurrentUserRequest: vi.fn(() => ({ type: 'users/get' })),
+vi.mock('../../../src/redux/auth/MeRedux', () => ({
+  fetchCurrentUser: vi.fn(() => ({ type: 'auth/Me' })),
 }));
 
 vi.mock('../../../src/redux/schools/PatchSchoolsRedux', () => ({
@@ -96,7 +109,12 @@ vi.mock('../../../src/redux/schools/DeleteSchoolsRedux', () => ({
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -111,7 +129,7 @@ const renderPage = () =>
       <MemoryRouter>
         <Schools />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 
 const openEditModal = async () => {
@@ -146,7 +164,7 @@ describe('Edit School', () => {
       'user',
       JSON.stringify({
         id: 'user-1',
-      }),
+      })
     );
   });
 
@@ -165,7 +183,9 @@ describe('Edit School', () => {
   it('renders Status select in edit modal', async () => {
     await openEditModal();
 
-    expect(await screen.findByRole('button', { name: /active|inactive/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /active|inactive/i })
+    ).toBeInTheDocument();
   });
 
   it('renders Update School button in edit modal', async () => {
@@ -174,7 +194,7 @@ describe('Edit School', () => {
     expect(
       screen.getByRole('button', {
         name: /update school/i,
-      }),
+      })
     ).toBeInTheDocument();
   });
 
@@ -184,7 +204,7 @@ describe('Edit School', () => {
     expect(
       screen.getByRole('button', {
         name: /back/i,
-      }),
+      })
     ).toBeInTheDocument();
   });
 
@@ -239,7 +259,9 @@ describe('Edit School', () => {
   it('allows changing status to INACTIVE', async () => {
     await openEditModal();
 
-    const statusSelect = screen.getByRole('button', { name: /active|inactive/i });
+    const statusSelect = screen.getByRole('button', {
+      name: /active|inactive/i,
+    });
 
     fireEvent.change(statusSelect, {
       target: {
@@ -269,7 +291,8 @@ describe('Edit School', () => {
   });
 
   it('does not dispatch PatchSchoolRequest when school_name is empty', async () => {
-    const { PatchSchoolRequest } = await import('../../../src/redux/schools/PatchSchoolsRedux');
+    const { PatchSchoolRequest } =
+      await import('../../../src/redux/schools/PatchSchoolsRedux');
 
     await openEditModal();
 
@@ -283,7 +306,7 @@ describe('Edit School', () => {
       fireEvent.click(
         screen.getByRole('button', {
           name: /update school/i,
-        }),
+        })
       );
     });
 
@@ -299,7 +322,7 @@ describe('Edit School', () => {
       fireEvent.click(
         screen.getByRole('button', {
           name: /update school/i,
-        }),
+        })
       );
     });
 
@@ -309,7 +332,8 @@ describe('Edit School', () => {
   });
 
   it('dispatches PatchSchoolRequest with updated school_name', async () => {
-    const { PatchSchoolRequest } = await import('../../../src/redux/schools/PatchSchoolsRedux');
+    const { PatchSchoolRequest } =
+      await import('../../../src/redux/schools/PatchSchoolsRedux');
 
     await openEditModal();
 
@@ -323,7 +347,7 @@ describe('Edit School', () => {
       fireEvent.click(
         screen.getByRole('button', {
           name: /update school/i,
-        }),
+        })
       );
     });
 
@@ -331,7 +355,7 @@ describe('Edit School', () => {
       expect(PatchSchoolRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           school_name: 'Updated School',
-        }),
+        })
       );
     });
   });
@@ -349,7 +373,7 @@ describe('Edit School', () => {
 
     const inactiveOptions = await screen.findAllByText('Inactive');
     const inactiveOption = inactiveOptions.find(
-      (el) => el.tagName.toLowerCase() === 'div',
+      (el) => el.tagName.toLowerCase() === 'div'
     ) as HTMLElement;
 
     await act(async () => {
@@ -360,7 +384,7 @@ describe('Edit School', () => {
       fireEvent.click(
         screen.getByRole('button', {
           name: /update school/i,
-        }),
+        })
       );
     });
 
@@ -375,7 +399,7 @@ describe('Edit School', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /back/i,
-      }),
+      })
     );
 
     await waitFor(() => {
@@ -394,7 +418,7 @@ describe('Edit School', () => {
       fireEvent.click(
         screen.getByRole('button', {
           name: /update school/i,
-        }),
+        })
       );
     });
 
@@ -433,7 +457,9 @@ describe('Edit School', () => {
   it('status select is not disabled in edit mode', async () => {
     await openEditModal();
 
-    expect(screen.getByRole('button', { name: /active|inactive/i })).not.toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: /active|inactive/i })
+    ).not.toBeDisabled();
   });
 
   it('accepts school name with numbers', async () => {
@@ -450,8 +476,8 @@ describe('Edit School', () => {
     await waitFor(() => {
       expect(
         screen.queryByText(
-          'School name can only contain letters, numbers, spaces, periods, and hyphens',
-        ),
+          'School name can only contain letters, numbers, spaces, periods, and hyphens'
+        )
       ).not.toBeInTheDocument();
     });
   });
@@ -470,8 +496,8 @@ describe('Edit School', () => {
     await waitFor(() => {
       expect(
         screen.queryByText(
-          'School name can only contain letters, numbers, spaces, periods, and hyphens',
-        ),
+          'School name can only contain letters, numbers, spaces, periods, and hyphens'
+        )
       ).not.toBeInTheDocument();
     });
   });
@@ -490,8 +516,8 @@ describe('Edit School', () => {
     await waitFor(() => {
       expect(
         screen.queryByText(
-          'School name can only contain letters, numbers, spaces, periods, and hyphens',
-        ),
+          'School name can only contain letters, numbers, spaces, periods, and hyphens'
+        )
       ).not.toBeInTheDocument();
     });
   });
@@ -502,7 +528,9 @@ describe('Edit School', () => {
     const nameInput = screen.getByDisplayValue('Springfield High');
 
     await act(async () => {
-      fireEvent.change(nameInput, { target: { value: 'Lincoln-Douglas Academy' } });
+      fireEvent.change(nameInput, {
+        target: { value: 'Lincoln-Douglas Academy' },
+      });
     });
 
     fireEvent.blur(nameInput);
@@ -510,8 +538,8 @@ describe('Edit School', () => {
     await waitFor(() => {
       expect(
         screen.queryByText(
-          'School name can only contain letters, numbers, spaces, periods, and hyphens',
-        ),
+          'School name can only contain letters, numbers, spaces, periods, and hyphens'
+        )
       ).not.toBeInTheDocument();
     });
   });
@@ -528,7 +556,9 @@ describe('Edit School', () => {
     fireEvent.blur(nameInput);
 
     await waitFor(() => {
-      expect(screen.queryByText('Emojis are not allowed in school name')).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Emojis are not allowed in school name')
+      ).not.toBeInTheDocument();
     });
   });
 });

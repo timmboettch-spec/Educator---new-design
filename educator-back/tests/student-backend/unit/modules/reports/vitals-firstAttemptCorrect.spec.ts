@@ -1,3 +1,4 @@
+import { AiGateway } from 'src/common/interfaces';
 /**
  * Unit tests for the vital-action firstAttemptCorrect / anyAttemptCorrect bug.
  *
@@ -15,7 +16,7 @@
 import { Test } from '@nestjs/testing';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
+import { LoggerService } from 'src/common/services';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,25 @@ describe('ActionsInterventionsService – vital firstAttemptCorrect reconciliati
       providers: [
         ActionsInterventionsService,
         { provide: ConfigService, useValue: { get: () => null } },
-        { provide: HttpService, useValue: {} },
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

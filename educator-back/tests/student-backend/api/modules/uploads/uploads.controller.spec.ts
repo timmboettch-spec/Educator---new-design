@@ -3,10 +3,8 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import request from 'supertest';
-import { JwtAuthGuard } from '../../../../../src/student-backend/guards/jwt-auth.guard';
 import { UploadsModule } from '../../../../../src/student-backend/modules/uploads/uploads.module';
 import { UploadsService } from '../../../../../src/student-backend/modules/uploads/uploads.service';
-import { AUTH_GUARD_MOCK } from '../../../mocks/auth.mock';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiPost } from '../../common/utils/api.helper';
 import { STATUS } from '../../common/constants/status-codes';
@@ -42,21 +40,19 @@ describe('Uploads API (controller)', () => {
   };
 
   beforeAll(async () => {
-    // The controller calls `new UploadsService().getMulterConfig()` directly
-    // when its decorators run. Patch the prototype so that constructor path
+    // The controller calls `UploadsService.getMulterConfig()` (a static method)
+    // directly when its decorators run. Patch the static method so that path
     // produces a permissive multer config too.
     jest
-      .spyOn(UploadsService.prototype, 'getMulterConfig')
-      .mockReturnValue(passThroughMulter as ReturnType<UploadsService['getMulterConfig']>);
+      .spyOn(UploadsService, 'getMulterConfig')
+      .mockReturnValue(passThroughMulter as ReturnType<typeof UploadsService.getMulterConfig>);
     jest
-      .spyOn(UploadsService.prototype, 'getFileMulterConfig')
-      .mockReturnValue(passThroughMulter as ReturnType<UploadsService['getFileMulterConfig']>);
+      .spyOn(UploadsService, 'getFileMulterConfig')
+      .mockReturnValue(passThroughMulter as ReturnType<typeof UploadsService.getFileMulterConfig>);
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [UploadsModule],
     })
-      .overrideGuard(JwtAuthGuard)
-      .useValue(AUTH_GUARD_MOCK)
       .overrideProvider(UploadsService)
       .useValue(mockUploadsService)
       .compile();

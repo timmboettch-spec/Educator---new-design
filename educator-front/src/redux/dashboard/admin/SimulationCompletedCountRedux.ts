@@ -1,5 +1,9 @@
 import { clearAuthData } from '../../../utils/storage';
-import { createAsyncThunk, createSlice, createSelector } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSlice,
+  createSelector,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../../store';
 import axiosInstance from '../../axiosInstance';
 import config from '../../config';
@@ -33,11 +37,18 @@ export const getSimulationCompletedCount = createAsyncThunk(
   'simulationCompletedCount/fetch',
   async (period: SimRange, thunkAPI) => {
     try {
-      const res = await axiosInstance.get(`${config.SimulationCompletedCountAPI}/${period}`, {
-        headers: { 'ngrok-skip-browser-warning': 'true' },
-      });
+      const res = await axiosInstance.get(
+        `${config.SimulationCompletedCountAPI}/${period}`,
+        {
+          headers: { 'ngrok-skip-browser-warning': 'true' },
+        }
+      );
 
-      const rawArray = res.data?.data as { month: string; year: number; count: number }[];
+      const rawArray = res.data?.data as {
+        month: string;
+        year: number;
+        count: number;
+      }[];
 
       const months: SimulationCountItem[] = (rawArray ?? []).map((item) => ({
         label: `${item.month} ${item.year}`,
@@ -47,17 +58,19 @@ export const getSimulationCompletedCount = createAsyncThunk(
 
       return { period, total, months } as SimulationCountData;
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { status: number; message?: string } } };
+      const error = err as {
+        response?: { data?: { status: number; message?: string } };
+      };
       if (error.response?.data?.status === 401) {
         clearAuthData();
         window.location.href = '/login';
         return thunkAPI.rejectWithValue({ message: 'Session expired' });
       }
       return thunkAPI.rejectWithValue(
-        error.response?.data?.message || 'Failed to fetch simulation count',
+        error.response?.data?.message || 'Failed to fetch simulation count'
       );
     }
-  },
+  }
 );
 
 const slice = createSlice({
@@ -84,6 +97,15 @@ export default slice.reducer;
 
 const selectState = (state: RootState) => state.simulationCompletedCount;
 
-export const selectSimulationCompletedCount = createSelector(selectState, (s) => s.data);
-export const selectSimulationCountTotal = createSelector(selectState, (s) => s.data?.total ?? 0);
-export const selectSimulationCountStatus = createSelector(selectState, (s) => s.status);
+export const selectSimulationCompletedCount = createSelector(
+  selectState,
+  (s) => s.data
+);
+export const selectSimulationCountTotal = createSelector(
+  selectState,
+  (s) => s.data?.total ?? 0
+);
+export const selectSimulationCountStatus = createSelector(
+  selectState,
+  (s) => s.status
+);

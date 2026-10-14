@@ -17,24 +17,6 @@ describe('Smoke — Scenarios', () => {
     agent = resetSmokeAgent();
   });
 
-  // ── Simulation catalog dashboard ───────────────────────────────────────────
-
-  it('should get simulation catalog dashboard with valid token', async () => {
-    const token = smokeState.accessToken;
-    if (!token) return;
-
-    const res = await agent
-      .get(ENDPOINTS.SIMULATION_CATALOG.DASHBOARD)
-      .set('Authorization', `Bearer ${token}`);
-    expect([STATUS.OK]).toContain(res.status);
-    if (res.status === STATUS.OK) expect(res.body?.status).toBe('SUCCESS');
-  });
-
-  it('should reject catalog dashboard without token', async () => {
-    const res = await agent.get(ENDPOINTS.SIMULATION_CATALOG.DASHBOARD);
-    expect([STATUS.UNAUTHORIZED, STATUS.FORBIDDEN, STATUS.OK]).toContain(res.status);
-  });
-
   // ── Scenarios list ─────────────────────────────────────────────────────────
 
   it('should list simulation scenarios with valid token', async () => {

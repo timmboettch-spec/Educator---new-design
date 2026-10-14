@@ -1,16 +1,25 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { LmsSchoolConfig } from 'src/database/entities';
+import { ConfigService } from '@nestjs/config';
+import { OutboundIntegration } from '../../common/constants';
+import { LoggerService, OutboundHttpClient } from '../../common/services';
 import {
   LmsAdapter,
+  LmsCoursesResponse,
+  LmsEnrolledStudentsResponse,
+  LmsMemberProfile,
+  LmsRosterResponse,
   MoodleCoursesResponse,
   MoodleStudentsResponse,
-  LmsRosterResponse,
 } from '../interfaces/lms.interfaces';
-import { LmsSchoolConfig } from '../entity/lms-school-config.entity';
+
 import {
   MoodleWsCredentials,
   normalizeMoodleUserId,
   resolveMoodleWsCredentials,
 } from '../utils/moodle-ws.util';
+import { extractCourseIdFromNrpsUrl, fetchNrpsMembershipPages } from '../utils/nrps.util';
+import { LtiAgsAdapter } from './lti-ags.adapter';
 
 /**
  * Moodle-specific implementation of the LMS Adapter interface.
@@ -18,9 +27,74 @@ import {
  */
 @Injectable()
 export class MoodleAdapter implements LmsAdapter {
-  private readonly logger = new Logger(MoodleAdapter.name);
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly ltiAgsAdapter: LtiAgsAdapter,
+    private readonly logger: LoggerService,
+    private readonly outboundHttp: OutboundHttpClient,
+  ) {}
 
-  constructor() {}
+  private resolveCredentials(config: LmsSchoolConfig): MoodleWsCredentials | null {
+    return resolveMoodleWsCredentials(
+      config,
+      this.configService.get<string>('lms.moodleUrl', ''),
+      this.configService.get<string>('lms.moodleWsToken', ''),
+    );
+  }
+
+  async listCourses(config: LmsSchoolConfig): Promise<LmsCoursesResponse> {
+    const credentials = this.resolveCredentials(config);
+    if (!credentials) {
+      throw new Error('lmsBaseUrl and lmsApiToken are required');
+    }
+    return this.getMoodleCourses(credentials.moodleUrl, credentials.wsToken);
+  }
+
+  async getEnrolledStudentsForCourse(
+    config: LmsSchoolConfig,
+    courseId: number,
+  ): Promise<LmsEnrolledStudentsResponse> {
+    const credentials = this.resolveCredentials(config);
+    if (!credentials) {
+      throw new Error('lmsBaseUrl and lmsApiToken are required');
+    }
+    return this.getEnrolledStudents(credentials.moodleUrl, credentials.wsToken, courseId);
+  }
+
+  async enrichRosterRoles(
+    config: LmsSchoolConfig,
+    nrpsUrl: string,
+    roster: LmsRosterResponse,
+  ): Promise<LmsRosterResponse> {
+    const courseId = extractCourseIdFromNrpsUrl(nrpsUrl);
+    const credentials = this.resolveCredentials(config);
+    if (!courseId || !credentials) {
+      return roster;
+    }
+    return this.enrichRosterRolesFromWs(credentials, courseId, roster);
+  }
+
+  async fetchRosterFromPlatformWs(
+    config: LmsSchoolConfig,
+    courseId: number,
+  ): Promise<LmsRosterResponse> {
+    const credentials = this.resolveCredentials(config);
+    if (!credentials) {
+      throw new Error('lmsBaseUrl and lmsApiToken are required');
+    }
+    return this.fetchRosterFromWs(credentials, courseId);
+  }
+
+  async fetchMemberProfilesForCourse(
+    config: LmsSchoolConfig,
+    courseId: string,
+  ): Promise<Map<string, LmsMemberProfile>> {
+    const credentials = this.resolveCredentials(config);
+    if (!credentials) {
+      return new Map();
+    }
+    return this.fetchMemberProfilesFromWs(credentials, courseId);
+  }
 
   private isWsTeacherOrAdminRole(shortname: string): boolean {
     const role = String(shortname || '').toLowerCase();
@@ -234,7 +308,7 @@ export class MoodleAdapter implements LmsAdapter {
       `?wstoken=${encodeURIComponent(credentials.wsToken)}` +
       `&wsfunction=core_enrol_get_enrolled_users` +
       `&courseid=${encodeURIComponent(String(courseId))}&moodlewsrestformat=json`;
-    const response = await fetch(url);
+    const response = await this.outboundHttp.fetch(OutboundIntegration.Moodle, url);
     if (!response.ok) {
       throw new Error(`Moodle API error (${response.status})`);
     }
@@ -252,7 +326,7 @@ export class MoodleAdapter implements LmsAdapter {
   private async getCourseInfo(base: string, wsToken: string, courseId: number): Promise<string> {
     try {
       const url = `${base}/webservice/rest/server.php?wstoken=${wsToken}&wsfunction=core_course_get_courses&options[ids][0]=${courseId}&moodlewsrestformat=json`;
-      const response = await fetch(url);
+      const response = await this.outboundHttp.fetch(OutboundIntegration.Moodle, url);
       if (!response.ok) return `Course ${courseId}`;
       const data = (await response.json()) as Array<{ fullname?: string }>;
       return data?.[0]?.fullname ?? `Course ${courseId}`;
@@ -267,7 +341,7 @@ export class MoodleAdapter implements LmsAdapter {
     }
     const base = moodleUrl.trim().replace(/\/$/, '');
     const url = `${base}/webservice/rest/server.php?wstoken=${wsToken}&wsfunction=core_course_get_courses&moodlewsrestformat=json`;
-    const response = await fetch(url);
+    const response = await this.outboundHttp.fetch(OutboundIntegration.Moodle, url);
     if (!response.ok) {
       throw new Error(`Moodle API error (${response.status})`);
     }
@@ -298,49 +372,13 @@ export class MoodleAdapter implements LmsAdapter {
    * Fetch NRPS roster (LTI 1.3 standard)
    */
   async fetchRoster(nrpsUrl: string, accessToken: string): Promise<LmsRosterResponse> {
-    const response = await fetch(nrpsUrl, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        Accept: 'application/vnd.ims.lti-nrps.v2.membershipcontainer+json',
-      },
+    return fetchNrpsMembershipPages({
+      nrpsUrl,
+      accessToken,
+      failedMessagePrefix: 'NRPS failed',
+      invalidJsonMessage: 'NRPS returned invalid JSON',
+      fetchFn: (url, init) => this.outboundHttp.fetch(OutboundIntegration.Lms, url, init),
     });
-
-    const body = await response.text();
-
-    if (!response.ok) {
-      throw new Error(`NRPS failed: ${response.status} ${body}`);
-    }
-
-    const raw = JSON.parse(body) as Record<string, unknown>;
-
-    const rawContext = (raw['context'] ?? {}) as Record<string, unknown>;
-    const context = {
-      id:
-        typeof rawContext['id'] === 'string'
-          ? rawContext['id']
-          : typeof rawContext['id'] === 'number'
-            ? String(rawContext['id'])
-            : null,
-      label: typeof rawContext['label'] === 'string' ? rawContext['label'] : null,
-      title: typeof rawContext['title'] === 'string' ? rawContext['title'] : null,
-    };
-
-    const rawMembers = Array.isArray(raw['members'])
-      ? (raw['members'] as Array<Record<string, unknown>>)
-      : [];
-    const members = rawMembers.map((m) => ({
-      userId:
-        typeof m['user_id'] === 'string'
-          ? m['user_id']
-          : typeof m['user_id'] === 'number'
-            ? String(m['user_id'])
-            : '',
-      name: typeof m['name'] === 'string' ? m['name'] : null,
-      email: typeof m['email'] === 'string' ? m['email'] : null,
-      roles: Array.isArray(m['roles']) ? (m['roles'] as string[]) : [],
-    }));
-
-    return { context, members };
   }
 
   /**
@@ -377,7 +415,7 @@ export class MoodleAdapter implements LmsAdapter {
       `&values[0]=${encodeURIComponent(moodleUserId)}` +
       `&moodlewsrestformat=json`;
     try {
-      const response = await fetch(url);
+      const response = await this.outboundHttp.fetch(OutboundIntegration.Moodle, url);
       const raw = await response.text();
       const data = JSON.parse(raw) as unknown;
       if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -419,7 +457,7 @@ export class MoodleAdapter implements LmsAdapter {
       `&criteria[0][value]=${encodeURIComponent(moodleUserId)}` +
       `&moodlewsrestformat=json`;
     try {
-      const response = await fetch(url);
+      const response = await this.outboundHttp.fetch(OutboundIntegration.Moodle, url);
       const raw = await response.text();
       const data = JSON.parse(raw) as unknown;
       if (data && typeof data === 'object' && !Array.isArray(data)) {
@@ -451,11 +489,13 @@ export class MoodleAdapter implements LmsAdapter {
     }
   }
 
-  /**
-   * Send grade to Moodle gradebook (AGS)
-   * TODO: Implement when grade passback is ready
-   */
-  sendGrade?(): Promise<void> {
-    throw new Error('Grade passback not yet implemented for Moodle');
+  async sendGrade(
+    config: LmsSchoolConfig,
+    lineItemUrl: string,
+    userId: string,
+    score: number,
+    accessToken: string,
+  ): Promise<void> {
+    return this.ltiAgsAdapter.sendGrade(config, lineItemUrl, userId, score, accessToken);
   }
 }

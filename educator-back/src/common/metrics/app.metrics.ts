@@ -6,6 +6,12 @@ export const timeoutCounter = new Counter({
   labelNames: ['method', 'path'],
 });
 
+export const outboundHttpTimeoutCounter = new Counter({
+  name: 'outbound_http_timeouts_total',
+  help: 'Total outbound HTTP calls that exceeded the configured integration timeout',
+  labelNames: ['integration'],
+});
+
 export const requestDurationHistogram = new Histogram({
   name: 'http_request_duration_ms',
   help: 'HTTP request duration in milliseconds',

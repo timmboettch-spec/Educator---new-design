@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import type {
-  CreateLtiSessionInput,
-  LtiSessionAudience,
-  LtiSessionPayload,
-} from './lti-session.types';
+import { RedisService } from 'src/redis/redis.service';
+import { LoggerService } from '../common/services';
+import { runLtiStorageOp } from './lti-storage.util';
+import { LtiConstants } from './lti.constants';
+import type { LtiSessionAudience, LtiSessionPayload } from './lti-session.types';
 
 export class LtiSessionError extends Error {
   constructor(message: string) {
@@ -17,39 +17,33 @@ export class LtiSessionError extends Error {
  * Temporary storage for LTI session handoff data.
  * Uses one-time codes bound to audience (educator vs student).
  *
- * Production: replace in-memory Map with Redis for multi-instance deployments.
+ * Backed by Redis (5 minute TTL) so the launch and the code exchange can hit
+ * different replicas. No fallback once Redis is configured — if it is down the
+ * exchange fails rather than silently going per-replica again. Only a wholly
+ * unconfigured Redis (REDIS_HOST unset, development only) uses in-memory
+ * storage; staging and production refuse to boot without it.
  */
 @Injectable()
 export class LtiSessionService {
-  private readonly logger = new Logger(LtiSessionService.name);
-  private readonly sessions = new Map<string, LtiSessionPayload>();
-  private readonly SESSION_TTL_MS = 5 * 60 * 1000;
-  private cleanupInterval: NodeJS.Timeout;
+  constructor(
+    private readonly logger: LoggerService,
+    private readonly redisService: RedisService,
+  ) {}
 
-  constructor() {
-    this.cleanupInterval = setInterval(() => {
-      this.cleanupExpiredSessions();
-    }, 60 * 1000);
+  private key(code: string): string {
+    return `${LtiConstants.REDIS.SESSION_KEY_PREFIX}${code}`;
   }
 
-  onModuleDestroy(): void {
-    if (this.cleanupInterval) {
-      clearInterval(this.cleanupInterval);
-    }
-  }
-
-  createSession(data: CreateLtiSessionInput): string {
+  async createSession(session: LtiSessionPayload): Promise<string> {
     const code = this.generateCode();
-    const now = Date.now();
-    const session: LtiSessionPayload = {
-      ...data,
-      createdAt: now,
-      expiresAt: now + this.SESSION_TTL_MS,
-    };
 
-    this.sessions.set(code, session);
+    await runLtiStorageOp(this.logger, 'session write', () =>
+      this.redisService.setStrict(this.key(code), session, LtiConstants.REDIS.SESSION_TTL_SECONDS),
+    );
+    
+    const userId = 'userId' in session ? session.userId ?? 'n/a' : 'n/a';
     this.logger.log(
-      `LTI session created: audience=${data.audience}, code=${code.substring(0, 8)}..., userId=${data.userId ?? 'n/a'}`,
+      `LTI session created: audience=${session.audience}, code=${code.substring(0, 8)}..., userId=${userId}`,
     );
 
     return code;
@@ -59,16 +53,14 @@ export class LtiSessionService {
     return /^[A-Za-z0-9_-]{40,50}$/.test(code);
   }
 
-  /**
-   * Atomically consume a one-time code: delete first, then validate.
-   * Concurrent requests racing on the same code — only one wins.
-   */
-  consumeSession(code: string, audience: LtiSessionAudience): LtiSessionPayload {
+  async consumeSession(code: string, audience?: LtiSessionAudience): Promise<LtiSessionPayload> {
     if (!this.isValidCodeFormat(code)) {
       throw new LtiSessionError('Invalid or expired session code');
     }
 
-    const session = this.sessions.get(code);
+    const session = await runLtiStorageOp(this.logger, 'session read', () =>
+      this.redisService.getDelStrict<LtiSessionPayload>(this.key(code)),
+    );
     if (!session) {
       this.logger.warn(
         `LTI session not found or already consumed: code=${code.substring(0, 8)}...`,
@@ -76,49 +68,44 @@ export class LtiSessionService {
       throw new LtiSessionError('Invalid or expired session code');
     }
 
-    // Single-use: delete immediately before validation completes
-    this.sessions.delete(code);
-
-    if (Date.now() > session.expiresAt) {
-      this.logger.warn(`LTI session expired: code=${code.substring(0, 8)}...`);
-      throw new LtiSessionError('Invalid or expired session code');
-    }
-
-    if (session.audience !== audience) {
+    if (audience && session.audience !== audience) {
       this.logger.warn(
         `LTI session audience mismatch: expected=${audience}, stored=${session.audience}, code=${code.substring(0, 8)}...`,
       );
       throw new LtiSessionError('Invalid or expired session code');
     }
 
+    const userId = 'userId' in session ? session.userId ?? 'n/a' : 'n/a';
     this.logger.log(
-      `LTI session consumed: audience=${audience}, code=${code.substring(0, 8)}..., userId=${session.userId ?? 'n/a'}`,
+      `LTI session consumed: audience=${session.audience}, code=${code.substring(0, 8)}..., userId=${userId}`,
     );
 
     return session;
   }
 
+  /**
+   * Get session without consuming it (for Deep Linking flow where we need to read twice)
+   */
+  async getSession(code: string): Promise<LtiSessionPayload | null> {
+    if (!this.isValidCodeFormat(code)) {
+      return null;
+    }
+
+    return runLtiStorageOp(this.logger, 'session read', () =>
+      this.redisService.get<LtiSessionPayload>(this.key(code)),
+    );
+  }
+
+  /**
+   * Delete a session explicitly (after Deep Linking submit)
+   */
+  async deleteSession(code: string): Promise<void> {
+    await runLtiStorageOp(this.logger, 'session delete', () =>
+      this.redisService.del(this.key(code)),
+    );
+  }
+
   private generateCode(): string {
     return randomBytes(32).toString('base64url');
-  }
-
-  private cleanupExpiredSessions(): void {
-    const now = Date.now();
-    let cleanedCount = 0;
-
-    for (const [code, session] of this.sessions.entries()) {
-      if (now > session.expiresAt) {
-        this.sessions.delete(code);
-        cleanedCount++;
-      }
-    }
-
-    if (cleanedCount > 0) {
-      this.logger.log(`Cleaned up ${cleanedCount} expired LTI session(s)`);
-    }
-  }
-
-  getActiveSessionCount(): number {
-    return this.sessions.size;
   }
 }

@@ -14,7 +14,7 @@ export type StudentMatchInput = {
 export type ReportMatchInput = Record<string, unknown>;
 
 export function buildUniqueStudentNames(
-  students: Array<{ student_name?: string | null }>,
+  students: Array<{ student_name?: string | null }>
 ): Set<string> {
   const counts = new Map<string, number>();
   for (const student of students) {
@@ -42,10 +42,12 @@ function readReportString(report: ReportMatchInput, keys: string[]): string[] {
 export function reportMatchesStudent(
   student: StudentMatchInput,
   report: ReportMatchInput,
-  options?: { uniqueStudentNames?: Set<string> },
+  options?: { uniqueStudentNames?: Set<string> }
 ): boolean {
   const studentCode = normalizeStudentKey(String(student.student_id ?? ''));
-  const rawStudentCode = String(student.student_id ?? '').trim().toUpperCase();
+  const rawStudentCode = String(student.student_id ?? '')
+    .trim()
+    .toUpperCase();
   const userId = String(student.id ?? '').trim();
   const userIdAlt = String(student.user_id ?? '').trim();
 
@@ -55,13 +57,18 @@ export function reportMatchesStudent(
     'studentCode',
     'student_code',
   ]);
-  const reportUserIds = readReportString(report, ['userId', 'user_id', 'UserID']);
+  const reportUserIds = readReportString(report, [
+    'userId',
+    'user_id',
+    'UserID',
+  ]);
 
   for (const sid of reportStudentIds) {
     const rStudentId = normalizeStudentKey(sid);
     const rStudentIdRaw = sid.toUpperCase();
     if (studentCode && rStudentId && rStudentId === studentCode) return true;
-    if (rawStudentCode && rStudentIdRaw && rStudentIdRaw === rawStudentCode) return true;
+    if (rawStudentCode && rStudentIdRaw && rStudentIdRaw === rawStudentCode)
+      return true;
   }
 
   for (const uid of reportUserIds) {
@@ -73,7 +80,10 @@ export function reportMatchesStudent(
   }
 
   const enrichedStudentName = (student.student_name ?? '').toLowerCase().trim();
-  const rStudentName = readReportString(report, ['studentName', 'student_name'])[0]
+  const rStudentName = readReportString(report, [
+    'studentName',
+    'student_name',
+  ])[0]
     ?.toLowerCase()
     .trim();
 

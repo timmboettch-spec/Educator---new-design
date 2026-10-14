@@ -6,6 +6,7 @@ import { ENDPOINTS } from '../common/constants/endpoints';
 import { STATUS } from '../common/constants/status-codes';
 import { post, expectStatus, expectSuccess } from '../common/utils/api.helper';
 import adminFixtures from '../common/fixtures/admin.requests.json';
+import { testEmail } from '../utils/env';
 
 describe('Smoke — Admin', () => {
   let agent: SuperTest<Test>;
@@ -21,7 +22,7 @@ describe('Smoke — Admin', () => {
   // ── Signup ─────────────────────────────────────────────────────────────────
 
   it('should create a new admin user with valid data', async () => {
-    const uniqueEmail = `admin-smoke-${Date.now()}@smoke.test`;
+    const uniqueEmail = testEmail('admin-smoke');
     const body = await expectStatus(
       post(agent, ENDPOINTS.AUTH.SIGNUP, {
         ...adminFixtures.valid,
@@ -38,7 +39,9 @@ describe('Smoke — Admin', () => {
 
   it('should reject signup with missing email', async () => {
     const res = await agent.post(ENDPOINTS.AUTH.SIGNUP).send(adminFixtures.missingEmail);
-    expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.TOO_MANY_REQUESTS]).toContain(res.status);
+    expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.TOO_MANY_REQUESTS]).toContain(
+      res.status,
+    );
   });
 
   it('should reject signup with invalid email format', async () => {
@@ -46,27 +49,31 @@ describe('Smoke — Admin', () => {
       ...adminFixtures.invalidEmail,
       email: `invalid-${Date.now()}`,
     });
-    expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.TOO_MANY_REQUESTS]).toContain(res.status);
+    expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.TOO_MANY_REQUESTS]).toContain(
+      res.status,
+    );
   });
 
   it('should reject signup with short password', async () => {
     const res = await agent.post(ENDPOINTS.AUTH.SIGNUP).send({
       ...adminFixtures.shortPassword,
-      email: `admin-shortpw-${Date.now()}@smoke.test`,
+      email: testEmail('admin-shortpw'),
     });
-    expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.TOO_MANY_REQUESTS]).toContain(res.status);
+    expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.TOO_MANY_REQUESTS]).toContain(
+      res.status,
+    );
   });
 
   it('should reject signup with missing full name', async () => {
     const res = await agent.post(ENDPOINTS.AUTH.SIGNUP).send({
-      email: `admin-noname-${Date.now()}@smoke.test`,
+      email: testEmail('admin-noname'),
       password: 'Test@1234',
     });
     expect([STATUS.BAD_REQUEST, STATUS.CREATED, STATUS.TOO_MANY_REQUESTS]).toContain(res.status);
   });
 
   it('should reject duplicate email signup', async () => {
-    const email = `admin-dup-${Date.now()}@smoke.test`;
+    const email = testEmail('admin-dup');
     await agent.post(ENDPOINTS.AUTH.SIGNUP).send({ ...adminFixtures.valid, email });
     const res = await agent.post(ENDPOINTS.AUTH.SIGNUP).send({ ...adminFixtures.valid, email });
     expect([STATUS.BAD_REQUEST, STATUS.CONFLICT, STATUS.TOO_MANY_REQUESTS]).toContain(res.status);
@@ -94,9 +101,7 @@ describe('Smoke — Admin', () => {
     const token = smokeState.accessToken;
     if (!token) return;
 
-    const res = await agent
-      .get(ENDPOINTS.SCHOOLS.BY_USER)
-      .set('Authorization', `Bearer ${token}`);
+    const res = await agent.get(ENDPOINTS.SCHOOLS.BY_USER).set('Authorization', `Bearer ${token}`);
     expect([STATUS.OK, STATUS.NOT_FOUND]).toContain(res.status);
   });
 
@@ -138,7 +143,7 @@ describe('Smoke — Admin', () => {
     const schoolId = smokeState.schoolId;
     if (!token || !schoolId) return;
 
-    const email = `smoke-edu-${Date.now()}@smoke.test`;
+    const email = testEmail('smoke-edu');
     const res = await agent
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${token}`)
@@ -148,7 +153,7 @@ describe('Smoke — Admin', () => {
       res.status,
     );
     if (res.status === STATUS.CREATED || res.status === STATUS.OK) {
-      expect(res.body?.success).toBe(true);
+      expect(res.body?.error).toBeNull();
       const data = res.body?.data as Record<string, unknown>;
       if (data?.invite_id) smokeState.inviteId = data.invite_id as string;
     }
@@ -159,7 +164,7 @@ describe('Smoke — Admin', () => {
     const schoolId = smokeState.schoolId;
     if (!token || !schoolId) return;
 
-    const email = `smoke-dup-${Date.now()}@smoke.test`;
+    const email = testEmail('smoke-dup');
     await agent
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${token}`)
@@ -186,7 +191,7 @@ describe('Smoke — Admin', () => {
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${token}`)
       .send({
-        email: `smoke-404-${Date.now()}@smoke.test`,
+        email: testEmail('smoke-404'),
         school_id: '550e8400-e29b-41d4-a716-999999999999',
       });
 

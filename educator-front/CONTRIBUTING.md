@@ -11,7 +11,7 @@ The goal is **predictability over rigidity**: just enough structure to enable pa
 ### Long-lived branches
 
 | Branch | Purpose            | Deploys to |
-|--------|--------------------|------------|
+| ------ | ------------------ | ---------- |
 | `main` | Production-ready   | prod       |
 | `qa`   | QA / staging       | qa         |
 | `dev`  | Integration branch | dev        |
@@ -20,15 +20,15 @@ These already exist. Do **not** rename or delete them.
 
 ### Working branch naming
 
-| Type        | Pattern                              | Example                                  | Branches from |
-|-------------|--------------------------------------|------------------------------------------|---------------|
-| Feature     | `feature/{ticket}-{description}`     | `feature/rwai-432-class-management`      | `dev`         |
-| Bug (QA)    | `bugfix/{ticket}-{description}`      | `bugfix/rwai-456-login-issue`            | `qa`          |
-| Bug (dev)   | `fix/{ticket}-{description}`         | `fix/rwai-789-null-check`                | `dev`         |
-| Hotfix      | `hotfix/{ticket}-{description}`      | `hotfix/prod-42-dashboard-failure`       | `main`        |
-| Chore       | `chore/{description}`                | `chore/update-deps`                      | `dev`         |
-| DevOps / CI | `devops/{description}`               | `devops/ci-lint`                         | `dev`         |
-| Docs        | `docs/{description}`                 | `docs/update-architecture`               | `dev`         |
+| Type        | Pattern                          | Example                             | Branches from |
+| ----------- | -------------------------------- | ----------------------------------- | ------------- |
+| Feature     | `feature/{ticket}-{description}` | `feature/rwai-432-class-management` | `dev`         |
+| Bug (QA)    | `bugfix/{ticket}-{description}`  | `bugfix/rwai-456-login-issue`       | `qa`          |
+| Bug (dev)   | `fix/{ticket}-{description}`     | `fix/rwai-789-null-check`           | `dev`         |
+| Hotfix      | `hotfix/{ticket}-{description}`  | `hotfix/prod-42-dashboard-failure`  | `main`        |
+| Chore       | `chore/{description}`            | `chore/update-deps`                 | `dev`         |
+| DevOps / CI | `devops/{description}`           | `devops/ci-lint`                    | `dev`         |
+| Docs        | `docs/{description}`             | `docs/update-architecture`          | `dev`         |
 
 **Rules:**
 
@@ -55,11 +55,11 @@ main
 
 ### Regular cadence
 
-| Promotion              | Frequency / Trigger                  | Who initiates              |
-|------------------------|--------------------------------------|----------------------------|
-| `feature/*` → `dev`    | As completed (PR approved + CI green)| Developer / PR reviewer    |
-| `dev` → `qa`           | Weekly (Thursdays recommended)       | Tech Lead                  |
-| `qa` → `main`          | After QA signoff                     | Tech Lead + QA team        |
+| Promotion           | Frequency / Trigger                   | Who initiates           |
+| ------------------- | ------------------------------------- | ----------------------- |
+| `feature/*` → `dev` | As completed (PR approved + CI green) | Developer / PR reviewer |
+| `dev` → `qa`        | Weekly (Thursdays recommended)        | Tech Lead               |
+| `qa` → `main`       | After QA signoff                      | Tech Lead + QA team     |
 
 **Suggested calendar:**
 
@@ -70,11 +70,11 @@ main
 
 ### Hotfix flow (bypasses cadence)
 
-| Situation        | Flow                                      | Timeline   |
-|------------------|-------------------------------------------|------------|
-| Production down  | `hotfix/* → main → qa → dev`              | Immediate  |
-| Security issue   | `hotfix/* → main → qa → dev`              | Immediate  |
-| Critical bug     | `hotfix/* → main → qa → dev`              | Same day   |
+| Situation       | Flow                         | Timeline  |
+| --------------- | ---------------------------- | --------- |
+| Production down | `hotfix/* → main → qa → dev` | Immediate |
+| Security issue  | `hotfix/* → main → qa → dev` | Immediate |
+| Critical bug    | `hotfix/* → main → qa → dev` | Same day  |
 
 Hotfixes **must** be back-merged to `qa` and `dev` after merging to `main`.
 
@@ -122,13 +122,13 @@ feature/{ticket}-{description} → dev
 
 ### Merge strategy
 
-| PR flow                   | Merge type                 | Approvals               |
-|---------------------------|----------------------------|-------------------------|
-| `feature` / `fix` → `dev` | Merge commit or squash     | 1 reviewer + CI pass    |
-| `dev` → `qa`              | Merge commit               | 1 reviewer + CI pass    |
-| `qa` → `main`             | Merge commit               | QA Lead + CI pass       |
-| `bugfix/*` → `qa`         | Merge commit               | 1 reviewer              |
-| `hotfix/*` → `main`       | Merge commit               | 1 reviewer              |
+| PR flow                   | Merge type             | Approvals            |
+| ------------------------- | ---------------------- | -------------------- |
+| `feature` / `fix` → `dev` | Merge commit or squash | 1 reviewer + CI pass |
+| `dev` → `qa`              | Merge commit           | 1 reviewer + CI pass |
+| `qa` → `main`             | Merge commit           | QA Lead + CI pass    |
+| `bugfix/*` → `qa`         | Merge commit           | 1 reviewer           |
+| `hotfix/*` → `main`       | Merge commit           | 1 reviewer           |
 
 ### PR guidelines
 
@@ -142,11 +142,11 @@ feature/{ticket}-{description} → dev
 
 ## 5. Branch Protection
 
-| Branch | PR required | Approvals       | CI required |
-|--------|-------------|-----------------|-------------|
-| `dev`  | ✅          | 1               | ✅          |
-| `qa`   | ✅          | QA Lead         | ✅          |
-| `main` | ✅          | QA Lead         | ✅          |
+| Branch | PR required | Approvals | CI required |
+| ------ | ----------- | --------- | ----------- |
+| `dev`  | ✅          | 1         | ✅          |
+| `qa`   | ✅          | QA Lead   | ✅          |
+| `main` | ✅          | QA Lead   | ✅          |
 
 ---
 
@@ -154,10 +154,10 @@ feature/{ticket}-{description} → dev
 
 Educator-App-Realityworks is the educator portal frontend for the Realityworks AI platform. It integrates with:
 
-| Component | Integration |
-|-----------|-------------|
-| [Educator-App-Backend](https://github.com/Realityworks-AI/Educator-App-Backend) | REST API for all data operations |
-| [HS-online-AI-app](https://github.com/Realityworks-AI/HS-online-AI-app) | Shares simulation catalog and student reports via Azure Blob |
+| Component                                                                       | Integration                                                  |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| [Educator-App-Backend](https://github.com/Realityworks-AI/Educator-App-Backend) | REST API for all data operations                             |
+| [HS-online-AI-app](https://github.com/Realityworks-AI/HS-online-AI-app)         | Shares simulation catalog and student reports via Azure Blob |
 
 ### Shared Data
 

@@ -28,9 +28,9 @@ jobs:
         run: |
           ENV='${{ github.event.deployment.environment }}'
           case "$ENV" in
-            prod) STYLE="warning" ;;
-            qa)   STYLE="accent" ;;
-            *)    STYLE="default" ;;
+            prod-release|prod|main) STYLE="warning" ;;
+            qa)                     STYLE="accent" ;;
+            *)                      STYLE="default" ;;
           esac
           SHORT_SHA=$(echo '${{ github.event.deployment.sha }}' | cut -c1-7)
 
@@ -62,11 +62,11 @@ jobs:
       - name: Post Teams card
         uses: ./.github/actions/teams-notify
         with:
-          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
-          github-login:   ${{ github.event.deployment.creator.login }}
-          headline:       ${{ steps.payload.outputs.title }}
-          style:          ${{ steps.payload.outputs.style }}
+          webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login: ${{ github.event.deployment.creator.login }}
+          headline: ${{ steps.payload.outputs.title }}
+          style: ${{ steps.payload.outputs.style }}
           mention-prefix: 'Submitted by '
           mention-suffix: ' — please review.'
-          facts-json:     ${{ steps.payload.outputs.facts }}
-          actions-json:   ${{ steps.payload.outputs.actions }}
+          facts-json: ${{ steps.payload.outputs.facts }}
+          actions-json: ${{ steps.payload.outputs.actions }}

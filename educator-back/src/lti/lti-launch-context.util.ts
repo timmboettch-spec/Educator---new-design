@@ -2,7 +2,7 @@
  * LTI Launch Context Extraction Utilities
  *
  * Shared logic for parsing course/context information from LTI 1.3 launch tokens.
- * Platform-agnostic — works across Moodle, Canvas, Blackboard, etc.
+ * Platform-agnostic — works across Moodle, Canvas, etc.
  */
 
 export interface LtiLaunchCourseContext {
@@ -28,10 +28,8 @@ export function extractLaunchCourseContext(
   const customClaim = payload['https://purl.imsglobal.org/spec/lti/claim/custom'] as
     Record<string, unknown> | undefined;
 
-  const contextId =
-    context?.['id'] && typeof context['id'] === 'string' ? context['id'].trim() : '';
-  const contextTitle =
-    context?.['title'] && typeof context['title'] === 'string' ? context['title'].trim() : '';
+  const contextId = claimToString(context?.['id']);
+  const contextTitle = claimToString(context?.['title']);
 
   if (contextId) {
     return {
@@ -130,12 +128,42 @@ export function extractStudentLaunchCourseIds(payload: Record<string, unknown>):
   return normalized;
 }
 
+/**
+ * Extract custom simulation_id from LTI 1.3 launch token.
+ * Used for Deep Linking-created activities that include simulation_id in custom parameters.
+ * 
+ * @param payload - LTI launch JWT payload
+ * @returns simulation_id or null if not present
+ */
+export function extractCustomSimulationId(payload: Record<string, unknown>): string | null {
+  const customClaim = payload['https://purl.imsglobal.org/spec/lti/claim/custom'] as
+    Record<string, unknown> | undefined;
+
+  return firstNonEmpty([
+    customClaim?.custom_simulation_id,
+    customClaim?.simulation_id,
+    customClaim?.sim_id,
+    payload.custom_simulation_id,
+    payload.simulation_id,
+  ]);
+}
+
+function claimToString(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  return '';
+}
+
 function firstNonEmpty(values: unknown[]): string | null {
   for (const value of values) {
-    if (typeof value !== 'string') {
-      continue;
-    }
-    const trimmed = value.trim();
+    const trimmed = claimToString(value);
     if (trimmed.length > 0) {
       return trimmed;
     }

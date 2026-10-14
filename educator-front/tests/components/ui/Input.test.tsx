@@ -179,7 +179,10 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
         bubbles: true,
         cancelable: true,
       });
-      pasteEvent.clipboardData?.setData('text/plain', 'user@email.com 😀 phone: 555-1234');
+      pasteEvent.clipboardData?.setData(
+        'text/plain',
+        'user@email.com 😀 phone: 555-1234'
+      );
 
       input.dispatchEvent(pasteEvent);
 
@@ -313,7 +316,8 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
       const { container } = render(<Input />);
       const input = container.querySelector('input') as HTMLInputElement;
 
-      const longText = 'A'.repeat(100) + '😀' + 'B'.repeat(100) + '👍' + 'C'.repeat(100);
+      const longText =
+        'A'.repeat(100) + '😀' + 'B'.repeat(100) + '👍' + 'C'.repeat(100);
       const pasteEvent = new ClipboardEvent('paste', {
         clipboardData: new DataTransfer(),
         bubbles: true,
@@ -323,7 +327,9 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
 
       input.dispatchEvent(pasteEvent);
 
-      expect(input.value).toBe('A'.repeat(100) + 'B'.repeat(100) + 'C'.repeat(100));
+      expect(input.value).toBe(
+        'A'.repeat(100) + 'B'.repeat(100) + 'C'.repeat(100)
+      );
     });
 
     it('should handle consecutive emojis', () => {
@@ -413,7 +419,7 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
       // Simulate the OS emoji picker inserting a value through composition
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
-        'value',
+        'value'
       )?.set;
       nativeSetter?.call(input, '😶');
 
@@ -433,7 +439,7 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
-        'value',
+        'value'
       )?.set;
       nativeSetter?.call(input, 'Hello 🔥');
 
@@ -453,7 +459,7 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
-        'value',
+        'value'
       )?.set;
       nativeSetter?.call(input, 'Héllo');
 
@@ -466,5 +472,45 @@ describe('Input Component - Emoji Filtering (onBeforeInput)', () => {
 
       expect(input.value).toBe('Héllo');
     });
+  });
+});
+
+describe('Input Component - Accessibility', () => {
+  it('associates the label with the input', () => {
+    const { getByLabelText } = render(<Input label="Email" name="email" />);
+    expect(getByLabelText(/email/i)).toHaveAttribute('name', 'email');
+  });
+
+  it('keeps an explicit id for the label association', () => {
+    const { getByLabelText } = render(<Input id="custom-id" label="Email" />);
+    expect(getByLabelText(/email/i)).toHaveAttribute('id', 'custom-id');
+  });
+
+  it('is not marked invalid without an error', () => {
+    const { getByLabelText } = render(<Input label="Email" />);
+    const input = getByLabelText(/email/i);
+    expect(input).not.toHaveAttribute('aria-invalid');
+    expect(input).not.toHaveAttribute('aria-describedby');
+  });
+
+  it('announces the error and links it to the input', () => {
+    const { getByLabelText, getByRole } = render(
+      <Input label="Email" error="Enter a valid email" />
+    );
+    const input = getByLabelText(/email/i);
+    const alert = getByRole('alert');
+    expect(alert).toHaveTextContent('Enter a valid email');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input.getAttribute('aria-describedby')).toBe(alert.id);
+  });
+
+  it('keeps a caller-supplied aria-describedby alongside the error', () => {
+    const { getByLabelText, getByRole } = render(
+      <Input label="Email" error="Required" aria-describedby="hint" />
+    );
+    expect(getByLabelText(/email/i)).toHaveAttribute(
+      'aria-describedby',
+      `hint ${getByRole('alert').id}`
+    );
   });
 });

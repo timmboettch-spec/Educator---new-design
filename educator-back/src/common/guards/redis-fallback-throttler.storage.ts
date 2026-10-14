@@ -48,10 +48,7 @@ export class RedisFallbackThrottlerStorage implements ThrottlerStorage, OnModule
     const ttlSeconds = Math.max(1, Math.ceil(ttl / 1000));
 
     try {
-      const totalHits = await this.redisService.increment(
-        cacheKey,
-        ttlSeconds,
-      );
+      const totalHits = await this.redisService.increment(cacheKey, ttlSeconds);
 
       return {
         totalHits,

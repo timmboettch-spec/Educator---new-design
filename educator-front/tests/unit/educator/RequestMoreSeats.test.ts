@@ -34,7 +34,9 @@ describe('RequestMoreSeatsRedux', () => {
 
     const store = createStore();
     await store
-      .dispatch(RequestMoreSeats({ requested_seats: 20, note: '  need more  ' }))
+      .dispatch(
+        RequestMoreSeats({ requested_seats: 20, note: '  need more  ' })
+      )
       .unwrap();
 
     expect(mockPost).toHaveBeenCalledTimes(1);
@@ -48,7 +50,9 @@ describe('RequestMoreSeatsRedux', () => {
   });
 
   it('omits requested_seats and note when they are absent/blank', async () => {
-    mockPost.mockResolvedValueOnce({ data: { status: 'success', message: 'ok' } });
+    mockPost.mockResolvedValueOnce({
+      data: { status: 'success', message: 'ok' },
+    });
     const store = createStore();
     await store.dispatch(RequestMoreSeats({ note: '   ' })).unwrap();
     expect(mockPost.mock.calls[0][1]).toEqual({});
@@ -68,7 +72,9 @@ describe('RequestMoreSeatsRedux', () => {
   });
 
   it('clearRequestMoreSeatsState resets to idle', async () => {
-    mockPost.mockResolvedValueOnce({ data: { status: 'success', message: 'ok' } });
+    mockPost.mockResolvedValueOnce({
+      data: { status: 'success', message: 'ok' },
+    });
     const store = createStore();
     await store.dispatch(RequestMoreSeats({}));
     store.dispatch(clearRequestMoreSeatsState());

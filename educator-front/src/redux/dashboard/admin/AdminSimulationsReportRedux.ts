@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSlice, createSelector } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSlice,
+  createSelector,
+} from '@reduxjs/toolkit';
 import config from '../../config';
 import api from '../../api';
 import type { RootState } from '../../../store';
@@ -22,9 +26,12 @@ export const AdminSimulationsReportRequest = createAsyncThunk<
 >('dashboard/adminSimulationsReport', async (_, thunkAPI) => {
   try {
     const adminId = getParsedUser()?.id;
-    const res = await api.get(`${config.SimulationAdminReportsAPI}/${adminId}`, {
-      headers: { 'ngrok-skip-browser-warning': 'true' },
-    });
+    const res = await api.get(
+      `${config.SimulationAdminReportsAPI}/${adminId}`,
+      {
+        headers: { 'ngrok-skip-browser-warning': 'true' },
+      }
+    );
     const payload = res.data?.data ?? res.data;
     return Array.isArray(payload) ? (payload as AdminSimReport[]) : [];
   } catch (err: unknown) {
@@ -63,8 +70,14 @@ const slice = createSlice({
 export default slice.reducer;
 
 const selectState = (state: RootState) =>
-  (state as RootState & { adminSimulationsReport?: typeof initialState }).adminSimulationsReport ??
-  initialState;
+  (state as RootState & { adminSimulationsReport?: typeof initialState })
+    .adminSimulationsReport ?? initialState;
 export const selectAdminSimReports = createSelector(selectState, (s) => s.data);
-export const selectAdminSimReportsStatus = createSelector(selectState, (s) => s.status);
-export const selectAdminSimReportsError = createSelector(selectState, (s) => s.error);
+export const selectAdminSimReportsStatus = createSelector(
+  selectState,
+  (s) => s.status
+);
+export const selectAdminSimReportsError = createSelector(
+  selectState,
+  (s) => s.error
+);

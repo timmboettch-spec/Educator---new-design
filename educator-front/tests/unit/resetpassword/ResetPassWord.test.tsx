@@ -8,16 +8,19 @@ import { COMMON_VALIDATION } from '../../../src/utils/messages/common';
 
 const mockDispatch = vi.fn();
 const mockNavigate = vi.fn();
+const MOCK_EMAIL = 'user@example.com';
+const MOCK_OTP = '123456';
 const mockState = {
   status: 'idle',
   error: null as string | null,
-  token: 'verified-token',
+  email: MOCK_EMAIL,
+  otp: MOCK_OTP,
 };
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
   useLocation: () => ({
-    state: { verified_token: mockState.token },
+    state: { email: mockState.email, otp: mockState.otp },
   }),
 }));
 
@@ -51,7 +54,8 @@ vi.mock('../../../src/redux/auth/ResetPasswordRedux', () => ({
     type: 'reset-password/request',
     payload,
   })),
-  selectResetPasswordStatus: (s: { ResetPassword: { status: string } }) => s.ResetPassword.status,
+  selectResetPasswordStatus: (s: { ResetPassword: { status: string } }) =>
+    s.ResetPassword.status,
   selectResetPasswordError: (s: { ResetPassword: { error: string | null } }) =>
     s.ResetPassword.error,
 }));
@@ -61,15 +65,25 @@ describe('ResetPassWord form validation', () => {
     vi.clearAllMocks();
     mockState.status = 'idle';
     mockState.error = null;
-    mockState.token = 'verified-token';
+    mockState.email = MOCK_EMAIL;
+    mockState.otp = MOCK_OTP;
   });
 
-  it('redirects to signin when token is missing', async () => {
-    mockState.token = '';
+  it('redirects to login when the email is missing', async () => {
+    mockState.email = '';
     render(<ResetPassWord />);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/signin');
+      expect(mockNavigate).toHaveBeenCalledWith('/login');
+    });
+  });
+
+  it('redirects to login when the otp is missing', async () => {
+    mockState.otp = '';
+    render(<ResetPassWord />);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/login');
     });
   });
 
@@ -84,7 +98,9 @@ describe('ResetPassWord form validation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
 
-    expect(sonnerToast.error).toHaveBeenCalledWith('Password not matched');
+    expect(sonnerToast.error).toHaveBeenCalledWith(
+      'Password and confirm password must be the same'
+    );
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 
@@ -99,7 +115,9 @@ describe('ResetPassWord form validation', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
 
-    expect(sonnerToast.error).toHaveBeenCalledWith('Password cannot include HTML or script-like content');
+    expect(sonnerToast.error).toHaveBeenCalledWith(
+      'Password cannot include HTML or script-like content'
+    );
     expect(mockDispatch).not.toHaveBeenCalled();
   });
 
@@ -117,7 +135,9 @@ describe('ResetPassWord form validation', () => {
       target: { value: 'Q@bb456!' },
     });
     fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
-    expect(sonnerToast.error).toHaveBeenCalledWith('Password not matched');
+    expect(sonnerToast.error).toHaveBeenCalledWith(
+      'Password and confirm password must be the same'
+    );
 
     fireEvent.change(screen.getByPlaceholderText(/Confirm Password/i), {
       target: { value: 'P@ss123!' },
@@ -126,11 +146,12 @@ describe('ResetPassWord form validation', () => {
 
     await waitFor(() => {
       expect(ResetPasswordRequest).toHaveBeenCalledWith({
-        verified_token: 'verified-token',
-        new_password: 'P@ss123!',
+        email: MOCK_EMAIL,
+        otp: MOCK_OTP,
+        newPassword: 'P@ss123!',
       });
       expect(mockDispatch).toHaveBeenCalledTimes(1);
-      expect(mockNavigate).toHaveBeenCalledWith('/signin');
+      expect(mockNavigate).toHaveBeenCalledWith('/login');
     });
   });
 
@@ -178,33 +199,40 @@ describe('ResetPassWord form validation', () => {
         target: { value: invalidPassword },
       });
       fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
-      expect(sonnerToast.error).toHaveBeenCalledWith(COMMON_VALIDATION.PASSWORD_COMPLEXITY);
+      expect(sonnerToast.error).toHaveBeenCalledWith(
+        COMMON_VALIDATION.PASSWORD_COMPLEXITY
+      );
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
-    it.each([['Test@123'], ['Admin#2024'], ['User$456X'], ['SuperSecret#99'], ['Abcdefg1!']])(
-      'accepts valid password "%s"',
-      async (validPassword) => {
-        mockDispatch.mockReturnValueOnce({
-          unwrap: () => Promise.resolve({ message: 'Password reset successfully' }),
-        });
-        render(<ResetPassWord />);
-        fireEvent.change(screen.getByPlaceholderText(/New Password/i), {
-          target: { value: validPassword },
-        });
-        fireEvent.change(screen.getByPlaceholderText(/Confirm Password/i), {
-          target: { value: validPassword },
-        });
-        fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
-        await waitFor(() => {
-          expect(mockDispatch).toHaveBeenCalled();
-        });
-      },
-    );
+    it.each([
+      ['Test@123'],
+      ['Admin#2024'],
+      ['User$456X'],
+      ['SuperSecret#99'],
+      ['Abcdefg1!'],
+    ])('accepts valid password "%s"', async (validPassword) => {
+      mockDispatch.mockReturnValueOnce({
+        unwrap: () =>
+          Promise.resolve({ message: 'Password reset successfully' }),
+      });
+      render(<ResetPassWord />);
+      fireEvent.change(screen.getByPlaceholderText(/New Password/i), {
+        target: { value: validPassword },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/Confirm Password/i), {
+        target: { value: validPassword },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
+      await waitFor(() => {
+        expect(mockDispatch).toHaveBeenCalled();
+      });
+    });
 
     it('accepts passwords longer than 8 characters', async () => {
       mockDispatch.mockReturnValueOnce({
-        unwrap: () => Promise.resolve({ message: 'Password reset successfully' }),
+        unwrap: () =>
+          Promise.resolve({ message: 'Password reset successfully' }),
       });
       render(<ResetPassWord />);
       const longPassword = 'MyLongP@ssword123';
@@ -217,7 +245,9 @@ describe('ResetPassWord form validation', () => {
       fireEvent.click(screen.getByRole('button', { name: /Set Password/i }));
       await waitFor(() => {
         expect(mockDispatch).toHaveBeenCalled();
-        expect(sonnerToast.error).not.toHaveBeenCalledWith(COMMON_VALIDATION.PASSWORD_COMPLEXITY);
+        expect(sonnerToast.error).not.toHaveBeenCalledWith(
+          COMMON_VALIDATION.PASSWORD_COMPLEXITY
+        );
       });
     });
   });

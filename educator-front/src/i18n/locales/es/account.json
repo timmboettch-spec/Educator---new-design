@@ -1,0 +1,15 @@
+{
+  "photo": {
+    "uploading": "Subiendo foto…",
+    "removing": "Eliminando foto…"
+  },
+  "editProfile": {
+    "saving": "Guardando…"
+  },
+  "profile": {
+    "loading": "Cargando tu perfil…",
+    "unavailableTitle": "No pudimos cargar tu perfil",
+    "unavailableBody": "Revisa tu conexión e inténtalo de nuevo.",
+    "retry": "Intentar de nuevo"
+  }
+}

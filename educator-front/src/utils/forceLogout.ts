@@ -16,6 +16,7 @@ import { clearAuthData } from './storage';
 import { logout } from '../redux/auth/LoginRedux';
 import { SESSION_TOAST_KEY } from '../components/common/Toast';
 import { store } from '../store';
+import { isLtiSessionHandoff } from './sessionState';
 
 // ---------------------------------------------------------------------------
 // WebSocket disconnect registry
@@ -52,8 +53,7 @@ export const LOGOUT_MESSAGES = {
     'Your account has been removed. Please contact your administrator.',
   ACCOUNT_DEACTIVATED:
     'Your account has been deactivated. Please contact your administrator.',
-  SESSION_EXPIRED:
-    'Your session has expired. Please log in again.',
+  SESSION_EXPIRED: 'Your session has expired. Please log in again.',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -78,15 +78,21 @@ let _isLoggingOut = false;
  *  4. Queue a toast message for the login page
  *  5. Hard-redirect to /login  (replaces history so back-button won't return)
  */
-export function forceLogout(message: string = LOGOUT_MESSAGES.SESSION_EXPIRED): void {
+export function forceLogout(
+  message: string = LOGOUT_MESSAGES.SESSION_EXPIRED
+): void {
   // Already on the login page or mid-logout — do nothing
   if (_isLoggingOut || window.location.pathname === '/login') return;
+  // LTI is replacing the portal session; ignore 401s from the revoked prior JWT.
+  if (isLtiSessionHandoff()) return;
   _isLoggingOut = true;
 
   // 1. Close WebSocket cleanly
   try {
     _socketDisconnect?.();
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   _socketDisconnect = null;
 
   // 2. Wipe all persisted auth data (cookies + sessionStorage keys)
@@ -95,15 +101,19 @@ export function forceLogout(message: string = LOGOUT_MESSAGES.SESSION_EXPIRED): 
   // 3. Reset Redux login slice so any in-flight selectors see a logged-out state
   try {
     store.dispatch(logout());
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // 4. Store the toast so AppRouter can show it after the redirect
   try {
     sessionStorage.setItem(
       SESSION_TOAST_KEY,
-      JSON.stringify({ type: 'error', message }),
+      JSON.stringify({ type: 'error', message })
     );
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   // 5. Hard navigate — guarantees all React state is torn down on reload
   window.location.replace('/login');

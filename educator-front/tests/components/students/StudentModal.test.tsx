@@ -1,5 +1,11 @@
 import React from 'react';
-import { render, screen, waitFor, cleanup, fireEvent } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { Provider } from 'react-redux';
@@ -8,17 +14,20 @@ import configureStore from 'redux-mock-store';
 import { thunk } from 'redux-thunk';
 
 import type { Student } from '../../../src/types';
+import { StudentCodeStatus } from '../../../src/redux/api/students/students.types';
+
+const useGetClassRosterInfiniteQuery = vi.fn();
+vi.mock('../../../src/redux/api/students/studentsApi', () => ({
+  useGetClassRosterInfiniteQuery: (...args: unknown[]) =>
+    useGetClassRosterInfiniteQuery(...args),
+}));
 
 import StudentModal from '../../../src/components/class/student/StudentModal';
 import StudentSubTable from '../../../src/components/class/student/Studentsubtable';
 
-import {
-  selectPostStudentLoading,
-} from '../../../src/redux/class/Student/PostStudentRedux';
+import { selectPostStudentLoading } from '../../../src/redux/class/Student/PostStudentRedux';
 
-import {
-  BulkPostStudentRequest,
-} from '../../../src/redux/class/Student/BulkPostStudentRedux';
+import { BulkPostStudentRequest } from '../../../src/redux/class/Student/BulkPostStudentRedux';
 
 import { selectPutStudentLoading } from '../../../src/redux/class/Student/PatchStudentRedux';
 
@@ -49,21 +58,30 @@ vi.mock('../../../src/components/class/simulation/ExportReportModal', () => ({
   default: () => <div data-testid="export-report-modal" />,
 }));
 
-vi.mock('../../../src/components/class/student/StudentEmailReportModal', () => ({
-  default: () => <div data-testid="email-report-modal" />,
-}));
+vi.mock(
+  '../../../src/components/class/student/StudentEmailReportModal',
+  () => ({
+    default: () => <div data-testid="email-report-modal" />,
+  })
+);
 
-vi.mock('../../../src/components/class/student/StudentEmailAccessCodeModal', () => ({
-  default: () => <div data-testid="email-access-modal" />,
-}));
+vi.mock(
+  '../../../src/components/class/student/StudentEmailAccessCodeModal',
+  () => ({
+    default: () => <div data-testid="email-access-modal" />,
+  })
+);
 
 vi.mock('../../../src/components/class/PrintAccessCode', () => ({
   default: () => <div data-testid="print-access-modal" />,
 }));
 
-vi.mock('../../../src/components/class/student/RegenerateAccessCodeModal', () => ({
-  default: () => <div data-testid="regenerate-modal" />,
-}));
+vi.mock(
+  '../../../src/components/class/student/RegenerateAccessCodeModal',
+  () => ({
+    default: () => <div data-testid="regenerate-modal" />,
+  })
+);
 
 // RevokeAccessCodeModal is used in StudentSubTable but not in the original test file.
 // Mock it to avoid import errors.
@@ -74,7 +92,12 @@ vi.mock('../../../src/components/class/student/RevokeAccessCodeModal', () => ({
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
@@ -143,13 +166,7 @@ vi.mock('../../../src/redux/class/StudentEmailReportRedux', () => ({
   sendEmailReport: vi.fn(),
 }));
 
-// IMPORTANT: must be a stable reference — returning a new `{}` each call
-// triggers React-Redux's "selector returned different result" warning and
-// causes infinite re-renders in tests.
-const STABLE_SIMS_COMPLETED: Record<string, number> = {};
-
 vi.mock('../../../src/redux/class/SimsCompletedreportsRedux', () => ({
-  selectSyncedSimsCompleted: () => STABLE_SIMS_COMPLETED,
   selectClassReports: () => [],
   GetClassSimulationReports: vi.fn(() => ({ type: 'reports/getClass' })),
 }));
@@ -157,7 +174,9 @@ vi.mock('../../../src/redux/class/SimsCompletedreportsRedux', () => ({
 vi.mock('../../../src/redux/reports/EducatorReportsRedux', () => ({
   selectEducatorReports: () => [],
   selectEducatorReportsStatus: () => 'idle',
-  GetEducatorSimulationReports: vi.fn(() => ({ type: 'educatorReports/fetch' })),
+  GetEducatorSimulationReports: vi.fn(() => ({
+    type: 'educatorReports/fetch',
+  })),
 }));
 
 const STABLE_STUDENT_CODES = new Set<string>();
@@ -241,20 +260,66 @@ const renderModal = (props = {}) =>
   render(
     <Provider store={mockStore(baseStoreState)}>
       <StudentModal {...defaultModalProps} {...props} />
-    </Provider>,
+    </Provider>
   );
 
-const renderSubTable = (students: Student[] = []) =>
-  render(
+/** Serves the students as the roster API's single page. */
+const mockRoster = (students: Student[]) =>
+  useGetClassRosterInfiniteQuery.mockReturnValue({
+    currentData: {
+      pages: [
+        {
+          data: students.map((student) => ({
+            id: student.id ?? '',
+            studentId: student.student_id ?? '',
+            name: student.student_name,
+            email: student.email,
+            classId: student.class_id ?? null,
+            schoolId: null,
+            status: 'ACTIVE',
+            isActive: true,
+            submissionDate: null,
+            simsCompleted: student.sims_completed ?? null,
+            score: student.score,
+            timeSpent: null,
+            timeRemaining: null,
+            reportsCount: 0,
+            codeStatus: student.student_id
+              ? StudentCodeStatus.ACTIVE
+              : StudentCodeStatus.REVOKED,
+          })),
+          meta: {
+            total: students.length,
+            page: 1,
+            pageSize: 10,
+            totalPages: 1,
+            hasNextPage: false,
+            hasPrevPage: false,
+          },
+        },
+      ],
+    },
+    isFetching: false,
+    isError: false,
+    direction: undefined,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  });
+
+const renderSubTable = (students: Student[] = []) => {
+  mockRoster(students);
+  return render(
     <Provider store={mockStore(baseStoreState)}>
       <StudentSubTable
         classId="cls-1"
         className="Biology 101"
-        students={students}
         onStudentAdded={vi.fn()}
       />
-    </Provider>,
+    </Provider>
   );
+};
 
 /* -------------------------------------------------------------------------- */
 /*                               GLOBAL HOOKS                                 */
@@ -278,7 +343,9 @@ describe('StudentModal – Add Mode', () => {
     renderModal();
 
     expect(screen.getByText('Add Student')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter number of students')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Enter number of students')
+    ).toBeInTheDocument();
     expect(screen.getByDisplayValue('Biology 101')).toBeInTheDocument();
   });
 
@@ -293,7 +360,9 @@ describe('StudentModal – Add Mode', () => {
 
     await user.click(screen.getByText('Create Student'));
 
-    expect(await screen.findByText('Please enter a number of students (minimum 1)')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Please enter a number of students (minimum 1)')
+    ).toBeInTheDocument();
   });
 
   test('does not call BulkPostStudentRequest when count is blank', async () => {
@@ -328,7 +397,7 @@ describe('StudentModal – Add Mode', () => {
 
     await waitFor(() => {
       expect(BulkPostStudentRequest).toHaveBeenCalled();
-      const call = vi.mocked(BulkPostStudentRequest).mock.calls[0][0];
+      const call = vi.mocked(BulkPostStudentRequest).mock.calls[0]?.[0];
       expect(call).not.toHaveProperty('student_id');
       expect(call).toHaveProperty('class_id', 'cls-1');
       expect(call).toHaveProperty('count', 3);
@@ -365,7 +434,9 @@ describe('StudentSubTable – Interactions', () => {
 
     await user.click(screen.getByRole('button', { name: /add student/i }));
 
-    expect(await screen.findByRole('heading', { name: 'Add Student' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Add Student' })
+    ).toBeInTheDocument();
   });
 
   test('opens action dropdown on dots button click', async () => {
@@ -395,13 +466,16 @@ describe('StudentSubTable – Interactions', () => {
   });
 
   test.skip('clicking Edit Student Details opens edit modal', async () => {
+    // Edit Student Details menu item is currently commented out in StudentSubTable.tsx (line 50)
     const user = userEvent.setup();
     renderSubTable([mockStudent]);
 
     await openActionMenu();
     await user.click(screen.getByText('Edit Student Details'));
 
-    expect(await screen.findByRole('heading', { name: 'Edit Student' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Edit Student' })
+    ).toBeInTheDocument();
   });
 
   test('clicking Delete Student opens delete confirm modal', async () => {
@@ -437,9 +511,26 @@ describe('StudentSubTable – Interactions', () => {
 
 describe('StudentSubTable – Sorting', () => {
   const twoStudents: Student[] = [
-    { ...mockStudent, id: 'stu-1', student_name: 'Zara', student_id: 'CODE001', score: 90 },
-    { ...mockStudent, id: 'stu-2', student_name: 'Aaron', student_id: 'CODE002', score: 60 },
+    {
+      ...mockStudent,
+      id: 'stu-1',
+      student_name: 'Zara',
+      student_id: 'CODE001',
+      score: 90,
+    },
+    {
+      ...mockStudent,
+      id: 'stu-2',
+      student_name: 'Aaron',
+      student_id: 'CODE002',
+      score: 60,
+    },
   ];
+
+  const lastSort = () => {
+    const arg = useGetClassRosterInfiniteQuery.mock.lastCall?.[0];
+    return { sortBy: arg?.sortBy, sortDir: arg?.sortDir };
+  };
 
   test('sorts by student name ascending on first header click', async () => {
     const user = userEvent.setup();
@@ -447,12 +538,8 @@ describe('StudentSubTable – Sorting', () => {
 
     await user.click(screen.getByText('Student Name'));
 
-    const codeCells = screen
-      .getAllByRole('cell')
-      .filter((c) => ['CODE001', 'CODE002'].includes(c.textContent?.trim() ?? ''));
-
-    // Ascending by student_name: Aaron < Zara, so Aaron (CODE002) comes first
-    expect(codeCells[0].textContent?.trim()).toBe('CODE002');
+    // The BE sorts; the table asks for the new order.
+    expect(lastSort()).toEqual({ sortBy: 'name', sortDir: 'asc' });
   });
 
   test('sorts by student name descending on second header click', async () => {
@@ -462,11 +549,6 @@ describe('StudentSubTable – Sorting', () => {
     await user.click(screen.getByText('Student Name'));
     await user.click(screen.getByText('Student Name'));
 
-    const codeCells = screen
-      .getAllByRole('cell')
-      .filter((c) => ['CODE001', 'CODE002'].includes(c.textContent?.trim() ?? ''));
-
-    // Descending by student_name: Zara > Aaron, so Zara (CODE001) comes first
-    expect(codeCells[0].textContent?.trim()).toBe('CODE001');
+    expect(lastSort()).toEqual({ sortBy: 'name', sortDir: 'desc' });
   });
 });

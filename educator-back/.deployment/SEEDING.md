@@ -4,185 +4,121 @@ This document explains the database seeding approach for different environments.
 
 ## Overview
 
-Database seeding is the process of populating the database with initial required data after migrations. This includes roles, sample schools, educators, classes, and students (environment-dependent).
+Database seeding is the process of populating the database with initial required data after migrations. Today that's just roles; the mechanism is generic so future essential-data seeders (see the safety note below) are picked up automatically.
+
+## How seeding actually runs
+
+`npm run seed:prod` (containers/CI, compiled) and `npm run seed:local`
+(local dev, ts-node) both run `src/database/seeders/index.ts`, which:
+
+1. Scans `src/database/seeders/` for every `*.seeder.js` (or `.ts` under
+   `seed:local`) file.
+2. Imports each one and expects a **default export** with the signature
+   `(dataSource: DataSource) => Promise<void>`.
+3. Runs them **sequentially**, in filename-sorted order, sharing one
+   `DataSource` connection that `index.ts` initializes before the first
+   seeder and destroys after the last one.
+4. If one seeder throws, the error is logged and the remaining seeders still
+   run — one broken seeder doesn't block the others or block the app from
+   starting.
+
+Adding a new seeder is now just "drop a file in the directory" — there is
+**no npm script to add and no config file to register it in**. See
+"Creating New Seeders" below.
+
+## ⚠️ Safety convention: this directory always runs in every environment
+
+`seed:prod` is what the Dockerfile `CMD` calls on **every** boot, in
+**every** environment (dev/qa/prod all run the same image) — there is no
+per-environment allow-list of *which* seeder files execute anymore. Only
+`role.seeder.ts` exists today, and it only inserts the two auth roles if
+they're missing, so this is safe.
+
+**Before adding a new file to `src/database/seeders/`, ask: is this safe to
+run unattended in production, every time the container starts, forever?**
+It must be:
+- **Idempotent** — check-then-insert, like `role.seeder.ts` does.
+- **Essential reference data only** — not sample/demo data (sample schools,
+  fake educators, bulk test classes, etc.).
+
+If you need dev-only sample data (10 sample schools, 20 sample educators,
+etc.), do **not** put it in this auto-discovered directory. Write it as a
+one-off script (e.g. under `scripts/`) that a developer runs manually against
+their own environment, so it can never accidentally fire in qa/prod.
 
 ## Seeding Configuration
 
-The seeding strategy is environment-specific and controlled by `.deployment/seeding-config.json`:
+The `enabled` / `autoSeed` flags in `.deployment/seeding-config.json` still
+control whether `Deploy-Backend.ps1`'s `-Action migrate`/`-Action seed` runs
+`npm run seed:prod` at all for a given environment. The per-env `seeders`
+array is now **descriptive metadata only** (a manifest of what's expected to
+exist) — it is no longer used to select which seeder files execute; `seed:prod`
+always runs everything it finds.
 
-| Environment | Auto-Seed | Seeders | Truncate | Purpose |
-|-------------|-----------|---------|----------|---------|
-| **dev** | Yes | roles | No | Development with essential data |
-| **qa** | Yes | roles | No | QA testing with minimal baseline |
-| **prod** | Yes | roles | No | Production with only essential data |
-
-## Environment-Specific Strategies
-
-### Development Environment
-
-**What gets seeded automatically:**
-- `roles` - District Admin, Educator (essential for auth)
-
-**When**: During `npm run migration:run` (automatic)
-
-**How to seed additional data:**
-```bash
-# Seed everything
-npm run seed:all
-
-# Or individually
-npm run seed:roles
-npm run seed:schools      # Add 10 sample schools
-npm run seed:educators    # Add 20 sample educators
-npm run seed:classes      # Add 30 sample classes
-```
-
-**Rationale**: 
-- Developers need working roles to test authentication
-- Additional sample data needed for feature testing is developer-controlled
-- Supports exploring multiple datasets
-
-### QA Environment
-
-**What gets seeded automatically:**
-- `roles` - District Admin, Educator only
-
-**When**: During deployment (automatic)
-
-**Manual data creation:**
-- QA team creates test scenarios via API/UI
-- Ensures workflows for data creation are tested
-- Prevents reliance on pre-populated data
-
-**Rationale**:
-- QA must test entire data creation workflow (admins creating schools, educators, classes, etc.)
-- Pre-seeded data can mask bugs in admin interfaces
-- Ensures real-world scenarios are tested
-
-### Production Environment
-
-**What gets seeded automatically:**
-- `roles` - District Admin, Educator only
-
-**When**: Upon initial deployment only
-
-**Never seed in production:**
-- ❌ Schools
-- ❌ Educators
-- ❌ Classes
-- ❌ Students
-
-**Manual data creation:**
-- System administrators create all production data via admin interfaces
-- Ensures audit trails and proper access controls
-
-**Rationale**:
-- Production data is sensitive and must be intentional
-- All production data creation must be auditable
-- Prevents accidental overwrites or data loss
+| Environment | Auto-Seed | Runs | Purpose |
+|-------------|-----------|------|---------|
+| **dev** | Yes | every seeder in the directory (today: roles) | Development with essential data |
+| **qa** | Yes | every seeder in the directory (today: roles) | QA testing with minimal baseline |
+| **prod** | Yes | every seeder in the directory (today: roles) | Production with only essential data |
 
 ## Available Seeders
 
 ```
-Current Seeders:
-├── roles         ✅ Implemented (2 roles: District Admin, Educator)
-├── schools       ⏳ Planned
-├── educators     ⏳ Planned
-├── classes       ⏳ Planned
-└── students      ⏳ Planned
+Current Seeders (src/database/seeders/):
+└── role.seeder.ts   ✅ Implemented (2 roles: District Admin, Educator)
 ```
+
+Sample/bulk data for schools, educators, classes, and students is not
+implemented as auto-discovered seeders — see the safety convention above for
+why, and create ad-hoc manual scripts instead if you need that for local
+testing.
 
 ## Using Seeders
 
-### Run migrations + seed roles (automatic in deploy script)
+### Run migrations + seed (automatic in deploy script and in the container CMD)
 ```bash
 npm run migration:run
-npm run seed:roles
+npm run seed:prod
 ```
 
-### Seed all data (development only)
+### Run against a local dev DB (ts-node, no build step)
 ```bash
-npm run seed:all
-```
-
-### Seed specific entity
-```bash
-npm run seed:roles
-npm run seed:schools
-npm run seed:educators
-```
-
-### Check available seeders
-```bash
-npm run seed:help
+npm run seed:local
 ```
 
 ## Creating New Seeders
 
-When adding new database entities that need seeding:
+When adding a new **essential, idempotent** seeder:
 
-### 1. Create seeder file
+### 1. Create the seeder file
 ```typescript
-// src/seeds/schools.seeder.ts
-import { AppDataSource } from '../data-source';
+// src/database/seeders/schools.seeder.ts
+import { DataSource } from 'typeorm';
 import { Schools } from '../schools/entity/schools.entity';
 
-async function seedSchools(): Promise<void> {
-  try {
-    await AppDataSource.initialize();
-    const schoolRepo = AppDataSource.getRepository(Schools);
-    
-    const schools = [
-      { name: 'Central High School', code: 'CHS-001' },
-      { name: 'West Academy', code: 'WA-001' },
-    ];
-    
-    for (const school of schools) {
-      const exists = await schoolRepo.findOneBy({ code: school.code });
-      if (!exists) {
-        await schoolRepo.save(school);
-        console.log(`Seeded school: ${school.name}`);
-      }
-    }
-  } finally {
-    if (AppDataSource.isInitialized) {
-      await AppDataSource.destroy();
+export default async function seedSchools(dataSource: DataSource): Promise<void> {
+  const schoolRepo = dataSource.getRepository(Schools);
+
+  const schools = [
+    { name: 'Central High School', code: 'CHS-001' },
+  ];
+
+  for (const school of schools) {
+    const exists = await schoolRepo.findOneBy({ code: school.code });
+    if (!exists) {
+      await schoolRepo.save(school);
+      console.log(`Seeded school: ${school.name}`);
     }
   }
 }
-
-void seedSchools();
 ```
+Notes:
+- Default export, matching `(dataSource: DataSource) => Promise<void>` — that's the only contract `index.ts` requires.
+- Don't call `dataSource.initialize()`/`destroy()` yourself — `index.ts` owns that lifecycle for all seeders sharing the connection.
+- That's it — no npm script, no `seeding-config.json` edit. It will be picked up by `seed:prod`/`seed:local` automatically the next time either runs.
 
-### 2. Add npm script to `package.json`
-```json
-{
-  "scripts": {
-    "seed:schools": "ts-node -r tsconfig-paths/register src/seeds/schools.seeder.ts"
-  }
-}
-```
-
-### 3. Register in `.deployment/seeding-config.json`
-```json
-{
-  "dev": {
-    "seeders": ["roles", "schools"]
-  }
-}
-```
-
-### 4. Update documentation (this file)
-
-### 5. Update Pull Request Template
-Add to `.github/PULL_REQUEST_TEMPLATE.md`:
-```markdown
-## Database Changes
-- [ ] Migration created (if new table)
-- [ ] Seeder created (if new entity)
-- [ ] Updated `.deployment/seeding-config.json`
-- [ ] Updated `.deployment/REQUIREMENTS.md`
-```
+### 2. Update documentation
+Update the "Available Seeders" list above and `.deployment/seeding-config.json`'s per-env `seeders` array (descriptive manifest — see above) in the same PR.
 
 ## Seeding Workflow
 
@@ -193,17 +129,14 @@ Add to `.github/PULL_REQUEST_TEMPLATE.md`:
 
 # 2. Create schema
 .\Deploy-Backend.ps1 -Environment dev -Action migrate
-# (automatically runs seed:roles)
-
-# 3. Optional: Seed additional data
-npm run seed:all
+# (automatically runs seed:prod if enabled/autoSeed are true)
 ```
 
 ### Subsequent Deployments
 ```powershell
 # Deploy script handles everything
 .\Deploy-Backend.ps1 -Environment dev -Action deploy
-# (provision + migrate + seed:roles automatically)
+# (provision + migrate + seed:prod automatically)
 ```
 
 ## Troubleshooting
@@ -214,8 +147,7 @@ Check `.deployment/seeding-config.json`:
 {
   "dev": {
     "enabled": true,              // Must be true
-    "autoSeed": true,             // Must be true to auto-run
-    "seeders": ["roles"]          // Must list the seeder
+    "autoSeed": true              // Must be true to auto-run seed:prod
   }
 }
 ```
@@ -235,7 +167,7 @@ npm run migration:revert
 npm run migration:run
 
 # Re-seed
-npm run seed:all
+npm run seed:prod
 ```
 
 ### Database connection errors
@@ -249,7 +181,7 @@ psql postgresql://$DB_USERNAME:$DB_PASSWORD@$DB_HOST:$DB_PORT/$DB_NAME
 
 - Container specs: `.deployment/container-spec.json`
 - Deployment script: `scripts/Deploy-Backend.ps1`
-- Data migrations: `src/migrations/`
+- Data migrations: `src/database/migrations/`
 - Data entities: `src/[module]/entity/`
 
 ## Monitoring Seeding

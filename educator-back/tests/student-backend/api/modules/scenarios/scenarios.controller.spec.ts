@@ -5,11 +5,9 @@ import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { ScenariosController } from '../../../../../src/student-backend/modules/scenarios/scenarios.controller';
 import { ScenariosService } from '../../../../../src/student-backend/modules/scenarios/scenarios.service';
-import { ScenarioAuthGuard } from '../../../../../src/student-backend/guards/scenario-auth.guard';
-import { ScenarioAssignmentGuard } from '../../../../../src/student-backend/modules/scenarios/guards/scenario-assignment.guard';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiGet } from '../../common/utils/api.helper';
-import { studentToken } from '../../common/utils/auth-token.helper';
+// import { studentToken } from '../../common/utils/auth-token.helper'; // only used by the disabled GET /scenarios/unit/:unitId test
 import { ENDPOINTS } from '../../common/constants/endpoints';
 import { STATUS } from '../../common/constants/status-codes';
 import scenarioFixtures from '../../common/fixtures/scenario.requests.json';
@@ -29,10 +27,6 @@ describe('Scenarios API — controller routes', () => {
       controllers: [ScenariosController],
       providers: [{ provide: ScenariosService, useValue: mockScenariosService }],
     })
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScenarioAssignmentGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
     app = await createTestApp(moduleRef);
@@ -60,38 +54,32 @@ describe('Scenarios API — controller routes', () => {
     });
   });
 
-  // ─── GET /scenarios/default ───────────────────────────────────────────────────
+  // ─── GET /scenarios/default and GET /scenarios/unit/:unitId — disabled, routes commented out ──
 
-  describe('GET /scenarios/default', () => {
-    it('returns 200 with default scenario', async () => {
-      const defaultScenario = { id: 'default-001', title: 'Default' };
-      mockScenariosService.getDefaultScenario.mockResolvedValue(defaultScenario);
-
-      const res = await apiGet(app, ENDPOINTS.SCENARIOS.DEFAULT);
-
-      expect(res.status).toBe(STATUS.OK);
-      expect(mockScenariosService.getDefaultScenario).toHaveBeenCalledWith();
-    });
-  });
-
-  // ─── GET /scenarios/unit/:unitId ──────────────────────────────────────────────
-
-  describe('GET /scenarios/unit/:unitId', () => {
-    it('returns 200 with scenarios for the given unit', async () => {
-      const scenarios = [{ id: 's-001', unitId: 'unit-001' }];
-      mockScenariosService.findByUnit.mockResolvedValue(scenarios);
-      const token = studentToken('user-42');
-
-      const res = await apiGet(app, ENDPOINTS.SCENARIOS.BY_UNIT('unit-001'), token);
-
-      expect(res.status).toBe(STATUS.OK);
-      expect(mockScenariosService.findByUnit).toHaveBeenCalledWith(
-        'unit-001',
-        'user-42',
-        undefined,
-      );
-    });
-  });
+  // describe('GET /scenarios/default', () => {
+  //   it('returns 200 with default scenario', async () => {
+  //     const defaultScenario = { id: 'default-001', title: 'Default' };
+  //     mockScenariosService.getDefaultScenario.mockResolvedValue(defaultScenario);
+  //
+  //     const res = await apiGet(app, ENDPOINTS.SCENARIOS.DEFAULT);
+  //
+  //     expect(res.status).toBe(STATUS.OK);
+  //     expect(mockScenariosService.getDefaultScenario).toHaveBeenCalledWith();
+  //   });
+  // });
+  //
+  // describe('GET /scenarios/unit/:unitId', () => {
+  //   it('returns 200 with scenarios for the given unit', async () => {
+  //     const scenarios = [{ id: 's-001', unitId: 'unit-001' }];
+  //     mockScenariosService.findByUnit.mockResolvedValue(scenarios);
+  //     const token = studentToken('user-42');
+  //
+  //     const res = await apiGet(app, ENDPOINTS.SCENARIOS.BY_UNIT('unit-001'), token);
+  //
+  //     expect(res.status).toBe(STATUS.OK);
+  //     expect(mockScenariosService.findByUnit).toHaveBeenCalledWith('unit-001', 'user-42');
+  //   });
+  // });
 
   // ─── GET /scenarios/:id ───────────────────────────────────────────────────────
 

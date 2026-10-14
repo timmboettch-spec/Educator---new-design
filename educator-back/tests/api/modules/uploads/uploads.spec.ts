@@ -3,6 +3,7 @@ import { SuperTest, Test } from 'supertest';
 import { createAgent, signupAndLogin } from '../../common/setup/supertest.setup';
 import { ENDPOINTS } from '../../common/constants/endpoints';
 import { STATUS } from '../../common/constants/status-codes';
+import { testEmail } from '../../utils/env';
 
 describe('Uploads Controller', () => {
   let agent: SuperTest<Test>;
@@ -10,7 +11,7 @@ describe('Uploads Controller', () => {
 
   beforeAll(async () => {
     agent = createAgent();
-    const email = `uploads-${Date.now()}@test.realityworks`;
+    const email = testEmail('uploads');
     const password = 'Uploads@1234';
     accessToken = await signupAndLogin(agent, { full_name: 'Uploads User', email, password });
   });

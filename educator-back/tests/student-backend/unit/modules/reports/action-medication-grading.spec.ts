@@ -1,3 +1,21 @@
+import { AiGateway } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { LoggerService } from 'src/common/services';
+import type { ICurrentUser } from 'src/common/interfaces';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../common/utils/mock-factory';
 /**
  * Unit tests — Action & Medication Grading Handling
  *
@@ -16,12 +34,22 @@ import { ClinicalDocumentationService } from '@/modules/reports/clinical-documen
 import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
-import { JsonDataService } from '@/data/json-data.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
-import { of } from 'rxjs';
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
 import type { CreateReportDto } from '@/modules/reports/dto/create-report.dto';
+
+const reportUser = { userId: 'user-1', type: 'educator' } as ICurrentUser;
+
+const mockLoggerService = {
+  log: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+  debug: jest.fn(),
+  verbose: jest.fn(),
+  fatal: jest.fn(),
+};
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -38,10 +66,38 @@ async function buildModule(scenarioOverride?: Record<string, unknown>): Promise<
     },
     ...scenarioOverride,
   };
+  // Drives the SIMULATION_V2_REPOSITORY scenario lookup below.
+  const scenarioLookupMock = jest.fn().mockResolvedValue(defaultScenario);
 
   return Test.createTestingModule({
     providers: [
       ReportsService,
+      { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+      { provide: SIMULATION_REPORT_REPOSITORY, useValue: createMockSimulationReportRepository() },
+      {
+        provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+        useValue: createMockStudentSimulationProgressRepository(),
+      },
+      { provide: STUDENT_REPOSITORY, useValue: createMockStudentRepository() },
+      {
+        provide: TRANSCRIPT_REPOSITORY,
+        useValue: {
+          findByBusinessId: jest.fn().mockResolvedValue({
+            messages: [],
+            startedAt: '2024-01-01T10:00:00Z',
+          }),
+        },
+      },
+      { provide: UNIT_REPOSITORY, useValue: createMockUnitRepository() },
+      {
+        provide: SIMULATION_V2_REPOSITORY,
+        useValue: {
+          findByBusinessId: scenarioLookupMock,
+          findByBusinessIdWithChildrenJoined: scenarioLookupMock,
+        },
+      },
+      { provide: MailRetryService, useValue: { enqueue: jest.fn().mockResolvedValue(undefined) } },
+      { provide: MailService, useValue: { sendMail: jest.fn() } },
       ActionsInterventionsService,
       PpePrivacyService,
       ClinicalDocumentationService,
@@ -63,35 +119,21 @@ async function buildModule(scenarioOverride?: Record<string, unknown>): Promise<
         },
       },
       {
-        provide: HttpService,
-        useValue: { post: jest.fn().mockReturnValue(of({ data: {} })) },
+        provide: AiGateway,
+        useValue: {
+          complete: jest.fn(),
+          completeJson: jest.fn(),
+          isConfigured: jest.fn().mockReturnValue(false),
+        },
       },
       {
         provide: ConfigService,
-        useValue: { get: (_key: string) => 'test-key' },
+        useValue: { get: (key: string) => (key.startsWith('azureBlob.') ? undefined : 'test-key') },
       },
-      {
-        provide: JsonDataService,
-        useValue: {
-          getTranscriptByIdFresh: jest.fn().mockResolvedValue({
-            messages: [],
-            startedAt: '2024-01-01T10:00:00Z',
-          }),
-          getTranscriptById: jest.fn().mockReturnValue({ messages: [] }),
-          getScenarioById: jest.fn().mockReturnValue(defaultScenario),
-          getScenarioByIdFresh: jest.fn().mockResolvedValue(defaultScenario),
-          getScenarioByIdLocalized: jest.fn().mockResolvedValue(defaultScenario),
-          getReportByTranscriptId: jest.fn().mockReturnValue(null),
-          getReportByTranscriptIdFresh: jest.fn().mockResolvedValue(null),
-          getReports: jest.fn().mockReturnValue([]),
-          getReportsFresh: jest.fn().mockResolvedValue([]),
-          addReport: jest.fn(),
-          addReportFresh: jest.fn(),
-          generateId: jest.fn().mockReturnValue('report-id'),
-          getUnitById: () => null,
-        },
-      },
+      { provide: MailRetryService, useValue: { enqueue: jest.fn().mockResolvedValue(undefined) } },
+      { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
       { provide: LifecycleTelemetryService, useValue: {} },
+      { provide: LoggerService, useValue: mockLoggerService },
     ],
   }).compile();
 }
@@ -111,7 +153,15 @@ describe('ActionsInterventionsService.evaluateActionAttempt', () => {
           provide: ConfigService,
           useValue: { get: () => null }, // No OpenAI key → keyword fallback
         },
-        { provide: HttpService, useValue: {} },
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
+        { provide: LoggerService, useValue: mockLoggerService },
       ],
     }).compile();
 
@@ -272,7 +322,15 @@ describe('ActionsInterventionsService.computeDeterministicActionMarks — edge c
       providers: [
         ActionsInterventionsService,
         { provide: ConfigService, useValue: { get: () => null } },
-        { provide: HttpService, useValue: {} },
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
+        { provide: LoggerService, useValue: mockLoggerService },
       ],
     }).compile();
 
@@ -425,7 +483,6 @@ describe('Medication + Action combined scoring — formula', () => {
 
 describe('ReportsService — createReportWithAI medication smoke tests', () => {
   let service: ReportsService;
-  let jsonDataService: JsonDataService;
 
   const mandatoryOrder = {
     id: 'med-1',
@@ -446,9 +503,6 @@ describe('ReportsService — createReportWithAI medication smoke tests', () => {
 
     const module = await buildModule(scenario);
     service = module.get(ReportsService);
-    jsonDataService = module.get(JsonDataService);
-    (jsonDataService.getScenarioByIdLocalized as jest.Mock).mockResolvedValue(scenario);
-    (jsonDataService.getScenarioByIdFresh as jest.Mock).mockResolvedValue(scenario);
 
     // Stub analyzeWithOpenAI — returns a minimal valid rubric so the rest of
     // createReportWithAI (including medication combining logic) still runs.
@@ -500,7 +554,7 @@ describe('ReportsService — createReportWithAI medication smoke tests', () => {
       actionsTimeline: [],
     } as unknown as CreateReportDto;
 
-    await expect(service.createReportWithAI(dto)).resolves.toBeDefined();
+    await expect(service.createReportWithAI(reportUser, dto)).resolves.toBeDefined();
   });
 
   it('completes without throwing when mandatory medication is missing (never administered)', async () => {
@@ -512,7 +566,7 @@ describe('ReportsService — createReportWithAI medication smoke tests', () => {
       actionsTimeline: [],
     } as unknown as CreateReportDto;
 
-    await expect(service.createReportWithAI(dto)).resolves.toBeDefined();
+    await expect(service.createReportWithAI(reportUser, dto)).resolves.toBeDefined();
   });
 
   it('result.score is a finite number', async () => {
@@ -541,7 +595,7 @@ describe('ReportsService — createReportWithAI medication smoke tests', () => {
       actionsTimeline: [],
     } as unknown as CreateReportDto;
 
-    const result = await service.createReportWithAI(dto);
+    const result = await service.createReportWithAI(reportUser, dto);
     expect(typeof result.score).toBe('number');
     expect(Number.isFinite(result.score)).toBe(true);
   });
@@ -572,7 +626,7 @@ describe('ReportsService — createReportWithAI medication smoke tests', () => {
       actionsTimeline: [],
     } as unknown as CreateReportDto;
 
-    const result = await service.createReportWithAI(dto);
+    const result = await service.createReportWithAI(reportUser, dto);
     const meds = (result.summaryByCategory as Record<string, unknown>)?.['medications'];
     expect(Array.isArray(meds)).toBe(true);
     expect((meds as unknown[]).length).toBeGreaterThan(0);

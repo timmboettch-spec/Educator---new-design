@@ -64,6 +64,9 @@ export const cleanDetails = (
  * Format action type for display
  */
 export const formatActionType = (type: string): string => {
+  if (!type) return '';
+  const lower = type.toLowerCase();
+  if (lower.startsWith('vital')) return 'Vital Signs';
   switch (type) {
     case 'single':
       return 'Multiple Choice Question';
@@ -72,6 +75,8 @@ export const formatActionType = (type: string): string => {
     case 'ordering':
       return 'Sequential Question';
     case 'vital-signs':
+    case 'vitals':
+    case 'vital':
       return 'Vital Signs';
     default:
       return type;

@@ -1,11 +1,24 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
-import { TutorPatientService } from 'src/common/utils/tutor-patient.service';
-import { SimulationReport } from 'src/simulation-reports/entity/simulation-report.entity';
-import { Student } from 'src/students/entity/students.entity';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+
 import { normalizeScenarioForStudentRead } from './student-scenario.normalizer';
 import { blobFieldToString } from 'src/common/utils/blob-field.util';
+import { Transcript } from 'src/database/entities';
+import type { ReportDetailWithStudentRow } from 'src/common/interfaces';
+import { mapRowToReportDetail } from 'src/common/utils/simulation-report.util';
+import {
+  SIMULATION_REPORT_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  STUDENT_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  SimulationReportRepository,
+  SimulationV2Repository,
+  StudentRepository,
+  TranscriptRepository,
+  UnitRepository,
+} from 'src/database/repositories';
 
 type BlobReport = Record<string, unknown>;
 
@@ -31,21 +44,20 @@ export class StudentReportsService {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   constructor(
-    private readonly tutorPatientService: TutorPatientService,
-    @InjectRepository(SimulationReport)
-    private readonly reportRepo: Repository<SimulationReport>,
-    @InjectRepository(Student)
-    private readonly studentRepo: Repository<Student>,
-  ) {}
+    @Inject(SIMULATION_REPORT_REPOSITORY)
+    private readonly reportRepo: SimulationReportRepository,
+    @Inject(STUDENT_REPOSITORY)
+    private readonly studentRepo: StudentRepository,
+    @Inject(UNIT_REPOSITORY)
+    private readonly unitRepository: UnitRepository,
+    @Inject(SIMULATION_V2_REPOSITORY)
+    private readonly simulationV2Repository: SimulationV2Repository,
+    @Inject(TRANSCRIPT_REPOSITORY)
+    private readonly transcriptRepository: TranscriptRepository,
+  ) { }
 
-  private asBlobReport(raw: unknown): BlobReport | null {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    return raw as BlobReport;
-  }
-
-  private reportFromDbRow(row: SimulationReport): BlobReport {
-    const raw = this.asBlobReport(row.report_data) ?? {};
-    return { ...raw };
+  private reportFromDbRow(row: ReportDetailWithStudentRow): BlobReport {
+    return { ...mapRowToReportDetail(row) };
   }
 
   private isPlaceholderClassName(value: string, studentName?: string): boolean {
@@ -79,30 +91,14 @@ export class StudentReportsService {
   }
 
   private async lookupStudentRow(studentKey: string): Promise<StudentClassRow | undefined> {
-    const baseQuery = (): SelectQueryBuilder<Student> =>
-      this.studentRepo
-        .createQueryBuilder('s')
-        .leftJoin('classes', 'c', 'c.id = s.class_id')
-        .select('s.student_name', 'student_name')
-        .addSelect('s.student_id', 'student_id')
-        .addSelect('s.class_id', 'class_id')
-        .addSelect('c.class_name', 'class_name');
-
     if (StudentReportsService.UUID_REGEX.test(studentKey)) {
-      const byUuid = await baseQuery()
-        .where('s.id = :studentId', { studentId: studentKey })
-        .limit(1)
-        .getRawMany<StudentClassRow>();
-      if (byUuid[0]) {
-        return byUuid[0];
+      const byUuid = await this.studentRepo.findClassNameRowById(studentKey);
+      if (byUuid) {
+        return byUuid;
       }
     }
 
-    const byCode = await baseQuery()
-      .where('s.student_id = :studentCode', { studentCode: studentKey })
-      .limit(1)
-      .getRawMany<StudentClassRow>();
-    return byCode[0];
+    return this.studentRepo.findClassNameRowByCode(studentKey);
   }
 
   private async enrichReportWithStudentContext(
@@ -146,33 +142,9 @@ export class StudentReportsService {
   }
 
   private async resolveReport(id: string): Promise<ResolvedReport | null> {
-    if (StudentReportsService.UUID_REGEX.test(id)) {
-      const byUuid = await this.reportRepo.findOne({ where: { id } });
-      if (byUuid) {
-        return {
-          report: this.reportFromDbRow(byUuid),
-          dbStudentId: byUuid.student_id,
-        };
-      }
-    }
-
-    const byBlobId = await this.reportRepo
-      .createQueryBuilder('r')
-      .where(`r.report_data->>'id' = :id`, { id })
-      .getOne();
-    if (byBlobId) {
-      return {
-        report: this.reportFromDbRow(byBlobId),
-        dbStudentId: byBlobId.student_id,
-      };
-    }
-
-    const fromBlob = await this.tutorPatientService.getReportByIdFresh(id);
-    if (fromBlob) {
-      return { report: fromBlob };
-    }
-
-    return null;
+    const row = await this.reportRepo.findDetailRowByIdOrReportId(id);
+    if (!row) return null;
+    return { report: this.reportFromDbRow(row), dbStudentId: row.studentId };
   }
 
   private async attachTranscript(report: BlobReport): Promise<BlobReport> {
@@ -181,15 +153,18 @@ export class StudentReportsService {
     ).trim();
     const scenarioId = blobFieldToString(report['scenarioId'] ?? report['scenario_id']).trim();
 
-    let transcript: Record<string, unknown> | null = null;
+    let transcript: Transcript | null = null;
     if (transcriptId) {
-      transcript = await this.tutorPatientService.getTranscriptByIdFresh(transcriptId);
+      const found = await this.transcriptRepository.findByBusinessId(transcriptId);
+      transcript = found ? { ...found } : null;
     }
 
     const scenarioRaw = scenarioId
-      ? await this.tutorPatientService.getScenarioByIdFromMap(scenarioId)
+      ? await this.simulationV2Repository.findByBusinessId(scenarioId)
       : null;
-    const scenario = scenarioRaw ? normalizeScenarioForStudentRead(scenarioRaw) : null;
+    const scenario = scenarioRaw
+      ? normalizeScenarioForStudentRead(scenarioRaw as unknown as Record<string, unknown>)
+      : null;
 
     return {
       ...report,
@@ -213,27 +188,15 @@ export class StudentReportsService {
   }
 
   async findReportByTranscriptId(transcriptId: string): Promise<BlobReport> {
-    let report: BlobReport | null = null;
-    let dbStudentId: string | undefined;
-
-    report = await this.tutorPatientService.getReportByTranscriptIdFresh(transcriptId);
-    if (!report) {
-      const dbReport = await this.reportRepo
-        .createQueryBuilder('r')
-        .where(`r.report_data->>'transcriptId' = :transcriptId`, { transcriptId })
-        .orWhere(`r.report_data->>'transcript_id' = :transcriptId`, { transcriptId })
-        .getOne();
-      if (dbReport) {
-        report = this.reportFromDbRow(dbReport);
-        dbStudentId = dbReport.student_id;
-      }
-    }
-
-    if (!report) {
+    const row = await this.reportRepo.findDetailRowByTranscriptId(transcriptId);
+    if (!row) {
       throw new NotFoundException(`Report for transcript ${transcriptId} not found`);
     }
 
-    const enriched = await this.enrichReportWithStudentContext(report, dbStudentId);
+    const enriched = await this.enrichReportWithStudentContext(
+      this.reportFromDbRow(row),
+      row.studentId,
+    );
     return this.attachTranscript(enriched);
   }
 
@@ -251,22 +214,35 @@ export class StudentReportsService {
   }
 
   async getTranscriptLog(id: string): Promise<BlobReport> {
-    const log = await this.tutorPatientService.getTranscriptByIdFresh(id);
+    const log = await this.transcriptRepository.findByBusinessId(id);
     if (!log) {
       throw new NotFoundException(`Log with ID ${id} not found`);
     }
-    return log;
+    return { ...log };
   }
 
-  async getScenarioById(id: string, ls?: string): Promise<BlobReport> {
-    const scenarioRaw = await this.tutorPatientService.getScenarioByIdFresh(id, ls);
+  async getScenarioById(id: string): Promise<BlobReport> {
+    const scenarioRaw = await this.simulationV2Repository.findByBusinessId(id);
     if (!scenarioRaw) {
       throw new NotFoundException(`Scenario with ID ${id} not found`);
     }
-    const scenario = normalizeScenarioForStudentRead(scenarioRaw);
+    const scenario = normalizeScenarioForStudentRead(
+      scenarioRaw as unknown as Record<string, unknown>,
+    );
 
     const unitId = blobFieldToString(scenario['unitId'] ?? scenario['unit_id']).trim();
-    const unit = unitId ? await this.tutorPatientService.getUnitById(unitId) : null;
+    const unitEntity = unitId ? await this.unitRepository.findByBusinessId(unitId) : null;
+    const unit = unitEntity
+      ? {
+        id: unitEntity.id,
+        name: unitEntity.name,
+        imageUrl: unitEntity.imageUrl ?? null,
+        category: unitEntity.category ?? null,
+        actionGroupName: unitEntity.actionGroupName ?? null,
+        actionGroupDescription: unitEntity.actionGroupDescription ?? null,
+        actions: unitEntity.actions ?? [],
+      }
+      : null;
 
     return {
       ...scenario,

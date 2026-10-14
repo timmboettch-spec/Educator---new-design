@@ -4,7 +4,7 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim() !== '';
 }
 
-/** HS-online json-data.service normalizeScenarioForRead parity (read path only). */
+/** HS-online normalizeScenarioForRead parity (read path only). */
 export function normalizeScenarioForStudentRead(scenario: ScenarioRecord): ScenarioRecord {
   const normalized: ScenarioRecord = { ...scenario };
 

@@ -30,7 +30,8 @@ const CONFIRM_TRANSLATIONS: Record<string, string> = {
 
 const translateText = (text?: string): string => {
   if (!text) return '';
-  const isSpanish = localStorage.getItem('app_language')?.toLowerCase() === 'es';
+  const isSpanish =
+    localStorage.getItem('app_language')?.toLowerCase() === 'es';
   if (!isSpanish) return text;
   return CONFIRM_TRANSLATIONS[text] || text;
 };
@@ -77,10 +78,39 @@ export default function ConfirmModal({
       }
     >
       <div className="relative flex flex-col items-center text-center py-2">
+        {/* Close button */}
+        <button
+          type="button"
+          onClick={handleClose}
+          disabled={isLoading}
+          aria-label="Close"
+          className="absolute -top-1 -right-1 text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
         <div className="w-16 h-16 rounded-full bg-primary-500 flex items-center justify-center mb-5 shadow-[0_8px_20px_rgba(219,136,51,0.4)]">
-          <img src={LogoutIcon} alt="Logout" className="w-7 h-7 brightness-0 invert" />
+          <img
+            src={LogoutIcon}
+            alt="Logout"
+            className="w-7 h-7 brightness-0 invert"
+          />
         </div>
-        <h3 className="font-bold text-gray-900 text-xl mb-2 text-center">{displayTitle}</h3>
+        <h3 className="font-bold text-gray-900 text-xl mb-2 text-center">
+          {displayTitle}
+        </h3>
         <p className="text-gray-500 text-sm text-center">{displayMessage}</p>
       </div>
     </Modal>

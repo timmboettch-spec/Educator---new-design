@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import RedeemCode from '../../../src/pages/auth/RedeemCode/index';
 import { AUTH_MESSAGES } from '../../../src/utils/messages/auth';
+import * as storageUtils from '../../../src/utils/storage';
 
 const mockDispatch = vi.fn();
 const toastSuccess = vi.fn();
@@ -54,11 +55,75 @@ describe('RedeemCode behavior', () => {
     render(<RedeemCode />);
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Redeemed'));
     expect(screen.getByText(/license activated/i)).toBeInTheDocument();
+  });
+
+  it('persists a rotated access token before refreshing the current user', async () => {
+    const setAuthDataSpy = vi
+      .spyOn(storageUtils, 'setAuthData')
+      .mockImplementation(() => {});
+    // Everything the component dispatches other than the (mocked) REDEEM
+    // action is the real fetchCurrentUser() thunk function — capture when
+    // it's handed to dispatch so we can assert setAuthData ran first.
+    let meDispatchOrder = -1;
+    mockDispatch.mockImplementation((action: { type?: string }) => {
+      if (action?.type === 'REDEEM')
+        return {
+          unwrap: () =>
+            Promise.resolve({ message: 'Redeemed', token: 'rotated-token' }),
+        };
+      if (typeof action === 'function' && meDispatchOrder === -1) {
+        meDispatchOrder =
+          mockDispatch.mock.invocationCallOrder[
+            mockDispatch.mock.invocationCallOrder.length - 1
+          ];
+      }
+      return { unwrap: () => Promise.resolve({}) };
+    });
+    render(<RedeemCode />);
+    const inputs = screen.getAllByPlaceholderText('XXXX');
+    ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
+      fireEvent.change(inputs[i], { target: { value: v } })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /active license/i }));
+    await waitFor(() =>
+      expect(setAuthDataSpy).toHaveBeenCalledWith(
+        { accessToken: 'rotated-token' },
+        expect.anything(),
+        expect.any(Boolean)
+      )
+    );
+    // The rotated token must be persisted before the /auth/me refresh fires,
+    // or that call authenticates with the stale token and 401s.
+    expect(meDispatchOrder).toBeGreaterThan(-1);
+    expect(setAuthDataSpy.mock.invocationCallOrder[0]).toBeLessThan(
+      meDispatchOrder
+    );
+    setAuthDataSpy.mockRestore();
+  });
+
+  it('does not persist a token when redeem succeeds without one', async () => {
+    const setAuthDataSpy = vi
+      .spyOn(storageUtils, 'setAuthData')
+      .mockImplementation(() => {});
+    mockDispatch.mockImplementation((action: { type: string }) => {
+      if (action.type === 'REDEEM')
+        return { unwrap: () => Promise.resolve({ message: 'Redeemed' }) };
+      return { unwrap: () => Promise.resolve({}) };
+    });
+    render(<RedeemCode />);
+    const inputs = screen.getAllByPlaceholderText('XXXX');
+    ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
+      fireEvent.change(inputs[i], { target: { value: v } })
+    );
+    fireEvent.click(screen.getByRole('button', { name: /active license/i }));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Redeemed'));
+    expect(setAuthDataSpy).not.toHaveBeenCalled();
+    setAuthDataSpy.mockRestore();
   });
 
   it('handles redeem failure flow', async () => {
@@ -70,7 +135,7 @@ describe('RedeemCode behavior', () => {
     render(<RedeemCode />);
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ZZZZ', 'ZZZZ', 'ZZZZ', 'ZZZZ'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     await waitFor(() => expect(toastError).toHaveBeenCalledWith('Bad code'));
@@ -88,30 +153,33 @@ describe('RedeemCode behavior', () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_LENGTH),
+        screen.getByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_LENGTH)
       ).toBeInTheDocument();
     });
 
     // Dispatch must NOT have been called with REDEEM when validation fails
     expect(mockDispatch).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'REDEEM' }),
+      expect.objectContaining({ type: 'REDEEM' })
     );
   });
 
   it('handles expired code rejection with appropriate error message', async () => {
     mockDispatch.mockImplementation((action: { type: string }) => {
       if (action.type === 'REDEEM')
-        return { unwrap: () => Promise.reject({ message: 'Redemption code has expired' }) };
+        return {
+          unwrap: () =>
+            Promise.reject({ message: 'Redemption code has expired' }),
+        };
       return { unwrap: () => Promise.resolve({}) };
     });
     render(<RedeemCode />);
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['EXPD', 'EXPD', 'EXPD', 'EXPD'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('Redemption code has expired'),
+      expect(toastError).toHaveBeenCalledWith('Redemption code has expired')
     );
     // Form stays open — expired code must not navigate away
     expect(screen.getAllByPlaceholderText('XXXX')).toHaveLength(4);
@@ -120,17 +188,20 @@ describe('RedeemCode behavior', () => {
   it('handles already-used code rejection and keeps form open', async () => {
     mockDispatch.mockImplementation((action: { type: string }) => {
       if (action.type === 'REDEEM')
-        return { unwrap: () => Promise.reject({ message: 'Code has already been used' }) };
+        return {
+          unwrap: () =>
+            Promise.reject({ message: 'Code has already been used' }),
+        };
       return { unwrap: () => Promise.resolve({}) };
     });
     render(<RedeemCode />);
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['USED', 'CODE', 'TEST', '0001'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('Code has already been used'),
+      expect(toastError).toHaveBeenCalledWith('Code has already been used')
     );
     expect(screen.getAllByPlaceholderText('XXXX')).toHaveLength(4);
   });
@@ -150,15 +221,15 @@ describe('RedeemCode behavior', () => {
     render(<RedeemCode />);
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
     const submitBtn = screen.getByRole('button', { name: /active license/i });
     fireEvent.click(submitBtn);
     // Wait for Formik's async validation to complete and the first dispatch to fire.
     await waitFor(() =>
       expect(mockDispatch).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'REDEEM' }),
-      ),
+        expect.objectContaining({ type: 'REDEEM' })
+      )
     );
     const callsAfterFirst = mockDispatch.mock.calls.length;
     // Second click while button is disabled (loading state).
@@ -195,7 +266,9 @@ describe('RedeemCode behavior', () => {
     render(<RedeemCode />);
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
     await waitFor(() => {
-      const errMsg = screen.getByText(AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED);
+      const errMsg = screen.getByText(
+        AUTH_MESSAGES.VALIDATION.REDEEM_CODE_REQUIRED
+      );
       expect(errMsg.tagName.toLowerCase()).toBe('p');
     });
   });
@@ -212,7 +285,6 @@ describe('RedeemCode behavior', () => {
     });
   });
 
-
   it('disables submit button and shows loading text while submission is in progress', async () => {
     mockDispatch.mockImplementation((action: { type: string }) => {
       if (action.type === 'REDEEM')
@@ -224,7 +296,7 @@ describe('RedeemCode behavior', () => {
 
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
 
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
@@ -246,7 +318,7 @@ describe('RedeemCode behavior', () => {
 
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
 
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
@@ -257,7 +329,7 @@ describe('RedeemCode behavior', () => {
     });
 
     const redeemCalls = mockDispatch.mock.calls.filter(
-      (call) => (call[0] as { type?: string })?.type === 'REDEEM',
+      (call) => (call[0] as { type?: string })?.type === 'REDEEM'
     );
     expect(redeemCalls).toHaveLength(1);
   });
@@ -265,7 +337,10 @@ describe('RedeemCode behavior', () => {
   it('shows error and clears segments when code is already used', async () => {
     mockDispatch.mockImplementation((action: { type: string }) => {
       if (action.type === 'REDEEM')
-        return { unwrap: () => Promise.reject({ message: 'License already activated' }) };
+        return {
+          unwrap: () =>
+            Promise.reject({ message: 'License already activated' }),
+        };
       return { unwrap: () => Promise.resolve({}) };
     });
 
@@ -273,13 +348,13 @@ describe('RedeemCode behavior', () => {
 
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ABCD', '1234', 'EFGH', '5678'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
 
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('License already activated'),
+      expect(toastError).toHaveBeenCalledWith('License already activated')
     );
 
     // Segments are cleared after failure
@@ -291,7 +366,9 @@ describe('RedeemCode behavior', () => {
   it('shows error for expired or invalid activation code', async () => {
     mockDispatch.mockImplementation((action: { type: string }) => {
       if (action.type === 'REDEEM')
-        return { unwrap: () => Promise.reject({ message: 'Invalid activation code' }) };
+        return {
+          unwrap: () => Promise.reject({ message: 'Invalid activation code' }),
+        };
       return { unwrap: () => Promise.resolve({}) };
     });
 
@@ -299,13 +376,13 @@ describe('RedeemCode behavior', () => {
 
     const inputs = screen.getAllByPlaceholderText('XXXX');
     ['ZZZZ', 'ZZZZ', 'ZZZZ', 'ZZZZ'].forEach((v, i) =>
-      fireEvent.change(inputs[i], { target: { value: v } }),
+      fireEvent.change(inputs[i], { target: { value: v } })
     );
 
     fireEvent.click(screen.getByRole('button', { name: /active license/i }));
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith('Invalid activation code'),
+      expect(toastError).toHaveBeenCalledWith('Invalid activation code')
     );
   });
 });

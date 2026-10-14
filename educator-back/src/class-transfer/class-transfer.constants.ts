@@ -9,11 +9,6 @@ export const ClassTransferConstants = {
     TAG: 'Class Transfers',
   },
 
-  ROLE: {
-    ADMIN: 'Admin',
-    DISTRICT_ADMIN: 'District Admin',
-  },
-
   ERRORS: {
     CLASS_NOT_FOUND: 'Class not found',
     CLASS_HAS_NO_OWNER: 'Class has no current owner and cannot be transferred',

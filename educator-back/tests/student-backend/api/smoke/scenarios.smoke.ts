@@ -32,9 +32,10 @@ async function scenarioGet(path: string, token?: string) {
     // Return a synthetic response so the test can decide how to handle it.
     const isAbort =
       err instanceof Error &&
-      (err.message.includes('ECONNABORTED') ||
-        err.message.includes('aborted') ||
-        err.message.includes('timeout'));
+      (err.message.toLowerCase().includes('econnaborted') ||
+        err.message.toLowerCase().includes('abort') ||
+        err.message.toLowerCase().includes('timeout') ||
+        err.message.toLowerCase().includes('socket hang up'));
     if (isAbort) {
       console.warn(`[smoke] ${path} request aborted/timed-out — server may be under load`);
       return { status: 0, body: null } as unknown as SupertestResponse;

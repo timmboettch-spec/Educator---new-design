@@ -1,6 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { GraduationCap, CheckCircle2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { getStatusTone } from '@/utils/statusTone';
+import { LmsLinkagePill } from '@/components/ui/LmsLinkagePill';
+import type { ClassLmsLinkageSummary } from '@/types/Class_types';
 import dayjs from 'dayjs';
 
 function formatDate(raw: string | undefined): string {
@@ -23,6 +26,7 @@ interface ClassCardProps {
   hideStatus?: boolean;
   title: string;
   classId?: string;
+  lmsLinkage?: ClassLmsLinkageSummary | null;
   labels?: {
     activeStudents: string;
     activeSimulations: string;
@@ -45,10 +49,10 @@ export default function ClassCard({
   statusLabel,
   hideStatus = false,
   title,
+  lmsLinkage,
   classId,
   labels,
 }: ClassCardProps) {
-  const isActive = status === 'Active';
   const uiText = {
     activeStudents: labels?.activeStudents ?? 'Active Students',
     activeSimulations: labels?.activeSimulations ?? 'Active Simulations',
@@ -69,7 +73,7 @@ export default function ClassCard({
     navigate('/classes', { state: { classId, expandType: 'reports' } });
   };
   return (
-    <div className="bg-white rounded-2xl border border-primary-100 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col">
+    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden flex flex-col">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2 px-4 sm:px-5 pt-4 sm:pt-5 pb-3">
         <div className="min-w-0 flex-1">
@@ -78,26 +82,35 @@ export default function ClassCard({
           </h3>
           {(startDate || endDate) && (
             <p className="text-sm mt-1 flex items-center gap-1">
-              {startDate && <span className="font-medium text-black-500">{formatDate(startDate)}</span>}
-              {startDate && endDate && <span className="text-black-400">-</span>}
-              {endDate && <span className="font-medium text-black-500">{formatDate(endDate)}</span>}
+              {startDate && (
+                <span className="font-medium text-black-500">
+                  {formatDate(startDate)}
+                </span>
+              )}
+              {startDate && endDate && (
+                <span className="text-black-400">-</span>
+              )}
+              {endDate && (
+                <span className="font-medium text-black-500">
+                  {formatDate(endDate)}
+                </span>
+              )}
             </p>
+          )}
+          {lmsLinkage && (
+            <LmsLinkagePill
+              linkage={lmsLinkage}
+              fallbackCourseName={title}
+              className="mt-1.5"
+            />
           )}
         </div>
         <div className="relative flex-shrink-0">
           {!hideStatus && (
-          <span
-            className={`flex items-center gap-1.5 text-xs sm:text-sm font-semibold px-3 sm:px-4 py-1 sm:py-1.5 rounded-full ${
-              isActive ? 'text-green-600 bg-green-100' : 'text-gray-500 bg-gray-100'
-            }`}
-          >
-            <span
-              className={`w-2.5 h-2.5 rounded-full inline-block flex-shrink-0 ${
-                isActive ? 'bg-green-500' : 'bg-gray-400'
-              }`}
+            <StatusBadge
+              tone={getStatusTone(status)}
+              label={statusLabel ?? status}
             />
-            {statusLabel ?? status}
-          </span>
           )}
         </div>
       </div>
@@ -106,8 +119,14 @@ export default function ClassCard({
       <div className="grid grid-cols-3 gap-2 px-4 mb-3">
         {/* Active Students */}
         <div className="flex flex-col items-center py-3 px-2 gap-1">
-          <GraduationCap className="w-7 h-7 text-primary-500" aria-hidden="true" />
-          <span className="text-xl font-bold text-gray-800 tabular-nums leading-none">{activeStudents}</span>
+          <img
+            src="/assets/dashboard/student.svg"
+            alt="student"
+            className="w-7 h-7"
+          />
+          <span className="text-xl font-bold text-gray-800 tabular-nums leading-none">
+            {activeStudents}
+          </span>
           <div className="flex items-center gap-1 justify-center">
             <span className="text-sm font-normal text-gray-600 text-center leading-tight">
               {uiText.activeStudents}
@@ -117,8 +136,14 @@ export default function ClassCard({
 
         {/* Active Simulations */}
         <div className="flex flex-col items-center py-3 px-2 gap-1">
-          <CheckCircle2 className="w-7 h-7 text-primary-500" aria-hidden="true" />
-          <span className="text-xl font-bold text-gray-800 tabular-nums leading-none">{simulations}</span>
+          <img
+            src="/assets/dashboard/sims.svg"
+            alt="simulation"
+            className="w-7 h-7"
+          />
+          <span className="text-xl font-bold text-gray-800 tabular-nums leading-none">
+            {simulations}
+          </span>
           <div className="flex items-center gap-1 justify-center">
             <span className="text-sm font-normal text-gray-600 text-center leading-tight">
               {uiText.activeSimulations}
@@ -128,15 +153,21 @@ export default function ClassCard({
 
         {/* New Reports */}
         <div className="flex flex-col items-center py-3 px-2 gap-1">
-          <FileText className="w-7 h-7 text-primary-500" aria-hidden="true" />
-          <span className="text-xl font-bold text-gray-800 tabular-nums leading-none">{newReports}</span>
+          <img
+            src="/assets/dashboard/report.svg"
+            alt="report"
+            className="w-7 h-7"
+          />
+          <span className="text-xl font-bold text-gray-800 tabular-nums leading-none">
+            {newReports}
+          </span>
           <div className="flex items-center gap-1 justify-center">
             <span className="text-sm font-normal text-gray-600 text-center leading-tight">
               {uiText.newReports}
             </span>
           </div>
           {reportNote && (
-            <p className="text-xs text-gray-500 font-normal text-center leading-snug mt-0.5">
+            <p className="text-xs text-gray-400 font-normal text-center leading-snug mt-0.5">
               {reportNote}
             </p>
           )}
@@ -147,22 +178,19 @@ export default function ClassCard({
       <div className="grid grid-cols-3 gap-2 px-4 pb-4">
         <Button
           onClick={handleManageStudent}
-          variant="gradient"
-          className="w-full text-xs font-semibold text-white py-2 rounded-full"
+          className="w-full text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-full transition-colors"
         >
           <span className="block truncate">{uiText.manageStudent}</span>
         </Button>
         <Button
           onClick={handleManageSims}
-          variant="gradient"
-          className="w-full text-xs font-semibold text-white py-2 rounded-full"
+          className="w-full text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-full transition-colors"
         >
           <span className="block truncate">{uiText.manageSims}</span>
         </Button>
         <Button
           onClick={handleViewReports}
-          variant="gradient"
-          className="w-full text-xs font-semibold text-white py-2 rounded-full"
+          className="w-full text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-full transition-colors"
         >
           <span className="block truncate">{uiText.viewReports}</span>
         </Button>

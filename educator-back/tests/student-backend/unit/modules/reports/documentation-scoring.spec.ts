@@ -1,8 +1,9 @@
+import { AiGateway } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { LoggerService } from 'src/common/services';
 import { Test } from '@nestjs/testing';
 import { ReportsService } from '@/modules/reports/reports.service';
-import { JsonDataService } from '@/data/json-data.service';
 import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { PpePrivacyService } from '@/modules/reports/ppe-privacy.service';
 import { ClinicalDocumentationService } from '@/modules/reports/clinical-documentation.service';
@@ -10,6 +11,22 @@ import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  createMockUnitRepository,
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../common/utils/mock-factory';
 
 describe('ReportsService - Documentation Rubric', () => {
   let service: ReportsService;
@@ -18,6 +35,16 @@ describe('ReportsService - Documentation Rubric', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         ReportsService,
+        { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: createMockSimulationReportRepository() },
+        {
+          provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+          useValue: createMockStudentSimulationProgressRepository(),
+        },
+        { provide: STUDENT_REPOSITORY, useValue: createMockStudentRepository() },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: { findByBusinessId: jest.fn() } },
+        { provide: UNIT_REPOSITORY, useValue: createMockUnitRepository() },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: { findByBusinessId: jest.fn() } },
         ActionsInterventionsService,
         PpePrivacyService,
         ClinicalDocumentationService,
@@ -33,15 +60,42 @@ describe('ReportsService - Documentation Rubric', () => {
             }),
           },
         },
-        { provide: JsonDataService, useValue: { getUnitById: () => null } },
         {
           provide: ConfigService,
           useValue: {
             get: (key: string) => (key === 'OPENAI_API_KEY' ? 'test-key' : null),
           },
         },
-        { provide: HttpService, useValue: {} },
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
         { provide: LifecycleTelemetryService, useValue: {} },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

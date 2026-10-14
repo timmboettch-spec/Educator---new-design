@@ -41,9 +41,7 @@ class TokenManager {
    * @param key - Token key (default: 'defaultToken')
    * @returns Authorization header object or empty object
    */
-  getAuthorizationHeader(
-    key: string = this.defaultTokenKey
-  ): Record<string, string> {
+  getAuthorizationHeader(key: string = this.defaultTokenKey): Record<string, string> {
     const token = this.getToken(key);
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
@@ -95,10 +93,7 @@ class TokenManager {
    * @param key - Token key for storage (default: 'defaultToken')
    * @returns Extracted token or null
    */
-  extractTokenFromResponse(
-    response: unknown,
-    key: string = this.defaultTokenKey
-  ): string | null {
+  extractTokenFromResponse(response: unknown, key: string = this.defaultTokenKey): string | null {
     let token: string | null = null;
 
     // Try common token field names

@@ -1,52 +1,55 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
 
 import { DashboardController } from '../../../src/dashboard/dashboard.controller';
 import { DashboardService } from '../../../src/dashboard/dashboard.service';
 import { AppStatus } from '../../../src/common/utils/messages';
 import type { JwtRequest } from '../../../src/common/types';
+import { LoggerService } from '../../../src/common/services';
 
-import { Schools } from '../../../src/schools/entity/schools.entity';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { Class } from '../../../src/class/entity/class.entity';
-import { Student } from '../../../src/students/entity/students.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
+import {
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
 
-// ── Query-builder factory ────────────────────────────────────────────────────
-// Each test gets a fresh builder so mocked return values don't bleed across.
-type MockQb = Record<string, jest.Mock>;
+// ── Repository mock factories ────────────────────────────────────────────────
+// The service talks to the repository-adapter classes directly (count/find, or
+// their dedicated finder methods) — no raw TypeORM query-builder chaining is
+// visible at this layer any more.
 
-const makeMockQueryBuilder = (): MockQb => {
-  const qb: MockQb = {};
-  const self = (): MockQb => qb;
+type CountFindRepo = { count: jest.Mock; find: jest.Mock };
+type StudentRepoMock = { countActiveForAdmin: jest.Mock; findActiveForAdmin: jest.Mock };
+type ClassSimRepoMock = { findPreviewForAdmin: jest.Mock };
 
-  qb.innerJoin = jest.fn().mockReturnValue(self());
-  qb.where = jest.fn().mockReturnValue(self());
-  qb.andWhere = jest.fn().mockReturnValue(self());
-  qb.take = jest.fn().mockReturnValue(self());
-  qb.getMany = jest.fn();
-  qb.getCount = jest.fn();
-
-  return qb;
-};
-
-// ── Repository factory ───────────────────────────────────────────────────────
-type MockRepo = { count: jest.Mock; find: jest.Mock; createQueryBuilder: jest.Mock };
-
-const mockRepo = (): MockRepo => ({
+const mockCountFindRepo = (): CountFindRepo => ({
   count: jest.fn(),
   find: jest.fn(),
-  createQueryBuilder: jest.fn(),
+});
+
+const mockStudentRepo = (): StudentRepoMock => ({
+  countActiveForAdmin: jest.fn(),
+  findActiveForAdmin: jest.fn(),
+});
+
+const mockClassSimRepo = (): ClassSimRepoMock => ({
+  findPreviewForAdmin: jest.fn(),
 });
 
 const adminReq = { user: { userId: 'admin-id' } } as unknown as JwtRequest;
 
-// ── Helper: wire a fresh query-builder into a repo mock ──────────────────────
-function wireQueryBuilder(repo: MockRepo): MockQb {
-  const qb = makeMockQueryBuilder();
-  repo.createQueryBuilder.mockReturnValue(qb);
-  return qb;
-}
+const mockLoggerProvider = {
+  provide: LoggerService,
+  useValue: {
+    log: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+    verbose: jest.fn(),
+    fatal: jest.fn(),
+  },
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 describe('DashboardController', () => {
@@ -56,7 +59,7 @@ describe('DashboardController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DashboardController],
-      providers: [{ provide: DashboardService, useValue: mockService }],
+      providers: [{ provide: DashboardService, useValue: mockService }, mockLoggerProvider],
     }).compile();
 
     controller = module.get(DashboardController);
@@ -93,30 +96,30 @@ describe('DashboardController', () => {
 // ════════════════════════════════════════════════════════════════════════════
 describe('DashboardService', () => {
   let service: DashboardService;
-  let schoolRepo: MockRepo;
-  let educatorRepo: MockRepo;
-  let classRepo: MockRepo;
-  let studentRepo: MockRepo;
-  let classSimRepo: MockRepo;
+  let schoolRepo: CountFindRepo;
+  let educatorRepo: CountFindRepo;
+  let classRepo: CountFindRepo;
+  let studentRepo: StudentRepoMock;
+  let classSimRepo: ClassSimRepoMock;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DashboardService,
-        { provide: getRepositoryToken(Schools), useFactory: mockRepo },
-        { provide: getRepositoryToken(Educator), useFactory: mockRepo },
-        { provide: getRepositoryToken(Class), useFactory: mockRepo },
-        { provide: getRepositoryToken(Student), useFactory: mockRepo },
-        { provide: getRepositoryToken(ClassSimulation), useFactory: mockRepo },
+        { provide: SCHOOLS_REPOSITORY, useFactory: mockCountFindRepo },
+        { provide: EDUCATOR_REPOSITORY, useFactory: mockCountFindRepo },
+        { provide: CLASS_REPOSITORY, useFactory: mockCountFindRepo },
+        { provide: STUDENT_REPOSITORY, useFactory: mockStudentRepo },
+        { provide: CLASS_SIMULATION_REPOSITORY, useFactory: mockClassSimRepo },
       ],
     }).compile();
 
     service = module.get(DashboardService);
-    schoolRepo = module.get(getRepositoryToken(Schools));
-    educatorRepo = module.get(getRepositoryToken(Educator));
-    classRepo = module.get(getRepositoryToken(Class));
-    studentRepo = module.get(getRepositoryToken(Student));
-    classSimRepo = module.get(getRepositoryToken(ClassSimulation));
+    schoolRepo = module.get(SCHOOLS_REPOSITORY);
+    educatorRepo = module.get(EDUCATOR_REPOSITORY);
+    classRepo = module.get(CLASS_REPOSITORY);
+    studentRepo = module.get(STUDENT_REPOSITORY);
+    classSimRepo = module.get(CLASS_SIMULATION_REPOSITORY);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -144,14 +147,10 @@ describe('DashboardService', () => {
     classRepo.count.mockResolvedValue(overrides.classCount ?? 5);
     classRepo.find.mockResolvedValue(overrides.classData ?? [{ id: 4 }]);
 
-    // studentRepo uses createQueryBuilder for both count and find
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(overrides.studentCount ?? 4);
-    studentQb.getMany.mockResolvedValue(overrides.studentData ?? [{ id: 3 }]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(overrides.studentCount ?? 4);
+    studentRepo.findActiveForAdmin.mockResolvedValue(overrides.studentData ?? [{ id: 3 }]);
 
-    // classSimRepo uses createQueryBuilder for getMany only
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue(overrides.classSimData ?? [{ id: 5 }]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue(overrides.classSimData ?? [{ id: 5 }]);
   }
 
   // ── Tests ────────────────────────────────────────────────────────────────
@@ -164,8 +163,9 @@ describe('DashboardService', () => {
     expect(schoolRepo.count).toHaveBeenCalled();
     expect(educatorRepo.count).toHaveBeenCalled();
     expect(classRepo.count).toHaveBeenCalled();
-    expect(studentRepo.createQueryBuilder).toHaveBeenCalledWith('s');
-    expect(classSimRepo.createQueryBuilder).toHaveBeenCalledWith('cs');
+    expect(studentRepo.countActiveForAdmin).toHaveBeenCalledWith('admin-id');
+    expect(studentRepo.findActiveForAdmin).toHaveBeenCalledWith('admin-id', 50);
+    expect(classSimRepo.findPreviewForAdmin).toHaveBeenCalledWith('admin-id', 50);
 
     expect(result).toEqual({
       schools: { total: 2, data: [{ id: 1 }] },
@@ -216,7 +216,7 @@ describe('Dashboard Integration', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [DashboardController],
-      providers: [{ provide: DashboardService, useValue: mockService }],
+      providers: [{ provide: DashboardService, useValue: mockService }, mockLoggerProvider],
     }).compile();
 
     controller = module.get(DashboardController);
@@ -247,18 +247,18 @@ describe('Dashboard Integration', () => {
 describe('Dashboard Data States', () => {
   let controller: DashboardController;
   let service: DashboardService;
-  let schoolRepo: MockRepo;
-  let educatorRepo: MockRepo;
-  let classRepo: MockRepo;
-  let studentRepo: MockRepo;
-  let classSimRepo: MockRepo;
+  let schoolRepo: CountFindRepo;
+  let educatorRepo: CountFindRepo;
+  let classRepo: CountFindRepo;
+  let studentRepo: StudentRepoMock;
+  let classSimRepo: ClassSimRepoMock;
   const mockServiceStub = { getOverview: jest.fn() };
 
   beforeEach(async () => {
     // Controller module (for state-response tests)
     const ctrlModule: TestingModule = await Test.createTestingModule({
       controllers: [DashboardController],
-      providers: [{ provide: DashboardService, useValue: mockServiceStub }],
+      providers: [{ provide: DashboardService, useValue: mockServiceStub }, mockLoggerProvider],
     }).compile();
     controller = ctrlModule.get(DashboardController);
 
@@ -266,19 +266,19 @@ describe('Dashboard Data States', () => {
     const svcModule: TestingModule = await Test.createTestingModule({
       providers: [
         DashboardService,
-        { provide: getRepositoryToken(Schools), useFactory: mockRepo },
-        { provide: getRepositoryToken(Educator), useFactory: mockRepo },
-        { provide: getRepositoryToken(Class), useFactory: mockRepo },
-        { provide: getRepositoryToken(Student), useFactory: mockRepo },
-        { provide: getRepositoryToken(ClassSimulation), useFactory: mockRepo },
+        { provide: SCHOOLS_REPOSITORY, useFactory: mockCountFindRepo },
+        { provide: EDUCATOR_REPOSITORY, useFactory: mockCountFindRepo },
+        { provide: CLASS_REPOSITORY, useFactory: mockCountFindRepo },
+        { provide: STUDENT_REPOSITORY, useFactory: mockStudentRepo },
+        { provide: CLASS_SIMULATION_REPOSITORY, useFactory: mockClassSimRepo },
       ],
     }).compile();
     service = svcModule.get(DashboardService);
-    schoolRepo = svcModule.get(getRepositoryToken(Schools));
-    educatorRepo = svcModule.get(getRepositoryToken(Educator));
-    classRepo = svcModule.get(getRepositoryToken(Class));
-    studentRepo = svcModule.get(getRepositoryToken(Student));
-    classSimRepo = svcModule.get(getRepositoryToken(ClassSimulation));
+    schoolRepo = svcModule.get(SCHOOLS_REPOSITORY);
+    educatorRepo = svcModule.get(EDUCATOR_REPOSITORY);
+    classRepo = svcModule.get(CLASS_REPOSITORY);
+    studentRepo = svcModule.get(STUDENT_REPOSITORY);
+    classSimRepo = svcModule.get(CLASS_SIMULATION_REPOSITORY);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -298,11 +298,9 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockResolvedValue([]);
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(0);
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(0);
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     const promise = service.getOverview('admin-id');
     // Promise must still be pending while the repo call is unresolved
@@ -328,11 +326,9 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockResolvedValue([{ id: 'e1' }, { id: 'e2' }]);
     classRepo.count.mockResolvedValue(4);
     classRepo.find.mockResolvedValue([{ id: 'c1' }]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(5);
-    studentQb.getMany.mockResolvedValue([{ id: 'st1' }]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([{ id: 'cs1' }]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(5);
+    studentRepo.findActiveForAdmin.mockResolvedValue([{ id: 'st1' }]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([{ id: 'cs1' }]);
 
     const result = await service.getOverview('admin-id');
 
@@ -368,11 +364,9 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockResolvedValue([]);
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(0);
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(0);
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     const result = await service.getOverview('admin-id');
 
@@ -408,11 +402,9 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockResolvedValue([]);
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(0);
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(0);
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     const result = await service.getOverview('admin-id');
 
@@ -432,11 +424,9 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockResolvedValue([]);
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(0);
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(0);
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     const result = await service.getOverview('admin-id');
 
@@ -456,11 +446,9 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockResolvedValue([]);
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(0);
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(0);
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     await expect(service.getOverview('admin-id')).rejects.toThrow('DB connection lost');
   });
@@ -472,27 +460,23 @@ describe('Dashboard Data States', () => {
     educatorRepo.find.mockRejectedValue(new Error('Educator fetch failed'));
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockResolvedValue(0);
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockResolvedValue(0);
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     await expect(service.getOverview('admin-id')).rejects.toThrow('Educator fetch failed');
   });
 
-  it('error state: rejects when student query-builder getCount throws', async () => {
+  it('error state: rejects when student count lookup throws', async () => {
     schoolRepo.count.mockResolvedValue(0);
     schoolRepo.find.mockResolvedValue([]);
     educatorRepo.count.mockResolvedValue(0);
     educatorRepo.find.mockResolvedValue([]);
     classRepo.count.mockResolvedValue(0);
     classRepo.find.mockResolvedValue([]);
-    const studentQb = wireQueryBuilder(studentRepo);
-    studentQb.getCount.mockRejectedValue(new Error('Student count failed'));
-    studentQb.getMany.mockResolvedValue([]);
-    const classSimQb = wireQueryBuilder(classSimRepo);
-    classSimQb.getMany.mockResolvedValue([]);
+    studentRepo.countActiveForAdmin.mockRejectedValue(new Error('Student count failed'));
+    studentRepo.findActiveForAdmin.mockResolvedValue([]);
+    classSimRepo.findPreviewForAdmin.mockResolvedValue([]);
 
     await expect(service.getOverview('admin-id')).rejects.toThrow('Student count failed');
   });

@@ -1,8 +1,13 @@
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import express from 'express';
 
 import { HealthService } from './health.service';
+import { RATE_LIMIT_THROTTLER_NAME } from '../common/guards/auth-throttler.guard';
+import { Public } from '../common/decorators/public.decorator';
 
+@SkipThrottle({ default: true, [RATE_LIMIT_THROTTLER_NAME]: true })
+@Public()
 @Controller()
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}

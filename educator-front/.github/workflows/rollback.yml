@@ -349,11 +349,11 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/teams-notify
         with:
-          webhook-url:    ${{ secrets.TEAMS_WEBHOOK_URL }}
-          github-login:   ${{ github.actor }}
-          headline:       "${{ steps.status.outputs.title }} — ${{ inputs.environment }}"
-          style:          ${{ steps.status.outputs.style }}
-          mention-prefix: "Triggered by "
+          webhook-url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          github-login: ${{ github.actor }}
+          headline: '${{ steps.status.outputs.title }} — ${{ inputs.environment }}'
+          style: ${{ steps.status.outputs.style }}
+          mention-prefix: 'Triggered by '
           facts-json: |
             [
               { "title": "Repository", "value": "${{ github.repository }}" },

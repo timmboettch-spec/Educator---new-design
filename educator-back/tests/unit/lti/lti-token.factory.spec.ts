@@ -42,7 +42,8 @@ describe('LtiTokenFactory', () => {
         email: 'test@example.com',
         courseId: '100',
         courseTitle: 'Sample Course',
-        nrpsUrl: 'https://moodle.test.edu/mod/lti/services.php/CourseSection/100/bindings/1/memberships',
+        nrpsUrl:
+          'https://moodle.test.edu/mod/lti/services.php/CourseSection/100/bindings/1/memberships',
       });
 
       const payload = decodeFakeJwt(token);
@@ -54,20 +55,24 @@ describe('LtiTokenFactory', () => {
       expect(payload.iat).toBeDefined();
       expect(payload.nonce).toBeDefined();
 
-      expect(payload['https://purl.imsglobal.org/spec/lti/claim/message_type']).toBe('LtiResourceLinkRequest');
+      expect(payload['https://purl.imsglobal.org/spec/lti/claim/message_type']).toBe(
+        'LtiResourceLinkRequest',
+      );
       expect(payload['https://purl.imsglobal.org/spec/lti/claim/version']).toBe('1.3.0');
       expect(payload['https://purl.imsglobal.org/spec/lti/claim/roles']).toContain(
         'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor',
       );
 
-      const context = payload['https://purl.imsglobal.org/spec/lti/claim/context'] as Record<string, unknown>;
-      expect(context.id).toBe('100');
-      expect(context.title).toBe('Sample Course');
-
-      const nrps = payload['https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice'] as Record<
+      const context = payload['https://purl.imsglobal.org/spec/lti/claim/context'] as Record<
         string,
         unknown
       >;
+      expect(context.id).toBe('100');
+      expect(context.title).toBe('Sample Course');
+
+      const nrps = payload[
+        'https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice'
+      ] as Record<string, unknown>;
       expect(nrps.context_memberships_url).toContain('memberships');
     });
 
@@ -85,7 +90,9 @@ describe('LtiTokenFactory', () => {
       const payload = decodeFakeJwt(token);
       expect(payload.nonce).toBe(customNonce);
       expect(payload.sub).toBe(customSub);
-      expect(payload['https://purl.imsglobal.org/spec/lti/claim/deployment_id']).toBe(customDeploymentId);
+      expect(payload['https://purl.imsglobal.org/spec/lti/claim/deployment_id']).toBe(
+        customDeploymentId,
+      );
     });
   });
 
@@ -120,13 +127,62 @@ describe('LtiTokenFactory', () => {
       const instructorPayload = decodeFakeJwt(instructorToken);
       const learnerPayload = decodeFakeJwt(learnerToken);
 
-      const instructorRoles = instructorPayload['https://purl.imsglobal.org/spec/lti/claim/roles'] as string[];
-      const learnerRoles = learnerPayload['https://purl.imsglobal.org/spec/lti/claim/roles'] as string[];
+      const instructorRoles = instructorPayload[
+        'https://purl.imsglobal.org/spec/lti/claim/roles'
+      ] as string[];
+      const learnerRoles = learnerPayload[
+        'https://purl.imsglobal.org/spec/lti/claim/roles'
+      ] as string[];
 
       expect(instructorRoles.some((r) => r.includes('Instructor'))).toBe(true);
       expect(learnerRoles.some((r) => r.includes('Learner'))).toBe(true);
       expect(instructorRoles.some((r) => r.includes('Learner'))).toBe(false);
       expect(learnerRoles.some((r) => r.includes('Instructor'))).toBe(false);
+    });
+  });
+
+  describe('Canvas tokens', () => {
+    it('should generate Canvas educator tokens with NRPS names_and_roles URL', () => {
+      const token = LtiTokenFactory.buildCanvasEducatorLaunchToken({
+        email: 'teacher@school.edu',
+        courseId: '123',
+      });
+
+      const payload = decodeFakeJwt(token);
+      expect(payload.iss).toBe('https://canvas.test.instructure.com');
+      expect(payload['https://purl.imsglobal.org/spec/lti/claim/deployment_id']).toBeDefined();
+      expect(payload.email).toBe('teacher@school.edu');
+
+      const nrps = payload[
+        'https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice'
+      ] as Record<string, unknown>;
+      expect(nrps.context_memberships_url).toBe(
+        'https://canvas.test.instructure.com/api/lti/courses/123/names_and_roles',
+      );
+    });
+
+    it('should generate Canvas student tokens without NRPS claim', () => {
+      const token = LtiTokenFactory.buildCanvasStudentLaunchToken();
+      const payload = decodeFakeJwt(token);
+
+      expect(payload.iss).toBe('https://canvas.test.instructure.com');
+      expect(payload['https://purl.imsglobal.org/spec/lti/claim/roles']).toContain(
+        'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner',
+      );
+      expect(
+        payload['https://purl.imsglobal.org/spec/lti-nrps/claim/namesroleservice'],
+      ).toBeUndefined();
+    });
+
+    it('should support Canvas aud array + azp on educator tokens', () => {
+      const token = LtiTokenFactory.buildCanvasEducatorLaunchToken({
+        clientId: '10000000000099',
+        audAsArray: true,
+      });
+      const payload = decodeFakeJwt(token);
+
+      expect(payload.aud).toEqual(['10000000000099']);
+      expect(payload.azp).toBe('10000000000099');
     });
   });
 

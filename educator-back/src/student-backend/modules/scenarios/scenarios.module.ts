@@ -1,16 +1,14 @@
-import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 
-import { ScenarioAssignmentGuard } from './guards/scenario-assignment.guard';
-import { ScenarioAssignmentService } from './scenario-assignment.service';
 import { ScenariosController } from './scenarios.controller';
 import { ScenariosService } from './scenarios.service';
-import { StudentsModule } from 'src/students/students.module';
+import { SimulationModule } from 'src/simulation/simulation.module';
+import { VoiceProfilesModule } from 'src/voice-profiles/voice-profiles.module';
 
 @Module({
-  imports: [HttpModule, StudentsModule],
+  imports: [SimulationModule, VoiceProfilesModule],
   controllers: [ScenariosController],
-  providers: [ScenariosService, ScenarioAssignmentService, ScenarioAssignmentGuard],
-  exports: [ScenarioAssignmentService, ScenarioAssignmentGuard],
+  providers: [ScenariosService],
+  exports: [ScenariosService],
 })
 export class ScenariosModule {}

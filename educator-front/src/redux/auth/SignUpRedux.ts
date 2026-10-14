@@ -1,32 +1,30 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
+import { normalizeAuthUser } from '../../utils/normalizeAuthUser';
 import config from '../config';
+import type { LoginResponse } from './LoginRedux';
 
 export interface SignUpPayload {
   email: string;
   password: string;
-  full_name: string;
-  invite_id?: string;
+  fullName?: string;
+  phoneNumber?: string;
 }
 
-export interface SignUpResponse {
-  tokens: {
-    accessToken: string;
-  };
-  user: {
-    id: string;
-    email: string;
-    full_name: string;
-    isLicenseActive: boolean;
-  };
-}
+/** Signup auto-authenticates and returns the same shape as login. */
+export type SignUpResponse = LoginResponse;
 
 export interface ResponseSignUp {
   data: SignUpResponse;
   message: string;
-  status: string;
+  /** Dropped by the new response envelope; still sent by the old one. */
+  status?: string;
 }
 
 export interface SignUpState {
@@ -50,7 +48,17 @@ export const SignUpRequest = createAsyncThunk<
     const res = await axios.post(config.SignUpAPI, data, {
       withCredentials: true,
     });
-    return res.data;
+    // Signup returns the login shape; flatten userRoles[] so the consumers of
+    // responseSignUp (AppRouter, RedeemHeader) keep reading role/full_name.
+    const body = res.data as ResponseSignUp;
+    return {
+      ...body,
+      data: {
+        ...body.data,
+        user: (normalizeAuthUser(body.data?.user) ??
+          body.data?.user) as SignUpResponse['user'],
+      },
+    };
   } catch (err) {
     const error = err as { response?: { data?: { message?: string } } };
     return thunkAPI.rejectWithValue({
@@ -93,8 +101,17 @@ export default SignUpSlice.reducer;
 
 const selectState = (state: RootState) => state.SignUp;
 
-export const selectSignUpResponse = createSelector(selectState, (state) => state.responseSignUp);
+export const selectSignUpResponse = createSelector(
+  selectState,
+  (state) => state.responseSignUp
+);
 
-export const selectSignUpStatus = createSelector(selectState, (state) => state.status);
+export const selectSignUpStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
 
-export const selectSignUpError = createSelector(selectState, (state) => state.error);
+export const selectSignUpError = createSelector(
+  selectState,
+  (state) => state.error
+);

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Heart, ChevronDown, Play } from "lucide-react";
-import loginEn from "../../locales/auth/login/en.json";
-import loginEs from "../../locales/auth/login/es.json";
-import { type SectionItem, type SimulationDetail } from "../../types/index";
-import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { toast } from "../common/Toast";
-import ShareModal from "../../components/modal/ShareModal";
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { ArrowLeft, ChevronDown, Heart, Loader2 } from 'lucide-react';
+import {
+  type SectionItem,
+  type SimulationDetail as SimulationDetailType,
+} from '../../types/index';
+import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { cn } from '@/lib/utils';
+import { toast } from '../common/Toast';
 import {
   selectLibrarySimulationIds,
   selectLibraryUnits,
@@ -14,55 +16,104 @@ import {
   removePendingLibraryId,
   addPendingRemoveId,
   removePendingRemoveId,
-} from "../../redux/simulation/MyLibraryRedux";
-import { selectSimulationLibraryData } from "@/redux/dashboard/simulationlibrary/GetSimulationRedux";
+} from '../../redux/simulation/MyLibraryRedux';
+import { selectSimulationLibraryData } from '@/redux/dashboard/simulationlibrary/GetSimulationRedux';
 import {
   clearSimulationDetail,
   fetchUnitDataRequest,
   selectSimulationDetail,
-} from "../../redux/simulation/Simulationdetailredux";
+} from '../../redux/simulation/Simulationdetailredux';
 import {
   clearResolvedScenario,
   fetchSimulationRequest,
   selectEffectiveScenarioId,
-} from "../../redux/simulation/SimulationResolveRedux";
-import { clearSelectedSimulation } from "../../redux/simulation/FetchSimulationCatalogRedux";
-import BlobImage from "../common/BlobImage";
+} from '../../redux/simulation/SimulationResolveRedux';
+import { clearSelectedSimulation } from '../../redux/simulation/FetchSimulationCatalogRedux';
+import BlobImage from '../common/BlobImage';
+import ErrorState from './ErrorState';
+import { Skeleton } from '../ui/Skeleton';
 import {
   RemoveFromLibraryRequest,
   selectLibraryRemoving,
-} from "@/redux/simulation/RemoveFromLibraryRedux";
+} from '@/redux/simulation/RemoveFromLibraryRedux';
 import {
   AddToLibraryRequest,
   selectLibraryAdding,
-} from "@/redux/simulation/AddToLibraryRequestRedux";
-import { selectIsStartTrial } from "@/redux/auth/LoginRedux";
-import { getDerivedCategory } from "../../utils/simulationType";
-import { getParsedUser } from "../../utils/storage";
+} from '@/redux/simulation/AddToLibraryRequestRedux';
+import { selectIsStartTrial } from '@/redux/auth/LoginRedux';
 import {
-  consumePreview,
-  getPreviewsRemaining,
-  MAX_PREVIEW_ATTEMPTS,
-} from "../../utils/previewAttempts";
-import PreviewSimulationModal from "./PreviewSimulationModal";
+  useSimulationDurationLabel,
+  useSimulationValueLabel,
+} from '@/hooks/useSimulationValueLabel';
+import { type SimulationDocumentType } from '@/api/simulationDocumentApi';
+import { generateSupportingDocument } from '@/lib/simulationDocuments';
+import { translateApiError } from '../../utils/translateApiError';
 
-// Simulations run in the student app; an educator preview launches there in
-// Practice mode, flagged so the backend stores no report/transcript.
-const STUDENT_APP_URL = "https://tutorpatient.realityworksai.com/";
-
-type SupportedLang = "en" | "es";
-const getStoredLanguage = (): SupportedLang => {
-  if (typeof window === "undefined") return "en";
-  const saved = localStorage.getItem("app_language")?.toLowerCase();
-  return saved === "es" ? "es" : "en";
+type SupportingDocument = {
+  type: SimulationDocumentType;
+  labelKey:
+    | 'documents.setupGuide'
+    | 'documents.simulationDetails'
+    | 'documents.briefingScript'
+    | 'documents.debriefingScript'
+    | 'documents.patientSbar'
+    | 'documents.patientChart';
+  filename: string;
+  audience: 'instructor' | 'student';
+  availableForAvatar: boolean;
 };
+
+const SUPPORTING_DOCUMENTS: SupportingDocument[] = [
+  {
+    type: 'setup-guide',
+    labelKey: 'documents.setupGuide',
+    filename: 'simulation-set-up-guide.pdf',
+    audience: 'instructor',
+    availableForAvatar: false,
+  },
+  {
+    type: 'simulation-details',
+    labelKey: 'documents.simulationDetails',
+    filename: 'simulation-details.pdf',
+    audience: 'instructor',
+    availableForAvatar: true,
+  },
+  {
+    type: 'briefing-script',
+    labelKey: 'documents.briefingScript',
+    filename: 'simulation-briefing-script.pdf',
+    audience: 'instructor',
+    availableForAvatar: true,
+  },
+  {
+    type: 'debriefing-script',
+    labelKey: 'documents.debriefingScript',
+    filename: 'simulation-debriefing-script.pdf',
+    audience: 'instructor',
+    availableForAvatar: true,
+  },
+  {
+    type: 'patient-sbar',
+    labelKey: 'documents.patientSbar',
+    filename: 'printable-patient-sbar.pdf',
+    audience: 'student',
+    availableForAvatar: false,
+  },
+  {
+    type: 'patient-chart',
+    labelKey: 'documents.patientChart',
+    filename: 'printable-patient-chart.pdf',
+    audience: 'student',
+    availableForAvatar: false,
+  },
+];
 
 /** A rounded, self-contained collapsible section card for the details page. */
 function CollapsibleCard({
   title,
   open,
   onToggle,
-  className = "",
+  className,
   children,
 }: {
   title: string;
@@ -73,24 +124,31 @@ function CollapsibleCard({
 }) {
   return (
     <div
-      className={`bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden ${className}`}
+      className={cn(
+        'bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden',
+        className
+      )}
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-3 text-left px-5 sm:px-6 py-4 hover:bg-[#e9e9e9]/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        className="w-full flex items-center justify-between gap-3 text-left px-5 sm:px-6 py-4 hover:bg-neutral-active/60 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
       >
         <h2
-          className={`text-base sm:text-lg font-bold transition-colors ${
-            open ? "text-primary-500" : "text-[#5f6060]"
-          }`}
+          className={cn(
+            'text-base sm:text-lg font-bold transition-colors',
+            open ? 'text-primary-500' : 'text-neutral-strong'
+          )}
         >
           {title}
         </h2>
         <ChevronDown
           size={20}
-          className={`text-gray-500 shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          className={cn(
+            'text-gray-500 shrink-0 transition-transform duration-200',
+            open && 'rotate-180'
+          )}
           aria-hidden="true"
         />
       </button>
@@ -104,27 +162,25 @@ function CollapsibleCard({
 }
 
 /**
- * Render a free-text value as bullet points — one dot per line — when it spans
- * multiple lines; falls back to a single paragraph for one-line values. Strips
- * any leading bullet/dash the source text already carries so dots don't double.
+ * Render a free-text value as bullet points, one per line. Strips any leading
+ * bullet/dash the source text already carries so dots don't double.
  */
 function BulletedText({
   value,
-  className = "",
+  className,
 }: {
   value: string;
   className?: string;
 }) {
   const lines = value
     .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^[•\-*]\s*/, ""))
+    .map((line) => line.trim().replace(/^[•\-*]\s*/, ''))
     .filter(Boolean);
   if (lines.length === 0) {
-    return <p className={`whitespace-pre-line ${className}`}>{value}</p>;
+    return <p className={cn('whitespace-pre-line', className)}>{value}</p>;
   }
-  // Always render a dot per line — a single-line value still gets one bullet.
   return (
-    <ul className={`list-disc list-outside pl-5 space-y-1 ${className}`}>
+    <ul className={cn('list-disc list-outside pl-5 space-y-1', className)}>
       {lines.map((line, i) => (
         <li key={i}>{line}</li>
       ))}
@@ -132,10 +188,12 @@ function BulletedText({
   );
 }
 
+const SECTION_INSET = 'mx-6 sm:mx-8 lg:mx-12 xl:mx-16';
+
 interface SimulationDetailProps {
   simulationId: string | number;
   initialData?: SectionItem;
-  publicDetail?: SimulationDetail | null;
+  publicDetail?: SimulationDetailType | null;
   onBack: () => void;
   isPublic?: boolean;
   hideBackButton?: boolean;
@@ -143,28 +201,36 @@ interface SimulationDetailProps {
   fromLibrary?: boolean;
   disableLibraryAction?: boolean;
   backLabel?: string;
+  /**
+   * Status of the page's full-details request. While it is pending or has
+   * failed and no section data has arrived from either source, the sections
+   * area shows a loading skeleton or an error with Retry under the hero.
+   */
+  detailsStatus?: 'loading' | 'ready' | 'failed';
+  /** Re-requests the page's full details (paired with `detailsStatus`). */
+  onRetryDetails?: () => void;
 }
 
 const sanitizeDurationText = (value: unknown): string => {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
 
   if (raw.length <= 30 && /min|hour|hr/i.test(raw)) return raw;
 
   const rangeMatch = raw.match(
-    /(\d+\s*(?:-|to)\s*\d+\s*(?:minutes?|mins?|hours?|hrs?))/i,
+    /(\d+\s*(?:-|to)\s*\d+\s*(?:minutes?|mins?|hours?|hrs?))/i
   );
   if (rangeMatch?.[1]) {
     return rangeMatch[1]
-      .replace(/\s+to\s+/i, "-")
-      .replace(/\s+/g, " ")
+      .replace(/\s+to\s+/i, '-')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
   const singleMatch = raw.match(/(\d+\s*(?:minutes?|mins?|hours?|hrs?))/i);
-  if (singleMatch?.[1]) return singleMatch[1].replace(/\s+/g, " ").trim();
+  if (singleMatch?.[1]) return singleMatch[1].replace(/\s+/g, ' ').trim();
 
-  return "";
+  return '';
 };
 
 const SimulationDetail = ({
@@ -178,19 +244,23 @@ const SimulationDetail = ({
   fromLibrary = false,
   disableLibraryAction = false,
   backLabel,
+  detailsStatus,
+  onRetryDetails,
 }: SimulationDetailProps) => {
   const dispatch = useAppDispatch();
-  const t = (
-    localStorage.getItem("app_language")?.toLowerCase() === "es"
-      ? loginEs
-      : loginEn
-  ).simulationDetail;
+  const { t, i18n } = useTranslation('simulationLibrary', {
+    keyPrefix: 'details',
+  });
+  // Drives the API `ls` param and the legacy API-error translator.
+  const language = i18n.resolvedLanguage === 'es' ? 'es' : 'en';
+  const valueLabel = useSimulationValueLabel();
+  const durationLabel = useSimulationDurationLabel();
   const simulationDetail = useAppSelector(selectSimulationDetail);
   const blobDetail = useAppSelector(
-    (state) => state.simulationCatalog.selectedItem,
+    (state) => state.simulationCatalog.selectedItem
   );
   const effectiveScenarioId = useAppSelector(
-    selectEffectiveScenarioId(simulationId),
+    selectEffectiveScenarioId(simulationId)
   );
   const addingToLibrary = useAppSelector(selectLibraryAdding);
   const removingFromLibrary = useAppSelector(selectLibraryRemoving);
@@ -214,7 +284,7 @@ const SimulationDetail = ({
   } | null>(null);
 
   const normalizeKey = (value: unknown) =>
-    String(value ?? "")
+    String(value ?? '')
       .trim()
       .toLowerCase();
   const normalizedLibraryIds = new Set(Array.from(libraryIds, normalizeKey));
@@ -223,7 +293,7 @@ const SimulationDetail = ({
     if (!optimisticInLibrary) return;
     if (!libraryLoadedRef.current) return;
     const hasKey = normalizedLibraryIds.has(
-      normalizeKey(optimisticInLibrary.key),
+      normalizeKey(optimisticInLibrary.key)
     );
     if (
       (optimisticInLibrary.value && hasKey) ||
@@ -240,42 +310,18 @@ const SimulationDetail = ({
   }, [simulationId]);
 
   const navigate = useNavigate();
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [additionalDetailsOpen, setAdditionalDetailsOpen] = useState(false);
   const [studentBriefingOpen, setStudentBriefingOpen] = useState(false);
   const [sbarOpen, setSbarOpen] = useState(false);
   const [facilitationDocsOpen, setFacilitationDocsOpen] = useState(false);
+  const [generatingDocument, setGeneratingDocument] =
+    useState<SimulationDocumentType | null>(null);
+  // The unit request is the second source of section data.
+  const [isUnitLoading, setIsUnitLoading] = useState(false);
+  const [unitRetryKey, setUnitRetryKey] = useState(0);
 
-  // Educator "preview simulation" (practice mode, up to 3 attempts, nothing
-  // stored). Tracked per educator + simulation in localStorage.
-  const previewUserId = String(
-    (getParsedUser()?.id as string | undefined) ?? "",
-  );
-  const previewSimId = String(effectiveScenarioId ?? simulationId ?? "");
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewsRemaining, setPreviewsRemaining] = useState<number>(() =>
-    getPreviewsRemaining(previewUserId, previewSimId),
-  );
-  useEffect(() => {
-    setPreviewsRemaining(getPreviewsRemaining(previewUserId, previewSimId));
-  }, [previewUserId, previewSimId]);
-
-  const handleStartPreview = () => {
-    if (!previewUserId || !previewSimId) {
-      setPreviewOpen(false);
-      return;
-    }
-    const remaining = consumePreview(previewUserId, previewSimId);
-    setPreviewsRemaining(remaining);
-    setPreviewOpen(false);
-    // Launch in the student app, Practice mode, flagged as a no-store preview.
-    const url = `${STUDENT_APP_URL}?simulationId=${encodeURIComponent(
-      previewSimId,
-    )}&mode=practice&preview=1`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  };
-  // 1-click expand/collapse for every collapsible section.
+  // One-click expand/collapse for every collapsible section.
   const setAllSections = (open: boolean) => {
     setOverviewOpen(open);
     setAdditionalDetailsOpen(open);
@@ -283,14 +329,8 @@ const SimulationDetail = ({
     setSbarOpen(open);
     setFacilitationDocsOpen(open);
   };
-  const allSectionsOpen =
-    overviewOpen &&
-    additionalDetailsOpen &&
-    studentBriefingOpen &&
-    sbarOpen &&
-    facilitationDocsOpen;
-
   useEffect(() => {
+    let cancelled = false;
     const bootstrap = async () => {
       if (isPublic) return;
 
@@ -299,107 +339,131 @@ const SimulationDetail = ({
       try {
         const initialScenarioId =
           initialData?.scenarioId ??
-          (typeof simulationId === "string" && simulationId !== "0"
+          (typeof simulationId === 'string' && simulationId !== '0'
             ? simulationId
             : undefined) ??
-          (typeof simulationId === "number" && simulationId !== 0
+          (typeof simulationId === 'number' && simulationId !== 0
             ? String(simulationId)
             : undefined);
 
         let resolvedScenarioId: string | undefined = initialScenarioId;
 
-        const ls = getStoredLanguage() === "es" ? "es" : "en";
+        const ls = language;
 
         if (!resolvedScenarioId && initialData?.title) {
           try {
             resolvedScenarioId = await dispatch(
-              fetchSimulationRequest({ title: initialData.title, ls }),
+              fetchSimulationRequest({ title: initialData.title, ls })
             ).unwrap();
           } catch (err) {
-            const msg = (err as { message?: string })?.message ?? "";
-            toast.error(msg || "Failed to resolve simulation by title");
+            const msg = (err as { message?: string })?.message ?? '';
+            toast.error(
+              msg
+                ? translateApiError(msg, language)
+                : t('toast.failedToResolve')
+            );
           }
         }
 
         const unitId =
           initialData?.unit ??
           ((initialData as unknown as Record<string, unknown>)?.unit_id as
-            | string
-            | undefined);
+            string | undefined);
 
         if (unitId) {
+          setIsUnitLoading(true);
           try {
             const fallbackItem: SectionItem = initialData || {
               id:
-                typeof simulationId === "string"
+                typeof simulationId === 'string'
                   ? parseInt(simulationId)
                   : simulationId,
-              title: "",
-              image: "",
-              cta: "View",
-              description: "",
+              title: '',
+              image: '',
+              cta: 'View',
+              description: '',
             };
             await dispatch(
               fetchUnitDataRequest({
                 unitId,
                 simulationId,
                 resolvedScenarioId,
-                title: initialData?.title || "",
+                title: initialData?.title || '',
                 fallback: fallbackItem,
                 ls,
-              }),
+                // The page shows its own loading state for this request
+                // when it tracks the details status.
+                silent: Boolean(detailsStatus),
+              })
             ).unwrap();
           } catch (err) {
-            const msg = (err as { message?: string })?.message ?? "";
-            toast.error(msg || "Failed to load unit data");
+            // When the page reports the details status, a failure here is
+            // covered by the inline error with Retry; don't toast it as well.
+            if (!detailsStatus) {
+              const msg = (err as { message?: string })?.message ?? '';
+              toast.error(
+                msg
+                  ? translateApiError(msg, language)
+                  : t('toast.failedToLoadUnitData')
+              );
+            }
+          } finally {
+            if (!cancelled) setIsUnitLoading(false);
           }
         }
       } catch (err) {
-        const msg = (err as { message?: string })?.message ?? "";
-        toast.error(msg || "Failed to load simulation details");
+        const msg = (err as { message?: string })?.message ?? '';
+        toast.error(
+          msg
+            ? translateApiError(msg, language)
+            : t('toast.failedToLoadDetails')
+        );
       }
     };
 
     bootstrap().catch((err) => {
-      const msg = (err as { message?: string })?.message ?? "";
-      toast.error(msg || "Unexpected error loading simulation details");
+      const msg = (err as { message?: string })?.message ?? '';
+      toast.error(
+        msg ? translateApiError(msg, language) : t('toast.unexpectedError')
+      );
     });
 
     return () => {
+      cancelled = true;
       dispatch(clearSimulationDetail());
       dispatch(clearResolvedScenario());
       dispatch(clearSelectedSimulation());
     };
-  }, [simulationId]);
+  }, [simulationId, unitRetryKey]);
 
-  const fallbackSim: SimulationDetail = {
+  const fallbackSim: SimulationDetailType = {
     id: 0,
-    title: initialData?.title ?? "",
-    subtitle: initialData?.subtitle || "",
-    scenarioImage: initialData?.image || "",
+    title: initialData?.title ?? '',
+    subtitle: initialData?.subtitle || '',
+    scenarioImage: initialData?.image || '',
     images: initialData?.images,
-    unit: initialData?.unit || "",
-    category: "", // Category is now derived from avatarEnabled only
-    language: initialData?.language || "",
+    unit: initialData?.unit || '',
+    category: '', // Category is now derived from avatarEnabled only
+    language: initialData?.language || '',
     targetAudience: initialData?.targetAudience,
-    difficultyLevel: initialData?.difficulty || "",
-    estimatedDuration: initialData?.duration || "",
-    purpose: initialData?.purpose || "",
-    description: initialData?.description || "",
+    difficultyLevel: initialData?.difficulty || '',
+    estimatedDuration: initialData?.duration || '',
+    purpose: initialData?.purpose || '',
+    description: initialData?.description || '',
     learning_objectives: initialData?.learning_objectives,
-    developer: initialData?.developer || "",
-    institution: initialData?.institution || "",
-    last_update: initialData?.last_update || "",
-    simulation_privacy: "",
+    developer: initialData?.developer || '',
+    institution: initialData?.institution || '',
+    last_update: initialData?.last_update || '',
+    simulation_privacy: '',
     tries_left: undefined,
     whats_new: undefined,
   };
 
-  const sim: SimulationDetail = (() => {
+  const sim: SimulationDetailType = (() => {
     if (isPublic && publicDetail) return publicDetail;
     if (!isPublic && publicDetail && !simulationDetail) return publicDetail;
     if (blobDetail) {
-      const base = simulationDetail ?? ({} as SimulationDetail);
+      const base = simulationDetail ?? ({} as SimulationDetailType);
       const blob = blobDetail as unknown as Record<string, unknown>;
       return {
         ...base,
@@ -408,23 +472,23 @@ const SimulationDetail = ({
           blobDetail.scenarioImage ||
           base.scenarioImage ||
           initialData?.image ||
-          "",
+          '',
         images: blobDetail.images?.length
           ? blobDetail.images
           : (base.images ?? initialData?.images),
-        unit: blobDetail.unit || base.unit || initialData?.unit || "",
-        category: "", // Category is now derived from avatarEnabled only
+        unit: blobDetail.unit || base.unit || initialData?.unit || '',
+        category: '', // Category is now derived from avatarEnabled only
         language:
-          blobDetail.language || base.language || initialData?.language || "",
+          blobDetail.language || base.language || initialData?.language || '',
         image_url:
-          blobDetail.image_url || base.image_url || initialData?.image || "",
+          blobDetail.image_url || base.image_url || initialData?.image || '',
         estimatedDuration:
           blobDetail.estimatedDuration ||
           (blob.estimated_duration as string | undefined) ||
           (blob.duration as string | undefined) ||
           base.estimatedDuration ||
           initialData?.duration ||
-          "",
+          '',
         targetAudience:
           blobDetail.targetAudience ??
           base.targetAudience ??
@@ -433,13 +497,13 @@ const SimulationDetail = ({
           blobDetail.learning_objectives ??
           base.learning_objectives ??
           initialData?.learning_objectives,
-      } as SimulationDetail;
+      } as SimulationDetailType;
     }
     return simulationDetail ?? fallbackSim;
   })();
 
   const screenshots = (sim.images ?? []).filter(
-    (src): src is string => typeof src === "string" && src.trim().length > 0,
+    (src): src is string => typeof src === 'string' && src.trim().length > 0
   );
 
   const matchKeys = Array.from(
@@ -453,9 +517,9 @@ const SimulationDetail = ({
         (sim as unknown as Record<string, unknown>).simulation_id,
         (sim as unknown as Record<string, unknown>).scenario_id,
       ]
-        .filter((value) => value != null && String(value).trim() !== "")
-        .map(normalizeKey),
-    ),
+        .filter((value) => value != null && String(value).trim() !== '')
+        .map(normalizeKey)
+    )
   );
 
   const isLibraryKey = (key: unknown) => {
@@ -464,59 +528,77 @@ const SimulationDetail = ({
     return libraryUnits.some((unit) =>
       unit.simulations.some((librarySim) =>
         [librarySim.id, librarySim.simulation_id, librarySim.scenario_id]
-          .filter((value) => value != null && String(value).trim() !== "")
+          .filter((value) => value != null && String(value).trim() !== '')
           .map(normalizeKey)
-          .includes(normalized),
-      ),
+          .includes(normalized)
+      )
     );
   };
   // Also check against the simulation-library store (populated when navigating from the library page)
   // so the button state is correct immediately using whatever data is already in Redux.
   const isInSimulationLibraryData = librarySimulationsData.some((libSim) =>
     matchKeys.some((k) =>
-      [normalizeKey(libSim.id), normalizeKey(libSim.simulation_id)].includes(k),
-    ),
+      [normalizeKey(libSim.id), normalizeKey(libSim.simulation_id)].includes(k)
+    )
   );
 
   const addedToLibrary =
     optimisticInLibrary !== null &&
-      optimisticInLibrary.key === librarySimulationId
+    optimisticInLibrary.key === librarySimulationId
       ? optimisticInLibrary.value
       : matchKeys.some(isLibraryKey) || isInSimulationLibraryData;
 
   const libraryActionDisabled = disableLibraryAction || actionInProgress;
 
   const simRecord = sim as unknown as Record<string, unknown>;
-  // Use avatarEnabled as sole source of truth for category display
+
+  // avatarEnabled is the sole source of truth for the modality shown.
   const avatarEnabledValue = (sim as unknown as Record<string, unknown>)
     ?.avatarEnabled as boolean | undefined;
-  const derivedCategory = getDerivedCategory(avatarEnabledValue);
-  const displayCategory = derivedCategory || "";
-  const categoryText = displayCategory || "N/A";
+  const categoryText =
+    avatarEnabledValue === true
+      ? t('modalityValue.aiOnly')
+      : t('modalityValue.manikin');
+  const supportingDocuments = SUPPORTING_DOCUMENTS.filter(
+    (document) => !avatarEnabledValue || document.availableForAvatar
+  );
+  const instructorDocuments = supportingDocuments.filter(
+    (document) => document.audience === 'instructor'
+  );
+  const studentDocuments = supportingDocuments.filter(
+    (document) => document.audience === 'student'
+  );
+  const handleDocumentRequest = async (document: SupportingDocument) => {
+    if (generatingDocument) return;
+
+    setGeneratingDocument(document.type);
+    try {
+      await generateSupportingDocument(document.type, sim, document.filename);
+    } catch {
+      toast.error(t('documentFailed'));
+    } finally {
+      setGeneratingDocument(null);
+    }
+  };
   const rawDifficulty =
     sim.difficultyLevel ||
     (simRecord.difficulty as string | undefined) ||
     (simRecord.difficulty_level as string | undefined) ||
     initialData?.difficulty ||
-    "";
-  const difficultyTranslationMap: Record<string, string> = {
-    Easy: t.difficultyEasy,
-    Medium: t.difficultyMedium,
-    Hard: t.difficultyHard,
-  };
-  const displayDifficulty =
-    difficultyTranslationMap[rawDifficulty] ?? rawDifficulty;
-  const displayDuration = sanitizeDurationText(
+    '';
+  const displayDifficulty = valueLabel(rawDifficulty);
+  const rawDuration = sanitizeDurationText(
     sim.estimatedDuration ||
-    (simRecord.estimated_duration as string | undefined) ||
-    (simRecord.estimated_duration_minutes as string | undefined) ||
-    (simRecord.duration as string | undefined) ||
-    ((sim.studentBriefing as Record<string, unknown> | undefined)
-      ?.time_allotment as string | undefined) ||
-    sim.studentBriefing?.timeAllotment ||
-    initialData?.duration ||
-    "",
+      (simRecord.estimated_duration as string | undefined) ||
+      (simRecord.estimated_duration_minutes as string | undefined) ||
+      (simRecord.duration as string | undefined) ||
+      ((sim.studentBriefing as Record<string, unknown> | undefined)
+        ?.time_allotment as string | undefined) ||
+      sim.studentBriefing?.timeAllotment ||
+      initialData?.duration ||
+      ''
   );
+  const displayDuration = durationLabel(rawDuration);
 
   const handleAddToLibrary = async () => {
     const scenarioKey = effectiveScenarioId ?? String(simulationId);
@@ -527,24 +609,24 @@ const SimulationDetail = ({
       dispatch(addPendingRemoveId(scenarioKey));
       try {
         await dispatch(
-          RemoveFromLibraryRequest({ scenario_id: scenarioKey }),
+          RemoveFromLibraryRequest({ scenario_id: scenarioKey })
         ).unwrap();
-        toast.success("Removed from library successfully");
+        toast.success(t('toast.removedFromLibrary'));
       } catch (err: unknown) {
         const msg =
-          typeof err === "string"
+          typeof err === 'string'
             ? err
-            : ((err as { message?: string })?.message ?? "");
+            : ((err as { message?: string })?.message ?? '');
         const lower = msg.toLowerCase();
         if (
-          lower.includes("not found") ||
-          lower.includes("simulation not found")
+          lower.includes('not found') ||
+          lower.includes('simulation not found')
         ) {
-          toast.success("Removed from library successfully");
+          toast.success(t('toast.removedFromLibrary'));
         } else {
           setOptimisticInLibrary({ value: true, key: scenarioKey });
           dispatch(removePendingRemoveId(scenarioKey));
-          toast.error(msg || "Failed to remove from library");
+          toast.error(msg || t('toast.failedToRemove'));
         }
       } finally {
         setActionInProgress(false);
@@ -553,7 +635,7 @@ const SimulationDetail = ({
     }
 
     if (!effectiveScenarioId) {
-      toast.error("Cannot add to library: simulation has no valid scenario ID");
+      toast.error(t('toast.cannotAddNoScenario'));
       return;
     }
 
@@ -567,89 +649,128 @@ const SimulationDetail = ({
     setOptimisticInLibrary({ value: true, key: scenarioKey });
     // Optimistic Redux add: catalog heart fills immediately across all views.
     dispatch(addPendingLibraryId(effectiveScenarioId));
-    const unitId = sim.unit || initialData?.unit || "";
+    const unitId = sim.unit || initialData?.unit || '';
     try {
       await dispatch(
         AddToLibraryRequest({
           scenario_id: effectiveScenarioId,
           unit_id: unitId,
-        }),
+        })
       ).unwrap();
-      toast.success("Added to library successfully");
+      toast.success(t('toast.addedToLibrary'));
     } catch (err: unknown) {
       const msg =
-        typeof err === "string"
+        typeof err === 'string'
           ? err
-          : ((err as { message?: string })?.message ?? "");
+          : ((err as { message?: string })?.message ?? '');
       const lower = msg.toLowerCase();
       if (
-        !lower.includes("already exists") &&
-        !lower.includes("already in library")
+        !lower.includes('already exists') &&
+        !lower.includes('already in library')
       ) {
         setOptimisticInLibrary({ value: false, key: scenarioKey });
         dispatch(removePendingLibraryId(effectiveScenarioId));
-        toast.error(msg || "Failed to add to library");
+        toast.error(msg || t('toast.failedToAdd'));
       } else {
-        toast.success("Added to library successfully");
+        toast.success(t('toast.addedToLibrary'));
       }
     } finally {
       setActionInProgress(false);
     }
   };
 
-  const shareUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    const base = `${window.location.origin}/simulationdetails/${simulationId}`;
-    try {
-      const payload = {
-        id: sim.id,
-        scenarioId: String(simulationId),
-        title: sim.title,
-        subtitle: sim.subtitle ?? "",
-        image: sim.image_url ?? sim.scenarioImage ?? "",
-        cta: "View",
-        unit: sim.unit ?? "",
-        category: sim.category ?? "",
-        language: sim.language ?? "",
-        description: sim.description ?? "",
-        purpose: sim.purpose ?? "",
-        difficulty: sim.difficultyLevel ?? "",
-        duration: sim.estimatedDuration ?? "",
-        developer: sim.developer ?? "",
-        institution: sim.institution ?? "",
-        last_update: sim.last_update ?? "",
-        learning_objectives: sim.learning_objectives ?? [],
-        targetAudience: sim.targetAudience ?? [],
-      };
-      return `${base}#data=${btoa(encodeURIComponent(JSON.stringify(payload)))}`;
-    } catch {
-      return base;
-    }
-  }, [simulationId, sim]);
+  const sectionGroups = [
+    { heading: t('instructorFacing'), documents: instructorDocuments },
+    { heading: t('studentFacing'), documents: studentDocuments },
+  ].filter((group) => group.documents.length > 0);
+
+  // Each section renders only when it has content; Expand/Collapse All
+  // reflects just the sections on screen.
+  const sections = [
+    {
+      visible: Boolean(
+        sim.purpose ||
+        sim.description ||
+        sim.learningObjective ||
+        sim.topicsAddressed ||
+        sim.learning_objectives?.length
+      ),
+      open: overviewOpen,
+    },
+    {
+      visible: [
+        sim.productName,
+        sim.additionalEquipment,
+        sim.optionalEquipment,
+        sim.setupNotes,
+      ].some(Boolean),
+      open: additionalDetailsOpen,
+    },
+    {
+      visible: Boolean(
+        sim.studentBriefing && Object.values(sim.studentBriefing).some(Boolean)
+      ),
+      open: studentBriefingOpen,
+    },
+    {
+      visible: Boolean(sim.sbar && Object.values(sim.sbar).some(Boolean)),
+      open: sbarOpen,
+    },
+    {
+      visible: !isPublic && sectionGroups.length > 0,
+      open: facilitationDocsOpen,
+    },
+  ];
+  const [
+    hasOverview,
+    hasAdditionalDetails,
+    hasStudentBriefing,
+    hasSbar,
+    hasDocuments,
+  ] = sections.map((section) => section.visible);
+  const visibleSections = sections.filter((section) => section.visible);
+  const allSectionsOpen =
+    visibleSections.length > 0 &&
+    visibleSections.every((section) => section.open);
+
+  // Until full details arrive from either source, the hero shows the summary
+  // the page already had; the sections area shows loading, or an error with
+  // Retry once both sources have given up.
+  const hasFullDetails = Boolean(
+    publicDetail || simulationDetail || blobDetail
+  );
+  const sectionsState = hasFullDetails
+    ? 'ready'
+    : detailsStatus === 'loading' || isUnitLoading
+      ? 'loading'
+      : detailsStatus === 'failed'
+        ? 'failed'
+        : 'ready';
+  const retryDetails = () => {
+    onRetryDetails?.();
+    setUnitRetryKey((key) => key + 1);
+  };
 
   return (
-    <div className="min-h-screen bg-[#f7f8fa] font-sans text-gray-800">
+    <div className="min-h-screen bg-sim-page font-sans text-gray-800">
       <div className="w-full pb-10 space-y-5">
-        {/* Gradient hero banner — healthcare product-family palette (marketing-
-            approved): teal #7dc7b7 / #4f9096 → navy #323464. Intentionally
-            different from the app's Realityworks orange scheme. */}
-        <div
-          className="relative overflow-hidden rounded-2xl mx-3 sm:mx-5 mt-4 px-6 sm:px-8 lg:px-12 xl:px-16 py-6 sm:py-7 text-white"
-          style={{ background: 'linear-gradient(135deg, #7dc7b7 0%, #4f9096 45%, #323464 100%)' }}
-        >
-          <div className="pointer-events-none absolute inset-0 bg-black/10" aria-hidden="true" />
+        <div className="relative overflow-hidden rounded-2xl mx-3 sm:mx-5 mt-4 px-6 sm:px-8 lg:px-12 xl:px-16 py-6 sm:py-7 text-white bg-gradient-sim-hero">
+          <div
+            className="pointer-events-none absolute inset-0 bg-black/10"
+            aria-hidden="true"
+          />
           {!isPublic && !hideBackButton && (
             <button
               onClick={onBack}
               className="relative flex items-center gap-1 text-sm text-white hover:text-white mb-4 transition-colors [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]"
             >
-              <ArrowLeft size={15} />{" "}
+              <ArrowLeft size={15} />{' '}
               {backLabel ??
                 (fromProducts
-                  ? t.backToProducts
+                  ? t('backToProducts')
                   : fromLibrary
-                    ? t.backToLibrary
-                    : t.back)}
+                    ? t('backToLibrary')
+                    : t('back'))}
             </button>
           )}
 
@@ -666,92 +787,68 @@ const SimulationDetail = ({
                     className="p-1.5 rounded-full hover:bg-white/20 transition-colors flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                     title={
                       addedToLibrary
-                        ? t.removeFromLibraryAria
-                        : t.addToLibraryAria
+                        ? t('library.removeAria')
+                        : t('library.addAria')
                     }
                     aria-label={
                       addedToLibrary
-                        ? t.removeFromLibraryAria
-                        : t.addToLibraryAria
+                        ? t('library.removeAria')
+                        : t('library.addAria')
                     }
                   >
                     <Heart
                       size={18}
                       className="text-white"
-                      fill={addedToLibrary ? "currentColor" : "none"}
+                      fill={addedToLibrary ? 'currentColor' : 'none'}
                       strokeWidth={2}
                     />
                   </button>
                 )}
               </div>
               {sim.subtitle && (
-                <p className="text-sm text-white mt-1 [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]">{sim.subtitle}</p>
+                <p className="text-sm text-white mt-1 [text-shadow:0_1px_3px_rgba(0,0,0,0.45)]">
+                  {sim.subtitle}
+                </p>
               )}
               {!isPublic && isStartTrial && (
                 <button
-                  onClick={() => navigate("/redeem")}
-                  className="mt-2 flex items-center gap-2 px-5 py-2 rounded-full bg-white text-[#323464] font-semibold text-sm hover:bg-white/90 transition-colors"
+                  onClick={() => navigate('/redeem')}
+                  className="mt-2 flex items-center gap-2 px-5 py-2 rounded-full bg-white text-sim-navy font-semibold text-sm hover:bg-white/90 transition-colors"
                 >
-                  Activate License
+                  {t('activateLicense')}
                 </button>
               )}
               <div className="flex gap-3 mt-3 flex-wrap">
                 {isPublic ? (
                   <button
                     onClick={() =>
-                      navigate("/login", {
+                      navigate('/login', {
                         state: {
                           from: window.location.pathname + window.location.hash,
                         },
                       })
                     }
-                    className="flex items-center gap-2 px-5 py-2 rounded-full bg-white text-[#323464] font-semibold text-sm hover:bg-white/90 transition-colors whitespace-nowrap"
+                    className="flex items-center gap-2 px-5 py-2 rounded-full bg-white text-sim-navy font-semibold text-sm hover:bg-white/90 transition-colors whitespace-nowrap"
                   >
-                    {t.signInToAdd}
+                    {t('library.signInToAdd')}
                   </button>
                 ) : (
                   !isStartTrial && (
                     <button
                       onClick={handleAddToLibrary}
                       disabled={libraryActionDisabled}
-                      className="flex items-center gap-2 px-5 py-2 rounded-full bg-white text-[#323464] font-semibold text-sm hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                      className="flex items-center gap-2 px-5 py-2 rounded-full bg-white text-sim-navy font-semibold text-sm hover:bg-white/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {addingToLibrary || removingFromLibrary ? (
-                        <span className="w-3.5 h-3.5 border-2 border-[#323464] border-t-transparent rounded-full animate-spin" />
+                        <span className="w-3.5 h-3.5 border-2 border-sim-navy border-t-transparent rounded-full animate-spin" />
                       ) : null}
                       {disableLibraryAction
-                        ? t.addedByEducator
+                        ? t('library.addedByEducator')
                         : addedToLibrary
-                          ? t.removeFromLibrary
-                          : t.addToLibrary}
+                          ? t('library.remove')
+                          : t('library.add')}
                     </button>
                   )
-                )}
-                {!isPublic && !isStartTrial && (
-                  <button
-                    onClick={() => setPreviewOpen(true)}
-                    disabled={previewsRemaining <= 0 || !previewSimId}
-                    className="flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-btn text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                    title={
-                      previewsRemaining > 0
-                        ? `Preview in Practice mode — ${previewsRemaining} of ${MAX_PREVIEW_ATTEMPTS} attempts left`
-                        : "No preview attempts left"
-                    }
-                  >
-                    <Play size={15} aria-hidden="true" />
-                    {previewsRemaining > 0
-                      ? "Preview Simulation"
-                      : "No Previews Left"}
-                    <span
-                      className={`ml-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
-                        previewsRemaining > 0
-                          ? "bg-[#e9e9e9] text-[#5f6060]"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {previewsRemaining} of {MAX_PREVIEW_ATTEMPTS} left
-                    </span>
-                  </button>
                 )}
               </div>
             </div>
@@ -760,14 +857,14 @@ const SimulationDetail = ({
               <div className="flex-shrink-0 w-full md:w-64 border border-amber-300 bg-amber-50 rounded-xl p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-amber-600 font-bold text-sm">
-                    {t.attention}
+                    {t('attention')}
                   </span>
                   <span className="bg-blue-100 text-blue-600 text-xs font-semibold px-3 py-1 rounded-full border border-blue-200">
-                    Only {sim.tries_left} {t.triesLeft}
+                    {t('triesLeft', { count: sim.tries_left })}
                   </span>
                 </div>
                 <p className="text-sm text-gray-700 leading-snug">
-                  {t.triesLeftDesc}
+                  {t('triesLeftDesc')}
                 </p>
               </div>
             )}
@@ -776,17 +873,17 @@ const SimulationDetail = ({
           <div className="relative mt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
             {(
               [
-                { label: "Modality", value: categoryText },
+                { label: t('tiles.modality'), value: categoryText },
                 {
-                  label: t.labelTargetAudience,
+                  label: t('tiles.targetAudience'),
                   value: Array.isArray(sim.targetAudience)
-                    ? sim.targetAudience.join(", ")
+                    ? sim.targetAudience.join(', ')
                     : sim.targetAudience || sim.learnerLevel,
                 },
-                { label: t.labelDifficulty, value: displayDifficulty },
-                { label: t.labelDuration, value: displayDuration },
-                { label: t.labelClinicalSetting, value: sim.department },
-                { label: t.labelUnit, value: sim.unit },
+                { label: t('tiles.difficulty'), value: displayDifficulty },
+                { label: t('tiles.duration'), value: displayDuration },
+                { label: t('tiles.clinicalSetting'), value: sim.department },
+                { label: t('tiles.unit'), value: sim.unit },
               ] as { label: string; value: string | undefined }[]
             )
               .filter(({ value }) => value)
@@ -814,9 +911,9 @@ const SimulationDetail = ({
             <div className="flex gap-4 overflow-x-auto pb-2">
               {screenshots.map((src, i) => (
                 <BlobImage
-                  key={i}
+                  key={`${i}-${src}`}
                   src={src}
-                  alt={`Screenshot ${i + 1}`}
+                  alt={t('screenshotAlt', { number: i + 1 })}
                   className="rounded-xl border border-gray-200 shadow-sm h-44 w-auto flex-shrink-0 object-cover"
                 />
               ))}
@@ -824,333 +921,349 @@ const SimulationDetail = ({
           </div>
         )}
 
-        {/* 1-click expand-all / collapse-all for every section below. */}
-        <div className="mx-6 sm:mx-8 lg:mx-12 xl:mx-16 flex justify-end">
-          <button
-            type="button"
-            onClick={() => setAllSections(!allSectionsOpen)}
-            aria-expanded={allSectionsOpen}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 rounded-full px-3 py-1.5 hover:bg-[#e9e9e9] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+        {sectionsState === 'loading' && (
+          <div
+            role="status"
+            aria-label={t('loading')}
+            className={cn(SECTION_INSET, 'space-y-5 pt-11')}
           >
-            <ChevronDown
-              size={16}
-              className={`transition-transform duration-200 ${allSectionsOpen ? "rotate-180" : ""}`}
-              aria-hidden="true"
-            />
-            {allSectionsOpen ? "Collapse All" : "Expand All"}
-          </button>
-        </div>
-
-        {(sim.purpose ||
-          sim.description ||
-          sim.learningObjective ||
-          sim.topicsAddressed ||
-          !!sim.learning_objectives?.length) && (
-          <CollapsibleCard
-            title="Simulation Overview"
-            open={overviewOpen}
-            onToggle={() => setOverviewOpen((p) => !p)}
-            className="mx-6 sm:mx-8 lg:mx-12 xl:mx-16"
-          >
-            <div className="text-base text-gray-700 leading-relaxed space-y-3">
-              {sim.purpose && (
-                <p>
-                  <strong>{t.labelPurpose}</strong> {sim.purpose}
-                </p>
-              )}
-              {sim.description && (
-                <p>
-                  <strong>{t.labelDescription}</strong> {sim.description}
-                </p>
-              )}
-              {sim.learningObjective && (
-                <div>
-                  <p className="font-bold text-gray-900 mb-1">
-                    {t.learningObjective}
-                  </p>
-                  <BulletedText
-                    value={sim.learningObjective}
-                    className="text-gray-700"
-                  />
-                </div>
-              )}
-              {!!sim.learning_objectives?.length && (
-                <div>
-                  <h3 className="font-bold text-gray-900 mb-2">
-                    {t.learningObjectives}
-                  </h3>
-                  <ul className="list-disc list-inside space-y-1">
-                    {sim.learning_objectives.map((obj, i) => (
-                      <li key={i}>{obj.replace(/^[•\-*]\s*/, "")}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {sim.topicsAddressed && (
-                <div>
-                  <p className="font-bold text-gray-900 mb-1">
-                    {t.labelTopicsAddressed}
-                  </p>
-                  <p className="whitespace-pre-line text-gray-700">
-                    {sim.topicsAddressed}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {[
-          sim.productName,
-          sim.additionalEquipment,
-          sim.optionalEquipment,
-          sim.setupNotes,
-        ].some(Boolean) && (
-          <CollapsibleCard
-            title={t.additionalDetails}
-            open={additionalDetailsOpen}
-            onToggle={() => setAdditionalDetailsOpen((prev) => !prev)}
-            className="mx-6 sm:mx-8 lg:mx-12 xl:mx-16"
-          >
-            <div className="grid grid-cols-1 gap-y-5 text-base">
-              {[
-                { label: t.labelProductName, value: sim.productName },
-                {
-                  label: t.labelAdditionalEquipment,
-                  value: sim.additionalEquipment,
-                },
-                {
-                  label: t.labelOptionalEquipment,
-                  value: sim.optionalEquipment,
-                },
-                { label: t.labelSetupNotes, value: sim.setupNotes },
-              ]
-                .filter((f) => f.value)
-                .map(({ label, value }) => (
-                  <div key={label}>
-                    <p className="text-sm font-bold text-gray-700 mb-0.5">{label}</p>
-                    <p className="text-gray-800 whitespace-pre-line">
-                      {value}
-                    </p>
-                  </div>
-                ))}
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {sim.studentBriefing &&
-          Object.values(sim.studentBriefing).some(Boolean) && (
-            <CollapsibleCard
-              title={t.studentBriefing}
-              open={studentBriefingOpen}
-              onToggle={() => setStudentBriefingOpen((prev) => !prev)}
-              className="mx-6 sm:mx-8 lg:mx-12 xl:mx-16"
-            >
-              <div className="space-y-5 text-base text-gray-700">
-                    {[
-                      {
-                        label: t.sbSafeEnvironment,
-                        value: sim.studentBriefing.safeEnvironment,
-                      },
-                      {
-                        label: t.sbFacilitatorSupport,
-                        value: sim.studentBriefing.facilitatorSupport,
-                      },
-                      {
-                        label: t.sbOrientationSpace,
-                        value: sim.studentBriefing.orientationSpace,
-                      },
-                      {
-                        label: t.sbOrientationEquipment,
-                        value: sim.studentBriefing.orientationEquipment,
-                      },
-                      {
-                        label: t.sbEvaluation,
-                        value: sim.studentBriefing.evaluation,
-                      },
-                      {
-                        label: t.sbRolesExpectations,
-                        value: sim.studentBriefing.rolesExpectations,
-                      },
-                      {
-                        label: t.sbSimulationLimitations,
-                        value: sim.studentBriefing.simulationLimitations,
-                      },
-                      {
-                        label: t.sbTimeAllotment,
-                        value: sim.studentBriefing.timeAllotment,
-                      },
-                      {
-                        label: t.sbPurpose,
-                        value: sim.studentBriefing.purpose,
-                      },
-                      {
-                        label: t.sbLearningObjectives,
-                        value: sim.studentBriefing.learningObjectives,
-                      },
-                      {
-                        label: t.sbClosingReminder,
-                        value: sim.studentBriefing.closingReminder,
-                      },
-                    ]
-                      .filter((f) => f.value)
-                      .map(({ label, value }) => (
-                        // Every briefing section gets the orange left-accent card
-                        // (same treatment as the SBAR sections).
-                        <div
-                          key={label}
-                          className="rounded-lg border-l-4 border-primary-500 bg-[#f5f6f8] px-4 py-3"
-                        >
-                          <p className="text-sm sm:text-base font-bold uppercase tracking-wide text-primary-500 mb-1">
-                            {label}
-                          </p>
-                          <BulletedText
-                            value={value as string}
-                            className="leading-relaxed text-gray-700"
-                          />
-                        </div>
-                      ))}
+            {[0, 1, 2].map((row) => (
+              <div
+                key={row}
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 sm:px-6 py-[18px]"
+              >
+                <Skeleton className="h-5 w-48" />
               </div>
-            </CollapsibleCard>
-          )}
-
-        {sim.sbar && Object.values(sim.sbar).some(Boolean) && (
-          <CollapsibleCard
-            title={t.sbar}
-            open={sbarOpen}
-            onToggle={() => setSbarOpen((prev) => !prev)}
-            className="mx-6 sm:mx-8 lg:mx-12 xl:mx-16"
-          >
-            <div className="space-y-4 text-base text-gray-700">
-              {[
-                { label: t.sbarSituation, value: sim.sbar.situation },
-                { label: t.sbarBackground, value: sim.sbar.background },
-                { label: t.sbarAssessment, value: sim.sbar.assessment },
-                {
-                  label: t.sbarRecommendation,
-                  value: sim.sbar.recommendation,
-                },
-              ]
-                .filter((f) => f.value)
-                .map(({ label, value }) => (
-                  <div
-                    key={label}
-                    className="rounded-lg border-l-4 border-primary-500 bg-[#f5f6f8] px-4 py-3"
-                  >
-                    <p className="text-sm sm:text-base font-bold uppercase tracking-wide text-primary-500 mb-1">
-                      {label}
-                    </p>
-                    <BulletedText
-                      value={value as string}
-                      className="leading-relaxed text-gray-700"
-                    />
-                  </div>
-                ))}
-            </div>
-          </CollapsibleCard>
+            ))}
+          </div>
         )}
 
-        {[
-          sim.prebriefScriptPdf,
-          sim.debriefPointsPdf,
-          sim.setupNotesPdf,
-          sim.facilitationNotesPdf,
-          sim.printableSbarPdf,
-          sim.printablePatientChartPdf,
-        ].some(Boolean) && (
-          <CollapsibleCard
-            title={t.facilitationDocuments}
-            open={facilitationDocsOpen}
-            onToggle={() => setFacilitationDocsOpen((prev) => !prev)}
-            className="mx-6 sm:mx-8 lg:mx-12 xl:mx-16"
+        {sectionsState === 'failed' && (
+          <div
+            className={cn(
+              SECTION_INSET,
+              'bg-white rounded-2xl border border-gray-200 shadow-sm'
+            )}
           >
-            {(() => {
-              const renderDocs = (
-                docs: { label: string; url?: string }[],
-              ) => (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 text-sm items-stretch">
-                  {docs
-                    .filter((f) => f.url)
-                    .map(({ label, url }) => (
-                      <a
-                        key={label}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-start gap-2.5 h-full bg-[#e9e9e9] border border-gray-300 hover:border-primary-400 rounded-xl px-4 py-3 font-medium cursor-pointer transition-all hover:shadow-md"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary-500"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                        </svg>
-                        <span className="text-[#5f6060] group-hover:underline break-words min-w-0">
+            <ErrorState
+              title={t('partialError.title')}
+              message={t('partialError.body')}
+              retryLabel={t('retry')}
+              onRetry={retryDetails}
+            />
+          </div>
+        )}
+
+        {sectionsState === 'ready' && (
+          <>
+            <div className={cn(SECTION_INSET, 'flex justify-end')}>
+              <button
+                type="button"
+                onClick={() => setAllSections(!allSectionsOpen)}
+                aria-expanded={allSectionsOpen}
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary-500 hover:text-primary-600 rounded-full px-3 py-1.5 hover:bg-neutral-active transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                <ChevronDown
+                  size={16}
+                  className={cn(
+                    'transition-transform duration-200',
+                    allSectionsOpen && 'rotate-180'
+                  )}
+                  aria-hidden="true"
+                />
+                {allSectionsOpen ? t('collapseAll') : t('expandAll')}
+              </button>
+            </div>
+
+            {hasOverview && (
+              <CollapsibleCard
+                title={t('sections.overview')}
+                open={overviewOpen}
+                onToggle={() => setOverviewOpen((prev) => !prev)}
+                className={SECTION_INSET}
+              >
+                <div className="text-base text-gray-700 leading-relaxed space-y-3 break-words">
+                  {sim.purpose && (
+                    <p>
+                      <strong>{t('overviewFields.purpose')}</strong>{' '}
+                      {sim.purpose}
+                    </p>
+                  )}
+                  {sim.description && (
+                    <p>
+                      <strong>{t('overviewFields.description')}</strong>{' '}
+                      {sim.description}
+                    </p>
+                  )}
+                  {sim.learningObjective && (
+                    <div>
+                      <p className="font-bold text-gray-900 mb-1">
+                        {t('overviewFields.learningObjective')}
+                      </p>
+                      <BulletedText
+                        value={sim.learningObjective}
+                        className="text-gray-700"
+                      />
+                    </div>
+                  )}
+                  {!!sim.learning_objectives?.length && (
+                    <div>
+                      <h3 className="font-bold text-gray-900 mb-2">
+                        {t('overviewFields.learningObjectives')}
+                      </h3>
+                      <ul className="list-disc list-inside space-y-1">
+                        {sim.learning_objectives.map((obj, i) => (
+                          <li key={`${i}-${obj}`}>
+                            {obj.replace(/^[•\-*]\s*/, '')}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {sim.topicsAddressed && (
+                    <div>
+                      <p className="font-bold text-gray-900 mb-1">
+                        {t('overviewFields.topicsAddressed')}
+                      </p>
+                      <p className="whitespace-pre-line text-gray-700">
+                        {sim.topicsAddressed}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CollapsibleCard>
+            )}
+
+            {hasAdditionalDetails && (
+              <CollapsibleCard
+                title={t('sections.additionalDetails')}
+                open={additionalDetailsOpen}
+                onToggle={() => setAdditionalDetailsOpen((prev) => !prev)}
+                className={SECTION_INSET}
+              >
+                <div className="grid grid-cols-1 gap-y-5 text-base break-words">
+                  {[
+                    {
+                      label: t('additionalFields.productName'),
+                      value: sim.productName,
+                    },
+                    {
+                      label: t('additionalFields.additionalEquipment'),
+                      value: sim.additionalEquipment,
+                    },
+                    {
+                      label: t('additionalFields.optionalEquipment'),
+                      value: sim.optionalEquipment,
+                    },
+                    {
+                      label: t('additionalFields.setupNotes'),
+                      value: sim.setupNotes,
+                    },
+                  ]
+                    .filter((f) => f.value)
+                    .map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-sm font-bold text-gray-700 mb-0.5">
                           {label}
-                        </span>
-                      </a>
+                        </p>
+                        <p className="text-gray-800 whitespace-pre-line">
+                          {value}
+                        </p>
+                      </div>
                     ))}
                 </div>
-              );
-              const instructorDocs = [
-                { label: t.fdSetupNotes, url: sim.setupNotesPdf },
-                { label: t.fdFacilitationNotes, url: sim.facilitationNotesPdf },
-                { label: t.fdPrebriefScript, url: sim.prebriefScriptPdf },
-                { label: t.fdDebriefPoints, url: sim.debriefPointsPdf },
-              ];
-              const studentDocs = [
-                { label: t.fdPrintableSbar, url: sim.printableSbarPdf },
-                {
-                  label: t.fdPrintablePatientChart,
-                  url: sim.printablePatientChartPdf,
-                },
-              ];
-              return (
-                <div className="space-y-5">
-                  {instructorDocs.some((d) => d.url) && (
-                    <div>
-                      <p className="text-sm sm:text-base font-bold uppercase tracking-wide text-[#5f6060] mb-2">
-                        Instructor-Facing
-                      </p>
-                      {renderDocs(instructorDocs)}
-                    </div>
-                  )}
-                  {studentDocs.some((d) => d.url) && (
-                    <div>
-                      <p className="text-sm sm:text-base font-bold uppercase tracking-wide text-[#5f6060] mb-2">
-                        Student-Facing
-                      </p>
-                      {renderDocs(studentDocs)}
-                    </div>
-                  )}
+              </CollapsibleCard>
+            )}
+
+            {hasStudentBriefing && sim.studentBriefing && (
+              <CollapsibleCard
+                title={t('sections.studentBriefing')}
+                open={studentBriefingOpen}
+                onToggle={() => setStudentBriefingOpen((prev) => !prev)}
+                className={SECTION_INSET}
+              >
+                <div className="space-y-5 text-base text-gray-700 break-words">
+                  {[
+                    {
+                      label: t('briefing.safeEnvironment'),
+                      value: sim.studentBriefing.safeEnvironment,
+                    },
+                    {
+                      label: t('briefing.facilitatorSupport'),
+                      value: sim.studentBriefing.facilitatorSupport,
+                    },
+                    {
+                      label: t('briefing.orientationSpace'),
+                      value: sim.studentBriefing.orientationSpace,
+                    },
+                    {
+                      label: t('briefing.orientationEquipment'),
+                      value: sim.studentBriefing.orientationEquipment,
+                    },
+                    {
+                      label: t('briefing.evaluation'),
+                      value: sim.studentBriefing.evaluation,
+                    },
+                    {
+                      label: t('briefing.rolesExpectations'),
+                      value: sim.studentBriefing.rolesExpectations,
+                    },
+                    {
+                      label: t('briefing.simulationLimitations'),
+                      value: sim.studentBriefing.simulationLimitations,
+                    },
+                    {
+                      label: t('briefing.timeAllotment'),
+                      value: sim.studentBriefing.timeAllotment,
+                    },
+                    {
+                      label: t('briefing.purpose'),
+                      value: sim.studentBriefing.purpose,
+                    },
+                    {
+                      label: t('briefing.learningObjectives'),
+                      value: sim.studentBriefing.learningObjectives,
+                    },
+                    {
+                      label: t('briefing.closingReminder'),
+                      value: sim.studentBriefing.closingReminder,
+                    },
+                  ]
+                    .filter(
+                      (f): f is { label: string; value: string } =>
+                        typeof f.value === 'string' && f.value.trim() !== ''
+                    )
+                    .map(({ label, value }) => (
+                      <div
+                        key={label}
+                        className="rounded-lg border-l-4 border-primary-500 bg-sim-callout px-4 py-3"
+                      >
+                        <p className="text-sm sm:text-base font-bold uppercase tracking-wide text-primary-500 mb-1">
+                          {label}
+                        </p>
+                        <BulletedText
+                          value={value}
+                          className="leading-relaxed text-gray-700"
+                        />
+                      </div>
+                    ))}
                 </div>
-              );
-            })()}
-          </CollapsibleCard>
+              </CollapsibleCard>
+            )}
+
+            {hasSbar && sim.sbar && (
+              <CollapsibleCard
+                title={t('sections.sbar')}
+                open={sbarOpen}
+                onToggle={() => setSbarOpen((prev) => !prev)}
+                className={SECTION_INSET}
+              >
+                <div className="space-y-4 text-base text-gray-700 break-words">
+                  {[
+                    {
+                      label: t('sbarFields.situation'),
+                      value: sim.sbar.situation,
+                    },
+                    {
+                      label: t('sbarFields.background'),
+                      value: sim.sbar.background,
+                    },
+                    {
+                      label: t('sbarFields.assessment'),
+                      value: sim.sbar.assessment,
+                    },
+                    {
+                      label: t('sbarFields.recommendation'),
+                      value: sim.sbar.recommendation,
+                    },
+                  ]
+                    .filter(
+                      (f): f is { label: string; value: string } =>
+                        typeof f.value === 'string' && f.value.trim() !== ''
+                    )
+                    .map(({ label, value }) => (
+                      <div
+                        key={label}
+                        className="rounded-lg border-l-4 border-primary-500 bg-sim-callout px-4 py-3"
+                      >
+                        <p className="text-sm sm:text-base font-bold uppercase tracking-wide text-primary-500 mb-1">
+                          {label}
+                        </p>
+                        <BulletedText
+                          value={value}
+                          className="leading-relaxed text-gray-700"
+                        />
+                      </div>
+                    ))}
+                </div>
+              </CollapsibleCard>
+            )}
+
+            {hasDocuments && (
+              <CollapsibleCard
+                title={t('sections.facilitationDocuments')}
+                open={facilitationDocsOpen}
+                onToggle={() => setFacilitationDocsOpen((prev) => !prev)}
+                className={SECTION_INSET}
+              >
+                <div className="space-y-5">
+                  {sectionGroups.map((group) => (
+                    <section key={group.heading} aria-label={group.heading}>
+                      <h3 className="text-sm sm:text-base font-bold uppercase tracking-wide text-neutral-strong mb-2">
+                        {group.heading}
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 text-sm items-stretch">
+                        {group.documents.map((document) => {
+                          const isGenerating =
+                            generatingDocument === document.type;
+                          return (
+                            <button
+                              key={document.type}
+                              type="button"
+                              onClick={() =>
+                                void handleDocumentRequest(document)
+                              }
+                              disabled={generatingDocument !== null}
+                              className="group flex items-start gap-2.5 h-full text-left bg-neutral-active border border-gray-300 hover:border-primary-400 rounded-xl px-4 py-3 font-medium cursor-pointer transition-all hover:shadow-md disabled:cursor-wait disabled:opacity-60"
+                            >
+                              {isGenerating ? (
+                                <Loader2
+                                  className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary-500 animate-spin"
+                                  aria-hidden="true"
+                                />
+                              ) : (
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary-500"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden="true"
+                                >
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                  <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                              )}
+                              <span className="text-neutral-strong group-hover:underline break-words min-w-0">
+                                {isGenerating
+                                  ? t('preparingPdf')
+                                  : t(document.labelKey)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </CollapsibleCard>
+            )}
+          </>
         )}
       </div>
-
-      <ShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        title={sim.title}
-        simulationUrl={shareUrl}
-      />
-
-      <PreviewSimulationModal
-        isOpen={previewOpen}
-        simName={sim.title}
-        remaining={previewsRemaining}
-        onClose={() => setPreviewOpen(false)}
-        onConfirm={handleStartPreview}
-      />
     </div>
   );
 };

@@ -1,9 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { getParsedUser } from '../utils/storage';
-import { forceLogout, LOGOUT_MESSAGES, registerSocketDisconnect, unregisterSocketDisconnect } from '../utils/forceLogout';
+import {
+  forceLogout,
+  LOGOUT_MESSAGES,
+  registerSocketDisconnect,
+  unregisterSocketDisconnect,
+} from '../utils/forceLogout';
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_API_URL ?? '';
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ?? import.meta.env.VITE_API_URL ?? '';
 
 export const SCHOOL_STATUS_CHANNEL = 'school_status_channel';
 export const ACCOUNT_STATUS_CHANNEL = 'account_status_channel';
@@ -41,7 +47,10 @@ function getStoredEducatorSchoolIds(): string[] {
   }
 }
 
-export function useAccountStatus(role: string | undefined, token: string | null) {
+export function useAccountStatus(
+  role: string | undefined,
+  token: string | null
+) {
   const socketRef = useRef<Socket | null>(null);
 
   const isAuthSocketError = (message?: string): boolean => {
@@ -71,8 +80,6 @@ export function useAccountStatus(role: string | undefined, token: string | null)
     registerSocketDisconnect(() => socket.disconnect());
 
     socket.on('connect_error', (error: Error) => {
-      
-      
       if (!isAuthSocketError(error?.message)) {
         return;
       }
@@ -85,7 +92,9 @@ export function useAccountStatus(role: string | undefined, token: string | null)
     socket.on('account-deactivated', () => {
       try {
         const bc = new BroadcastChannel(ACCOUNT_STATUS_CHANNEL);
-        bc.postMessage({ type: 'account-deactivated' } satisfies AccountStatusMessage);
+        bc.postMessage({
+          type: 'account-deactivated',
+        } satisfies AccountStatusMessage);
         bc.close();
       } catch {
         return;
@@ -111,20 +120,22 @@ export function useAccountStatus(role: string | undefined, token: string | null)
       channel.onmessage = (e: MessageEvent<SchoolStatusMessage>) => {
         try {
           const type = e.data?.type;
-          if (type !== 'school-deactivated' && type !== 'school_inactivated') return;
+          if (type !== 'school-deactivated' && type !== 'school_inactivated')
+            return;
           const userSchoolIds = getStoredEducatorSchoolIds();
-          if (!userSchoolIds.length || !userSchoolIds.includes(e.data.schoolId)) return;
+          if (!userSchoolIds.length || !userSchoolIds.includes(e.data.schoolId))
+            return;
 
           forceLogout(
             type === 'school_inactivated'
               ? LOGOUT_MESSAGES.SCHOOL_INACTIVE
-              : LOGOUT_MESSAGES.SCHOOL_DEACTIVATED,
+              : LOGOUT_MESSAGES.SCHOOL_DEACTIVATED
           );
         } catch {
           return;
         }
       };
-    } catch { 
+    } catch {
       return;
     }
     return () => {

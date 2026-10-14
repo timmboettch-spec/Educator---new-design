@@ -1,7 +1,11 @@
 import { DefaultAzureCredential, ManagedIdentityCredential } from '@azure/identity';
-import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { isAxiosError } from 'axios';
 import * as ExcelJS from 'exceljs';
+
+import { OutboundIntegration } from '../../../common/constants';
+import { LoggerService, OutboundHttpClient } from '../../../common/services';
 
 import {
   type ScenarioAnalyticsDto,
@@ -22,7 +26,6 @@ import {
  */
 @Injectable()
 export class TelemetryAnalyticsService {
-  private readonly logger = new Logger(TelemetryAnalyticsService.name);
   private readonly appId: string | null = null;
 
   // Authentication configuration
@@ -33,17 +36,25 @@ export class TelemetryAnalyticsService {
 
   private readonly queryEndpoint: string;
 
-  constructor() {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: LoggerService,
+    private readonly outboundHttp: OutboundHttpClient,
+  ) {
     this.logger.log('TelemetryAnalyticsService initialized for querying Azure Monitor');
 
     // Determine authentication type from environment
-    const authTypeEnv = process.env.APPINSIGHTS_AUTH_TYPE?.toLowerCase();
+    const authTypeEnv = this.configService
+      .get<string>('telemetry.appInsightsAuthType')
+      ?.toLowerCase();
     this.authType = authTypeEnv === 'managed-identity' ? 'managed-identity' : 'api-key';
 
     // Get App ID from environment or connection string
-    this.appId = process.env.APPLICATIONINSIGHTS_APP_ID ?? null;
+    this.appId = this.configService.get<string>('telemetry.appInsightsAppId') ?? null;
     if (!this.appId) {
-      const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
+      const connectionString = this.configService.get<string>(
+        'telemetry.appInsightsConnectionString',
+      );
       if (connectionString) {
         const match = connectionString.match(/ApplicationId=([^;]+)/);
         if (match) {
@@ -60,7 +71,10 @@ export class TelemetryAnalyticsService {
       try {
         // Use ManagedIdentityCredential in production Azure environments
         // Falls back to DefaultAzureCredential for local development with Azure CLI
-        if (process.env.NODE_ENV === 'production' || process.env.AZURE_CLIENT_ID) {
+        if (
+          this.configService.get<string>('app.nodeEnv') === 'production' ||
+          this.configService.get<string>('telemetry.azureClientId')
+        ) {
           this.credential = new ManagedIdentityCredential();
           this.logger.log('✅ Using Managed Identity authentication for Application Insights');
         } else {
@@ -75,18 +89,18 @@ export class TelemetryAnalyticsService {
         this.logger.error('Failed to initialize Managed Identity credential', error);
         this.logger.warn('Falling back to API key authentication');
         this.authType = 'api-key';
-        this.apiKey = process.env.APPLICATIONINSIGHTS_API_KEY ?? null;
+        this.apiKey = this.configService.get<string>('telemetry.appInsightsApiKey') ?? null;
       }
     } else {
       // API Key authentication (development/fallback)
-      this.apiKey = process.env.APPLICATIONINSIGHTS_API_KEY ?? null;
+      this.apiKey = this.configService.get<string>('telemetry.appInsightsApiKey') ?? null;
 
       if (!this.appId || !this.apiKey) {
         this.logger.warn(
           '⚠️ Application Insights Query API not configured. ' +
-            'Set APPLICATIONINSIGHTS_APP_ID and APPLICATIONINSIGHTS_API_KEY environment variables. ' +
-            'For production, use APPINSIGHTS_AUTH_TYPE=managed-identity instead. ' +
-            'Analytics will return empty data until configured.',
+          'Set APPLICATIONINSIGHTS_APP_ID and APPLICATIONINSIGHTS_API_KEY environment variables. ' +
+          'For production, use APPINSIGHTS_AUTH_TYPE=managed-identity instead. ' +
+          'Analytics will return empty data until configured.',
         );
       } else {
         this.logger.log(
@@ -134,6 +148,7 @@ export class TelemetryAnalyticsService {
         this.logger.error('Failed to get access token from Managed Identity', error);
         throw new Error(
           'Managed Identity authentication failed. Ensure the identity has "Monitoring Reader" role.',
+          { cause: error },
         );
       }
     }
@@ -177,7 +192,8 @@ export class TelemetryAnalyticsService {
       // Get authentication header (API Key or Managed Identity token)
       const authHeader = await this.getAuthHeader();
 
-      const response = await axios.post(
+      const response = await this.outboundHttp.post(
+        OutboundIntegration.Telemetry,
         url,
         { query },
         {
@@ -185,7 +201,6 @@ export class TelemetryAnalyticsService {
             ...authHeader,
             'Content-Type': 'application/json',
           },
-          timeout: 30000, // 30 second timeout
         },
       );
 
@@ -194,7 +209,7 @@ export class TelemetryAnalyticsService {
       };
     } catch (error) {
       this.logger.error('Failed to execute Application Insights query', error);
-      if (axios.isAxiosError(error)) {
+      if (isAxiosError(error)) {
         this.logger.error(
           `Query error details: ${error.response?.status} - ${error.response?.statusText}`,
         );
@@ -203,9 +218,9 @@ export class TelemetryAnalyticsService {
         if (error.response?.status === 401 || error.response?.status === 403) {
           this.logger.error(
             'Authentication failed. ' +
-              (this.authType === 'managed-identity'
-                ? 'Ensure Managed Identity has "Monitoring Reader" role assigned.'
-                : 'Check your API Key configuration.'),
+            (this.authType === 'managed-identity'
+              ? 'Ensure Managed Identity has "Monitoring Reader" role assigned.'
+              : 'Check your API Key configuration.'),
           );
         }
       }

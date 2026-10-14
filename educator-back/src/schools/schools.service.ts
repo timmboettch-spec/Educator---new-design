@@ -1,55 +1,67 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, QueryRunner, Repository } from 'typeorm';
-import { Schools } from './entity/schools.entity';
-import { User } from '../users/entity/user.entity';
+import { Inject, Injectable } from '@nestjs/common';
+import { DataSource, EntityManager, IsNull } from 'typeorm';
+import { LoggerService } from 'src/common/services';
+
 import { SchoolDto } from './dto/school.dto';
 import { ServiceResponse } from 'src/common/types';
 import { Messages, ErrorTypes } from 'src/common/utils/messages';
-import { Educator } from 'src/educators/entity/educator.entity';
+import { throwAppError } from 'src/common/utils/app-error';
+import { ResponseResult } from 'src/common/class/response.class';
+
 import { CommonStatus } from 'src/common/enums/status.enum';
-import { Class } from 'src/class/entity/class.entity';
-import { Student } from 'src/students/entity/students.entity';
-import { ClassSimulation } from 'src/class-simulations/entity/class-simulation.entity';
+import { resolveAdminUserId } from 'src/common/utils/district-admin-profile.util';
+
 import { EducatorSessionService } from '../session/educator-session.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
-import { Invite, InviteStatus } from '../invites/entity/invite.entity';
+
 import { InvitesConstants } from '../invites/invites.constants';
+import { InviteTokenService } from '../invites/invite-token.service';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
+import {
+  Schools,
+  User,
+  Educator,
+  Class,
+  Student,
+  ClassSimulation,
+  InviteStatus,
+  UserRole,
+} from 'src/database/entities';
+import { DatabaseService } from 'src/database/services/database.service';
+import {
+  CLASS_SIMULATION_REPOSITORY,
+  INVITE_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  USER_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  ClassSimulationRepository,
+  InviteRepository,
+  SchoolsRepository,
+  UserRepository,
+} from 'src/database/repositories';
 
 @Injectable()
 export class SchoolsService {
-  private readonly logger = new Logger(SchoolsService.name);
-
   constructor(
-    @InjectRepository(Schools)
-    private readonly schoolRepo: Repository<Schools>,
-    @InjectRepository(User)
-    private readonly userRepo: Repository<User>,
-    @InjectRepository(ClassSimulation)
-    private readonly classSimulationRepo: Repository<ClassSimulation>,
-    @InjectRepository(Invite)
-    private readonly inviteRepo: Repository<Invite>,
+    @Inject(SCHOOLS_REPOSITORY)
+    private readonly schoolRepo: SchoolsRepository,
+    @Inject(USER_REPOSITORY)
+    private userRepo: UserRepository,
+    @Inject(CLASS_SIMULATION_REPOSITORY)
+    private readonly classSimulationRepo: ClassSimulationRepository,
+    @Inject(INVITE_REPOSITORY)
+    private readonly inviteRepo: InviteRepository,
     private readonly dataSource: DataSource,
+    private readonly databaseService: DatabaseService,
     private readonly educatorSessionService: EducatorSessionService,
     private readonly notificationsGateway: NotificationsGateway,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
-  ) {}
-
-  //TODO: To be moved to migration file
-  onModuleInit(): void {
-    void this.ensureColumn();
-  }
-
-  private async ensureColumn(): Promise<void> {
-    await this.dataSource.query(`
-    ALTER TABLE schools
-    ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true,
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;
-  `);
-  }
+    private readonly logger: LoggerService,
+    private readonly inviteTokenService: InviteTokenService,
+  ) { }
 
   async findUserById(id: string): Promise<User | null> {
     return this.userRepo.findOne({ where: { id } });
@@ -69,20 +81,12 @@ export class SchoolsService {
   }
 
   async create(userId: string, schoolData: SchoolDto): Promise<ServiceResponse<Schools>> {
-    const school = this.schoolRepo.create({
+    const saved = await this.schoolRepo.create({
       school_name: schoolData.school_name,
       status: schoolData.status ?? CommonStatus.ACTIVE,
+      google_classroom_enabled: schoolData.google_classroom_enabled === true,
       user_id: { id: userId },
     });
-
-    const saved = await this.schoolRepo.save(school);
-    if (!saved || Array.isArray(saved)) {
-      return {
-        success: false,
-        message: Messages.FAILED_TO_SAVE_SCHOOL,
-        type: ErrorTypes.BAD_REQUEST,
-      };
-    }
 
     const savedWithRelations = await this.schoolRepo.findOne({
       where: { id: saved.id },
@@ -97,17 +101,7 @@ export class SchoolsService {
   }
 
   async findAll(userId: string, status?: string): Promise<ServiceResponse<Schools[]>> {
-    const queryBuilder = this.schoolRepo
-      .createQueryBuilder('school')
-      .where('school.user_id = :userId', { userId })
-      .andWhere('school.deleted_at IS NULL');
-
-    if (status && status !== 'all') {
-      const isActive = status === 'active';
-      queryBuilder.andWhere('school.is_active = :isActive', { isActive });
-    }
-
-    const items = await queryBuilder.orderBy('school.created_at', 'DESC').getMany();
+    const items = await this.schoolRepo.findAllForAdmin(userId, status);
 
     return {
       success: true,
@@ -128,118 +122,106 @@ export class SchoolsService {
     };
   }
 
-  async remove(school: Schools): Promise<ServiceResponse<null>> {
-    const queryRunner = this.dataSource.createQueryRunner();
-    await queryRunner.connect();
-    await queryRunner.startTransaction();
+  async remove(school: Schools): Promise<ResponseResult<null>> {
+    let educators: Educator[];
+    let allAffectedEducatorIds: string[];
 
     try {
       const now = new Date();
-      await queryRunner.manager.update(
-        Schools,
-        { id: school.id },
-        {
-          is_active: false,
-          deleted_at: now,
-          status: CommonStatus.INACTIVE,
+      ({ educators, allAffectedEducatorIds } = await this.databaseService.runInTransaction(
+        async (manager) => {
+          await manager.update(
+            Schools,
+            { id: school.id },
+            {
+              is_active: false,
+              deleted_at: now,
+              status: CommonStatus.INACTIVE,
+            },
+          );
+          // Find active educators linked to this school who have no remaining active
+          // schools.  The school above is already saved as is_active=false, so the
+          // NOT EXISTS subquery naturally excludes it.  This correctly handles
+          // multi-school educators where some schools are already inactive.
+          const onlySchoolRows = await manager
+            .createQueryBuilder()
+            .select('es.educator_id', 'educatorId')
+            .from('educator_schools', 'es')
+            .innerJoin('educators', 'e', 'e.id = es.educator_id AND e.is_active = true')
+            .where('es.school_id = :schoolId', { schoolId: school.id })
+            .andWhere(
+              `NOT EXISTS (
+                SELECT 1 FROM educator_schools es2
+                INNER JOIN schools s ON s.id = es2.school_id AND s.is_active = true
+                WHERE es2.educator_id = es.educator_id
+              )`,
+            )
+            .getRawMany<{ educatorId: string }>();
+
+          const educatorIdsToDeactivate = onlySchoolRows.map((r) => r.educatorId).filter(Boolean);
+          const allAffectedRows = await manager
+            .createQueryBuilder()
+            .select('es.educator_id', 'educatorId')
+            .from('educator_schools', 'es')
+            .where('es.school_id = :schoolId', { schoolId: school.id })
+            .getRawMany<{ educatorId: string }>();
+          const affectedEducatorIds = allAffectedRows.map((r) => r.educatorId).filter(Boolean);
+
+          await manager
+            .createQueryBuilder()
+            .delete()
+            .from('educator_schools')
+            .where('school_id = :schoolId', { schoolId: school.id })
+            .execute();
+
+          await manager.query(`UPDATE educators SET school_id = NULL WHERE school_id = $1`, [
+            school.id,
+          ]);
+
+          const deactivatedEducators = await this.deactivateEducatorsAndCascade(
+            educatorIdsToDeactivate,
+            now,
+            manager,
+          );
+
+          return { educators: deactivatedEducators, allAffectedEducatorIds: affectedEducatorIds };
         },
-      );
-      // Find active educators linked to this school who have no remaining active
-      // schools.  The school above is already saved as is_active=false, so the
-      // NOT EXISTS subquery naturally excludes it.  This correctly handles
-      // multi-school educators where some schools are already inactive.
-      const onlySchoolRows = await queryRunner.manager
-        .createQueryBuilder()
-        .select('es.educator_id', 'educatorId')
-        .from('educator_schools', 'es')
-        .innerJoin('educators', 'e', 'e.id = es.educator_id AND e.is_active = true')
-        .where('es.school_id = :schoolId', { schoolId: school.id })
-        .andWhere(
-          `NOT EXISTS (
-            SELECT 1 FROM educator_schools es2
-            INNER JOIN schools s ON s.id = es2.school_id AND s.is_active = true
-            WHERE es2.educator_id = es.educator_id
-          )`,
-        )
-        .getRawMany<{ educatorId: string }>();
+      ));
+    } catch {
+      throwAppError(Messages.SCHOOL_DELETE_FAILED, ErrorTypes.INTERNAL_SERVER_ERROR);
+    }
 
-      const educatorIdsToDeactivate = onlySchoolRows.map((r) => r.educatorId).filter(Boolean);
-      const allAffectedRows = await queryRunner.manager
-        .createQueryBuilder()
-        .select('es.educator_id', 'educatorId')
-        .from('educator_schools', 'es')
-        .where('es.school_id = :schoolId', { schoolId: school.id })
-        .getRawMany<{ educatorId: string }>();
-      const allAffectedEducatorIds = allAffectedRows.map((r) => r.educatorId).filter(Boolean);
-
-      const _survivingEducatorIds = allAffectedEducatorIds.filter(
-        (id) => !educatorIdsToDeactivate.includes(id),
-      );
-      void _survivingEducatorIds;
-
-      await queryRunner.manager
-        .createQueryBuilder()
-        .delete()
-        .from('educator_schools')
-        .where('school_id = :schoolId', { schoolId: school.id })
-        .execute();
-
-      await queryRunner.manager.query(
-        `UPDATE educators SET school_id = NULL WHERE school_id = $1`,
-        [school.id],
-      );
-
-      const educators = await this.deactivateEducatorsAndCascade(
-        educatorIdsToDeactivate,
-        now,
-        queryRunner,
-      );
-
-      await queryRunner.commitTransaction();
-
-      try {
-        for (const educatorId of allAffectedEducatorIds) {
-          this.notificationsGateway.notifyEducatorSchoolRemoved(educatorId);
-        }
-
-        for (const educator of educators) {
-          const adminId = educator.admin?.id;
-          if (adminId) {
-            void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
-              adminId,
-              educator.id,
-              educator.full_name ?? '',
-              CommonStatus.INACTIVE,
-            );
-          }
-        }
-      } catch (err) {
-        this.logger.warn(
-          `[SchoolsService.remove] Post-commit notification dispatch failed: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
+    try {
+      for (const educatorId of allAffectedEducatorIds) {
+        void this.notificationsGateway.notifyEducatorSchoolRemoved(educatorId);
       }
 
-      return {
-        success: true,
-        message: Messages.SCHOOL_DELETED,
-        data: null,
-      };
-    } catch {
-      await queryRunner.rollbackTransaction();
-      return {
-        success: false,
-        message: Messages.SCHOOL_DELETE_FAILED,
-        type: ErrorTypes.INTERNAL_SERVER_ERROR,
-      };
-    } finally {
-      await queryRunner.release();
+      for (const educator of educators) {
+        const adminId = resolveAdminUserId(educator);
+        if (adminId) {
+          void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
+            adminId,
+            educator.id,
+            educator.full_name ?? '',
+            CommonStatus.INACTIVE,
+          );
+        }
+      }
+    } catch (err) {
+      this.logger.warn(
+        `[SchoolsService.remove] Post-commit notification dispatch failed: ${err instanceof Error ? err.message : String(err)
+        }`,
+      );
     }
+
+    return new ResponseResult<null>({
+      message: Messages.SCHOOL_DELETED,
+      data: null,
+    });
   }
 
   async update(school: Schools, schoolData: SchoolDto): Promise<ServiceResponse<Schools>> {
-    const { school_name, status } = schoolData;
+    const { school_name, status, google_classroom_enabled } = schoolData;
 
     // Capture previous values BEFORE mutation so we can detect what changed.
     const previousName = school.school_name;
@@ -254,6 +236,10 @@ export class SchoolsService {
       school.is_active = status === CommonStatus.ACTIVE;
     }
 
+    if (google_classroom_enabled !== undefined) {
+      school.google_classroom_enabled = google_classroom_enabled === true;
+    }
+
     // When a school goes INACTIVE, deactivate educators who have no remaining
     // active schools — same cascade logic as remove().
     const goingInactive =
@@ -261,44 +247,36 @@ export class SchoolsService {
     let deactivatedEducators: Educator[] = [];
 
     if (goingInactive) {
-      const queryRunner = this.dataSource.createQueryRunner();
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
       try {
-        // Persist the school as INACTIVE inside the transaction.
-        await queryRunner.manager.save(school);
+        deactivatedEducators = await this.databaseService.runInTransaction(async (manager) => {
+          // Persist the school as INACTIVE inside the transaction.
+          await manager.save(school);
 
-        // Find active educators linked to this school who now have zero active schools
-        // (the school above is already saved as is_active=false, so it is excluded
-        // from the subquery automatically).
-        const rows = await queryRunner.manager
-          .createQueryBuilder()
-          .select('es.educator_id', 'educatorId')
-          .from('educator_schools', 'es')
-          .innerJoin('educators', 'e', 'e.id = es.educator_id AND e.is_active = true')
-          .where('es.school_id = :schoolId', { schoolId: school.id })
-          .andWhere(
-            `NOT EXISTS (
-              SELECT 1 FROM educator_schools es2
-              INNER JOIN schools s ON s.id = es2.school_id AND s.is_active = true
-              WHERE es2.educator_id = es.educator_id
-            )`,
-          )
-          .getRawMany<{ educatorId: string }>();
+          // Find active educators linked to this school who now have zero active schools
+          // (the school above is already saved as is_active=false, so it is excluded
+          // from the subquery automatically).
+          const rows = await manager
+            .createQueryBuilder()
+            .select('es.educator_id', 'educatorId')
+            .from('educator_schools', 'es')
+            .innerJoin('educators', 'e', 'e.id = es.educator_id AND e.is_active = true')
+            .where('es.school_id = :schoolId', { schoolId: school.id })
+            .andWhere(
+              `NOT EXISTS (
+                SELECT 1 FROM educator_schools es2
+                INNER JOIN schools s ON s.id = es2.school_id AND s.is_active = true
+                WHERE es2.educator_id = es.educator_id
+              )`,
+            )
+            .getRawMany<{ educatorId: string }>();
 
-        const educatorIdsToDeactivate = rows.map((r) => r.educatorId).filter(Boolean);
-        const now = new Date();
-        deactivatedEducators = await this.deactivateEducatorsAndCascade(
-          educatorIdsToDeactivate,
-          now,
-          queryRunner,
-        );
-        await queryRunner.commitTransaction();
+          const educatorIdsToDeactivate = rows.map((r) => r.educatorId).filter(Boolean);
+          const now = new Date();
+          return this.deactivateEducatorsAndCascade(educatorIdsToDeactivate, now, manager);
+        });
       } catch (err) {
-        await queryRunner.rollbackTransaction();
         this.logger.error(
-          `[SchoolsService.update] Transaction failed: ${
-            err instanceof Error ? err.message : String(err)
+          `[SchoolsService.update] Transaction failed: ${err instanceof Error ? err.message : String(err)
           }`,
         );
         return {
@@ -306,11 +284,9 @@ export class SchoolsService {
           message: Messages.SCHOOL_DELETE_FAILED,
           type: ErrorTypes.INTERNAL_SERVER_ERROR,
         };
-      } finally {
-        await queryRunner.release();
       }
     } else {
-      await this.schoolRepo.save(school);
+      await this.schoolRepo.create(school);
       // When a school is reactivated, restore educators who were deactivated
       // solely because this school went inactive.
       if (previousStatus === CommonStatus.INACTIVE && status === CommonStatus.ACTIVE) {
@@ -338,13 +314,13 @@ export class SchoolsService {
       const educatorIds = rows.map((r) => r.educator_id).filter(Boolean);
       for (const educatorId of educatorIds) {
         this.logger.warn(`[RCA][SchoolsService.update] emit school-status-changed → ${educatorId}`);
-        this.notificationsGateway.notifyEducatorSchoolStatusChanged(educatorId);
+        void this.notificationsGateway.notifyEducatorSchoolStatusChanged(educatorId);
       }
     }
 
     // Notify admin about educators deactivated by this school status change (post-commit).
     for (const educator of deactivatedEducators) {
-      const adminId = educator.admin?.id;
+      const adminId = resolveAdminUserId(educator);
       if (adminId) {
         void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
           adminId,
@@ -375,15 +351,27 @@ export class SchoolsService {
     const rows = await this.dataSource.query<
       {
         id: string;
-        password: string | null;
-        email: string;
         full_name: string | null;
-        admin_id: string | null;
+        admin_user_id: string | null;
+        user_role_id: string | null;
+        v2_password: string | null;
+        v2_email: string | null;
+        districtAdminFullName: string | null;
       }[]
     >(
-      `SELECT e.id, e.password, e.email, e.full_name, e.admin_id
+      // Identity and credentials live only on the linked `users` row — `educators.email`/
+      // `.password` are no longer read. Raw SQL bypasses the `User` entity's `select: false`
+      // on `password`, which is how `v2_password` comes back at all.
+      `SELECT e.id, e.full_name, e.user_role_id,
+              u.password AS v2_password, u.email AS v2_email,
+              da.full_name AS "districtAdminFullName",
+              dur.user_id AS admin_user_id
        FROM educators e
        INNER JOIN educator_schools es ON es.educator_id = e.id AND es.school_id = $1
+       LEFT JOIN user_roles ur ON ur.user_role_id = e.user_role_id
+       LEFT JOIN users u ON u.id = ur.user_id
+       LEFT JOIN district_admins da ON da.district_admin_id = e.district_admin_id
+       LEFT JOIN user_roles dur ON dur.user_role_id = da.user_role_id
        WHERE e.is_active = false AND e.deleted_at IS NULL`,
       [schoolId],
     );
@@ -393,15 +381,23 @@ export class SchoolsService {
     const school = await this.schoolRepo.findOne({ where: { id: schoolId } });
 
     for (const row of rows) {
-      if (row.password) {
+      const identifier = row.v2_email;
+      const hasCredentials = Boolean(row.v2_password);
+
+      if (hasCredentials) {
         // Previously active — restore directly to ACTIVE.
-        await this.dataSource.query(
-          `UPDATE educators SET is_active = true, status = $1 WHERE id = $2`,
-          [CommonStatus.ACTIVE, row.id],
-        );
-        if (row.admin_id) {
+        await this.dataSource.query(`UPDATE educators SET is_active = true WHERE id = $1`, [
+          row.id,
+        ]);
+        if (row.user_role_id) {
+          await this.dataSource.query(`UPDATE user_roles SET status = $1 WHERE user_role_id = $2`, [
+            CommonStatus.ACTIVE,
+            row.user_role_id,
+          ]);
+        }
+        if (row.admin_user_id) {
           void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
-            row.admin_id,
+            row.admin_user_id,
             row.id,
             row.full_name ?? '',
             CommonStatus.ACTIVE,
@@ -409,44 +405,59 @@ export class SchoolsService {
         }
       } else {
         // Never completed registration — restore to PENDING and send fresh invite.
-        await this.dataSource.query(
-          `UPDATE educators SET is_active = true, status = $1 WHERE id = $2`,
-          [CommonStatus.PENDING, row.id],
-        );
+        await this.dataSource.query(`UPDATE educators SET is_active = true WHERE id = $1`, [
+          row.id,
+        ]);
+        if (row.user_role_id) {
+          await this.dataSource.query(`UPDATE user_roles SET status = $1 WHERE user_role_id = $2`, [
+            CommonStatus.PENDING,
+            row.user_role_id,
+          ]);
+        }
 
-        await this.inviteRepo.delete({ email: row.email });
+        if (!identifier) {
+          if (row.admin_user_id) {
+            void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
+              row.admin_user_id,
+              row.id,
+              row.full_name ?? '',
+              CommonStatus.PENDING,
+            );
+          }
+          continue;
+        }
+
+        await this.inviteRepo.deleteByEmail(identifier);
 
         const expires_at = new Date();
         expires_at.setMinutes(expires_at.getMinutes() + InvitesConstants.INVITE_EXPIRY_MINUTES);
 
-        const admin = row.admin_id
-          ? await this.userRepo.findOne({ where: { id: row.admin_id } })
+        const admin = row.admin_user_id
+          ? await this.userRepo.findOne({ where: { id: row.admin_user_id } })
           : null;
+        const adminFullName = row.districtAdminFullName;
 
-        const savedInvite = await this.inviteRepo.save(
-          this.inviteRepo.create({
-            full_name: row.full_name ?? undefined,
-            email: row.email,
-            school: school ?? undefined,
-            createdBy: admin ?? undefined,
-            status: InviteStatus.PENDING,
-            expires_at,
-          }),
-        );
+        const savedInvite = await this.inviteRepo.create({
+          full_name: row.full_name ?? undefined,
+          email: identifier,
+          school: school ?? undefined,
+          createdBy: admin ?? undefined,
+          status: InviteStatus.PENDING,
+          expires_at,
+        });
 
-        const frontendUrl =
-          this.configService.get<string>('FRONTEND_URL') || 'http://localhost:5173';
-        const logoUrl = this.configService.get<string>('EMAIL_LOGO_URL') || '';
-        const inviteUrl = `${frontendUrl}/signup/${savedInvite.id}`;
+        const logoUrl = this.configService.get<string>('mail.logoUrl') || '';
+        const inviteToken = this.inviteTokenService.issue(savedInvite.id);
+        const inviteUrl = this.inviteTokenService.buildInviteUrl(inviteToken);
 
         await this.mailService
           .sendMail({
-            to: row.email,
+            to: identifier,
             subject: InvitesConstants.MESSAGES.EMAIL_SUBJECT,
             template: InvitesConstants.MESSAGES.TEMPLATE_NAME,
             context: {
               fullName: row.full_name || InvitesConstants.EMAIL_DEFAULTS.FULL_NAME,
-              creatorName: admin?.full_name || InvitesConstants.EMAIL_DEFAULTS.CREATOR_NAME,
+              creatorName: adminFullName || InvitesConstants.EMAIL_DEFAULTS.CREATOR_NAME,
               schoolName: school?.school_name || InvitesConstants.EMAIL_DEFAULTS.SCHOOL_NAME,
               inviteUrl,
               logoUrl,
@@ -455,15 +466,14 @@ export class SchoolsService {
           })
           .catch((err: unknown) => {
             this.logger.warn(
-              `[SchoolsService] Reactivation invite email failed for ${row.email}: ${
-                err instanceof Error ? err.message : String(err)
+              `[SchoolsService] Reactivation invite email failed for ${identifier}: ${err instanceof Error ? err.message : String(err)
               }`,
             );
           });
 
-        if (row.admin_id) {
+        if (row.admin_user_id) {
           void this.notificationsGateway.notifyAdminEducatorStatusUpdated(
-            row.admin_id,
+            row.admin_user_id,
             row.id,
             row.full_name ?? '',
             CommonStatus.PENDING,
@@ -487,39 +497,50 @@ export class SchoolsService {
   private async deactivateEducatorsAndCascade(
     educatorIds: string[],
     now: Date,
-    queryRunner: QueryRunner,
+    manager: EntityManager,
   ): Promise<Educator[]> {
     if (educatorIds.length === 0) return [];
 
-    await queryRunner.manager.update(
+    await manager.update(
       Educator,
       educatorIds.map((id) => ({ id })),
-      { is_active: false, status: CommonStatus.INACTIVE },
+      { is_active: false },
     );
 
-    const educators = await queryRunner.manager.find(Educator, {
+    const educators = await manager.find(Educator, {
       where: educatorIds.map((id) => ({ id })),
-      relations: ['admin'],
+      relations: ['admin', 'admin.userRole'],
     });
 
-    const classes = await queryRunner.manager.find(Class, {
+    const linkedUserRoleIds = educators
+      .map((educator) => educator.userRoleId)
+      .filter((id): id is string => !!id);
+    if (linkedUserRoleIds.length > 0) {
+      await manager.update(
+        UserRole,
+        linkedUserRoleIds.map((userRoleId) => ({ userRoleId })),
+        { status: CommonStatus.INACTIVE },
+      );
+    }
+
+    const classes = await manager.find(Class, {
       where: educatorIds.map((id) => ({ educator: { id }, is_active: true })),
     });
 
     if (classes.length > 0) {
       const classIds = classes.map((c) => c.id);
-      await queryRunner.manager.update(
+      await manager.update(
         Class,
         classIds.map((id) => ({ id })),
         { is_active: false, deleted_at: now, status: CommonStatus.INACTIVE },
       );
       for (const classId of classIds) {
-        await queryRunner.manager.update(
+        await manager.update(
           Student,
           { class: { id: classId } },
           { is_active: false, deleted_at: now, status: CommonStatus.INACTIVE },
         );
-        await queryRunner.manager.update(
+        await manager.update(
           ClassSimulation,
           { class_id: classId, is_active: true },
           { is_active: false, deleted_at: now },
@@ -529,7 +550,7 @@ export class SchoolsService {
 
     // Soft-delete students linked directly to an educator (no class).
     for (const educatorId of educatorIds) {
-      await queryRunner.manager.update(
+      await manager.update(
         Student,
         { educator: { id: educatorId }, class: null },
         { is_active: false, deleted_at: now, status: CommonStatus.INACTIVE },

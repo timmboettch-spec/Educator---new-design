@@ -1,5 +1,5 @@
 import { BasePage } from './base/BasePage';
-import { Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
 
 export class StudentPage extends BasePage {
   constructor(page: Page) {
@@ -11,7 +11,11 @@ export class StudentPage extends BasePage {
     await this.waitForLoadState('load');
   }
 
-  async createStudent(name: string, email: string, classId: string): Promise<void> {
+  async createStudent(
+    name: string,
+    email: string,
+    classId: string
+  ): Promise<void> {
     await this.click('[data-testid="create-student-btn"]');
     await this.fill('[data-testid="student-name-input"]', name);
     await this.fill('[data-testid="student-email-input"]', email);

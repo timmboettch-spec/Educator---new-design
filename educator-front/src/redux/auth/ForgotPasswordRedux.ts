@@ -1,25 +1,29 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
-import { incrementApiRequest, decrementApiRequest } from '../loader/loaderSlice';
+import {
+  incrementApiRequest,
+  decrementApiRequest,
+} from '../loader/loaderSlice';
 
 export interface ForgotPasswordPayload {
   email: string;
-  role?: string;
 }
 
-export interface ForgotPasswordResponse {
-  reset_token?: string;
-  roles?: string[];
-}
+/** The endpoint now always responds with an empty `data`. */
+export type ForgotPasswordResponse = Record<string, unknown>;
 
 export interface ResponseForgotPassword {
   data: ForgotPasswordResponse;
   message: string;
-  status: string;
+  status?: string;
 }
 
 export interface ForgotPasswordState {
@@ -29,7 +33,9 @@ export interface ForgotPasswordState {
   rememberedEmail: string;
 }
 const savedEmail =
-  typeof window !== 'undefined' ? localStorage.getItem('remembered_email') || '' : '';
+  typeof window !== 'undefined'
+    ? localStorage.getItem('remembered_email') || ''
+    : '';
 
 const initialState: ForgotPasswordState = {
   responseForgotPassword: null,
@@ -99,7 +105,8 @@ const ForgotPasswordSlice = createSlice({
   },
 });
 
-export const { logout, setRememberedEmail, resetError } = ForgotPasswordSlice.actions;
+export const { logout, setRememberedEmail, resetError } =
+  ForgotPasswordSlice.actions;
 
 export default ForgotPasswordSlice.reducer;
 
@@ -107,9 +114,15 @@ const selectState = (state: RootState) => state.ForgotPassword;
 
 export const selectForgotPasswordResponse = createSelector(
   selectState,
-  (state) => state.responseForgotPassword,
+  (state) => state.responseForgotPassword
 );
 
-export const selectForgotPasswordStatus = createSelector(selectState, (state) => state.status);
+export const selectForgotPasswordStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
 
-export const selectForgotPasswordError = createSelector(selectState, (state) => state.error);
+export const selectForgotPasswordError = createSelector(
+  selectState,
+  (state) => state.error
+);

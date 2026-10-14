@@ -66,7 +66,8 @@ export default function PasswordModal({
     newPassword: copy?.newPassword ?? 'New Password',
     newPasswordPlaceholder: copy?.newPasswordPlaceholder ?? 'New Password',
     confirmPassword: copy?.confirmPassword ?? 'Confirm Password',
-    confirmPasswordPlaceholder: copy?.confirmPasswordPlaceholder ?? 'Confirm Password',
+    confirmPasswordPlaceholder:
+      copy?.confirmPasswordPlaceholder ?? 'Confirm Password',
   };
 
   return (
@@ -89,41 +90,68 @@ export default function PasswordModal({
             disabled={isChangingPassword}
             className="w-1/2 h-11 rounded-full bg-primary-500 text-white disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {isChangingPassword ? localizedCopy.updating : localizedCopy.updatePassword}
+            {isChangingPassword
+              ? localizedCopy.updating
+              : localizedCopy.updatePassword}
           </Button>
         </div>
       }
     >
-      <form id="password-form" onSubmit={(e) => { e.preventDefault(); if (!isChangingPassword) handleChangePassword(); }} className="flex flex-col gap-4">
+      <form
+        id="password-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!isChangingPassword) handleChangePassword();
+        }}
+        className="flex flex-col gap-4"
+      >
         {/* Hidden submit triggers Enter-key submission in all browsers */}
-        <button type="submit" aria-hidden="true" className="hidden" tabIndex={-1} />
-        <FormField label={localizedCopy.oldPassword} error={errors.oldPassword || undefined}>
+        <button
+          type="submit"
+          aria-hidden="true"
+          className="hidden"
+          tabIndex={-1}
+        />
+        <FormField
+          label={localizedCopy.oldPassword}
+          error={errors.oldPassword || undefined}
+        >
           <Input
             type="password"
             value={oldPassword}
             placeholder={localizedCopy.oldPasswordPlaceholder}
-            onChange={(e) => setOldPassword(sanitizePasswordForTyping(e.target.value))}
+            onChange={(e) =>
+              setOldPassword(sanitizePasswordForTyping(e.target.value))
+            }
             onBlur={onBlurOldPassword}
-            inputClassName="w-full h-[38px] rounded-xl border-2 border-gray-300 focus:border-primary-400 pl-3 pr-3 text-sm [outline:none] transition-[border-color] duration-200 placeholder:text-gray-500 hide-native-password-toggle"
             autoComplete="off"
-            disablePasswordToggle
           />
         </FormField>
-        <FormField label={localizedCopy.newPassword} error={errors.newPassword || undefined}>
+        <FormField
+          label={localizedCopy.newPassword}
+          error={errors.newPassword || undefined}
+        >
           <Input
             type="password"
             placeholder={localizedCopy.newPasswordPlaceholder}
             value={newPassword}
-            onChange={(e) => setNewPassword(sanitizePasswordForTyping(e.target.value))}
+            onChange={(e) =>
+              setNewPassword(sanitizePasswordForTyping(e.target.value))
+            }
             onBlur={onBlurNewPassword}
           />
         </FormField>
-        <FormField label={localizedCopy.confirmPassword} error={errors.confirmPassword || undefined}>
+        <FormField
+          label={localizedCopy.confirmPassword}
+          error={errors.confirmPassword || undefined}
+        >
           <Input
             type="password"
             placeholder={localizedCopy.confirmPasswordPlaceholder}
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(sanitizePasswordForTyping(e.target.value))}
+            onChange={(e) =>
+              setConfirmPassword(sanitizePasswordForTyping(e.target.value))
+            }
             onBlur={onBlurConfirmPassword}
           />
         </FormField>

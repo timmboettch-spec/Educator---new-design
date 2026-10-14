@@ -38,7 +38,7 @@ describe('[Smoke] Reports', () => {
     });
 
     it('auth guard — no token returns 401 (protected route)', async () => {
-      // ReportsController has @UseGuards(ScenarioAuthGuard) at the class level.
+      // ReportsController is protected by the global AuthGuard.
       // Unauthenticated requests return 401 — this is the correct behaviour.
       const res = await smokeGet(URL.ROOT);
       expect([401, 404]).toContain(res.status);
@@ -61,7 +61,7 @@ describe('[Smoke] Reports', () => {
     });
 
     it('auth guard — bad token returns 401 (not 200)', async () => {
-      // ScenarioAuthGuard rejects invalid tokens with 401.
+      // The global AuthGuard rejects invalid tokens with 401.
       expect([401, 404, 429]).toContain((await smokeGet(URL.ROOT, 'bad')).status);
     });
   });

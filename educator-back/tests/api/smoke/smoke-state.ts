@@ -5,6 +5,8 @@
  * tests (and cleanup) can reference them without re-querying.
  */
 
+import { testEmail } from '../utils/env';
+
 interface SmokeState {
   adminEmail: string;
   adminPassword: string;
@@ -24,7 +26,7 @@ interface SmokeState {
 }
 
 const state: SmokeState = {
-  adminEmail: `smoke-admin-${Date.now()}@smoke.test`,
+  adminEmail: testEmail('smoke-admin'),
   adminPassword: 'SmokeAdmin@123',
   accessToken: '',
   adminId: '',

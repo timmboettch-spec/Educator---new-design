@@ -1,6 +1,7 @@
 {
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": "../../../..",
+  "globalSetup": "<rootDir>/tests/api/config/global-setup.ts",
   "testEnvironment": "node",
   "testMatch": ["<rootDir>/tests/student-backend/api/smoke/*.smoke.ts"],
   "transform": {

@@ -8,7 +8,7 @@ let savedPaddingRight = '';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getScrollTarget(): HTMLElement {
-  return document.querySelector<HTMLElement>('main') ?? document.body;
+  return document.body;
 }
 
 const MODAL_SELECTOR = '[aria-modal="true"]';
@@ -20,7 +20,11 @@ function preventWheel(e: WheelEvent): void {
   // Allow scrolling inside the modal itself
   if (target?.closest(MODAL_SELECTOR)) return;
   // Allow scrolling inside portaled dropdowns (rendered outside the modal DOM)
-  if (target?.closest('[role="listbox"]') || target?.closest('[data-select-dropdown]')) return;
+  if (
+    target?.closest('[role="listbox"]') ||
+    target?.closest('[data-select-dropdown]')
+  )
+    return;
   e.preventDefault();
   e.stopPropagation();
 }
@@ -28,7 +32,11 @@ function preventWheel(e: WheelEvent): void {
 function preventTouchMove(e: TouchEvent): void {
   const target = e.target as Element | null;
   if (target?.closest(MODAL_SELECTOR)) return;
-  if (target?.closest('[role="listbox"]') || target?.closest('[data-select-dropdown]')) return;
+  if (
+    target?.closest('[role="listbox"]') ||
+    target?.closest('[data-select-dropdown]')
+  )
+    return;
   e.preventDefault();
 }
 

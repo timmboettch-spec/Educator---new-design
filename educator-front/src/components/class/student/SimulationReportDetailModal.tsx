@@ -49,26 +49,29 @@ function scoreBg(score: number): string {
 }
 
 function getRubricItems(report: SimulationReport): Record<string, unknown> {
-  const ca = report.communicationAssessment as Record<string, unknown> | undefined;
+  const ca = report.communicationAssessment as
+    Record<string, unknown> | undefined;
   if (!ca) return {};
   // rubrics may live at multiple nesting levels
   const rubrics =
     (ca['rubrics'] as Record<string, unknown> | undefined) ??
-    ((ca['communicationAssessment'] as Record<string, unknown> | undefined)?.['rubrics'] as
-      | Record<string, unknown>
-      | undefined);
+    ((ca['communicationAssessment'] as Record<string, unknown> | undefined)?.[
+      'rubrics'
+    ] as Record<string, unknown> | undefined);
   return (rubrics?.['items'] as Record<string, unknown>) ?? {};
 }
 
 function getRubricsOverall(
-  report: SimulationReport,
+  report: SimulationReport
 ): { score: number; label: string; summary: string } | null {
-  const ca = report.communicationAssessment as Record<string, unknown> | undefined;
+  const ca = report.communicationAssessment as
+    Record<string, unknown> | undefined;
   if (!ca) return null;
   const overall = ca['overall'] as Record<string, unknown> | undefined;
   if (!overall) return null;
   return {
-    score: (overall['score'] as number) ?? report.rubricsTotal ?? report.score ?? 0,
+    score:
+      (overall['score'] as number) ?? report.rubricsTotal ?? report.score ?? 0,
     label: (overall['label'] as string) ?? report.performanceLabel ?? '—',
     summary: (overall['summary'] as string) ?? report.summary ?? '',
   };
@@ -92,7 +95,7 @@ function TabButton({
       onClick={() => onClick(id)}
       className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
         active
-          ? 'border-primary-500 text-primary-600'
+          ? 'border-orange-500 text-orange-600'
           : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
       }`}
     >
@@ -109,7 +112,14 @@ function ScoreCircle({ score, label }: { score: number; label: string }) {
   return (
     <div className="flex flex-col items-center gap-1">
       <svg width="100" height="100" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r={radius} fill="none" stroke="#e5e7eb" strokeWidth="10" />
+        <circle
+          cx="50"
+          cy="50"
+          r={radius}
+          fill="none"
+          stroke="#e5e7eb"
+          strokeWidth="10"
+        />
         <circle
           cx="50"
           cy="50"
@@ -121,7 +131,14 @@ function ScoreCircle({ score, label }: { score: number; label: string }) {
           strokeLinecap="round"
           transform="rotate(-90 50 50)"
         />
-        <text x="50" y="46" textAnchor="middle" fontSize="16" fontWeight="bold" fill={color}>
+        <text
+          x="50"
+          y="46"
+          textAnchor="middle"
+          fontSize="16"
+          fontWeight="bold"
+          fill={color}
+        >
           {Math.round(score)}%
         </text>
         <text x="50" y="62" textAnchor="middle" fontSize="8" fill="#6b7280">
@@ -148,20 +165,24 @@ function CategoryScoreBar({
   weight: number;
   weightedScore: number;
 }) {
-  const color = score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-400';
+  const color =
+    score >= 80 ? 'bg-green-500' : score >= 60 ? 'bg-yellow-500' : 'bg-red-400';
   return (
     <div className="mb-3">
       <div className="flex justify-between items-center mb-1">
         <span className="text-xs font-medium text-gray-700">{name}</span>
         <span className={`text-xs font-bold ${scoreColor(score)}`}>
           {score}%{' '}
-          <span className="text-gray-500 font-normal">
+          <span className="text-gray-400 font-normal">
             ({weightedScore.toFixed(1)}/{weight}pts)
           </span>
         </span>
       </div>
       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${score}%` }} />
+        <div
+          className={`h-full rounded-full ${color}`}
+          style={{ width: `${score}%` }}
+        />
       </div>
     </div>
   );
@@ -188,7 +209,10 @@ function OverviewTab({ report }: { report: SimulationReport }) {
       {/* Score + scenario info */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-shrink-0 flex items-start justify-center pt-2">
-          <ScoreCircle score={typeof score === 'number' ? score : 0} label={label} />
+          <ScoreCircle
+            score={typeof score === 'number' ? score : 0}
+            label={label}
+          />
         </div>
         <div className="flex-1 space-y-2">
           <div
@@ -196,25 +220,36 @@ function OverviewTab({ report }: { report: SimulationReport }) {
           >
             <p className="text-xs text-gray-500 mb-0.5">Simulation</p>
             <p className="text-sm font-semibold text-gray-800">
-              {report.scenarioTitle ?? report.scenario_title ?? report.scenarioId ?? '—'}
+              {report.scenarioTitle ??
+                report.scenario_title ??
+                report.scenarioId ??
+                '—'}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-gray-50 rounded-lg p-2.5">
-              <p className="text-gray-500 mb-0.5">Start Time</p>
-              <p className="font-medium text-gray-700">{fmtDate(report.scenarioStartTime)}</p>
+              <p className="text-gray-400 mb-0.5">Start Time</p>
+              <p className="font-medium text-gray-700">
+                {fmtDate(report.scenarioStartTime)}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-2.5">
-              <p className="text-gray-500 mb-0.5">End Time</p>
-              <p className="font-medium text-gray-700">{fmtDate(report.scenarioEndTime)}</p>
+              <p className="text-gray-400 mb-0.5">End Time</p>
+              <p className="font-medium text-gray-700">
+                {fmtDate(report.scenarioEndTime)}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-2.5">
-              <p className="text-gray-500 mb-0.5">Total Time</p>
-              <p className="font-medium text-gray-700">{fmtTime(report.totalTimeSeconds)}</p>
+              <p className="text-gray-400 mb-0.5">Total Time</p>
+              <p className="font-medium text-gray-700">
+                {fmtTime(report.totalTimeSeconds)}
+              </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-2.5">
-              <p className="text-gray-500 mb-0.5">Class</p>
-              <p className="font-medium text-gray-700">{report.studentClass ?? '—'}</p>
+              <p className="text-gray-400 mb-0.5">Class</p>
+              <p className="font-medium text-gray-700">
+                {report.studentClass ?? '—'}
+              </p>
             </div>
           </div>
         </div>
@@ -258,7 +293,8 @@ function OverviewTab({ report }: { report: SimulationReport }) {
 
 function SummaryTab({ report }: { report: SimulationReport }) {
   const entries = report.summaryEntries ?? [];
-  const actionSummary = report.actionSummary as Record<string, unknown> | undefined;
+  const actionSummary = report.actionSummary as
+    Record<string, unknown> | undefined;
   const mandatoryActions =
     (report.mandatoryActions as {
       title: string;
@@ -282,7 +318,10 @@ function SummaryTab({ report }: { report: SimulationReport }) {
               label: 'Optional Actions',
               value: `${actionSummary['completedOptional'] ?? 0} / ${actionSummary['totalOptional'] ?? 0}`,
             },
-            { label: 'Mandatory %', value: `${actionSummary['mandatoryPercentage'] ?? 0}%` },
+            {
+              label: 'Mandatory %',
+              value: `${actionSummary['mandatoryPercentage'] ?? 0}%`,
+            },
           ].map((s) => (
             <div
               key={s.label}
@@ -312,7 +351,9 @@ function SummaryTab({ report }: { report: SimulationReport }) {
                   {a.isCorrect ? '✓' : '✗'}
                 </span>
                 <span className="text-xs text-gray-700 flex-1">{a.title}</span>
-                <span className="text-xs text-gray-500 capitalize">{a.type}</span>
+                <span className="text-xs text-gray-400 capitalize">
+                  {a.type}
+                </span>
                 <span
                   className={`text-xs font-medium ${a.isCorrect ? 'text-green-600' : 'text-red-500'}`}
                 >
@@ -337,28 +378,57 @@ function SummaryTab({ report }: { report: SimulationReport }) {
             const elapsedTime = (e['elapsedTime'] as string) ?? '';
             const duration = e['duration'] as number | undefined;
             const timestamp = (e['timestamp'] as string) ?? '';
-            const startTime = (e['startedAt'] ?? e['started_at'] ?? e['startTime']) as string | undefined;
-            const endTime = ((e['endedAt'] ?? e['ended_at'] ?? e['endTime'] ?? (startTime ? null : timestamp)) || undefined) as string | undefined;
-            const clinicalPrompt = (e['clinicalPrompt'] ?? e['clinical_prompt'] ?? e['prompt']) as string | undefined;
-            const studentResponse = (e['studentResponse'] ?? e['student_response'] ?? e['response']) as string | undefined;
-            const clinicalObservations = (e['clinicalObservations'] ?? e['clinical_observations'] ?? e['observations']) as string | undefined;
+            const startTime = (e['startedAt'] ??
+              e['started_at'] ??
+              e['startTime']) as string | undefined;
+            const endTime = ((e['endedAt'] ??
+              e['ended_at'] ??
+              e['endTime'] ??
+              (startTime ? null : timestamp)) ||
+              undefined) as string | undefined;
+            const clinicalPrompt = (e['clinicalPrompt'] ??
+              e['clinical_prompt'] ??
+              e['prompt']) as string | undefined;
+            const studentResponse = (e['studentResponse'] ??
+              e['student_response'] ??
+              e['response']) as string | undefined;
+            const clinicalObservations = (e['clinicalObservations'] ??
+              e['clinical_observations'] ??
+              e['observations']) as string | undefined;
             const isCorrect = e['isCorrect'] as boolean | undefined;
-            const performanceLabel = (e['performanceLabel'] ?? e['result']) as string | undefined;
-            const questionType = (e['questionType'] ?? e['actionType']) as string | undefined;
-            const hasClinicalData = !!(clinicalPrompt || studentResponse || clinicalObservations);
-            const resultLabel = performanceLabel ?? (isCorrect === true ? 'Satisfactory' : isCorrect === false ? 'Unsatisfactory' : null);
+            const performanceLabel = (e['performanceLabel'] ?? e['result']) as
+              string | undefined;
+            const questionType = (e['questionType'] ?? e['actionType']) as
+              string | undefined;
+            const hasClinicalData = !!(
+              clinicalPrompt ||
+              studentResponse ||
+              clinicalObservations
+            );
+            const resultLabel =
+              performanceLabel ??
+              (isCorrect === true
+                ? 'Satisfactory'
+                : isCorrect === false
+                  ? 'Unsatisfactory'
+                  : null);
             const resultIsGood =
               isCorrect === true ||
               (typeof performanceLabel === 'string' &&
                 performanceLabel.toLowerCase().includes('satisf') &&
                 !performanceLabel.toLowerCase().includes('un'));
             return (
-              <div key={i} className="border border-gray-200 rounded-lg overflow-hidden">
+              <div
+                key={i}
+                className="border border-gray-200 rounded-lg overflow-hidden"
+              >
                 {/* Card header */}
                 <div className="flex items-center justify-between bg-gray-50 px-3 py-2 border-b border-gray-100">
                   <div className="flex items-center gap-2">
                     {elapsedTime && (
-                      <span className="text-xs text-gray-500">⏱ {elapsedTime}</span>
+                      <span className="text-xs text-gray-500">
+                        ⏱ {elapsedTime}
+                      </span>
                     )}
                     {category && (
                       <span className="text-xs font-semibold text-gray-600 bg-gray-200 px-2 py-0.5 rounded uppercase tracking-wide">
@@ -382,7 +452,7 @@ function SummaryTab({ report }: { report: SimulationReport }) {
                 <div className="px-3 py-2.5 space-y-2">
                   {/* Timestamps */}
                   {(startTime || endTime || duration != null) && (
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-400">
                       {startTime && `Started: ${fmtDate(startTime)}`}
                       {startTime && endTime && ' | '}
                       {endTime && `Ended: ${fmtDate(endTime)}`}
@@ -390,12 +460,16 @@ function SummaryTab({ report }: { report: SimulationReport }) {
                     </p>
                   )}
                   {!startTime && !endTime && timestamp && (
-                    <p className="text-xs text-gray-500">{fmtDate(timestamp)}</p>
+                    <p className="text-xs text-gray-400">
+                      {fmtDate(timestamp)}
+                    </p>
                   )}
 
                   {/* Title + question type */}
                   <div>
-                    <p className="text-sm font-semibold text-gray-800">{title}</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {title}
+                    </p>
                     {(questionType ?? category) && (
                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                         {questionType ?? category}
@@ -410,7 +484,9 @@ function SummaryTab({ report }: { report: SimulationReport }) {
                         Clinical Prompt
                       </p>
                       <div className="bg-amber-50 border border-amber-200 rounded p-2">
-                        <p className="text-xs text-gray-700 leading-relaxed">{clinicalPrompt}</p>
+                        <p className="text-xs text-gray-700 leading-relaxed">
+                          {clinicalPrompt}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -422,7 +498,9 @@ function SummaryTab({ report }: { report: SimulationReport }) {
                         Student Response
                       </p>
                       <div className="bg-green-50 border border-green-200 rounded p-2">
-                        <p className="text-xs text-gray-700 leading-relaxed">{studentResponse}</p>
+                        <p className="text-xs text-gray-700 leading-relaxed">
+                          {studentResponse}
+                        </p>
                       </div>
                     </div>
                   )}
@@ -433,13 +511,17 @@ function SummaryTab({ report }: { report: SimulationReport }) {
                       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">
                         Clinical Observations
                       </p>
-                      <p className="text-xs text-gray-600 italic">{clinicalObservations}</p>
+                      <p className="text-xs text-gray-600 italic">
+                        {clinicalObservations}
+                      </p>
                     </div>
                   )}
 
                   {/* Fallback details */}
                   {!hasClinicalData && (e['details'] as string) && (
-                    <p className="text-xs text-gray-500">{e['details'] as string}</p>
+                    <p className="text-xs text-gray-500">
+                      {e['details'] as string}
+                    </p>
                   )}
                 </div>
               </div>
@@ -449,7 +531,9 @@ function SummaryTab({ report }: { report: SimulationReport }) {
       )}
 
       {entries.length === 0 && !mandatoryActions.length && (
-        <p className="text-sm text-gray-500 text-center py-8">No activity data available.</p>
+        <p className="text-sm text-gray-400 text-center py-8">
+          No activity data available.
+        </p>
       )}
     </div>
   );
@@ -461,19 +545,27 @@ function RubricsTab({ report }: { report: SimulationReport }) {
 
   if (!keys.length) {
     // Fallback: use rubricsPayload if available
-    return <p className="text-sm text-gray-500 text-center py-8">No rubric data available.</p>;
+    return (
+      <p className="text-sm text-gray-400 text-center py-8">
+        No rubric data available.
+      </p>
+    );
   }
 
   return (
     <div className="space-y-3">
       {/* Overall */}
       {report.rubricsTotal != null && (
-        <div className={`rounded-lg border p-3 ${scoreBg(report.rubricsTotal)}`}>
+        <div
+          className={`rounded-lg border p-3 ${scoreBg(report.rubricsTotal)}`}
+        >
           <div className="flex items-center justify-between mb-1">
             <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
               Overall Score
             </p>
-            <span className={`text-lg font-bold ${scoreColor(report.rubricsTotal)}`}>
+            <span
+              className={`text-lg font-bold ${scoreColor(report.rubricsTotal)}`}
+            >
               {report.rubricsTotal.toFixed(1)}%
             </span>
           </div>
@@ -493,18 +585,25 @@ function RubricsTab({ report }: { report: SimulationReport }) {
         const weight = (item['weight'] as number) ?? 0;
         const weightedScore = (item['weightedScore'] as number) ?? 0;
         const summary = (item['summary'] as string) ?? '';
-        const strengths = (item['strengths'] as { point: string; example?: string }[]) ?? [];
-        const weaknesses = (item['weaknesses'] as { point: string; example?: string }[]) ?? [];
+        const strengths =
+          (item['strengths'] as { point: string; example?: string }[]) ?? [];
+        const weaknesses =
+          (item['weaknesses'] as { point: string; example?: string }[]) ?? [];
         const recommendations = (item['recommendations'] as string[]) ?? [];
 
         return (
-          <div key={key} className="border border-gray-200 rounded-lg overflow-hidden">
+          <div
+            key={key}
+            className="border border-gray-200 rounded-lg overflow-hidden"
+          >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 border-b border-gray-200">
               <p className="text-xs font-semibold text-gray-800">{name}</p>
               <div className="flex items-center gap-2">
-                <span className={`text-xs font-bold ${scoreColor(score)}`}>{score}%</span>
-                <span className="text-xs text-gray-500">
+                <span className={`text-xs font-bold ${scoreColor(score)}`}>
+                  {score}%
+                </span>
+                <span className="text-xs text-gray-400">
                   {weightedScore.toFixed(1)}/{weight}pts
                 </span>
               </div>
@@ -520,11 +619,17 @@ function RubricsTab({ report }: { report: SimulationReport }) {
             </div>
             {/* Body */}
             <div className="px-3 pb-3 space-y-2">
-              {summary && <p className="text-xs text-gray-600 leading-relaxed">{summary}</p>}
+              {summary && (
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  {summary}
+                </p>
+              )}
 
               {strengths.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-green-600 mb-1">✓ Strengths</p>
+                  <p className="text-xs font-semibold text-green-600 mb-1">
+                    ✓ Strengths
+                  </p>
                   <ul className="space-y-0.5">
                     {strengths.map((s, i) => (
                       <li
@@ -532,7 +637,9 @@ function RubricsTab({ report }: { report: SimulationReport }) {
                         className="text-xs text-gray-600 pl-2 border-l-2 border-green-300"
                       >
                         {s.point}
-                        {s.example && <span className="text-gray-500"> — {s.example}</span>}
+                        {s.example && (
+                          <span className="text-gray-400"> — {s.example}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -541,12 +648,22 @@ function RubricsTab({ report }: { report: SimulationReport }) {
 
               {weaknesses.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-red-500 mb-1">✗ Needs Improvement</p>
+                  <p className="text-xs font-semibold text-red-500 mb-1">
+                    {localStorage.getItem('app_language')?.toLowerCase() ===
+                    'es'
+                      ? '✗ Necesita mejorar'
+                      : '✗ Needs Improvement'}
+                  </p>
                   <ul className="space-y-0.5">
                     {weaknesses.map((w, i) => (
-                      <li key={i} className="text-xs text-gray-600 pl-2 border-l-2 border-red-300">
+                      <li
+                        key={i}
+                        className="text-xs text-gray-600 pl-2 border-l-2 border-red-300"
+                      >
                         {w.point}
-                        {w.example && <span className="text-gray-500"> — {w.example}</span>}
+                        {w.example && (
+                          <span className="text-gray-400"> — {w.example}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -555,10 +672,15 @@ function RubricsTab({ report }: { report: SimulationReport }) {
 
               {recommendations.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-blue-600 mb-1">💡 Recommendations</p>
+                  <p className="text-xs font-semibold text-blue-600 mb-1">
+                    💡 Recommendations
+                  </p>
                   <ul className="space-y-0.5">
                     {recommendations.map((r, i) => (
-                      <li key={i} className="text-xs text-gray-600 pl-2 border-l-2 border-blue-300">
+                      <li
+                        key={i}
+                        className="text-xs text-gray-600 pl-2 border-l-2 border-blue-300"
+                      >
                         {r}
                       </li>
                     ))}
@@ -574,21 +696,25 @@ function RubricsTab({ report }: { report: SimulationReport }) {
 }
 
 function CommunicationTab({ report }: { report: SimulationReport }) {
-  const ca = report.communicationAssessment as Record<string, unknown> | undefined;
+  const ca = report.communicationAssessment as
+    Record<string, unknown> | undefined;
   if (!ca)
     return (
-      <p className="text-sm text-gray-500 text-center py-8">
+      <p className="text-sm text-gray-400 text-center py-8">
         No communication assessment data available.
       </p>
     );
 
   // Navigate to rubric_communication item
   const allItems = getRubricItems(report);
-  const commItem = allItems['rubric_communication'] as Record<string, unknown> | undefined;
+  const commItem = allItems['rubric_communication'] as
+    Record<string, unknown> | undefined;
 
   // Top-level communication assessment nested object
-  const innerCa = ca['communicationAssessment'] as Record<string, unknown> | undefined;
-  const caRubrics = (innerCa?.['rubrics'] ?? ca['rubrics']) as Record<string, unknown> | undefined;
+  const innerCa = ca['communicationAssessment'] as
+    Record<string, unknown> | undefined;
+  const caRubrics = (innerCa?.['rubrics'] ?? ca['rubrics']) as
+    Record<string, unknown> | undefined;
   const overall = ca['overall'] as Record<string, unknown> | undefined;
   const meta = ca['meta'] as Record<string, unknown> | undefined;
 
@@ -599,8 +725,10 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
       passed: boolean;
       rationale: string;
     }[]) ?? [];
-  const strengths = (commItem?.['strengths'] as { point: string; example?: string }[]) ?? [];
-  const weaknesses = (commItem?.['weaknesses'] as { point: string; example?: string }[]) ?? [];
+  const strengths =
+    (commItem?.['strengths'] as { point: string; example?: string }[]) ?? [];
+  const weaknesses =
+    (commItem?.['weaknesses'] as { point: string; example?: string }[]) ?? [];
   const recommendations = (commItem?.['recommendations'] as string[]) ?? [];
 
   return (
@@ -611,23 +739,32 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
           <div className="flex items-center justify-between mb-1">
             <div>
               <p className="text-xs font-semibold text-indigo-700">
-                {(meta?.['assessmentType'] as string) ?? 'Communication Assessment'}
+                {(meta?.['assessmentType'] as string) ??
+                  'Communication Assessment'}
               </p>
               {!!meta?.['standards'] && (
-                <p className="text-xs text-indigo-500">{meta['standards'] as string}</p>
+                <p className="text-xs text-indigo-500">
+                  {meta['standards'] as string}
+                </p>
               )}
             </div>
             {overall?.['score'] != null && (
               <div className="text-right">
-                <p className={`text-xl font-bold ${scoreColor(overall['score'] as number)}`}>
+                <p
+                  className={`text-xl font-bold ${scoreColor(overall['score'] as number)}`}
+                >
                   {(overall['score'] as number).toFixed(1)}%
                 </p>
-                <p className="text-xs text-gray-500">{(overall['label'] as string) ?? ''}</p>
+                <p className="text-xs text-gray-500">
+                  {(overall['label'] as string) ?? ''}
+                </p>
               </div>
             )}
           </div>
           {!!overall?.['summary'] && (
-            <p className="text-xs text-gray-600 mt-1">{overall['summary'] as string}</p>
+            <p className="text-xs text-gray-600 mt-1">
+              {overall['summary'] as string}
+            </p>
           )}
         </div>
       )}
@@ -643,7 +780,9 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
           </p>
           {!!caRubrics['feedback'] && (
             <div className="mt-2 pt-2 border-t border-gray-100">
-              <p className="text-xs font-semibold text-gray-600 mb-1">Feedback</p>
+              <p className="text-xs font-semibold text-gray-600 mb-1">
+                Feedback
+              </p>
               <p className="text-xs text-gray-600 leading-relaxed">
                 {caRubrics['feedback'] as string}
               </p>
@@ -659,7 +798,9 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
             <p className="text-xs font-semibold text-gray-800">
               {(commItem['name'] as string) ?? 'Communication'}
             </p>
-            <span className={`text-sm font-bold ${scoreColor((commItem['score'] as number) ?? 0)}`}>
+            <span
+              className={`text-sm font-bold ${scoreColor((commItem['score'] as number) ?? 0)}`}
+            >
               {(commItem['score'] as number) ?? 0}%
             </span>
           </div>
@@ -689,8 +830,10 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
                       {c.passed ? '✓' : '✗'}
                     </span>
                     <div>
-                      <p className="text-xs font-medium text-gray-700">{c.title}</p>
-                      <p className="text-xs text-gray-500">{c.rationale}</p>
+                      <p className="text-xs font-medium text-gray-700">
+                        {c.title}
+                      </p>
+                      <p className="text-xs text-gray-400">{c.rationale}</p>
                     </div>
                   </div>
                 ))}
@@ -699,7 +842,9 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
 
             {strengths.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-green-600 mb-1">✓ Strengths</p>
+                <p className="text-xs font-semibold text-green-600 mb-1">
+                  ✓ Strengths
+                </p>
                 {strengths.map((s, i) => (
                   <p
                     key={i}
@@ -713,7 +858,11 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
 
             {weaknesses.length > 0 && (
               <div className="mb-2">
-                <p className="text-xs font-semibold text-red-500 mb-1">✗ Needs Improvement</p>
+                <p className="text-xs font-semibold text-red-500 mb-1">
+                  {localStorage.getItem('app_language')?.toLowerCase() === 'es'
+                    ? '✗ Necesita mejorar'
+                    : '✗ Needs Improvement'}
+                </p>
                 {weaknesses.map((w, i) => (
                   <p
                     key={i}
@@ -727,7 +876,9 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
 
             {recommendations.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-blue-600 mb-1">💡 Recommendations</p>
+                <p className="text-xs font-semibold text-blue-600 mb-1">
+                  💡 Recommendations
+                </p>
                 {recommendations.map((r, i) => (
                   <p
                     key={i}
@@ -743,7 +894,7 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
       )}
 
       {!commItem && !caRubrics && (
-        <p className="text-sm text-gray-500 text-center py-4">
+        <p className="text-sm text-gray-400 text-center py-4">
           Detailed communication data not available.
         </p>
       )}
@@ -753,10 +904,18 @@ function CommunicationTab({ report }: { report: SimulationReport }) {
 
 // ── main component ─────────────────────────────────────────────────────────────
 
-export default function SimulationReportDetailModal({ report, studentName, onClose }: Props) {
+export default function SimulationReportDetailModal({
+  report,
+  studentName,
+  onClose,
+}: Props) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
-  const simName = report.scenarioTitle ?? report.scenario_title ?? report.scenarioId ?? 'Report';
+  const simName =
+    report.scenarioTitle ??
+    report.scenario_title ??
+    report.scenarioId ??
+    'Report';
   const score = report.rubricsTotal ?? report.score ?? 0;
   const label = report.performanceLabel ?? '—';
 

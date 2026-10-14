@@ -1,4 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+
+import { LoggerService } from '../../../common/services';
 
 import {
   type ChecklistItem,
@@ -68,7 +70,7 @@ interface ActionEntry {
 
 @Injectable()
 export class ClinicalDocumentationService {
-  private readonly logger = new Logger(ClinicalDocumentationService.name);
+  constructor(private readonly logger: LoggerService) {}
 
   // ── DETERMINISTIC CLINICAL DOCUMENTATION SCORING ──────────────────────────
   // Evaluates each checklist item using specific rules tied to action categories.
@@ -185,8 +187,8 @@ export class ClinicalDocumentationService {
       }
 
       const textLower = (ci.text ?? '').toLowerCase();
-      let passed = false;
-      let reason = '';
+      let passed: boolean;
+      let reason: string;
 
       // ── Rule 1: Assessment Findings Documented ────────────────────────────
       // PASS if ANY action (regardless of category) has a non-empty Observation
@@ -487,7 +489,7 @@ export class ClinicalDocumentationService {
         }
 
         const textLower = (cli.text ?? '').toLowerCase();
-        let rule = '';
+        let rule: string;
 
         if (
           cli.id === 'doc-1' ||

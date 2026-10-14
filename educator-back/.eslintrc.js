@@ -10,7 +10,6 @@ module.exports = {
     'plugin:@typescript-eslint/recommended-requiring-type-checking',
     'plugin:import/recommended',
     'plugin:import/typescript',
-    'prettier',
   ],
   ignorePatterns: ['dist/*', 'eslint.config.mjs', '.eslintrc.js'],
   env: {

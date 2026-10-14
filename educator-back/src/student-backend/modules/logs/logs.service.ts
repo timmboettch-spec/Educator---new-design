@@ -1,6 +1,12 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
-import { JsonDataService, type Transcript } from '../../data/json-data.service';
+import { LoggerService } from '../../../common/services';
+import { generateLegacyId } from 'src/common/utils/uuid.util';
+import { SimulationV2Repository } from '../../../database/repositories/simulation-v2.repository';
+import { TranscriptRepository } from '../../../database/repositories/transcript.repository';
+import { SIMULATION_V2_REPOSITORY, TRANSCRIPT_REPOSITORY } from '../../../database/tokens';
+import { ICurrentUser, TranscriptMessage } from '../../../common/interfaces';
+import { ScenariosService } from '../scenarios/scenarios.service';
 import {
   LIFECYCLE_SCHEMA_VERSION,
   SessionCompletionStatus,
@@ -12,23 +18,28 @@ import { type UpdateLogDto } from './dto/update-log.dto';
 
 @Injectable()
 export class LogsService {
-  private readonly logger = new Logger(LogsService.name);
-
   constructor(
-    private readonly jsonDataService: JsonDataService,
+    @Inject(TRANSCRIPT_REPOSITORY)
+    private readonly transcriptRepository: TranscriptRepository,
+    @Inject(SIMULATION_V2_REPOSITORY)
+    private readonly simulationV2Repository: SimulationV2Repository,
     private readonly lifecycleTelemetry: LifecycleTelemetryService,
+    private readonly logger: LoggerService,
+    private readonly scenariosService: ScenariosService,
   ) {}
 
-  async create(createLogDto: CreateLogDto) {
+  async create(currentUser: ICurrentUser, createLogDto: CreateLogDto) {
+    await this.scenariosService.assertScenarioAssigned(currentUser, createLogDto.scenarioId);
+
     // Generate identifiers
-    const transcriptId = this.jsonDataService.generateId();
+    const transcriptId = generateLegacyId();
     const sessionId = LifecycleTelemetryService.generateInstanceId();
     const scenarioInstanceId = LifecycleTelemetryService.generateInstanceId();
     const startedAt = new Date().toISOString();
 
-    const log: Transcript = {
+    const log = await this.transcriptRepository.create({
       id: transcriptId,
-      userId: createLogDto.userId ?? 'user-1',
+      userId: currentUser?.userId ?? currentUser?.student_id ?? currentUser.studentId,
       scenarioId: createLogDto.scenarioId,
       sessionId,
       scenarioInstanceId,
@@ -42,18 +53,16 @@ export class LogsService {
       ...(createLogDto.studentClass && {
         studentClass: createLogDto.studentClass,
       }),
-    };
+    });
 
-    this.jsonDataService.addTranscript(log);
     this.logger.log(
       `Created new transcript log with ID: "${log.id}" for scenario: "${createLogDto.scenarioId}"`,
     );
-    await this.jsonDataService.flushJson('transcripts.json');
 
     // Fetch scenario metadata for telemetry
-    const scenario = this.jsonDataService.getScenarioById(createLogDto.scenarioId);
+    const scenario = await this.simulationV2Repository.findByBusinessId(createLogDto.scenarioId);
     const scenarioName = scenario?.title ?? 'Unknown Scenario';
-    const scenarioVersion = scenario?.metadata?.version;
+    const scenarioVersion = (scenario?.metadata as { version?: string } | undefined)?.version;
     const scenarioType = log.scenarioType ?? 'Practice';
     const studentCode = log.studentKey ?? log.studentName ?? log.userId;
 
@@ -79,42 +88,28 @@ export class LogsService {
     return log;
   }
 
-  findAll() {
-    return this.jsonDataService.getTranscripts();
+  async findAll() {
+    return this.transcriptRepository.find();
   }
 
   async findOne(id: string) {
-    return this.jsonDataService.getTranscriptByIdFresh(id);
+    return this.transcriptRepository.findByBusinessId(id);
   }
 
   async update(id: string, updateLogDto: UpdateLogDto) {
-    // Read freshest version from individual blob (works across workers).
-    const log = await this.jsonDataService.getTranscriptByIdFresh(id);
+    const log = await this.transcriptRepository.findByBusinessId(id);
 
     if (!log) {
       throw new NotFoundException(`Log with ID ${id} not found`);
     }
 
     if (updateLogDto.messages) {
-      // Merge messages onto the fresh log object.
-      const updatedLog = { ...log, messages: updateLogDto.messages };
-
-      // Write the complete record DIRECTLY to the individual blob.
-      // Do NOT use updateTranscriptAndPersist — it reads from the per-process
-      // in-memory array cache to find the transcript by id. If a different
-      // worker created the transcript, this worker's cache doesn't have it,
-      // findIndex returns -1, and the function silently does nothing — no
-      // blob write — but update() still returns success to the frontend.
-      await this.jsonDataService.persistIndividualBlob(`transcripts/${id}.json`, updatedLog);
-
-      // Patch in-memory array cache as best-effort for same-worker reads.
-      this.jsonDataService.updateTranscript(id, {
+      const updatedLog = await this.transcriptRepository.updateByBusinessId(id, {
         messages: updateLogDto.messages,
       });
-      await this.jsonDataService.flushJson('transcripts.json');
 
       this.logger.log(
-        `[updateLog] Saved ${updateLogDto.messages.length} messages to blob for transcriptId: "${id}"`,
+        `[updateLog] Saved ${updateLogDto.messages.length} messages for transcriptId: "${id}"`,
       );
       return updatedLog;
     }
@@ -123,15 +118,14 @@ export class LogsService {
   }
 
   async endLog(id: string) {
-    // Read the freshest version — individual blob has the committed messages.
-    const log = await this.jsonDataService.getTranscriptByIdFresh(id);
+    const log = await this.transcriptRepository.findByBusinessId(id);
 
     if (!log) {
       throw new NotFoundException(`Log with ID ${id} not found`);
     }
 
     // Idempotency guard: if already ended, return the existing record without
-    // re-writing the blob or changing the timestamp. Handles the case where
+    // re-writing the row or changing the timestamp. Handles the case where
     // two tabs both call endLog for the same transcript (e.g. both click
     // "End Scenario") — the second call is a safe no-op.
     if (log.endedAt) {
@@ -143,30 +137,18 @@ export class LogsService {
 
     const endedAt = new Date().toISOString();
 
-    // Merge endedAt onto the FRESH log (which already has the correct messages).
-    const updatedLog = { ...log, endedAt };
-
-    // Write the complete merged record directly to the individual blob.
-    // Do NOT use updateTranscriptAndPersist — it reads from the in-memory
-    // array cache which is per-process and stale, so it would merge { endedAt }
-    // onto messages:[] and overwrite the just-saved messages in the blob.
-    await this.jsonDataService.persistIndividualBlob(`transcripts/${id}.json`, updatedLog);
-
-    // Patch ONLY the in-memory array cache — do NOT call updateTranscript here.
-    // updateTranscript fires an async persistIndividualBlob using the stale
-    // in-memory transcript (which has messages:[]) and would overwrite the
-    // correct blob we just wrote above, causing getLog to return 0 messages.
-    this.jsonDataService.patchTranscriptInMemory(id, { endedAt });
-    await this.jsonDataService.flushJson('transcripts.json');
+    const updatedLog = await this.transcriptRepository.updateByBusinessId(id, { endedAt });
 
     this.logger.log(
-      `[endLog] Marked transcriptId: "${id}" as ended at ${endedAt} | messages preserved: ${updatedLog.messages?.length ?? 0}`,
+      `[endLog] Marked transcriptId: "${id}" as ended at ${endedAt} | messages preserved: ${updatedLog?.messages?.length ?? 0}`,
     );
 
     // Emit lifecycle telemetry events
     if (log.sessionId && log.scenarioInstanceId) {
       const durationMs = new Date(endedAt).getTime() - new Date(log.startedAt).getTime();
-      const scenario = this.jsonDataService.getScenarioById(log.scenarioId);
+      const scenario = log.scenarioId
+        ? await this.simulationV2Repository.findByBusinessId(log.scenarioId)
+        : null;
       const scenarioName = scenario?.title ?? 'Unknown Scenario';
       const scenarioType = log.scenarioType ?? 'Practice';
       const studentCode = log.studentKey ?? log.studentName ?? log.userId;
@@ -177,7 +159,10 @@ export class LogsService {
           sessionId: log.sessionId,
           transcriptId: id,
           scenarioInstanceId: log.scenarioInstanceId,
-          scenarioId: log.scenarioId,
+          // scenarioId is always set at creation time (CreateLogDto.scenarioId is required);
+          // the entity column is nullable only because scenario_id also serves as an
+          // unconstrained FK-style join key (see transcript.entity.ts).
+          scenarioId: log.scenarioId ?? '',
           scenarioName,
           studentCode,
           scenarioType,
@@ -199,13 +184,12 @@ export class LogsService {
     return updatedLog;
   }
 
-  findByScenario(scenarioId: string) {
-    const transcripts = this.jsonDataService.getTranscripts();
-    return transcripts.filter((log: Transcript) => log.scenarioId === scenarioId);
+  async findByScenario(scenarioId: string) {
+    return this.transcriptRepository.findByScenarioId(scenarioId);
   }
 
-  async appendMessages(id: string, messages: Transcript['messages']) {
-    const log = await this.jsonDataService.getTranscriptByIdFresh(id);
+  async appendMessages(id: string, messages: TranscriptMessage[]) {
+    const log = await this.transcriptRepository.findByBusinessId(id);
 
     if (!log) {
       throw new NotFoundException(`Log with ID ${id} not found`);
@@ -215,27 +199,8 @@ export class LogsService {
       return log;
     }
 
-    this.jsonDataService.addMessagesToTranscript(id, messages);
-    await this.jsonDataService.flushJson('transcripts.json');
-    return this.jsonDataService.getTranscriptByIdFresh(id);
+    return this.transcriptRepository.updateByBusinessId(id, {
+      messages: [...(log.messages ?? []), ...messages],
+    });
   }
-
-  // addMessage(id: string, messageDto: { speaker: string; text: string; timestamp?: string }) {
-  //   const log = this.jsonDataService.getTranscriptById(id);
-
-  //   if (!log) {
-  //     throw new NotFoundException(`Log with ID ${id} not found`);
-  //   }
-
-  //   const message = {
-  //     speaker: messageDto.speaker,
-  //     text: messageDto.text,
-  //     timestamp: messageDto.timestamp || new Date().toISOString()
-  //   };
-
-  //   const updatedMessages = [...(log.messages || []), message];
-  //   this.jsonDataService.updateTranscript(id, { messages: updatedMessages });
-
-  //   return { success: true, message: 'Message added successfully' };
-  // }
 }

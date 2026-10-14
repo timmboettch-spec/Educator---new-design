@@ -1,9 +1,14 @@
 ﻿import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
 import config from '../../config';
 import api from '@/redux/api';
+import { classSimulationsApi } from '../../api/classSimulations/classSimulationsApi';
 
 export interface AddSimulationPayload {
   class_id: string;
@@ -76,7 +81,7 @@ export const fetchSimulationsByUnit = createAsyncThunk<
   { rejectValue: { message: string } }
 >('dashboard/fetchSimulationsByUnit', async (unit_id, thunkAPI) => {
   try {
-   const res = await api.get(`${config.SimulationByUnitApi}/${unit_id}`, {});
+    const res = await api.get(`${config.SimulationByUnitApi}/${unit_id}`, {});
 
     return (res.data?.data ?? res.data).map((s: Record<string, unknown>) => ({
       ...s,
@@ -136,6 +141,10 @@ export const addSimulationRequest = createAsyncThunk<
 >('dashboard/addSimulation', async (payload, thunkAPI) => {
   try {
     const res = await api.post(config.SimulationAPI, payload);
+    // The assignments table caches this class's list; refetch it.
+    thunkAPI.dispatch(
+      classSimulationsApi.util.invalidateTags(['ClassSimulations'])
+    );
     return res.data;
   } catch (err) {
     const error = err as { response?: { data?: { message?: string } } };
@@ -166,7 +175,7 @@ const addSimulationSlice = createSlice({
         (state, action: PayloadAction<AddSimulationResponse>) => {
           state.status = SUCCEEDED;
           state.response = action.payload;
-        },
+        }
       )
       .addCase(addSimulationRequest.rejected, (state, action) => {
         state.status = FAILED;
@@ -180,22 +189,34 @@ export default addSimulationSlice.reducer;
 
 const selectAddSimState = (state: RootState) => state.AddSimulation;
 
-export const selectAddSimLoading = createSelector(selectAddSimState, (s) => s?.status === LOADING);
+export const selectAddSimLoading = createSelector(
+  selectAddSimState,
+  (s) => s?.status === LOADING
+);
 
 export const selectAddSimSuccess = createSelector(
   selectAddSimState,
-  (s) => s?.status === SUCCEEDED,
+  (s) => s?.status === SUCCEEDED
 );
 
-export const selectAddSimError = createSelector(selectAddSimState, (s) => s?.error);
+export const selectAddSimError = createSelector(
+  selectAddSimState,
+  (s) => s?.error
+);
 
-export const selectAddSimResponse = createSelector(selectAddSimState, (s) => s?.response);
+export const selectAddSimResponse = createSelector(
+  selectAddSimState,
+  (s) => s?.response
+);
 
 const selectUnitSimState = (state: RootState) => state.SimulationsByUnit;
 
-export const selectUnitSimulations = createSelector(selectUnitSimState, (s) => s?.simulations);
+export const selectUnitSimulations = createSelector(
+  selectUnitSimState,
+  (s) => s?.simulations
+);
 
 export const selectUnitSimLoading = createSelector(
   selectUnitSimState,
-  (s) => s?.status === LOADING,
+  (s) => s?.status === LOADING
 );

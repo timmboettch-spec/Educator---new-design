@@ -17,6 +17,7 @@ import { SuperTest, Test } from 'supertest';
 import { createAgent, signupAndLogin } from '../../common/setup/supertest.setup';
 import { ENDPOINTS } from '../../common/constants/endpoints';
 import { STATUS } from '../../common/constants/status-codes';
+import { testEmail } from '../../utils/env';
 
 describe('@educator-create-api Educator Create — POST /invites/create', () => {
   let agent: SuperTest<Test>;
@@ -28,7 +29,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
 
     adminToken = await signupAndLogin(agent, {
       full_name: 'Educator Create Suite Admin',
-      email: `edu-create-admin-${Date.now()}@test.realityworks`,
+      email: testEmail('edu-create-admin'),
       password: 'EduCreate@Suite1234',
     });
 
@@ -47,7 +48,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
   it('should return 401 when no token is provided', async () => {
     const res = await agent
       .post(ENDPOINTS.INVITES.CREATE)
-      .send({ email: 'noauth@test.realityworks', school_id: 'any-id' });
+      .send({ email: 'test+noauth@curionn.com', school_id: 'any-id' });
     expect([STATUS.UNAUTHORIZED, STATUS.FORBIDDEN]).toContain(res.status);
   });
 
@@ -55,7 +56,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
     const res = await agent
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', 'Bearer invalid.token.here')
-      .send({ email: 'badtoken@test.realityworks', school_id: 'any-id' });
+      .send({ email: 'test+badtoken@curionn.com', school_id: 'any-id' });
     expect([STATUS.UNAUTHORIZED, STATUS.FORBIDDEN]).toContain(res.status);
   });
 
@@ -69,7 +70,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
       .send({ school_id: schoolId || '550e8400-e29b-41d4-a716-000000000001' });
     expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.FORBIDDEN]).toContain(res.status);
     if (res.status === STATUS.BAD_REQUEST) {
-      expect(res.body?.status).toBe('FAILED');
+      expect(res.body?.data).toBeNull();
       expect(res.body?.message).toBeTruthy();
     }
   });
@@ -91,7 +92,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
     const res = await agent
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ email: 'valid@test.realityworks', school_id: 'not-a-uuid' });
+      .send({ email: 'test+valid@curionn.com', school_id: 'not-a-uuid' });
     expect([STATUS.BAD_REQUEST, STATUS.UNPROCESSABLE, STATUS.FORBIDDEN]).toContain(res.status);
   });
 
@@ -103,12 +104,12 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        email: `edu-404-${Date.now()}@test.realityworks`,
+        email: testEmail('edu-404'),
         school_id: '550e8400-e29b-41d4-a716-999999999999',
       });
     expect([STATUS.NOT_FOUND, STATUS.FORBIDDEN, STATUS.BAD_REQUEST]).toContain(res.status);
     if (res.status === STATUS.NOT_FOUND) {
-      expect(res.body?.status).toBe('FAILED');
+      expect(res.body?.data).toBeNull();
     }
   });
 
@@ -116,7 +117,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
 
   it('should return 201 SUCCESS with valid payload and validate response schema', async () => {
     if (!adminToken || !schoolId) return;
-    const email = `edu-create-${Date.now()}@test.realityworks`;
+    const email = testEmail('edu-create');
     const res = await agent
       .post(ENDPOINTS.INVITES.CREATE)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -128,7 +129,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
 
     if (res.status === STATUS.CREATED || res.status === STATUS.OK) {
       // success message validated
-      expect(res.body?.success).toBe(true);
+      expect(res.body?.error).toBeNull();
       const data = res.body?.data as Record<string, unknown>;
       expect(data).toBeDefined();
     }
@@ -138,7 +139,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
 
   it('should return 400 or 409 when email already has a pending invite', async () => {
     if (!adminToken || !schoolId) return;
-    const email = `edu-dup-${Date.now()}@test.realityworks`;
+    const email = testEmail('edu-dup');
 
     // First invite
     await agent
@@ -160,7 +161,7 @@ describe('@educator-create-api Educator Create — POST /invites/create', () => 
     ]).toContain(res.status);
 
     if (res.status === STATUS.BAD_REQUEST || res.status === STATUS.CONFLICT) {
-      expect(res.body?.status).toBe('FAILED');
+      expect(res.body?.data).toBeNull();
       expect(res.body?.message).toBeTruthy();
     }
   });

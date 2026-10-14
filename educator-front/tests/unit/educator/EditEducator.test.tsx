@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
@@ -7,11 +13,32 @@ import Educators from '../../../src/pages/educator/index';
 import '@testing-library/jest-dom';
 
 vi.mock('../../../src/components/ui/DropdownMenu', () => ({
-  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DropdownMenuItem: ({ children, onSelect, disabled, className }: { children: React.ReactNode; onSelect?: () => void; disabled?: boolean; className?: string }) => (
-    <button type="button" onClick={() => onSelect?.()} disabled={disabled} className={className}>
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    disabled,
+    className,
+  }: {
+    children: React.ReactNode;
+    onSelect?: () => void;
+    disabled?: boolean;
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => onSelect?.()}
+      disabled={disabled}
+      className={className}
+    >
       {children}
     </button>
   ),
@@ -50,11 +77,13 @@ vi.mock('/assets/dashboard/notification_svg.svg', () => ({
 }));
 
 vi.mock('react-redux', async () => {
-  const actual = await vi.importActual<typeof import('react-redux')>('react-redux');
+  const actual =
+    await vi.importActual<typeof import('react-redux')>('react-redux');
   return {
     ...actual,
     useDispatch: () => mockDispatch,
-    useSelector: (selector: (s: typeof mockReduxState) => unknown) => selector(mockReduxState),
+    useSelector: (selector: (s: typeof mockReduxState) => unknown) =>
+      selector(mockReduxState),
   };
 });
 
@@ -62,8 +91,10 @@ vi.mock('../../../src/redux/educator/GetEducatorRedux', () => ({
   GetEducatorByUserRequest: vi.fn(() => ({ type: 'get' })),
   clearGetEducatorState: vi.fn(() => ({ type: 'educator/clearGet' })),
   selectGetEducatorsData: (s: { GetEducator: unknown }) => s.GetEducator,
-  selectGetEducatorStatus: (s: { GetEducatorStatus: string }) => s.GetEducatorStatus,
-  selectGetEducatorError: (s: { GetEducatorError: string | null }) => s.GetEducatorError,
+  selectGetEducatorStatus: (s: { GetEducatorStatus: string }) =>
+    s.GetEducatorStatus,
+  selectGetEducatorError: (s: { GetEducatorError: string | null }) =>
+    s.GetEducatorError,
   selectGetEducatorResponse: (s: { GetEducator: unknown }) => s.GetEducator,
 }));
 
@@ -89,26 +120,43 @@ vi.mock('../../../src/redux/educator/DeleteEducatorRedux', () => ({
 }));
 
 vi.mock('../../../src/redux/schools/GetSchoolsRedux', () => ({
-  default: (state = { responseSchool: null, status: 'idle', error: null }) => state,
+  default: (state = { responseSchool: null, status: 'idle', error: null }) =>
+    state,
   GetSchoolRequest: vi.fn(() => ({ type: 'schools/get' })),
   selectSchools: (s: { Schools: unknown[] }) => s.Schools,
   selectSchoolStatus: (s: { SchoolStatus: string }) => s.SchoolStatus,
 }));
 vi.mock('../../../src/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
-  useAppSelector: (selector: (s: typeof mockReduxState) => unknown) => selector(mockReduxState),
+  useAppSelector: (selector: (s: typeof mockReduxState) => unknown) =>
+    selector(mockReduxState),
 }));
 
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
 
 const mockSchools = [
-  { id: 'school-1', school_name: 'Springfield High', status: 'ACTIVE', user_id: 'u1' },
-  { id: 'school-2', school_name: 'Shelbyville Academy', status: 'ACTIVE', user_id: 'u1' },
+  {
+    id: 'school-1',
+    school_name: 'Springfield High',
+    status: 'ACTIVE',
+    user_id: 'u1',
+  },
+  {
+    id: 'school-2',
+    school_name: 'Shelbyville Academy',
+    status: 'ACTIVE',
+    user_id: 'u1',
+  },
 ];
 
 const mockEducator = {
@@ -126,7 +174,8 @@ const mockEducator = {
 const buildStore = (overrides: Record<string, unknown> = {}) =>
   configureStore({
     reducer: {
-      GetEducator: () => overrides.GetEducator ?? { items: [mockEducator], total: 1 },
+      GetEducator: () =>
+        overrides.GetEducator ?? { items: [mockEducator], total: 1 },
       GetEducatorStatus: () => overrides.GetEducatorStatus ?? 'succeeded',
       GetEducatorError: () => overrides.GetEducatorError ?? null,
       Schools: () => overrides.Schools ?? mockSchools,
@@ -140,7 +189,7 @@ const renderPage = (overrides: Record<string, unknown> = {}) =>
       <MemoryRouter>
         <Educators />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 
 const openEditModal = async (overrides: Record<string, unknown> = {}) => {
@@ -187,7 +236,7 @@ describe('Edit Educator', () => {
       expect(UpdateEducatorRequest).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ full_name: 'Updated Name' }),
-        }),
+        })
       );
     });
   });
@@ -202,7 +251,9 @@ describe('Edit Educator', () => {
   });
 
   it('keeps modal open on failure', async () => {
-    mockDispatch.mockReturnValue({ unwrap: () => Promise.reject(new Error('fail')) });
+    mockDispatch.mockReturnValue({
+      unwrap: () => Promise.reject(new Error('fail')),
+    });
 
     await openEditModal();
 

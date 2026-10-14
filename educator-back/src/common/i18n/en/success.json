@@ -1,0 +1,12 @@
+{
+  "PREVIEW": {
+    "USED": "Preview started."
+  },
+  "COMMON": {
+    "OK": "Success.",
+    "CREATED": "{key} created successfully.",
+    "UPDATED": "{key} updated successfully.",
+    "DELETED": "{key} deleted successfully.",
+    "FETCHED": "{key} fetched successfully."
+  }
+}

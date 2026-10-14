@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-base-to-string */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { trace, type Tracer } from '@opentelemetry/api';
+
+import { LoggerService } from '../../../common/services';
 
 /**
  * Schema version constants for telemetry events.
@@ -121,10 +123,9 @@ export interface ScenarioCompletedProperties {
  */
 @Injectable()
 export class TelemetryService {
-  private readonly logger = new Logger(TelemetryService.name);
   private readonly tracer: Tracer;
 
-  constructor() {
+  constructor(private readonly logger: LoggerService) {
     // Get OpenTelemetry tracer for custom events
     this.tracer = trace.getTracer('telemetry-service', '1.0.0');
     this.logger.log('TelemetryService initialized with OpenTelemetry');

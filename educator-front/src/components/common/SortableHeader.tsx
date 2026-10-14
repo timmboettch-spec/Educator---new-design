@@ -1,6 +1,6 @@
-import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, ChevronUp } from 'lucide-react';
 
-type SortDirection = "asc" | "desc" | null;
+type SortDirection = 'asc' | 'desc' | null;
 
 interface SortableHeaderProps {
   label: string;
@@ -9,6 +9,10 @@ interface SortableHeaderProps {
   sortDirection: SortDirection;
   onSort: (field: string) => void;
   className?: string;
+  /** Puts the header in the tab order; off by default for existing tables. */
+  focusable?: boolean;
+  /** Accessible name carrying the sort state, e.g. "Class Name, sorted ascending". */
+  ariaLabel?: string;
 }
 
 export default function SortableHeader({
@@ -17,23 +21,28 @@ export default function SortableHeader({
   sortField,
   sortDirection,
   onSort,
-  className = "",
+  className = '',
+  focusable = false,
+  ariaLabel,
 }: SortableHeaderProps) {
   const isActive = sortField === field;
 
   return (
     <button
       type="button"
+      tabIndex={focusable ? undefined : -1}
+      aria-label={ariaLabel}
       onClick={() => onSort(field)}
-      aria-label={`Sort by ${label}${
-        isActive ? (sortDirection === 'asc' ? ', sorted ascending' : ', sorted descending') : ''
-      }`}
-      className={`flex items-center gap-1 font-medium transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-1 focus-visible:ring-offset-primary-500 ${className}`}
+      className={`flex items-center gap-1 font-medium transition-colors ${
+        focusable
+          ? 'rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white'
+          : ''
+      } ${className}`}
     >
       {label}
-      <span className="flex flex-col">
+      <span className="flex flex-col" aria-hidden={focusable || undefined}>
         {isActive ? (
-          sortDirection === "asc" ? (
+          sortDirection === 'asc' ? (
             <ChevronUp size={14} className="text-white-600" />
           ) : (
             <ChevronDown size={14} className="text-white-600" />

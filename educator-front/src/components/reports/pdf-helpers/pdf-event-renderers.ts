@@ -18,10 +18,10 @@
  * their dedicated renderers land.
  */
 
-import type jsPDF from "jspdf";
+import type jsPDF from 'jspdf';
 
-import { sanitizePdfText } from "../../../utils/sanitizePdf";
-import type { TranscriptEventData } from "../../../types/userTranscript";
+import { sanitizePdfText } from '../../../utils/sanitizePdf';
+import type { TranscriptEventData } from '../../../types/userTranscript';
 
 import {
   C_DANGER,
@@ -35,7 +35,7 @@ import {
   getCategoryMetaPdf,
   getCommonActionMeta,
   getSpeakerMeta,
-} from "./pdf-constants";
+} from './pdf-constants';
 import {
   CONTENT_BOTTOM,
   CONTENT_W,
@@ -51,12 +51,12 @@ import {
   setDraw,
   setFill,
   setText,
-} from "./pdf-primitives";
-import { formatActionType } from "./transcript-utils";
+} from './pdf-primitives';
+import { formatActionType } from './transcript-utils';
 import {
   isMedicationEvent,
   renderMedicationCard,
-} from "./pdf-medication-renderer";
+} from './pdf-medication-renderer';
 
 // ─── Constants tuned to match the Student PDF exactly ────────────────────────
 
@@ -70,9 +70,9 @@ const CLOCK_BADGE_H = 9 * 0.42 + 1.8 * 2;
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toStr(v: unknown): string {
-  if (v == null) return "";
-  if (typeof v === "string") return v;
-  if (Array.isArray(v)) return (v as unknown[]).map(String).join(", ");
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (Array.isArray(v)) return (v as unknown[]).map(String).join(', ');
   return String(v);
 }
 
@@ -82,7 +82,7 @@ function fieldOf(
 ): string | undefined {
   for (const k of keys) {
     const v = raw[k];
-    if (v != null && String(v).trim() !== "" && String(v) !== "undefined") {
+    if (v != null && String(v).trim() !== '' && String(v) !== 'undefined') {
       return String(v);
     }
   }
@@ -98,24 +98,33 @@ function fieldOf(
  *   3. Final fallback `"00:00"`.
  */
 function elapsedFor(raw: Record<string, unknown>): string {
-  const str = fieldOf(raw, "simulationTime", "simulation_time", "elapsedTime", "elapsed_time");
+  const str = fieldOf(
+    raw,
+    'simulationTime',
+    'simulation_time',
+    'elapsedTime',
+    'elapsed_time'
+  );
   if (str) return str;
 
-  const secsRaw = raw["elapsedSeconds"] ?? raw["elapsed_seconds"] ?? raw["elapsedSecs"];
+  const secsRaw =
+    raw['elapsedSeconds'] ?? raw['elapsed_seconds'] ?? raw['elapsedSecs'];
   const secsNum =
-    typeof secsRaw === "number"
+    typeof secsRaw === 'number'
       ? secsRaw
-      : typeof secsRaw === "string" && secsRaw.trim() && !isNaN(parseFloat(secsRaw))
+      : typeof secsRaw === 'string' &&
+          secsRaw.trim() &&
+          !isNaN(parseFloat(secsRaw))
         ? parseFloat(secsRaw)
         : undefined;
 
   if (secsNum !== undefined && secsNum >= 0) {
     const s = Math.max(0, Math.round(secsNum));
     const m = Math.floor(s / 60);
-    return `${m}:${String(s % 60).padStart(2, "0")}`;
+    return `${m}:${String(s % 60).padStart(2, '0')}`;
   }
 
-  return "00:00";
+  return '00:00';
 }
 
 /**
@@ -124,19 +133,19 @@ function elapsedFor(raw: Record<string, unknown>): string {
  * clearly a simulation virtual-world clock (year < 2020).
  */
 function fmtTs(raw: string | undefined): string {
-  if (!raw) return "";
+  if (!raw) return '';
   try {
     const d = new Date(raw);
-    if (isNaN(d.getTime()) || d.getFullYear() < 2020) return "";
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
+    if (isNaN(d.getTime()) || d.getFullYear() < 2020) return '';
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
     const yy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mi = String(d.getMinutes()).padStart(2, "0");
-    const ss = String(d.getSeconds()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
     return `${mm}/${dd}/${yy}, ${hh}:${mi}:${ss}`;
   } catch {
-    return "";
+    return '';
   }
 }
 
@@ -151,8 +160,10 @@ function fmtTs(raw: string | undefined): string {
  * in UserTranscriptPage.tsx.
  */
 function timestampRowText(raw: Record<string, unknown>): string {
-  let started = fmtTs(fieldOf(raw, "startedTime", "started_time", "start_time"));
-  const ended  = fmtTs(fieldOf(raw, "endedTime",   "ended_time",   "end_time"));
+  let started = fmtTs(
+    fieldOf(raw, 'startedTime', 'started_time', 'start_time')
+  );
+  const ended = fmtTs(fieldOf(raw, 'endedTime', 'ended_time', 'end_time'));
 
   // Single-point events: the API stores one timestamp as endedTime.
   // Show it as both Started and Ended to match the web page.
@@ -160,12 +171,14 @@ function timestampRowText(raw: Record<string, unknown>): string {
 
   // Duration helper — matches formatDurationLabel on the web page.
   const parseDur = (): string => {
-    const d = raw["duration"];
-    const s = typeof d === "number" ? d
-      : typeof d === "string" && (d as string).trim()
-        ? parseFloat((d as string).replace(/[^\d.]/g, ""))
-        : NaN;
-    if (!isFinite(s) || s <= 0) return "";
+    const d = raw['duration'];
+    const s =
+      typeof d === 'number'
+        ? d
+        : typeof d === 'string' && (d as string).trim()
+          ? parseFloat((d as string).replace(/[^\d.]/g, ''))
+          : NaN;
+    if (!isFinite(s) || s <= 0) return '';
     if (s < 60) return `${Math.round(s)}s`;
     const m = Math.floor(s / 60);
     const r = Math.round(s % 60);
@@ -174,42 +187,55 @@ function timestampRowText(raw: Record<string, unknown>): string {
   const dur = parseDur();
 
   if (started || ended) {
-    return [started ? `Started: ${started}` : "",
-            ended   ? `Ended: ${ended}`     : "",
-            dur     ? `Duration: ${dur}`    : ""]
+    return [
+      started ? `Started: ${started}` : '',
+      ended ? `Ended: ${ended}` : '',
+      dur ? `Duration: ${dur}` : '',
+    ]
       .filter(Boolean)
-      .join("  |  ");
+      .join('  |  ');
   }
 
   // Epoch-ms fallback — mirrors the web page's caStartMs / caEndMs logic.
   const endMs: number | undefined =
-    typeof raw["timestampMs"] === "number" ? (raw["timestampMs"] as number) :
-    typeof raw["timestamp_ms"] === "number" ? (raw["timestamp_ms"] as number) :
-    typeof raw["timestampValue"] === "number" ? (raw["timestampValue"] as number) :
-    typeof raw["timestamp_value"] === "number" ? (raw["timestamp_value"] as number) :
-    typeof raw["endTimestampValue"] === "number" ? (raw["endTimestampValue"] as number) :
-    (typeof raw["endedTime"] === "string" && raw["endedTime"] ? new Date(raw["endedTime"] as string).getTime() || undefined : undefined);
+    typeof raw['timestampMs'] === 'number'
+      ? (raw['timestampMs'] as number)
+      : typeof raw['timestamp_ms'] === 'number'
+        ? (raw['timestamp_ms'] as number)
+        : typeof raw['timestampValue'] === 'number'
+          ? (raw['timestampValue'] as number)
+          : typeof raw['timestamp_value'] === 'number'
+            ? (raw['timestamp_value'] as number)
+            : typeof raw['endTimestampValue'] === 'number'
+              ? (raw['endTimestampValue'] as number)
+              : typeof raw['endedTime'] === 'string' && raw['endedTime']
+                ? new Date(raw['endedTime'] as string).getTime() || undefined
+                : undefined;
 
-  if (!endMs || endMs < 0) return "";
+  if (!endMs || endMs < 0) return '';
 
-  const durationRaw = raw["duration"];
+  const durationRaw = raw['duration'];
   const durationSec =
-    typeof durationRaw === "number" ? durationRaw :
-    typeof durationRaw === "string" && (durationRaw as string).trim()
-      ? parseFloat((durationRaw as string).replace(/[^\d.]/g, ""))
-      : NaN;
+    typeof durationRaw === 'number'
+      ? durationRaw
+      : typeof durationRaw === 'string' && (durationRaw as string).trim()
+        ? parseFloat((durationRaw as string).replace(/[^\d.]/g, ''))
+        : NaN;
 
-  const startMs = isFinite(durationSec) && durationSec > 0
-    ? endMs - durationSec * 1000
-    : endMs;
+  const startMs =
+    isFinite(durationSec) && durationSec > 0
+      ? endMs - durationSec * 1000
+      : endMs;
 
   const startStr = fmtEpochTs(startMs);
-  const endStr   = fmtEpochTs(endMs);
-  return [startStr ? `Started: ${startStr}` : "",
-          endStr   ? `Ended: ${endStr}`     : "",
-          dur      ? `Duration: ${dur}`     : ""]
+  const endStr = fmtEpochTs(endMs);
+  return [
+    startStr ? `Started: ${startStr}` : '',
+    endStr ? `Ended: ${endStr}` : '',
+    dur ? `Duration: ${dur}` : '',
+  ]
     .filter(Boolean)
-    .join("  |  ");
+    .join('  |  ');
 }
 
 // ─── Sub-box (Clinical Prompt / Student Response / Notes) ────────────────────
@@ -229,35 +255,42 @@ function drawSubBox(
   bgColor: [number, number, number],
   borderColor: [number, number, number],
   innerX: number,
-  innerW: number,
+  innerW: number
 ): number {
   const labelH = 3.6;
   const valPad = 3;
-  const rowH   = 4.4;
+  const rowH = 4.4;
 
-  pdf.setFont("helvetica", "normal");
+  pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
   // Split on \n first so pre-formatted text (e.g. numbered lists) renders
   // on separate lines, then word-wrap each segment independently.
   const lines: string[] = [];
-  for (const segment of valueText.split("\n")) {
-    const wrapped = pdf.splitTextToSize(sanitizePdfText(segment || " "), innerW - 6) as string[];
+  for (const segment of valueText.split('\n')) {
+    const wrapped = pdf.splitTextToSize(
+      sanitizePdfText(segment || ' '),
+      innerW - 6
+    ) as string[];
     lines.push(...wrapped);
   }
   const bodyH = Math.max(rowH, lines.length * rowH);
-  const boxH  = labelH + bodyH + valPad + 3;
+  const boxH = labelH + bodyH + valPad + 3;
 
   setFill(pdf, bgColor);
   setDraw(pdf, borderColor);
   pdf.setLineWidth(0.3);
-  pdf.roundedRect(innerX, state.yPosition, innerW, boxH, 2, 2, "FD");
+  pdf.roundedRect(innerX, state.yPosition, innerW, boxH, 2, 2, 'FD');
 
-  pdf.setFont("helvetica", "bold");
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
   setText(pdf, labelColor);
-  pdf.text(sanitizePdfText(labelText.toUpperCase()), innerX + 3, state.yPosition + 4);
+  pdf.text(
+    sanitizePdfText(labelText.toUpperCase()),
+    innerX + 3,
+    state.yPosition + 4
+  );
 
-  pdf.setFont("helvetica", "normal");
+  pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(9);
   setText(pdf, C_TEXT_PRIMARY);
   pdf.text(lines, innerX + 3, state.yPosition + labelH + 4);
@@ -282,7 +315,7 @@ function drawTimestampRow(
   pillBgColor: [number, number, number],
   pillBorderColor: [number, number, number],
   pillIcon: Parameters<typeof drawSpeakerIcon>[1] | undefined,
-  tsText: string,
+  tsText: string
 ): void {
   const pill = drawPill(
     pdf,
@@ -292,17 +325,20 @@ function drawTimestampRow(
     pillTextColor,
     pillBgColor,
     pillBorderColor,
-    pillIcon ? { iconType: pillIcon } : undefined,
+    pillIcon ? { iconType: pillIcon } : undefined
   );
 
   if (tsText) {
-    pdf.setFont("helvetica", "normal");
+    pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(8);
     setText(pdf, C_TEXT_PRIMARY);
     const tsBaseY = state.yPosition + pill.height / 2 + (8 * 0.42) / 2 - 0.3;
     const maxTsW = innerW - pill.width - 4;
     const clipped = (
-      pdf.splitTextToSize(sanitizePdfText(tsText), Math.max(20, maxTsW)) as string[]
+      pdf.splitTextToSize(
+        sanitizePdfText(tsText),
+        Math.max(20, maxTsW)
+      ) as string[]
     )[0];
     pdf.text(clipped, innerX + pill.width + 3, tsBaseY);
   }
@@ -324,24 +360,24 @@ function drawTimestampRow(
  * "INCORRECT") — matches Student PDF pill copy.
  */
 function classifyStatus(
-  raw: Record<string, unknown>,
+  raw: Record<string, unknown>
 ): { label: string; positive: boolean } | null {
-  const correctRaw = raw["correct"];
+  const correctRaw = raw['correct'];
   const hasCorrect =
-    correctRaw !== undefined && correctRaw !== null && correctRaw !== "";
+    correctRaw !== undefined && correctRaw !== null && correctRaw !== '';
   const isCorrect =
     correctRaw === true ||
-    correctRaw === "true" ||
+    correctRaw === 'true' ||
     correctRaw === 1 ||
-    correctRaw === "1";
+    correctRaw === '1';
 
   const satisfactoryRaw =
-    raw["satisfactory"] ?? raw["satisfactoryResult"] ?? raw["result"];
+    raw['satisfactory'] ?? raw['satisfactoryResult'] ?? raw['result'];
   const hasSatisfactory =
     satisfactoryRaw !== undefined &&
     satisfactoryRaw !== null &&
-    satisfactoryRaw !== "";
-  const satisfactoryStr = String(satisfactoryRaw ?? "").toLowerCase();
+    satisfactoryRaw !== '';
+  const satisfactoryStr = String(satisfactoryRaw ?? '').toLowerCase();
   // Explicit satisfactory / unsatisfactory strings win over the boolean check.
   const isSatisfactory =
     hasSatisfactory &&
@@ -353,24 +389,24 @@ function classifyStatus(
   // A `.question` field means the row is a question-type entry — use
   // Satisfactory / Unsatisfactory labels instead of Correct / Incorrect.
   const isQuestion =
-    typeof raw["question"] === "string" &&
-    (raw["question"] as string).trim().length > 0;
+    typeof raw['question'] === 'string' &&
+    (raw['question'] as string).trim().length > 0;
 
   if (hasSatisfactory && (isSatisfactory || isUnsatisfactory)) {
     return {
-      label: isSatisfactory ? "SATISFACTORY" : "UNSATISFACTORY",
+      label: isSatisfactory ? 'SATISFACTORY' : 'UNSATISFACTORY',
       positive: isSatisfactory,
     };
   }
   if (hasCorrect) {
     if (isQuestion) {
       return {
-        label: isCorrect ? "SATISFACTORY" : "UNSATISFACTORY",
+        label: isCorrect ? 'SATISFACTORY' : 'UNSATISFACTORY',
         positive: isCorrect,
       };
     }
     return {
-      label: isCorrect ? "\u2713  CORRECT" : "\u2715  INCORRECT",
+      label: isCorrect ? '\u2713  CORRECT' : '\u2715  INCORRECT',
       positive: isCorrect,
     };
   }
@@ -382,7 +418,7 @@ function renderStatusPill(
   pdf: jsPDF,
   state: PdfRenderState,
   raw: Record<string, unknown>,
-  x: number,
+  x: number
 ): void {
   const status = classifyStatus(raw);
   if (!status) return;
@@ -398,7 +434,7 @@ function renderStatusPill(
     state.yPosition,
     status.positive ? C_SUCCESS : C_DANGER,
     status.positive ? C_SUCCESS_BG : C_DANGER_BG,
-    status.positive ? borderPositive : borderNegative,
+    status.positive ? borderPositive : borderNegative
   );
   state.yPosition += height + 3;
 }
@@ -416,36 +452,45 @@ function drawContentSubBoxes(
   iw: number,
   question: string,
   answer: string,
-  notes: string,
+  notes: string
 ): void {
   if (question) {
     drawSubBox(
-      pdf, state,
-      "Clinical Prompt", question,
+      pdf,
+      state,
+      'Clinical Prompt',
+      question,
       [234, 88, 12],
       [255, 247, 237],
       [254, 215, 170],
-      ix, iw,
+      ix,
+      iw
     );
   }
   if (answer) {
     drawSubBox(
-      pdf, state,
-      "Student Response", answer,
+      pdf,
+      state,
+      'Student Response',
+      answer,
       [5, 150, 105],
       [236, 253, 245],
       [167, 243, 208],
-      ix, iw,
+      ix,
+      iw
     );
   }
   if (notes) {
     drawSubBox(
-      pdf, state,
-      "Observations / Notes", notes,
+      pdf,
+      state,
+      'Observations / Notes',
+      notes,
       [37, 99, 235],
       [239, 246, 255],
       [191, 219, 254],
-      ix, iw,
+      ix,
+      iw
     );
   }
 }
@@ -476,7 +521,7 @@ function drawBubbleCard(
   bgColor: [number, number, number],
   borderColor: [number, number, number],
   estimatedHeight: number,
-  body: (innerX: number, innerW: number) => void,
+  body: (innerX: number, innerW: number) => void
 ): void {
   // Ensure at least a minimal header row fits so we never orphan the card
   // container. Body may still overflow — segment tracking handles that.
@@ -495,7 +540,7 @@ function drawBubbleCard(
   // Student `drawBubbleCard` pattern).
   const page1BgBottom = CONTENT_BOTTOM - startY + 6;
   setFill(pdf, bgColor);
-  pdf.rect(cardX, startY, cardW, page1BgBottom, "F");
+  pdf.rect(cardX, startY, cardW, page1BgBottom, 'F');
 
   // Enable continuation bg + segment tracking for the body.
   state.activeCardBg = bgColor;
@@ -516,11 +561,17 @@ function drawBubbleCard(
     const actualH = endY - startY + 7;
     if (page1BgBottom > actualH + 3) {
       pdf.setFillColor(255, 255, 255);
-      pdf.rect(cardX - 0.5, startY + actualH, cardW + 1, page1BgBottom - actualH + 3, "F");
+      pdf.rect(
+        cardX - 0.5,
+        startY + actualH,
+        cardW + 1,
+        page1BgBottom - actualH + 3,
+        'F'
+      );
     }
     setDraw(pdf, borderColor);
     pdf.setLineWidth(0.35);
-    pdf.roundedRect(cardX, startY, cardW, actualH, 2.5, 2.5, "S");
+    pdf.roundedRect(cardX, startY, cardW, actualH, 2.5, 2.5, 'S');
     state.yPosition = startY + actualH + 5;
     return;
   }
@@ -544,7 +595,7 @@ function drawBubbleCard(
     }
     setDraw(pdf, borderColor);
     pdf.setLineWidth(0.35);
-    pdf.roundedRect(cardX, segTop, cardW, segH, 2.5, 2.5, "S");
+    pdf.roundedRect(cardX, segTop, cardW, segH, 2.5, 2.5, 'S');
   }
   // Restore cursor to the end page.
   if (state.pageNumber !== endPage) {
@@ -557,9 +608,12 @@ function drawBubbleCard(
 // ─── Height estimation ───────────────────────────────────────────────────────
 
 function estimateMessageCardHeight(pdf: jsPDF, message: string): number {
-  pdf.setFont("helvetica", "normal");
+  pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(12.75);
-  const lines = pdf.splitTextToSize(sanitizePdfText(message), CARD_INNER_W) as string[];
+  const lines = pdf.splitTextToSize(
+    sanitizePdfText(message),
+    CARD_INNER_W
+  ) as string[];
   return 6 + 6 + lines.length * 5.36 + 12;
 }
 
@@ -571,32 +625,48 @@ function estimateSummaryCardHeight(
   answer: string | undefined,
   notes: string | undefined,
   description: string | undefined,
-  hasStatus: boolean,
+  hasStatus: boolean
 ): number {
   let h = 6 + 5 + 6; // pill + ts + base padding
 
-  pdf.setFont("helvetica", "bold");
+  pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(15);
-  const tLines = (pdf.splitTextToSize(sanitizePdfText(title), CARD_INNER_W) as string[]).length;
+  const tLines = (
+    pdf.splitTextToSize(sanitizePdfText(title), CARD_INNER_W) as string[]
+  ).length;
   h += tLines * (15 * 0.42 + 1.2) + 2;
 
   if (subLabel) h += 6;
 
   if (question) {
-    const qLines = (pdf.splitTextToSize(sanitizePdfText(question), CARD_INNER_W - 6) as string[]).length;
+    const qLines = (
+      pdf.splitTextToSize(
+        sanitizePdfText(question),
+        CARD_INNER_W - 6
+      ) as string[]
+    ).length;
     h += qLines * 4.4 + 12;
   }
   if (answer) {
-    const aStr = typeof answer === "string" ? answer : String(answer);
-    const aLines = (pdf.splitTextToSize(sanitizePdfText(aStr), CARD_INNER_W - 6) as string[]).length;
+    const aStr = typeof answer === 'string' ? answer : String(answer);
+    const aLines = (
+      pdf.splitTextToSize(sanitizePdfText(aStr), CARD_INNER_W - 6) as string[]
+    ).length;
     h += aLines * 4.4 + 12;
   }
   if (notes) {
-    const nLines = (pdf.splitTextToSize(sanitizePdfText(notes), CARD_INNER_W - 6) as string[]).length;
+    const nLines = (
+      pdf.splitTextToSize(sanitizePdfText(notes), CARD_INNER_W - 6) as string[]
+    ).length;
     h += nLines * 4.4 + 12;
   }
   if (!question && !answer && !notes && description) {
-    const dLines = (pdf.splitTextToSize(sanitizePdfText(description), CARD_INNER_W) as string[]).length;
+    const dLines = (
+      pdf.splitTextToSize(
+        sanitizePdfText(description),
+        CARD_INNER_W
+      ) as string[]
+    ).length;
     h += dLines * 4.4 + 6;
   }
   if (hasStatus) h += 10;
@@ -615,30 +685,39 @@ function estimateSummaryCardHeight(
 function renderMessageBubble(
   pdf: jsPDF,
   state: PdfRenderState,
-  event: TranscriptEventData,
+  event: TranscriptEventData
 ): void {
   const raw = event as unknown as Record<string, unknown>;
-  const speaker = (fieldOf(raw, "speaker", "role") ?? "assistant").toLowerCase();
-  const meta    = getSpeakerMeta(speaker);
-  const message = toStr(fieldOf(raw, "description", "text", "content", "message", "transcript"));
+  const speaker = (
+    fieldOf(raw, 'speaker', 'role') ?? 'assistant'
+  ).toLowerCase();
+  const meta = getSpeakerMeta(speaker);
+  const message = toStr(
+    fieldOf(raw, 'description', 'text', 'content', 'message', 'transcript')
+  );
 
   // Some backends attach question/answer/notes on message events (e.g. when a
   // student's Team-Communication reply is nested inside the SBAR record).
   // Render the same sub-boxes + status pill as summary cards so nothing is
   // silently dropped.
-  const question = toStr(fieldOf(raw, "question", "prompt", "clinicalPrompt", "clinical_prompt"));
-  const answer   = toStr(fieldOf(raw, "answer", "response", "studentResponse", "student_response"));
-  const notes    = toStr(fieldOf(raw, "notes", "observations"));
+  const question = toStr(
+    fieldOf(raw, 'question', 'prompt', 'clinicalPrompt', 'clinical_prompt')
+  );
+  const answer = toStr(
+    fieldOf(raw, 'answer', 'response', 'studentResponse', 'student_response')
+  );
+  const notes = toStr(fieldOf(raw, 'notes', 'observations'));
   const hasStatus = classifyStatus(raw) !== null;
 
   // ── Row 1: clock badge (left) + avatar (right) ─────────────────────────────
   const avatarR = 5.5;
-  const rowH    = avatarR * 2 + 2;
+  const rowH = avatarR * 2 + 2;
 
   // Height estimate: bubble text + extra room for optional sub-boxes + status.
   const extraQAH = (question ? 18 : 0) + (answer ? 18 : 0) + (notes ? 18 : 0);
   const extraStatus = hasStatus ? 10 : 0;
-  const estCard = estimateMessageCardHeight(pdf, message) + extraQAH + extraStatus;
+  const estCard =
+    estimateMessageCardHeight(pdf, message) + extraQAH + extraStatus;
   ensureSpace(pdf, state, rowH + 2 + estCard + 5);
 
   drawClockBadge(
@@ -648,7 +727,7 @@ function renderMessageBubble(
     meta.textColor,
     meta.bgColor,
     meta.borderColor,
-    state.yPosition + (rowH - CLOCK_BADGE_H) / 2,
+    state.yPosition + (rowH - CLOCK_BADGE_H) / 2
   );
 
   const avatarCX = PAGE_W - MARGIN_R - avatarR;
@@ -656,43 +735,71 @@ function renderMessageBubble(
   setFill(pdf, meta.bgColor);
   setDraw(pdf, meta.borderColor);
   pdf.setLineWidth(0.5);
-  pdf.circle(avatarCX, avatarCY, avatarR, "FD");
-  drawSpeakerIcon(pdf, meta.iconType, avatarCX, avatarCY, avatarR * 1.1, meta.textColor);
+  pdf.circle(avatarCX, avatarCY, avatarR, 'FD');
+  drawSpeakerIcon(
+    pdf,
+    meta.iconType,
+    avatarCX,
+    avatarCY,
+    avatarR * 1.1,
+    meta.textColor
+  );
 
   state.yPosition += rowH + 2;
 
   // ── Card body ──────────────────────────────────────────────────────────────
   const tsText = timestampRowText(raw);
 
-  drawBubbleCard(pdf, state, meta.bubbleBg, meta.borderColor, estCard, (ix, iw) => {
-    drawTimestampRow(pdf, state, ix, iw, meta.label, meta.textColor, meta.bgColor, meta.borderColor, meta.iconType, tsText);
+  drawBubbleCard(
+    pdf,
+    state,
+    meta.bubbleBg,
+    meta.borderColor,
+    estCard,
+    (ix, iw) => {
+      drawTimestampRow(
+        pdf,
+        state,
+        ix,
+        iw,
+        meta.label,
+        meta.textColor,
+        meta.bgColor,
+        meta.borderColor,
+        meta.iconType,
+        tsText
+      );
 
-    if (message) {
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(12.75);
-      setText(pdf, C_TEXT_PRIMARY);
-      const lines = pdf.splitTextToSize(sanitizePdfText(message), iw) as string[];
-      const lineH = 5.36;
+      if (message) {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(12.75);
+        setText(pdf, C_TEXT_PRIMARY);
+        const lines = pdf.splitTextToSize(
+          sanitizePdfText(message),
+          iw
+        ) as string[];
+        const lineH = 5.36;
 
-      if (meta.rightAlign) {
-        lines.forEach((line: string) => {
-          const lw = pdf.getTextWidth(line);
-          pdf.text(line, ix + iw - lw, state.yPosition + 3);
-          state.yPosition += lineH;
-        });
-      } else {
-        pdf.text(lines, ix, state.yPosition + 3);
-        state.yPosition += lines.length * lineH;
+        if (meta.rightAlign) {
+          lines.forEach((line: string) => {
+            const lw = pdf.getTextWidth(line);
+            pdf.text(line, ix + iw - lw, state.yPosition + 3);
+            state.yPosition += lineH;
+          });
+        } else {
+          pdf.text(lines, ix, state.yPosition + 3);
+          state.yPosition += lines.length * lineH;
+        }
+        state.yPosition += 2;
       }
-      state.yPosition += 2;
+
+      // Optional Clinical Prompt / Student Response / Notes.
+      drawContentSubBoxes(pdf, state, ix, iw, question, answer, notes);
+
+      // Correctness / Satisfactory pill (when the message carries a verdict).
+      renderStatusPill(pdf, state, raw, ix);
     }
-
-    // Optional Clinical Prompt / Student Response / Notes.
-    drawContentSubBoxes(pdf, state, ix, iw, question, answer, notes);
-
-    // Correctness / Satisfactory pill (when the message carries a verdict).
-    renderStatusPill(pdf, state, raw, ix);
-  });
+  );
 }
 
 // ─── Common action renderer ──────────────────────────────────────────────────
@@ -705,72 +812,116 @@ function renderMessageBubble(
 function renderCommonActionCard(
   pdf: jsPDF,
   state: PdfRenderState,
-  event: TranscriptEventData,
+  event: TranscriptEventData
 ): void {
   const raw = event as unknown as Record<string, unknown>;
-  const subType =
-    (fieldOf(raw, "commonActionType", "common_action_type", "subType", "sub_type", "type", "actionType") ??
-      "infection")
-      .toLowerCase();
-  const normalisedType = subType.includes("privacy")
-    ? "privacy"
-    : subType.includes("environmental") || subType.includes("environment")
-      ? "environmental"
-      : "infection";
+  const subType = (
+    fieldOf(
+      raw,
+      'commonActionType',
+      'common_action_type',
+      'subType',
+      'sub_type',
+      'type',
+      'actionType'
+    ) ?? 'infection'
+  ).toLowerCase();
+  const normalisedType = subType.includes('privacy')
+    ? 'privacy'
+    : subType.includes('environmental') || subType.includes('environment')
+      ? 'environmental'
+      : 'infection';
   const meta = getCommonActionMeta(normalisedType);
 
-  const title    = toStr(fieldOf(raw, "title", "name", "label", "action"));
-  const question = toStr(fieldOf(raw, "question", "prompt", "clinicalPrompt", "clinical_prompt"));
-  const answer   = toStr(fieldOf(raw, "answer", "response", "studentResponse", "student_response"));
-  const notes    = toStr(fieldOf(raw, "notes", "observations"));
+  const title = toStr(fieldOf(raw, 'title', 'name', 'label', 'action'));
+  const question = toStr(
+    fieldOf(raw, 'question', 'prompt', 'clinicalPrompt', 'clinical_prompt')
+  );
+  const answer = toStr(
+    fieldOf(raw, 'answer', 'response', 'studentResponse', 'student_response')
+  );
+  const notes = toStr(fieldOf(raw, 'notes', 'observations'));
   // description is extracted for the hasSubstantialContent check in renderSummaryCard;
   // not directly used in this renderer (category label serves as subtitle).
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _description = toStr(fieldOf(raw, "description", "details", "text", "content"));
+  const _description = toStr(
+    fieldOf(raw, 'description', 'details', 'text', 'content')
+  );
 
   // A common action only needs a title to be renderable (category label
   // is shown as subtitle). Drop only truly title-less phantoms.
   if (!title) return;
 
   const hasStatus = classifyStatus(raw) !== null;
-  const tsText   = timestampRowText(raw);
+  const tsText = timestampRowText(raw);
 
   // Rough height estimate — title row + subtitle + sub-boxes + optional pill.
   const baseH = 40;
-  const extraQAH =
-    (question ? 18 : 0) + (answer ? 18 : 0) + (notes ? 18 : 0);
+  const extraQAH = (question ? 18 : 0) + (answer ? 18 : 0) + (notes ? 18 : 0);
   const extraStatus = hasStatus ? 10 : 0;
   const estCard = baseH + extraQAH + extraStatus;
 
   // Clock badge in the specific action colour.
   ensureSpace(pdf, state, CLOCK_BADGE_H + 3 + estCard + 5);
-  const bh = drawClockBadge(pdf, state, elapsedFor(raw), meta.textColor, meta.bgColor, meta.borderColor);
+  const bh = drawClockBadge(
+    pdf,
+    state,
+    elapsedFor(raw),
+    meta.textColor,
+    meta.bgColor,
+    meta.borderColor
+  );
   state.yPosition += bh + 3;
 
-  drawBubbleCard(pdf, state, meta.bgColor, meta.borderColor, estCard, (ix, iw) => {
-    drawTimestampRow(pdf, state, ix, iw, "Common Actions", meta.textColor, meta.bgColor, meta.borderColor, undefined, tsText);
+  drawBubbleCard(
+    pdf,
+    state,
+    meta.bgColor,
+    meta.borderColor,
+    estCard,
+    (ix, iw) => {
+      drawTimestampRow(
+        pdf,
+        state,
+        ix,
+        iw,
+        'Common Actions',
+        meta.textColor,
+        meta.bgColor,
+        meta.borderColor,
+        undefined,
+        tsText
+      );
 
-    // Title
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(14.25);
-    setText(pdf, C_GRAY900);
-    const titleLines = pdf.splitTextToSize(sanitizePdfText(title || "Common Action"), iw) as string[];
-    pdf.text(titleLines, ix, state.yPosition + 4);
-    state.yPosition += titleLines.length * 6 + 4;
+      // Title
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(14.25);
+      setText(pdf, C_GRAY900);
+      const titleLines = pdf.splitTextToSize(
+        sanitizePdfText(title || 'Common Action'),
+        iw
+      ) as string[];
+      pdf.text(titleLines, ix, state.yPosition + 4);
+      state.yPosition += titleLines.length * 6 + 4;
 
-    // Type subtitle (uppercase, small, gray)
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(7.5);
-    setText(pdf, C_GRAY400);
-    pdf.text(sanitizePdfText(normalisedType.toUpperCase()), ix, state.yPosition);
-    state.yPosition += 5;
+      // Type subtitle (uppercase, small, gray)
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(7.5);
+      setText(pdf, C_GRAY400);
+      pdf.text(
+        sanitizePdfText(normalisedType.toUpperCase()),
+        ix,
+        state.yPosition
+      );
+      state.yPosition += 5;
 
-    // Optional Clinical Prompt / Student Response / Notes.
-    drawContentSubBoxes(pdf, state, ix, iw, question, answer, notes);
+      // Optional Clinical Prompt / Student Response / Notes.
+      drawContentSubBoxes(pdf, state, ix, iw, question, answer, notes);
 
-    // Correct / Incorrect (or Satisfactory) pill.
-    renderStatusPill(pdf, state, raw, ix);
-  });
+      // Correct / Incorrect (or Satisfactory) pill.
+      renderStatusPill(pdf, state, raw, ix);
+    }
+  );
 }
 
 // ─── Summary entry renderer (categories) ─────────────────────────────────────
@@ -788,23 +939,31 @@ function renderCommonActionCard(
 function renderSummaryCard(
   pdf: jsPDF,
   state: PdfRenderState,
-  event: TranscriptEventData,
+  event: TranscriptEventData
 ): void {
   const raw = event as unknown as Record<string, unknown>;
-  const title       = toStr(fieldOf(raw, "title", "name", "label", "action"));
-  const description = toStr(fieldOf(raw, "description", "details", "text", "content"));
-  const question    = toStr(fieldOf(raw, "question", "prompt", "clinicalPrompt", "clinical_prompt"));
-  const answer      = toStr(fieldOf(raw, "answer", "response", "studentResponse", "student_response"));
-  const notes       = toStr(fieldOf(raw, "notes", "observations"));
+  const title = toStr(fieldOf(raw, 'title', 'name', 'label', 'action'));
+  const description = toStr(
+    fieldOf(raw, 'description', 'details', 'text', 'content')
+  );
+  const question = toStr(
+    fieldOf(raw, 'question', 'prompt', 'clinicalPrompt', 'clinical_prompt')
+  );
+  const answer = toStr(
+    fieldOf(raw, 'answer', 'response', 'studentResponse', 'student_response')
+  );
+  const notes = toStr(fieldOf(raw, 'notes', 'observations'));
 
   // Skip empty entries — mirrors the on-page `EventCard` filter
   // `if (!title || !hasSubstantialContent) return null`. Prevents
   // phantom rows (title-only placeholders emitted by the API) from
   // appearing in the download but not in the transcript page.
-  const hasSbarResult  = fieldOf(raw, "sbarQualitativeResult", "sbar_qualitative_result") !== undefined;
-  const hasVitalsData  = (() => {
-    const v = raw["vitals"];
-    return v !== null && typeof v === "object" && !Array.isArray(v);
+  const hasSbarResult =
+    fieldOf(raw, 'sbarQualitativeResult', 'sbar_qualitative_result') !==
+    undefined;
+  const hasVitalsData = (() => {
+    const v = raw['vitals'];
+    return v !== null && typeof v === 'object' && !Array.isArray(v);
   })();
   const hasSubstantialContent =
     hasSbarResult ||
@@ -815,11 +974,21 @@ function renderSummaryCard(
     notes.trim().length > 0;
   if (!title || !hasSubstantialContent) return;
 
-  const subLabelRaw = fieldOf(raw, "subType", "subtype", "questionType", "question_type", "itemType", "item_type");
-  const subLabel    = subLabelRaw ? formatActionType(subLabelRaw).toUpperCase() : undefined;
+  const subLabelRaw = fieldOf(
+    raw,
+    'subType',
+    'subtype',
+    'questionType',
+    'question_type',
+    'itemType',
+    'item_type'
+  );
+  const subLabel = subLabelRaw
+    ? formatActionType(subLabelRaw).toUpperCase()
+    : undefined;
 
-  const category = fieldOf(raw, "category", "subCategory", "sub_category");
-  const meta     = getCategoryMetaPdf(category, title);
+  const category = fieldOf(raw, 'category', 'subCategory', 'sub_category');
+  const meta = getCategoryMetaPdf(category, title);
 
   const tsText = timestampRowText(raw);
 
@@ -832,111 +1001,165 @@ function renderSummaryCard(
     answer,
     notes,
     description,
-    hasStatus,
+    hasStatus
   );
 
   // Clock badge in the category colour.
   ensureSpace(pdf, state, CLOCK_BADGE_H + 3 + estCard + 5);
-  const bh = drawClockBadge(pdf, state, elapsedFor(raw), meta.textColor, meta.bgColor, meta.borderColor);
+  const bh = drawClockBadge(
+    pdf,
+    state,
+    elapsedFor(raw),
+    meta.textColor,
+    meta.bgColor,
+    meta.borderColor
+  );
   state.yPosition += bh + 3;
 
-  drawBubbleCard(pdf, state, meta.bgColor, meta.borderColor, estCard, (ix, iw) => {
-    // Bracket-style category pill (e.g. `[VITALS]`) + Started/Ended row.
-    drawTimestampRow(pdf, state, ix, iw, `[${meta.label}]`, meta.textColor, meta.bgColor, meta.borderColor, undefined, tsText);
+  drawBubbleCard(
+    pdf,
+    state,
+    meta.bgColor,
+    meta.borderColor,
+    estCard,
+    (ix, iw) => {
+      // Bracket-style category pill (e.g. `[VITALS]`) + Started/Ended row.
+      drawTimestampRow(
+        pdf,
+        state,
+        ix,
+        iw,
+        `[${meta.label}]`,
+        meta.textColor,
+        meta.bgColor,
+        meta.borderColor,
+        undefined,
+        tsText
+      );
 
-    // Title
-    if (title) {
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(15);
-      setText(pdf, C_GRAY900);
-      const titleLines = pdf.splitTextToSize(sanitizePdfText(title), iw) as string[];
-      pdf.text(titleLines, ix, state.yPosition + 4);
-      state.yPosition += titleLines.length * (15 * 0.42 + 1.2) + 2;
-    }
+      // Title
+      if (title) {
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(15);
+        setText(pdf, C_GRAY900);
+        const titleLines = pdf.splitTextToSize(
+          sanitizePdfText(title),
+          iw
+        ) as string[];
+        pdf.text(titleLines, ix, state.yPosition + 4);
+        state.yPosition += titleLines.length * (15 * 0.42 + 1.2) + 2;
+      }
 
-    // Sub-label (question type or item sub-type)
-    if (subLabel) {
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(7.5);
-      setText(pdf, C_GRAY400);
-      pdf.text(sanitizePdfText(subLabel), ix, state.yPosition);
-      state.yPosition += 6;
-    }
-
-    // Clinical Prompt / Student Response / Observations & Notes.
-    // For sequential/ordering questions: split comma-joined answer into
-    // a numbered list (mirrors the web page's numbered-list rendering).
-    const isSequential = !!subLabelRaw &&
-      /ordering|sequential/i.test(subLabelRaw);
-    const answerForRender = isSequential && answer
-      ? answer.split(",").map((item, i) => `${i + 1}. ${item.trim()}`).join("\n")
-      : answer;
-    drawContentSubBoxes(pdf, state, ix, iw, question, answerForRender, notes);
-
-    // Correct / Incorrect (or Satisfactory) pill.
-    renderStatusPill(pdf, state, raw, ix);
-
-    // Plain description (only when we don't already have Q/A/notes).
-    if (!question && !answer && !notes && description) {
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(9);
-      setText(pdf, C_TEXT_PRIMARY);
-      const dLines = pdf.splitTextToSize(sanitizePdfText(description), iw) as string[];
-      pdf.text(dLines, ix, state.yPosition + 3);
-      state.yPosition += dLines.length * 4.4 + 3;
-    }
-
-        // Vital signs breakdown — mirrors the "VITAL SIGNS OBTAINED" section
-    // on the web page for Obtain Vital Signs events.
-    // Each entry in raw["vitals"] is an array of full vital-event objects;
-    // the actual measured value lives in their `details` field as
-    // "Value: 80 mmHg" — strip the prefix to get the display value.
-    const VITAL_LABEL: Record<string, string> = {
-      bp: "BP", hr: "HR", rr: "RR",
-      spo2: "SpO2", spO2: "SpO2",
-      temp: "Temp", temperature: "Temp",
-      pain: "Pain",
-    };
-    const vitalsRaw = raw["vitals"];
-    if (vitalsRaw !== null && typeof vitalsRaw === "object" && !Array.isArray(vitalsRaw)) {
-      const vitalsList = vitalsRaw as Record<string, unknown>;
-      const entries = Object.entries(vitalsList);
-      if (entries.length > 0) {
-        state.yPosition += 4;
-        // Header
-        pdf.setFont("helvetica", "bold");
+      // Sub-label (question type or item sub-type)
+      if (subLabel) {
+        pdf.setFont('helvetica', 'bold');
         pdf.setFontSize(7.5);
         setText(pdf, C_GRAY400);
-        pdf.text(sanitizePdfText("VITAL SIGNS OBTAINED:"), ix, state.yPosition);
-        state.yPosition += 5;
-        // Each vital row: "BP x1  (80 mmHg)"
-        entries.forEach(([vType, vVals]) => {
-          const arr: unknown[] = Array.isArray(vVals) ? vVals : [vVals];
-          const valStr = arr.map(v => {
-            if (v !== null && typeof v === "object") {
-              const vObj = v as Record<string, unknown>;
-              // details field: "Value: 80 mmHg" — strip the prefix
-              const details = String(vObj["details"] ?? "");
-              const m = details.match(/^Value:\s*(.+)$/i);
-              if (m) return m[1].trim();
-              // fallback to explicit value fields
-              return String(vObj["value"] ?? vObj["details"] ?? "");
-            }
-            return String(v);
-          }).filter(Boolean).join("; ");
-          if (!valStr) return;
-          const shortLabel = VITAL_LABEL[vType.toLowerCase()] ?? vType.toUpperCase();
-          const text = `${shortLabel}  x${arr.length}  (${valStr})`;
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(9);
-          setText(pdf, C_GRAY900);
-          const vLines = pdf.splitTextToSize(sanitizePdfText(text), iw) as string[];
-          pdf.text(vLines, ix, state.yPosition);
-          state.yPosition += vLines.length * 4.4 + 2;
-        });
+        pdf.text(sanitizePdfText(subLabel), ix, state.yPosition);
+        state.yPosition += 6;
+      }
+
+      // Clinical Prompt / Student Response / Observations & Notes.
+      // For sequential/ordering questions: split comma-joined answer into
+      // a numbered list (mirrors the web page's numbered-list rendering).
+      const isSequential =
+        !!subLabelRaw && /ordering|sequential/i.test(subLabelRaw);
+      const answerForRender =
+        isSequential && answer
+          ? answer
+              .split(',')
+              .map((item, i) => `${i + 1}. ${item.trim()}`)
+              .join('\n')
+          : answer;
+      drawContentSubBoxes(pdf, state, ix, iw, question, answerForRender, notes);
+
+      // Correct / Incorrect (or Satisfactory) pill.
+      renderStatusPill(pdf, state, raw, ix);
+
+      // Plain description (only when we don't already have Q/A/notes).
+      if (!question && !answer && !notes && description) {
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        setText(pdf, C_TEXT_PRIMARY);
+        const dLines = pdf.splitTextToSize(
+          sanitizePdfText(description),
+          iw
+        ) as string[];
+        pdf.text(dLines, ix, state.yPosition + 3);
+        state.yPosition += dLines.length * 4.4 + 3;
+      }
+
+      // Vital signs breakdown — mirrors the "VITAL SIGNS OBTAINED" section
+      // on the web page for Obtain Vital Signs events.
+      // Each entry in raw["vitals"] is an array of full vital-event objects;
+      // the actual measured value lives in their `details` field as
+      // "Value: 80 mmHg" — strip the prefix to get the display value.
+      const VITAL_LABEL: Record<string, string> = {
+        bp: 'BP',
+        hr: 'HR',
+        rr: 'RR',
+        spo2: 'SpO2',
+        spO2: 'SpO2',
+        temp: 'Temp',
+        temperature: 'Temp',
+        pain: 'Pain',
+      };
+      const vitalsRaw = raw['vitals'];
+      if (
+        vitalsRaw !== null &&
+        typeof vitalsRaw === 'object' &&
+        !Array.isArray(vitalsRaw)
+      ) {
+        const vitalsList = vitalsRaw as Record<string, unknown>;
+        const entries = Object.entries(vitalsList);
+        if (entries.length > 0) {
+          state.yPosition += 4;
+          // Header
+          pdf.setFont('helvetica', 'bold');
+          pdf.setFontSize(7.5);
+          setText(pdf, C_GRAY400);
+          pdf.text(
+            sanitizePdfText('VITAL SIGNS OBTAINED:'),
+            ix,
+            state.yPosition
+          );
+          state.yPosition += 5;
+          // Each vital row: "BP x1  (80 mmHg)"
+          entries.forEach(([vType, vVals]) => {
+            const arr: unknown[] = Array.isArray(vVals) ? vVals : [vVals];
+            const valStr = arr
+              .map((v) => {
+                if (v !== null && typeof v === 'object') {
+                  const vObj = v as Record<string, unknown>;
+                  // details field: "Value: 80 mmHg" — strip the prefix
+                  const details = String(vObj['details'] ?? '');
+                  const m = details.match(/^Value:\s*(.+)$/i);
+                  if (m) return m[1].trim();
+                  // fallback to explicit value fields
+                  return String(vObj['value'] ?? vObj['details'] ?? '');
+                }
+                return String(v);
+              })
+              .filter(Boolean)
+              .join('; ');
+            if (!valStr) return;
+            const shortLabel =
+              VITAL_LABEL[vType.toLowerCase()] ?? vType.toUpperCase();
+            const text = `${shortLabel}  x${arr.length}  (${valStr})`;
+            pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(9);
+            setText(pdf, C_GRAY900);
+            const vLines = pdf.splitTextToSize(
+              sanitizePdfText(text),
+              iw
+            ) as string[];
+            pdf.text(vLines, ix, state.yPosition);
+            state.yPosition += vLines.length * 4.4 + 2;
+          });
+        }
       }
     }
-  });
+  );
 }
 
 // ─── SBAR / Team Communication renderer ─────────────────────────────────────
@@ -946,26 +1169,26 @@ function renderSummaryCard(
  * used by `timestampRowText`. Returns '' for missing / pre-2020 values.
  */
 function fmtEpochTs(ms: number | null | undefined): string {
-  if (typeof ms !== "number" || ms <= 0) return "";
+  if (typeof ms !== 'number' || ms <= 0) return '';
   try {
     const d = new Date(ms);
-    if (isNaN(d.getTime()) || d.getFullYear() < 2020) return "";
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
+    if (isNaN(d.getTime()) || d.getFullYear() < 2020) return '';
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
     const yy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2, "0");
-    const mi = String(d.getMinutes()).padStart(2, "0");
-    const ss = String(d.getSeconds()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
     return `${mm}/${dd}/${yy}, ${hh}:${mi}:${ss}`;
   } catch {
-    return "";
+    return '';
   }
 }
 
 function formatSbarDuration(startMs?: number, submitMs?: number): string {
-  if (typeof startMs !== "number" || typeof submitMs !== "number") return "";
+  if (typeof startMs !== 'number' || typeof submitMs !== 'number') return '';
   const secs = Math.max(0, Math.round((submitMs - startMs) / 1000));
-  if (secs <= 0) return "";
+  if (secs <= 0) return '';
   if (secs < 60) return `${secs}s`;
   const m = Math.floor(secs / 60);
   const s = secs % 60;
@@ -978,33 +1201,33 @@ function formatSbarDuration(startMs?: number, submitMs?: number): string {
  * unrecognised. Colour tuning matches the Student PDF (green for
  * Satisfactory, amber for Unsatisfactory, gray for Not Attempted).
  */
-function classifySbarResult(
-  raw: string | undefined,
-): {
+function classifySbarResult(raw: string | undefined): {
   label: string;
   textColor: [number, number, number];
   bgColor: [number, number, number];
   borderColor: [number, number, number];
 } {
-  const norm = String(raw ?? "").trim().toLowerCase();
-  if (norm === "satisfactory" || /satisfactor/i.test(norm)) {
+  const norm = String(raw ?? '')
+    .trim()
+    .toLowerCase();
+  if (norm === 'satisfactory' || /satisfactor/i.test(norm)) {
     return {
-      label: "SATISFACTORY",
+      label: 'SATISFACTORY',
       textColor: C_SUCCESS,
       bgColor: C_SUCCESS_BG,
       borderColor: [167, 243, 208],
     };
   }
-  if (norm === "unsatisfactory" || /unsatisfactor/i.test(norm)) {
+  if (norm === 'unsatisfactory' || /unsatisfactor/i.test(norm)) {
     return {
-      label: "UNSATISFACTORY",
-      textColor: [180, 83, 9], // amber-700 — matches Student PDF
-      bgColor: [255, 251, 235], // amber-50
-      borderColor: [253, 230, 138], // amber-200
+      label: 'UNSATISFACTORY',
+      textColor: C_DANGER,
+      bgColor: C_DANGER_BG,
+      borderColor: [254, 205, 211],
     };
   }
   return {
-    label: "NOT ATTEMPTED",
+    label: 'NOT ATTEMPTED',
     textColor: C_TEXT_SECONDARY,
     bgColor: [243, 244, 246], // gray-100
     borderColor: [209, 213, 219], // gray-300
@@ -1023,138 +1246,185 @@ function classifySbarResult(
 function renderSbarCard(
   pdf: jsPDF,
   state: PdfRenderState,
-  event: TranscriptEventData,
+  event: TranscriptEventData
 ): void {
   const raw = event as unknown as Record<string, unknown>;
 
-  const title    = toStr(fieldOf(raw, "title", "name")) || "Team Communication";
-  const prompt   = toStr(fieldOf(raw, "sbarPrompt", "sbar_prompt"));
-  const submit   = toStr(fieldOf(raw, "sbarSubmission", "sbar_submission"));
-  const resultRaw = toStr(fieldOf(raw, "sbarQualitativeResult", "sbar_qualitative_result"));
+  const title = toStr(fieldOf(raw, 'title', 'name')) || 'Team Communication';
+  const prompt = toStr(fieldOf(raw, 'sbarPrompt', 'sbar_prompt'));
+  const submit = toStr(fieldOf(raw, 'sbarSubmission', 'sbar_submission'));
+  const resultRaw = toStr(
+    fieldOf(raw, 'sbarQualitativeResult', 'sbar_qualitative_result')
+  );
 
   // Skip Team Communication entries the on-page view hides: no session
   // was started (no prompt AND no submission) OR the result explicitly
   // says "Not Attempted". Mirrors the UI guard in `renderSummaryCard`.
-  const details = toStr(fieldOf(raw, "description", "details", "text", "content"));
+  const details = toStr(
+    fieldOf(raw, 'description', 'details', 'text', 'content')
+  );
   const detailsLower = details.toLowerCase();
-  const resultLower  = resultRaw.toLowerCase();
+  const resultLower = resultRaw.toLowerCase();
   const notAttempted =
-    detailsLower.includes("not attempted") ||
-    detailsLower.includes("not_attempted") ||
-    resultLower.includes("not attempted") ||
-    resultLower.includes("not_attempted");
+    detailsLower.includes('not attempted') ||
+    detailsLower.includes('not_attempted') ||
+    resultLower.includes('not attempted') ||
+    resultLower.includes('not_attempted');
   const noSession = !prompt && !submit;
   if (notAttempted || noSession) return;
 
-  const startMs = typeof raw["sbarStartMs"] === "number"
-    ? (raw["sbarStartMs"] as number)
-    : typeof raw["sbar_start_ms"] === "number"
-      ? (raw["sbar_start_ms"] as number)
-      : undefined;
-  const submitMs = typeof raw["sbarSubmitMs"] === "number"
-    ? (raw["sbarSubmitMs"] as number)
-    : typeof raw["sbar_submit_ms"] === "number"
-      ? (raw["sbar_submit_ms"] as number)
-      : undefined;
+  const startMs =
+    typeof raw['sbarStartMs'] === 'number'
+      ? (raw['sbarStartMs'] as number)
+      : typeof raw['sbar_start_ms'] === 'number'
+        ? (raw['sbar_start_ms'] as number)
+        : undefined;
+  const submitMs =
+    typeof raw['sbarSubmitMs'] === 'number'
+      ? (raw['sbarSubmitMs'] as number)
+      : typeof raw['sbar_submit_ms'] === 'number'
+        ? (raw['sbar_submit_ms'] as number)
+        : undefined;
 
   // Prefer SBAR-specific timing when present, otherwise fall back to the
   // event's generic started/ended timestamps.
-  const tsStart = fmtEpochTs(startMs) || fmtTs(fieldOf(raw, "startedTime", "started_time"));
-  const tsEnd   = fmtEpochTs(submitMs) || fmtTs(fieldOf(raw, "endedTime", "ended_time"));
-  const tsDur   = formatSbarDuration(startMs, submitMs);
-  const tsText  = [
-    tsStart ? `Started: ${tsStart}` : "",
-    tsEnd ? `Ended: ${tsEnd}` : "",
-    tsDur ? `Duration: ${tsDur}` : "",
+  const tsStart =
+    fmtEpochTs(startMs) || fmtTs(fieldOf(raw, 'startedTime', 'started_time'));
+  const tsEnd =
+    fmtEpochTs(submitMs) || fmtTs(fieldOf(raw, 'endedTime', 'ended_time'));
+  const tsDur = formatSbarDuration(startMs, submitMs);
+  const tsText = [
+    tsStart ? `Started: ${tsStart}` : '',
+    tsEnd ? `Ended: ${tsEnd}` : '',
+    tsDur ? `Duration: ${tsDur}` : '',
   ]
     .filter(Boolean)
-    .join("  |  ");
+    .join('  |  ');
 
-  const meta = getCategoryMetaPdf("team_communication", title);
+  const meta = getCategoryMetaPdf('team_communication', title);
   const result = classifySbarResult(resultRaw || undefined);
 
   // Height estimate — pill row + title + optional prompt + optional submission
   // + result pill row + padding.
   const promptLines = prompt
-    ? (pdf.splitTextToSize(sanitizePdfText(prompt), CARD_INNER_W - 6) as string[]).length
+    ? (
+        pdf.splitTextToSize(
+          sanitizePdfText(prompt),
+          CARD_INNER_W - 6
+        ) as string[]
+      ).length
     : 0;
   const submitLines = submit
-    ? (pdf.splitTextToSize(sanitizePdfText(submit), CARD_INNER_W - 6) as string[]).length
+    ? (
+        pdf.splitTextToSize(
+          sanitizePdfText(submit),
+          CARD_INNER_W - 6
+        ) as string[]
+      ).length
     : 0;
   const estCard =
-    6 + 5 + // pill + timestamps
-    12 +    // title
+    6 +
+    5 + // pill + timestamps
+    12 + // title
     (prompt ? promptLines * 4.4 + 12 : 0) +
     (submit ? submitLines * 4.4 + 12 : 0) +
-    14 +    // result row
+    14 + // result row
     12;
 
   ensureSpace(pdf, state, CLOCK_BADGE_H + 3 + estCard + 5);
-  const bh = drawClockBadge(pdf, state, elapsedFor(raw), meta.textColor, meta.bgColor, meta.borderColor);
+  const bh = drawClockBadge(
+    pdf,
+    state,
+    elapsedFor(raw),
+    meta.textColor,
+    meta.bgColor,
+    meta.borderColor
+  );
   state.yPosition += bh + 3;
 
-  drawBubbleCard(pdf, state, meta.bgColor, meta.borderColor, estCard, (ix, iw) => {
-    // Category pill (bracket style) + timestamps.
-    drawTimestampRow(
-      pdf, state, ix, iw,
-      `[${meta.label}]`,
-      meta.textColor, meta.bgColor, meta.borderColor,
-      undefined,
-      tsText,
-    );
-
-    // Title
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    setText(pdf, meta.textColor);
-    const titleLines = pdf.splitTextToSize(sanitizePdfText(title), iw) as string[];
-    pdf.text(titleLines, ix, state.yPosition + 4);
-    state.yPosition += titleLines.length * 5.5 + 4;
-
-    // Prompt (white bg, orange border).
-    if (prompt) {
-      drawSubBox(
-        pdf, state,
-        "Prompt:", prompt,
-        C_TEXT_SECONDARY,
-        [255, 255, 255],
-        [254, 215, 170],
-        ix, iw,
+  drawBubbleCard(
+    pdf,
+    state,
+    meta.bgColor,
+    meta.borderColor,
+    estCard,
+    (ix, iw) => {
+      // Category pill (bracket style) + timestamps.
+      drawTimestampRow(
+        pdf,
+        state,
+        ix,
+        iw,
+        `[${meta.label}]`,
+        meta.textColor,
+        meta.bgColor,
+        meta.borderColor,
+        undefined,
+        tsText
       );
-    }
-    // Submission (white bg, orange border).
-    if (submit) {
-      drawSubBox(
-        pdf, state,
-        "Student SBAR Submission:", submit,
-        C_TEXT_SECONDARY,
-        [255, 255, 255],
-        [254, 215, 170],
-        ix, iw,
-      );
-    }
 
-    // Result row — "RESULT:" gray label + coloured pill on same baseline.
-    state.yPosition += 4;
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8.5);
-    const pillH = 8.5 * 0.42 + 1.3 * 2;
-    const pillBaseline = state.yPosition + pillH - 1.3 - 0.3;
-    setText(pdf, C_TEXT_SECONDARY);
-    pdf.text(sanitizePdfText("RESULT:"), ix, pillBaseline);
-    const labelW = pdf.getTextWidth("RESULT:") + 3;
-    drawPill(
-      pdf,
-      result.label,
-      ix + labelW,
-      state.yPosition,
-      result.textColor,
-      result.bgColor,
-      result.borderColor,
-      { fontSize: 8.5, bold: true },
-    );
-    state.yPosition += pillH + 4;
-  });
+      // Title
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      setText(pdf, meta.textColor);
+      const titleLines = pdf.splitTextToSize(
+        sanitizePdfText(title),
+        iw
+      ) as string[];
+      pdf.text(titleLines, ix, state.yPosition + 4);
+      state.yPosition += titleLines.length * 5.5 + 4;
+
+      // Prompt (white bg, orange border).
+      if (prompt) {
+        drawSubBox(
+          pdf,
+          state,
+          'Prompt:',
+          prompt,
+          C_TEXT_SECONDARY,
+          [255, 255, 255],
+          [254, 215, 170],
+          ix,
+          iw
+        );
+      }
+      // Submission (white bg, orange border).
+      if (submit) {
+        drawSubBox(
+          pdf,
+          state,
+          'Student SBAR Submission:',
+          submit,
+          C_TEXT_SECONDARY,
+          [255, 255, 255],
+          [254, 215, 170],
+          ix,
+          iw
+        );
+      }
+
+      // Result row — "RESULT:" gray label + coloured pill on same baseline.
+      state.yPosition += 4;
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8.5);
+      const pillH = 8.5 * 0.42 + 1.3 * 2;
+      const pillBaseline = state.yPosition + pillH - 1.3 - 0.3;
+      setText(pdf, C_TEXT_SECONDARY);
+      pdf.text(sanitizePdfText('RESULT:'), ix, pillBaseline);
+      const labelW = pdf.getTextWidth('RESULT:') + 3;
+      drawPill(
+        pdf,
+        result.label,
+        ix + labelW,
+        state.yPosition,
+        result.textColor,
+        result.bgColor,
+        result.borderColor,
+        { fontSize: 8.5, bold: true }
+      );
+      state.yPosition += pillH + 4;
+    }
+  );
 }
 
 // ─── Dispatcher ──────────────────────────────────────────────────────────────
@@ -1166,16 +1436,20 @@ function renderSbarCard(
  */
 function isSbarEvent(raw: Record<string, unknown>): boolean {
   const hasSbarField =
-    raw["sbarQualitativeResult"] != null ||
-    raw["sbar_qualitative_result"] != null ||
-    raw["sbarPrompt"] != null ||
-    raw["sbar_prompt"] != null ||
-    raw["sbarSubmission"] != null ||
-    raw["sbar_submission"] != null;
+    raw['sbarQualitativeResult'] != null ||
+    raw['sbar_qualitative_result'] != null ||
+    raw['sbarPrompt'] != null ||
+    raw['sbar_prompt'] != null ||
+    raw['sbarSubmission'] != null ||
+    raw['sbar_submission'] != null;
   if (hasSbarField) return true;
-  const title = String(raw["title"] ?? "").trim().toLowerCase();
-  const category = String(raw["category"] ?? "").trim().toLowerCase();
-  return title === "team communication" || category === "team_communication";
+  const title = String(raw['title'] ?? '')
+    .trim()
+    .toLowerCase();
+  const category = String(raw['category'] ?? '')
+    .trim()
+    .toLowerCase();
+  return title === 'team communication' || category === 'team_communication';
 }
 
 /**
@@ -1191,12 +1465,24 @@ function isSbarEvent(raw: Record<string, unknown>): boolean {
  */
 function isCommonActionEvent(raw: Record<string, unknown>): boolean {
   const subType = String(
-    fieldOf(raw, "commonActionType", "common_action_type", "subType", "sub_type", "actionType") ?? "",
+    fieldOf(
+      raw,
+      'commonActionType',
+      'common_action_type',
+      'subType',
+      'sub_type',
+      'actionType'
+    ) ?? ''
   ).toLowerCase();
-  if (/^(infection|privacy|environmental|environment)/.test(subType)) return true;
+  if (/^(infection|privacy|environmental|environment)/.test(subType))
+    return true;
 
-  const category = String(raw["category"] ?? "").toLowerCase();
-  return category === "infection" || category === "privacy" || category === "environmental";
+  const category = String(raw['category'] ?? '').toLowerCase();
+  return (
+    category === 'infection' ||
+    category === 'privacy' ||
+    category === 'environmental'
+  );
 }
 
 /**
@@ -1209,9 +1495,12 @@ function isCommonActionEvent(raw: Record<string, unknown>): boolean {
  * type resolved to `COMMON_ACTIONS`) falls through to the summary/common-
  * action path, where the empty-content filter drops the phantoms.
  */
-function isMessageEvent(event: TranscriptEventData, _raw: Record<string, unknown>): boolean {
-  const type = String(event.type ?? "").toUpperCase();
-  return type === "STUDENT" || type === "PATIENT";
+function isMessageEvent(
+  event: TranscriptEventData,
+  _raw: Record<string, unknown>
+): boolean {
+  const type = String(event.type ?? '').toUpperCase();
+  return type === 'STUDENT' || type === 'PATIENT';
 }
 
 /**
@@ -1225,18 +1514,36 @@ function isMessageEvent(event: TranscriptEventData, _raw: Record<string, unknown
  * non-message paths in the dispatcher below.
  */
 function isEmptyCardEvent(raw: Record<string, unknown>): boolean {
-  const title = String(fieldOf(raw, "title", "name", "label", "action") ?? "").trim();
+  const title = String(
+    fieldOf(raw, 'title', 'name', 'label', 'action') ?? ''
+  ).trim();
   if (!title) return true;
 
-  const description = String(fieldOf(raw, "description", "details", "text", "content") ?? "").trim();
-  const question    = String(fieldOf(raw, "question", "prompt", "clinicalPrompt", "clinical_prompt") ?? "").trim();
-  const answer      = String(fieldOf(raw, "answer", "response", "studentResponse", "student_response") ?? "").trim();
-  const notes       = String(fieldOf(raw, "notes", "observations") ?? "").trim();
-  const hasSbar     = fieldOf(raw, "sbarQualitativeResult", "sbar_qualitative_result",
-                                    "sbarPrompt", "sbar_prompt",
-                                    "sbarSubmission", "sbar_submission") !== undefined;
-  const vitals = raw["vitals"];
-  const hasVitals = vitals !== null && typeof vitals === "object" && !Array.isArray(vitals);
+  const description = String(
+    fieldOf(raw, 'description', 'details', 'text', 'content') ?? ''
+  ).trim();
+  const question = String(
+    fieldOf(raw, 'question', 'prompt', 'clinicalPrompt', 'clinical_prompt') ??
+      ''
+  ).trim();
+  const answer = String(
+    fieldOf(raw, 'answer', 'response', 'studentResponse', 'student_response') ??
+      ''
+  ).trim();
+  const notes = String(fieldOf(raw, 'notes', 'observations') ?? '').trim();
+  const hasSbar =
+    fieldOf(
+      raw,
+      'sbarQualitativeResult',
+      'sbar_qualitative_result',
+      'sbarPrompt',
+      'sbar_prompt',
+      'sbarSubmission',
+      'sbar_submission'
+    ) !== undefined;
+  const vitals = raw['vitals'];
+  const hasVitals =
+    vitals !== null && typeof vitals === 'object' && !Array.isArray(vitals);
 
   return !(hasSbar || hasVitals || description || question || answer || notes);
 }
@@ -1249,7 +1556,7 @@ function isEmptyCardEvent(raw: Record<string, unknown>): boolean {
 export function renderEventCard(
   pdf: jsPDF,
   state: PdfRenderState,
-  event: TranscriptEventData,
+  event: TranscriptEventData
 ): number {
   const raw = event as unknown as Record<string, unknown>;
 

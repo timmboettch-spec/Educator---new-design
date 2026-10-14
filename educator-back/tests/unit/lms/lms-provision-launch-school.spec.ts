@@ -13,7 +13,9 @@ describe('LMS provision launch school resolution', () => {
     if (educator.school?.id === schoolId) {
       return true;
     }
-    return educator.schoolAssignments?.some((assignment) => assignment.school?.id === schoolId) ?? false;
+    return (
+      educator.schoolAssignments?.some((assignment) => assignment.school?.id === schoolId) ?? false
+    );
   }
 
   function resolveProvisionSchoolId(
@@ -43,9 +45,7 @@ describe('LMS provision launch school resolution', () => {
   });
 
   it('rejects launch school when educator is not assigned to it', () => {
-    expect(
-      resolveProvisionSchoolId({ school: { id: 'school-1' } }, 'school-2'),
-    ).toBeNull();
+    expect(resolveProvisionSchoolId({ school: { id: 'school-1' } }, 'school-2')).toBeNull();
   });
 
   it('falls back to educator primary school when launch school is omitted', () => {
@@ -54,5 +54,17 @@ describe('LMS provision launch school resolution', () => {
 
   it('returns null when neither launch nor primary school is available', () => {
     expect(resolveProvisionSchoolId({ school: null }, '')).toBeNull();
+  });
+
+  it('launch school differs from primary — class row must use launch school, not educator.school', () => {
+    const primarySchoolId = 'dev-qa-school-01';
+    const launchSchoolId = 'dev-canvas-school-01';
+    const educator = {
+      school: { id: primarySchoolId },
+      schoolAssignments: [{ school: { id: launchSchoolId } }],
+    };
+
+    expect(resolveProvisionSchoolId(educator, launchSchoolId)).toBe(launchSchoolId);
+    expect(resolveProvisionSchoolId(educator, launchSchoolId)).not.toBe(educator.school?.id);
   });
 });

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getLiveness, getReadiness } from '../services/health.api';
-import type { HealthResponse, HealthStatus, ReadyResponse } from '../services/health.api';
+import type {
+  HealthResponse,
+  HealthStatus,
+  ReadyResponse,
+} from '../services/health.api';
 
 export interface HealthCheckState {
   liveness: HealthResponse | null;
@@ -13,7 +17,7 @@ export interface HealthCheckState {
 
 function worstStatus(
   a: HealthStatus | 'unknown',
-  b: HealthStatus | 'unknown',
+  b: HealthStatus | 'unknown'
 ): HealthStatus | 'unknown' {
   const rank: Record<HealthStatus | 'unknown', number> = {
     ok: 0,
@@ -41,9 +45,14 @@ export function useHealthCheck(pollIntervalMs?: number): HealthCheckState {
       ]);
 
       setLiveness(liveResult.status === 'fulfilled' ? liveResult.value : null);
-      setReadiness(readyResult.status === 'fulfilled' ? readyResult.value : null);
+      setReadiness(
+        readyResult.status === 'fulfilled' ? readyResult.value : null
+      );
 
-      if (liveResult.status === 'rejected' && readyResult.status === 'rejected') {
+      if (
+        liveResult.status === 'rejected' &&
+        readyResult.status === 'rejected'
+      ) {
         setError('Backend is unreachable');
       }
     } catch (err) {
@@ -67,8 +76,10 @@ export function useHealthCheck(pollIntervalMs?: number): HealthCheckState {
     };
   }, [runChecks, pollIntervalMs]);
 
-  const livenessStatus: HealthStatus | 'unknown' = liveness?.status ?? 'unknown';
-  const readinessStatus: HealthStatus | 'unknown' = readiness?.status ?? 'unknown';
+  const livenessStatus: HealthStatus | 'unknown' =
+    liveness?.status ?? 'unknown';
+  const readinessStatus: HealthStatus | 'unknown' =
+    readiness?.status ?? 'unknown';
   const overallStatus = worstStatus(livenessStatus, readinessStatus);
 
   return {

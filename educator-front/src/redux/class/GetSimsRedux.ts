@@ -2,7 +2,11 @@
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import Config from '../config';
-import type { SimulationsState, SimulationItem, SimulationApiResponse } from '../../types/index';
+import type {
+  SimulationsState,
+  SimulationItem,
+  SimulationApiResponse,
+} from '../../types/index';
 import api from '../api';
 
 const initialState: SimulationsState = {
@@ -25,12 +29,16 @@ export const FetchSimulationsByClass = createAsyncThunk(
         : Array.isArray(res.data)
           ? res.data
           : [];
-      const simulations: SimulationItem[] = (rawData as SimulationApiResponse[]).map((sim) => ({
+      const simulations: SimulationItem[] = (
+        rawData as SimulationApiResponse[]
+      ).map((sim) => ({
         id: sim.id,
         simulation_id: sim.simulation_id ?? '',
         simulation_title: sim.simulation_title ?? sim.simulation?.title ?? '',
-        simulation_lib_name: sim.simulation?.libraryItem?.name ?? sim.simulation_title ?? '',
-        unit: sim.unit_id ?? sim.simulation?.unit_id ?? sim.simulation?.unit ?? '',
+        simulation_lib_name:
+          sim.simulation?.libraryItem?.name ?? sim.simulation_title ?? '',
+        unit:
+          sim.unit_id ?? sim.simulation?.unit_id ?? sim.simulation?.unit ?? '',
         unit_name: sim.unit_name ?? sim.simulation?.unit ?? '',
         start_date: sim.start_date ?? '',
         due_date: sim.due_date ?? '',
@@ -41,7 +49,9 @@ export const FetchSimulationsByClass = createAsyncThunk(
         image_url: sim.simulation?.image_url ?? '',
         created_at: sim.created_at ?? '',
         email: '',
-        avatarEnabled: ((sim as unknown as Record<string, unknown>).avatarEnabled as boolean | undefined) ?? undefined,
+        avatarEnabled:
+          ((sim as unknown as Record<string, unknown>).avatarEnabled as
+            boolean | undefined) ?? undefined,
         scenario_status: sim.scenario_status ?? null,
       }));
 
@@ -60,7 +70,7 @@ export const FetchSimulationsByClass = createAsyncThunk(
         message: error.response?.data?.message || 'Failed to fetch simulations',
       });
     }
-  },
+  }
 );
 
 const SimulationsSlice = createSlice({
@@ -82,9 +92,10 @@ const SimulationsSlice = createSlice({
       });
   },
 });
-export const selectSimulationsByClassId = (classId: string) => (state: RootState) =>
-  classId in state.GetSimsList.simulationsByClass
-    ? state.GetSimsList.simulationsByClass[classId]
-    : null;
+export const selectSimulationsByClassId =
+  (classId: string) => (state: RootState) =>
+    classId in state.GetSimsList.simulationsByClass
+      ? state.GetSimsList.simulationsByClass[classId]
+      : null;
 
 export default SimulationsSlice.reducer;

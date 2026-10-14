@@ -1,6 +1,17 @@
-import { type InputHTMLAttributes, useState, useRef, useEffect } from 'react';
+import {
+  type InputHTMLAttributes,
+  useState,
+  useRef,
+  useEffect,
+  useId,
+} from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '../../lib/utils';
-import { containsEmoji, stripEmoji, extractClipboardText } from '../../utils/emojiFilter';
+import {
+  containsEmoji,
+  stripEmoji,
+  extractClipboardText,
+} from '../../utils/emojiFilter';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   ref?: React.Ref<HTMLInputElement>;
@@ -31,11 +42,26 @@ export default function Input({
   style,
   disablePasswordToggle = false,
   disabled,
+  id,
+  'aria-describedby': ariaDescribedBy,
   ...props
 }: InputProps) {
+  const { t } = useTranslation('common');
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const errorId = `${inputId}-error`;
+  const describedBy =
+    [ariaDescribedBy, error ? errorId : undefined].filter(Boolean).join(' ') ||
+    undefined;
   const [showPassword, setShowPassword] = useState(false);
   const isPassword = type === 'password';
-  const inputType = isPassword ? (disablePasswordToggle ? 'password' : showPassword ? 'text' : 'password') : type;
+  const inputType = isPassword
+    ? disablePasswordToggle
+      ? 'password'
+      : showPassword
+        ? 'text'
+        : 'password'
+    : type;
   const inputStyle = style ?? {};
 
   useEffect(() => {
@@ -72,11 +98,12 @@ export default function Input({
         start = 0;
         end = target.value.length;
       }
-      const newValue = target.value.slice(0, start) + cleanText + target.value.slice(end);
+      const newValue =
+        target.value.slice(0, start) + cleanText + target.value.slice(end);
 
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
-        'value',
+        'value'
       )?.set;
       if (nativeSetter) {
         nativeSetter.call(target, newValue);
@@ -98,11 +125,12 @@ export default function Input({
       const dataTransfer = e.dataTransfer;
       if (!dataTransfer) return;
 
-      const cleanText = extractClipboardText(dataTransfer as unknown as DataTransfer) ?? '';
+      const cleanText =
+        extractClipboardText(dataTransfer as unknown as DataTransfer) ?? '';
       const target = el;
       const nativeSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype,
-        'value',
+        'value'
       )?.set;
       if (nativeSetter) {
         nativeSetter.call(target, cleanText);
@@ -118,7 +146,7 @@ export default function Input({
         const cleanValue = stripEmoji(target.value);
         const nativeSetter = Object.getOwnPropertyDescriptor(
           window.HTMLInputElement.prototype,
-          'value',
+          'value'
         )?.set;
         if (nativeSetter) {
           nativeSetter.call(target, cleanValue);
@@ -144,13 +172,21 @@ export default function Input({
   return (
     <div className={cn('flex flex-col w-full', className)}>
       {label && (
-        <label className={cn('text-sm font-medium text-gray-700 mb-0.5', labelClassName)}>
+        <label
+          htmlFor={inputId}
+          className={cn(
+            'text-sm font-medium text-gray-700 mb-0.5',
+            labelClassName
+          )}
+        >
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
 
       <div className="relative w-full overflow-visible">
-        {img && <div className="absolute left-3 top-1/2 -translate-y-1/2">{img}</div>}
+        {img && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2">{img}</div>
+        )}
         <input
           ref={(el) => {
             emojiBlockerRef.current = el;
@@ -160,7 +196,10 @@ export default function Input({
               (ref as { current: HTMLInputElement | null }).current = el;
             }
           }}
+          id={inputId}
           type={inputType}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
           autoComplete="off"
           maxLength={length}
           required={required}
@@ -170,12 +209,12 @@ export default function Input({
             type === 'checkbox'
               ? 'w-5 h-5'
               : cn(
-                'w-full h-[38px] rounded-xl border-2 border-gray-300 focus:border-primary-400',
-                img ? 'pl-10' : 'pl-3',
-                isPassword ? 'hide-native-password-toggle' : '',
-                isPassword ? 'pr-9' : 'pr-3',
-              ),
-            inputClassName,
+                  'w-full h-[38px] rounded-xl border-2 border-gray-300 focus:border-primary-400',
+                  img ? 'pl-10' : 'pl-3',
+                  isPassword ? 'hide-native-password-toggle' : '',
+                  isPassword ? 'pr-9' : 'pr-3'
+                ),
+            inputClassName
           )}
           {...props}
           style={inputStyle}
@@ -184,7 +223,7 @@ export default function Input({
               const cleanValue = stripEmoji(e.target.value);
               const nativeSetter = Object.getOwnPropertyDescriptor(
                 window.HTMLInputElement.prototype,
-                'value',
+                'value'
               )?.set;
               if (nativeSetter) {
                 nativeSetter.call(e.target, cleanValue);
@@ -200,7 +239,9 @@ export default function Input({
             type="button"
             onClick={() => setShowPassword((prev) => !prev)}
             className="absolute right-4 top-1/2 -translate-y-1/2 text-dark-500 hover:text-primary-500 transition"
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={
+              showPassword ? t('a11y.hidePassword') : t('a11y.showPassword')
+            }
             aria-pressed={showPassword}
           >
             {showPassword ? (
@@ -232,7 +273,15 @@ export default function Input({
           </button>
         )}
       </div>
-      {error && <p className="text-[10px] h-3 mt-0.5 text-red-500">{error}</p>}
+      {error && (
+        <p
+          id={errorId}
+          role="alert"
+          className="text-[10px] h-3 mt-0.5 text-red-500"
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }

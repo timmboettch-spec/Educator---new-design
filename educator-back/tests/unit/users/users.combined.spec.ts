@@ -3,19 +3,27 @@ import { ConfigService } from '@nestjs/config';
 import { UsersController } from '../../../src/users/users.controller';
 import { UsersService } from '../../../src/users/users.service';
 import { EducatorsService } from '../../../src/educators/educators.service';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { User } from '../../../src/users/entity/user.entity';
-import { Role } from '../../../src/roles/entity/role.entity';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { AzureBlobService } from 'src/config/azure-blob.config';
+import { User, Role, UserRole, Educator } from 'src/database/entities';
+import {
+  DISTRICT_ADMIN_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  ROLE_REPOSITORY,
+  USER_REPOSITORY,
+  USER_ROLE_REPOSITORY,
+} from 'src/database/tokens';
+import { DatabaseService } from 'src/database/services/database.service';
+import { AzureBlobService, LoggerService } from 'src/common/services';
 import { InvitesService } from '../../../src/invites/invites.service';
 import { CommonStatus } from 'src/common/enums/status.enum';
 import { AppStatus } from 'src/common/utils/messages';
 import { JwtRequest } from 'src/common/types';
+import { UserTokenType } from 'src/common/constants';
 import * as bcrypt from 'bcrypt';
 
-const makeReq = (userId: string, type = 'admin'): JwtRequest => {
-  const req = Object.assign(new Request('http://localhost'), { user: { userId, type } });
+const makeReq = (userId: string, type = UserTokenType.ADMIN): JwtRequest => {
+  const req = Object.assign(new Request('http://localhost'), {
+    user: { userId, educatorId: userId, type },
+  });
   return req;
 };
 
@@ -35,15 +43,32 @@ describe('Users (Controller + Service)', () => {
   const userRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
-    save: jest.fn(),
+    findByIdWithPassword: jest.fn(),
     update: jest.fn(),
     create: jest.fn(),
   };
   const roleRepo = { findOne: jest.fn() };
-  const educatorRepo = { findOne: jest.fn(), save: jest.fn() };
+  const educatorRepo = { findOne: jest.fn(), update: jest.fn() };
+  const userRoleRepo = {
+    update: jest.fn(),
+    findById: jest.fn(),
+    findByUserAndRoleSlug: jest.fn(),
+  };
+  const districtAdminRepo = {
+    findByUserRoleId: jest.fn(),
+    updateByUserRoleId: jest.fn(),
+  };
   const educatorsService = { updateProfile: jest.fn() };
-  const invitesService = { findInviteById: jest.fn(), acceptInvite: jest.fn() };
-  const azureBlobService = { uploadFile: jest.fn(), generateSasUrl: jest.fn().mockResolvedValue('https://img.com/pic.png') };
+  const invitesService = { findInviteById: jest.fn(), markInviteAccepted: jest.fn() };
+  const azureBlobService = {
+    uploadFile: jest.fn(),
+    generateSasUrl: jest.fn().mockResolvedValue('https://img.com/pic.png'),
+  };
+  const databaseService = {
+    connection: { createQueryBuilder: jest.fn() },
+    pingCheck: jest.fn(),
+    runInTransaction: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -52,11 +77,25 @@ describe('Users (Controller + Service)', () => {
         UsersService,
         { provide: ConfigService, useValue: { get: jest.fn() } },
         { provide: EducatorsService, useValue: educatorsService },
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(Role), useValue: roleRepo },
-        { provide: getRepositoryToken(Educator), useValue: educatorRepo },
+        { provide: USER_REPOSITORY, useValue: userRepo },
+        { provide: ROLE_REPOSITORY, useValue: roleRepo },
+        { provide: EDUCATOR_REPOSITORY, useValue: educatorRepo },
+        { provide: USER_ROLE_REPOSITORY, useValue: userRoleRepo },
+        { provide: DISTRICT_ADMIN_REPOSITORY, useValue: districtAdminRepo },
         { provide: InvitesService, useValue: invitesService },
         { provide: AzureBlobService, useValue: azureBlobService },
+        { provide: DatabaseService, useValue: databaseService },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
     controller = module.get(UsersController);
@@ -68,7 +107,14 @@ describe('Users (Controller + Service)', () => {
   describe('findAll', () => {
     it('UNIT: returns formatted users list', async () => {
       userRepo.find.mockResolvedValue([
-        makeUser({ role: { id: 'r-1', role_name: 'District Admin' } as Role }),
+        makeUser({
+          userRoles: [
+            {
+              status: CommonStatus.ACTIVE,
+              role: { id: 'r-1', role_name: 'District Admin' } as Role,
+            } as UserRole,
+          ],
+        }),
       ]);
       const result = await service.findAll();
       expect(result.success).toBe(true);
@@ -89,8 +135,8 @@ describe('Users (Controller + Service)', () => {
       expect(result.status).toBe(AppStatus.SUCCESS);
     });
 
-    it('REGRESSION: role is null when user has no role', async () => {
-      userRepo.find.mockResolvedValue([makeUser({ role: undefined })]);
+    it('REGRESSION: role is null when user has no role assignment', async () => {
+      userRepo.find.mockResolvedValue([makeUser({ userRoles: [] })]);
       const result = await service.findAll();
       expect(result.data![0].role).toBeNull();
     });
@@ -118,17 +164,33 @@ describe('Users (Controller + Service)', () => {
   });
 
   describe('updateProfile', () => {
-    it('UNIT: updates full_name', async () => {
-      userRepo.findOne.mockResolvedValue(makeUser({ full_name: 'Old' }));
-      userRepo.save.mockResolvedValue(makeUser({ full_name: 'New' }));
-      const result = await service.updateProfile('u-1', { full_name: 'New' });
+    it('UNIT: updates fullName', async () => {
+      userRepo.findOne.mockResolvedValue(makeUser());
+      userRoleRepo.findByUserAndRoleSlug.mockResolvedValue({ userRoleId: 'da-role-1' });
+      districtAdminRepo.findByUserRoleId.mockResolvedValue({
+        userRoleId: 'da-role-1',
+        fullName: 'Old',
+      });
+      districtAdminRepo.updateByUserRoleId.mockResolvedValue(undefined);
+      const result = await service.updateProfile('u-1', { fullName: 'New' });
       expect(result.success).toBe(true);
-      expect(result.data?.full_name).toBe('New');
+      expect(result.data?.fullName).toBe('New');
+      expect(districtAdminRepo.updateByUserRoleId).toHaveBeenCalledWith('da-role-1', {
+        fullName: 'New',
+        profilePicture: undefined,
+      });
     });
 
     it('UNIT: returns failure when user not found', async () => {
       userRepo.findOne.mockResolvedValue(null);
-      const result = await service.updateProfile('bad', { full_name: 'X' });
+      const result = await service.updateProfile('bad', { fullName: 'X' });
+      expect(result.success).toBe(false);
+    });
+
+    it('UNIT: returns failure when user has no linked District Admin role', async () => {
+      userRepo.findOne.mockResolvedValue(makeUser());
+      userRoleRepo.findByUserAndRoleSlug.mockResolvedValue(null);
+      const result = await service.updateProfile('u-1', { fullName: 'New' });
       expect(result.success).toBe(false);
     });
 
@@ -136,10 +198,10 @@ describe('Users (Controller + Service)', () => {
       jest.spyOn(service, 'updateProfile').mockResolvedValue({
         success: true,
         message: 'Updated',
-        data: { id: 'u-1', full_name: 'New', profile_picture: null },
+        data: { id: 'u-1', fullName: 'New', profilePicture: null },
       });
 
-      const result = await controller.updateProfile(makeReq('u-1'), { full_name: 'New' });
+      const result = await controller.updateProfile(makeReq('u-1'), { fullName: 'New' });
       expect(result.status).toBe(AppStatus.SUCCESS);
     });
 
@@ -149,75 +211,42 @@ describe('Users (Controller + Service)', () => {
         message: 'Updated',
         data: { id: 'edu-1', full_name: 'New', profile_picture: null },
       });
-      const result = await controller.updateProfile(makeReq('edu-1', 'educator'), {
-        full_name: 'New',
+      const result = await controller.updateProfile(makeReq('edu-1', UserTokenType.EDUCATOR), {
+        fullName: 'New',
       });
       expect(result.status).toBe(AppStatus.SUCCESS);
       expect(educatorsService.updateProfile).toHaveBeenCalled();
     });
 
-    it('REGRESSION: non-http profile_picture sanitized to null', async () => {
-      userRepo.findOne.mockResolvedValue(makeUser({ profile_picture: 'invalid-url' }));
-      userRepo.save.mockResolvedValue(makeUser({ profile_picture: 'invalid-url' }));
-      const result = await service.updateProfile('u-1', {});
-      expect(result.data?.profile_picture).toBeNull();
-    });
-  });
-
-  describe('changePassword', () => {
-    it('UNIT: changes password successfully', async () => {
-      const hash = await bcrypt.hash('old', 10);
-      userRepo.findOne.mockResolvedValue(makeUser({ password: hash }));
-      userRepo.save.mockResolvedValue(makeUser());
-      const result = await service.changePassword('u-1', 'old', 'new');
-      expect(result.success).toBe(true);
-    });
-
-    it('UNIT: fails with wrong old password', async () => {
-      const hash = await bcrypt.hash('correct', 10);
-      userRepo.findOne.mockResolvedValue(makeUser({ password: hash }));
-      const result = await service.changePassword('u-1', 'wrong', 'new');
-      expect(result.success).toBe(false);
-    });
-
-    it('UNIT: changes educator password', async () => {
-      const hash = await bcrypt.hash('old', 10);
-      userRepo.findOne.mockResolvedValue(null);
-      educatorRepo.findOne.mockResolvedValue({ id: 'edu-1', password: hash });
-      educatorRepo.save.mockResolvedValue({});
-      const result = await service.changePassword('edu-1', 'old', 'new');
-      expect(result.success).toBe(true);
-    });
-
-    it('UNIT: fails when neither user nor educator found', async () => {
-      userRepo.findOne.mockResolvedValue(null);
-      educatorRepo.findOne.mockResolvedValue(null);
-      const result = await service.changePassword('bad', 'old', 'new');
-      expect(result.success).toBe(false);
-    });
-
-    it('INTEGRATION: PUT /users/change-password — returns SUCCESS', async () => {
-      jest
-        .spyOn(service, 'changePassword')
-        .mockResolvedValue({ success: true, message: 'Changed', data: null });
-      const result = await controller.changePassword({
-        user_id: 'u-1',
-        old_password: 'old',
-        new_password: 'new',
+    it('REGRESSION: non-http profilePicture sanitized to null', async () => {
+      userRepo.findOne.mockResolvedValue(makeUser());
+      userRoleRepo.findByUserAndRoleSlug.mockResolvedValue({ userRoleId: 'da-role-1' });
+      districtAdminRepo.findByUserRoleId.mockResolvedValue({
+        userRoleId: 'da-role-1',
+        profilePicture: 'invalid-url',
       });
-      expect(result.status).toBe(AppStatus.SUCCESS);
+      const result = await service.updateProfile('u-1', {});
+      expect(result.data?.profilePicture).toBeNull();
     });
   });
 
   describe('getProfilePicture', () => {
     it('UNIT: returns profile picture URL', async () => {
-      userRepo.findOne.mockResolvedValue(makeUser({ profile_picture: 'https://img.com/pic.png' }));
+      userRoleRepo.findByUserAndRoleSlug.mockResolvedValue({ userRoleId: 'da-role-1' });
+      districtAdminRepo.findByUserRoleId.mockResolvedValue({
+        userRoleId: 'da-role-1',
+        profilePicture: 'https://img.com/pic.png',
+      });
       const result = await service.getProfilePicture('u-1');
       expect(result).toBe('https://img.com/pic.png');
     });
 
     it('UNIT: returns null when no profile picture', async () => {
-      userRepo.findOne.mockResolvedValue(makeUser({ profile_picture: undefined }));
+      userRoleRepo.findByUserAndRoleSlug.mockResolvedValue({ userRoleId: 'da-role-1' });
+      districtAdminRepo.findByUserRoleId.mockResolvedValue({
+        userRoleId: 'da-role-1',
+        profilePicture: undefined,
+      });
       const result = await service.getProfilePicture('u-1');
       expect(result == null || result === '').toBe(true);
     });

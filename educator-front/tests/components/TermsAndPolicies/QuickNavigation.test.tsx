@@ -32,17 +32,13 @@ describe('QuickNavigation', () => {
       screen.getByText('Acceptance of Terms of Use and Amendments')
     ).toBeTruthy();
 
-    expect(
-      screen.getByText("The Site Editor's Service")
-    ).toBeTruthy();
+    expect(screen.getByText("The Site Editor's Service")).toBeTruthy();
 
     expect(
       screen.getByText('Your Responsibilities and Registration Obligations')
     ).toBeTruthy();
 
-    expect(
-      screen.getByText('Miscellaneous Information')
-    ).toBeTruthy();
+    expect(screen.getByText('Miscellaneous Information')).toBeTruthy();
   });
 
   it('renders Privacy Policy navigation items when screenType is privacyPolicy', () => {
@@ -189,8 +185,6 @@ describe('QuickNavigation', () => {
       screen.getByText('Information Collection, Use and Sharing')
     ).toBeTruthy();
 
-    expect(
-      screen.queryByText('Miscellaneous Information')
-    ).toBeNull();
+    expect(screen.queryByText('Miscellaneous Information')).toBeNull();
   });
 });

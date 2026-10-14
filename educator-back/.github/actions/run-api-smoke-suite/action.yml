@@ -1,0 +1,115 @@
+name: "run-api-smoke-suite"
+description: >-
+  Aggregated API smoke run against an already-deployed backend: Node setup +
+  npm ci + `npm run test:api:smoke` (tests/api/config/jest.smoke.config.json)
+  + JSON/HTML artifact upload + pass/fail parsing (via
+  parse-api-test-results). run-api-test-suite hardcodes tests/api/config/
+  jest.api.json (testMatch tests/api/modules/**/*.spec.ts — the
+  pre-deployment suite) regardless of which base-url is passed in, so
+  staging/post-deployment/preview jobs that used it were actually re-running
+  the pre-deployment suite against the live URL and uploading
+  api-predeployment-report.html instead of the intended api-smoke-report.html
+  (testMatch tests/api/smoke/*.smoke.ts). This action runs `npm run
+  test:api:smoke` directly so the post-deployment stage always uses the same
+  command engineers run locally, instead of a separate hand-rolled jest
+  invocation that can drift from it.
+
+inputs:
+  base-url:
+    description: >-
+      BASE_BACKEND_URL for the deployed backend to smoke test, e.g.
+      https://<env-fqdn>/api. Required — tests/api/common/setup/supertest.setup.ts
+      falls back to a canonical per-NODE_ENV URL when this is empty, which
+      would silently smoke-test the wrong environment (e.g. staging FQDN vs
+      the shared dev backend).
+    required: true
+  node-version:
+    description: 'Node.js version to run the suite with.'
+    required: false
+    default: '22'
+  results-json:
+    description: 'Path to the Jest JSON results file.'
+    required: false
+    default: 'tests/api/reports/.smoke-results.json'
+  results-html:
+    description: 'Path to the Jest HTML report.'
+    required: false
+    default: 'tests/api/reports/html/api-smoke-report.html'
+  artifact-json-name:
+    description: 'Artifact name for the uploaded JSON results.'
+    required: true
+  artifact-html-name:
+    description: 'Artifact name for the uploaded HTML report.'
+    required: true
+  label:
+    description: 'Prefix for failed test names in failed_names output, e.g. "staging" or "post-deploy".'
+    required: false
+    default: 'smoke'
+
+outputs:
+  total:
+    description: 'Total assertions run.'
+    value: ${{ steps.parse.outputs.total }}
+  passed:
+    description: 'Passed assertions.'
+    value: ${{ steps.parse.outputs.passed }}
+  failed:
+    description: 'Failed assertions.'
+    value: ${{ steps.parse.outputs.failed }}
+  summary:
+    description: 'One-line pass/fail summary string.'
+    value: ${{ steps.parse.outputs.summary }}
+  failed_names:
+    description: 'Semicolon-joined list (max 5) of failing test full names, prefixed with label.'
+    value: ${{ steps.parse.outputs.failed_names }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Run API smoke suite
+      shell: bash
+      env:
+        BASE_BACKEND_URL: ${{ inputs.base-url }}
+      run: |
+        echo "BASE_BACKEND_URL=$BASE_BACKEND_URL"
+        # Post-deployment/staging/preview jobs must use the npm run
+        # test:api:smoke script (tests/api/config/jest.smoke.config.json),
+        # not a hand-rolled jest invocation — that's the one source of truth
+        # for "what does the smoke suite run", so debugging which tests ran
+        # starts and ends with `npm run test:api:smoke`.
+        npm run test:api:smoke -- --json --outputFile "${{ inputs.results-json }}" || true
+
+    - name: Upload JSON results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-json-name }}
+        path: ${{ inputs.results-json }}
+        retention-days: 7
+        include-hidden-files: true
+
+    - name: Upload HTML report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-html-name }}
+        path: ${{ inputs.results-html }}
+        retention-days: 14
+
+    - name: Parse test summary
+      id: parse
+      if: always()
+      uses: ./.github/actions/parse-api-test-results
+      with:
+        results-file: ${{ inputs.results-json }}
+        label: ${{ inputs.label }}

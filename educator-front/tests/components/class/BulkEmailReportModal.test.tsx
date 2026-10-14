@@ -36,8 +36,9 @@ vi.mock('../../../src/redux/class/StudentEmailReportRedux', () => ({
     s.StudentEmailReport.loading,
   selectEmailReportSuccess: (s: { StudentEmailReport: { success: boolean } }) =>
     s.StudentEmailReport.success,
-  selectEmailReportError: (s: { StudentEmailReport: { error: string | null } }) =>
-    s.StudentEmailReport.error,
+  selectEmailReportError: (s: {
+    StudentEmailReport: { error: string | null };
+  }) => s.StudentEmailReport.error,
 }));
 
 vi.mock('../../../src/components/ui/Modal', () => ({
@@ -93,7 +94,10 @@ vi.mock('../../../src/components/ui/Input', () => ({
       {label ? <label htmlFor={id || `input-${label}`}>{label}</label> : null}
       <input
         id={id || (label ? `input-${label}` : undefined)}
-        data-testid={(props['data-testid'] as string) || (label ? `input-${label}` : 'input')}
+        data-testid={
+          (props['data-testid'] as string) ||
+          (label ? `input-${label}` : 'input')
+        }
         {...(props as React.InputHTMLAttributes<HTMLInputElement>)}
       />
     </div>
@@ -150,7 +154,9 @@ describe('BulkEmailReportModal', () => {
 
     it('renders subject input with default value', () => {
       render(<BulkEmailReportModal classId="1" onClose={vi.fn()} />);
-      expect(screen.getByTestId('input-Subject')).toHaveValue('Student Progress Report');
+      expect(screen.getByTestId('input-Subject')).toHaveValue(
+        'Student Progress Report'
+      );
     });
 
     it('renders message textarea empty by default', () => {
@@ -165,7 +171,9 @@ describe('BulkEmailReportModal', () => {
 
     it('renders Send Mail and Back buttons', () => {
       render(<BulkEmailReportModal classId="1" onClose={vi.fn()} />);
-      expect(screen.getByRole('button', { name: /Send Mail/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Send Mail/i })
+      ).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Back/i })).toBeInTheDocument();
     });
   });
@@ -174,7 +182,9 @@ describe('BulkEmailReportModal', () => {
     it('shows error and does NOT dispatch when message is empty', () => {
       render(<BulkEmailReportModal classId="1" onClose={vi.fn()} />);
       fireEvent.click(screen.getByRole('button', { name: /Send Mail/i }));
-      expect(screen.getByTestId('message-error')).toHaveTextContent('Message is required');
+      expect(screen.getByTestId('message-error')).toHaveTextContent(
+        'Message is required'
+      );
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
@@ -211,7 +221,7 @@ describe('BulkEmailReportModal', () => {
             sendPdf: false,
             message: 'Hello students',
           }),
-        }),
+        })
       );
     });
 
@@ -225,7 +235,7 @@ describe('BulkEmailReportModal', () => {
           payload: expect.objectContaining({
             subject: 'Student Progress Report',
           }),
-        }),
+        })
       );
     });
 
@@ -240,7 +250,7 @@ describe('BulkEmailReportModal', () => {
       expect(mockDispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({ subject: 'New Subject' }),
-        }),
+        })
       );
     });
 
@@ -253,7 +263,7 @@ describe('BulkEmailReportModal', () => {
       expect(mockDispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({ sendPdf: true }),
-        }),
+        })
       );
     });
 
@@ -265,7 +275,7 @@ describe('BulkEmailReportModal', () => {
       expect(mockDispatch).toHaveBeenCalledWith(
         expect.objectContaining({
           payload: expect.objectContaining({ sendPdf: false }),
-        }),
+        })
       );
     });
   });
@@ -274,7 +284,9 @@ describe('BulkEmailReportModal', () => {
     it('shows "Sending..." text and disables button while loading', () => {
       mockState.loading = true;
       render(<BulkEmailReportModal classId="1" onClose={vi.fn()} />);
-      expect(screen.getByRole('button', { name: /Sending.../i })).toBeDisabled();
+      expect(
+        screen.getByRole('button', { name: /Sending.../i })
+      ).toBeDisabled();
     });
 
     it('disables Back button while loading', () => {
@@ -292,7 +304,7 @@ describe('BulkEmailReportModal', () => {
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith(
-          'Report sent successfully to all students in the class!',
+          'Report sent successfully to all students in the class!'
         );
         expect(onClose).toHaveBeenCalled();
       });
@@ -339,7 +351,9 @@ describe('BulkEmailReportModal', () => {
 
   describe('Cleanup on unmount', () => {
     it('dispatches clearEmailReportState on unmount', () => {
-      const { unmount } = render(<BulkEmailReportModal classId="1" onClose={vi.fn()} />);
+      const { unmount } = render(
+        <BulkEmailReportModal classId="1" onClose={vi.fn()} />
+      );
       unmount();
       expect(mockDispatch).toHaveBeenCalledWith({ type: 'CLEAR' });
     });

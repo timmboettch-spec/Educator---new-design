@@ -52,7 +52,7 @@ export const RemoveSeats = createAsyncThunk<
   try {
     const res = await api.post<ApiResponse<RemoveSeatsResponseData>>(
       `${config.RemoveSeatsAPI}/${educatorId}/remove-seats`,
-      { amount },
+      { amount }
     );
     return res.data;
   } catch (err: unknown) {
@@ -67,20 +67,23 @@ export const ReallocateSeats = createAsyncThunk<
   ApiResponse<ReallocateSeatsResponseData>,
   ReallocateSeatsInput,
   { rejectValue: { message: string } }
->('educator/reallocateSeats', async ({ sourceEducatorId, targetEducatorId, amount }, thunkAPI) => {
-  try {
-    const res = await api.post<ApiResponse<ReallocateSeatsResponseData>>(
-      `${config.ReallocateSeatsAPI}/${sourceEducatorId}/reallocate-seats`,
-      { target_educator_id: targetEducatorId, amount },
-    );
-    return res.data;
-  } catch (err: unknown) {
-    const error = err as { response?: { data?: { message?: string } } };
-    return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || 'Failed to reallocate seats',
-    });
+>(
+  'educator/reallocateSeats',
+  async ({ sourceEducatorId, targetEducatorId, amount }, thunkAPI) => {
+    try {
+      const res = await api.post<ApiResponse<ReallocateSeatsResponseData>>(
+        `${config.ReallocateSeatsAPI}/${sourceEducatorId}/reallocate-seats`,
+        { target_educator_id: targetEducatorId, amount }
+      );
+      return res.data;
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } };
+      return thunkAPI.rejectWithValue({
+        message: error.response?.data?.message || 'Failed to reallocate seats',
+      });
+    }
   }
-});
+);
 
 const RemoveReallocateSeatsSlice = createSlice({
   name: 'educator/removeReallocateSeats',
@@ -125,7 +128,8 @@ const RemoveReallocateSeatsSlice = createSlice({
       })
       .addCase(ReallocateSeats.rejected, (state, action) => {
         state.reallocateStatus = FAILED;
-        state.reallocateError = action.payload?.message ?? 'Failed to reallocate seats';
+        state.reallocateError =
+          action.payload?.message ?? 'Failed to reallocate seats';
       });
   },
 });

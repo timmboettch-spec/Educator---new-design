@@ -24,6 +24,8 @@ coverage
 
 # Test reports (auto-generated)
 tests/e2e/reports/
+tests/e2e/test-results/
+tests/e2e/results/
 tests/unit/reports/
 tests/integration/reports/
 tests/lint/reports/

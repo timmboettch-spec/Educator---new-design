@@ -1,4 +1,8 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -95,5 +99,11 @@ export default UpdateEducatorSlice.reducer;
 
 const selectState = (state: RootState) => state.updateEducator;
 
-export const selectUpdateEducatorStatus = createSelector(selectState, (state) => state.status);
-export const selectUpdateEducatorError = createSelector(selectState, (state) => state.error);
+export const selectUpdateEducatorStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectUpdateEducatorError = createSelector(
+  selectState,
+  (state) => state.error
+);

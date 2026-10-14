@@ -1,20 +1,29 @@
+import { APP_GUARD } from '@nestjs/core';
+import type { ExecutionContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { ScenariosController } from '@/modules/scenarios/scenarios.controller';
-import { ScenariosService } from '@/modules/scenarios/scenarios.service';
-import { JsonDataService } from '@/data/json-data.service';
-import { ScenarioAuthGuard } from '@/guards/scenario-auth.guard';
-import { ScenarioAssignmentGuard } from '@/modules/scenarios/guards/scenario-assignment.guard';
-import type { Scenario } from '@/data/json-data.service';
+import { ScenariosController } from 'src/student-backend/modules/scenarios/scenarios.controller';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
+import { AutomationAccessService } from 'src/common/services/automation-access.service';
+import { SimulationService } from 'src/simulation/simulation.service';
+import { LoggerService } from 'src/common/services';
+import { VoiceProfilesService } from 'src/voice-profiles/voice-profiles.service';
+import type { Scenario } from 'src/common/interfaces/student-scenario.interface';
+import {
+  LMS_ASSIGNMENT_MAPPING_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+} from 'src/database/tokens';
 
 jest.setTimeout(60000);
 
 describe('Scenarios API (Integration)', () => {
   let app: INestApplication;
 
-  // In-memory scenario store backing the mocked JsonDataService
+  // In-memory scenario store backing the mocked SimulationV2Repository
   const store: Partial<Scenario>[] = [
     {
       id: 'scenario-u1-001',
@@ -27,42 +36,80 @@ describe('Scenarios API (Integration)', () => {
       title: 'Scenario 2',
       grading: { maxScore: 50, rubric: [] },
     },
+    {
+      id: 'scenario-u1-003',
+      unitId: 'unit-1',
+      title: 'Scenario 3',
+      voiceProfileId: 'voice-profile-1',
+      patientData: { gender: 'female' },
+    } as unknown as Partial<Scenario>,
   ];
 
-  const mockJsonDataService = {
-    getScenarios: jest.fn(() => store),
-    getScenarioById: jest.fn((id: string) => store.find((s) => s.id === id)),
-    getScenarioByIdFresh: jest.fn(async (id: string) => store.find((s) => s.id === id)),
-    getScenarioByIdLocalized: jest.fn(async (id: string) => store.find((s) => s.id === id)),
-    getScenariosByUnitId: jest.fn((unitId: string) => store.filter((s) => s.unitId === unitId)),
-    getScenariosByUnitIdLocalized: jest.fn(async (unitId: string) =>
-      store.filter((s) => s.unitId === unitId),
+  const mockVoiceProfilesService = {
+    resolveForScenario: jest.fn(async (input: { voiceProfileId?: string | null }) =>
+      input.voiceProfileId === 'voice-profile-1'
+        ? {
+            id: 'voice-profile-1',
+            displayName: 'Stock Female 1',
+            source: 'scenario',
+          }
+        : null,
     ),
-    getAllScenariosLocalized: jest.fn(async () => store),
-    getUnitById: jest.fn((unitId: string) => ({ id: unitId, name: 'Unit' })),
-    getTranscriptsByUserId: jest.fn(() => []),
-    getDefaultScenario: jest.fn(() => undefined),
-    updateScenario: jest.fn(async (id: string, updates: Partial<Scenario>) => {
-      const idx = store.findIndex((s) => s.id === id);
-      if (idx === -1) {
-        throw new Error(`Scenario with id ${id} not found`);
-      }
-      store[idx] = { ...store[idx], ...updates };
-    }),
-    addScenario: jest.fn(async () => {}),
-    saveAsDefaultScenario: jest.fn(() => {}),
-  } as unknown as jest.Mocked<JsonDataService>;
+  };
+
+  const mockSimulationV2Repository = {
+    find: jest.fn(async () => store),
+    findByUnitId: jest.fn(async (unitId: string) => store.filter((s) => s.unitId === unitId)),
+    findByBusinessId: jest.fn(async (id: string) => store.find((s) => s.id === id) ?? null),
+    findByBusinessIdWithChildrenJoined: jest.fn(
+      async (id: string) => store.find((s) => s.id === id) ?? null,
+    ),
+    findAllWithChildrenJoined: jest.fn(async () => store),
+  };
+
+  const mockUnitRepository = {
+    findByBusinessId: jest.fn(async (id: string) => ({ id, name: 'Unit' })),
+    find: jest.fn(async () => []),
+  };
+
+  const mockTranscriptRepository = {
+    findByUserId: jest.fn(async () => []),
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [ScenariosController],
-      providers: [ScenariosService, { provide: JsonDataService, useValue: mockJsonDataService }],
-    })
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScenarioAssignmentGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+      providers: [
+        {
+          provide: APP_GUARD,
+          useValue: {
+            canActivate: (ctx: ExecutionContext) => {
+              ctx.switchToHttp().getRequest<{ user?: unknown }>().user = {
+                userId: 'user-1',
+                type: 'educator',
+                roles: ['educator'],
+              };
+              return true;
+            },
+          },
+        },
+        ScenariosService,
+        { provide: UNIT_REPOSITORY, useValue: mockUnitRepository },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: mockSimulationV2Repository },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: mockTranscriptRepository },
+        { provide: LMS_ASSIGNMENT_MAPPING_REPOSITORY, useValue: { findOne: jest.fn() } },
+        { provide: SimulationService, useValue: { getAssignedSimulationIds: jest.fn() } },
+        { provide: LoggerService, useValue: { warn: jest.fn(), log: jest.fn(), error: jest.fn() } },
+        { provide: VoiceProfilesService, useValue: mockVoiceProfilesService },
+        {
+          provide: AutomationAccessService,
+          useValue: {
+            filterRecords: jest.fn((records) => records),
+            canAccessRecord: jest.fn(() => true),
+          },
+        },
+      ],
+    }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -98,6 +145,28 @@ describe('Scenarios API (Integration)', () => {
     it('should return 404 for a non-existent scenario', async () => {
       const scenarioId = 'non_existent_123';
       await request(app.getHttpServer()).get(`/scenarios/${scenarioId}`).expect(404);
+    });
+
+    it('includes the resolved voiceProfile, shaped like the frozen contract fixture', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/scenarios/scenario-u1-003')
+        .expect(200);
+
+      expect(response.body.voiceProfile).toEqual({
+        id: 'voice-profile-1',
+        displayName: 'Stock Female 1',
+        source: 'scenario',
+      });
+      expect(mockVoiceProfilesService.resolveForScenario).toHaveBeenCalledWith(
+        expect.objectContaining({ voiceProfileId: 'voice-profile-1' }),
+      );
+    });
+
+    it('is null when the scenario has no effective voice', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/scenarios/scenario-u1-002')
+        .expect(200);
+      expect(response.body.voiceProfile).toBeNull();
     });
   });
 });

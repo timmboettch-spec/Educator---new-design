@@ -1,7 +1,13 @@
-import type { TranscriptEventData, TranscriptHeader } from '../../types/userTranscript';
+import type {
+  TranscriptEventData,
+  TranscriptHeader,
+} from '../../types/userTranscript';
 
 /** Try a list of field names; return the first non-empty string value */
-export function pick(obj: Record<string, unknown>, ...keys: string[]): string | undefined {
+export function pick(
+  obj: Record<string, unknown>,
+  ...keys: string[]
+): string | undefined {
   for (const key of keys) {
     const val = obj[key];
     if (val != null && String(val).trim() !== '') return String(val);
@@ -9,11 +15,17 @@ export function pick(obj: Record<string, unknown>, ...keys: string[]): string | 
   return undefined;
 }
 
-export function headerField(header: TranscriptHeader, ...keys: string[]): string | undefined {
+export function headerField(
+  header: TranscriptHeader,
+  ...keys: string[]
+): string | undefined {
   return pick(header as Record<string, unknown>, ...keys);
 }
 
-export function eventField(event: TranscriptEventData, ...keys: string[]): string | undefined {
+export function eventField(
+  event: TranscriptEventData,
+  ...keys: string[]
+): string | undefined {
   return pick(event as Record<string, unknown>, ...keys);
 }
 
@@ -49,7 +61,9 @@ export const KNOWN_KEYS = new Set([
 /** Returns extra [key, value] pairs not already shown in the main card */
 export function extraEntries(event: TranscriptEventData): [string, string][] {
   return Object.entries(event)
-    .filter(([k, v]) => !KNOWN_KEYS.has(k) && v != null && String(v).trim() !== '')
+    .filter(
+      ([k, v]) => !KNOWN_KEYS.has(k) && v != null && String(v).trim() !== ''
+    )
     .map(([k, v]) => [k, String(v)]);
 }
 
@@ -60,7 +74,9 @@ export function statusClass(status: string): string {
     return 'bg-green-100 text-green-700';
   if (['incorrect', 'fail', 'failed', 'error'].includes(s))
     return 'bg-red-100 text-red-700';
-  if (['partial', 'warning', 'pending', 'in_progress', 'inprogress'].includes(s))
+  if (
+    ['partial', 'warning', 'pending', 'in_progress', 'inprogress'].includes(s)
+  )
     return 'bg-amber-100 text-amber-700';
   return 'bg-gray-100 text-gray-600';
 }

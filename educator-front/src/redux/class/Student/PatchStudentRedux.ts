@@ -1,5 +1,9 @@
 ﻿import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import config from '../../config';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
@@ -59,7 +63,7 @@ export const PutStudentRequest = createAsyncThunk(
         message: error.response?.data?.message || 'Failed to update student',
       });
     }
-  },
+  }
 );
 
 const putStudentSlice = createSlice({
@@ -78,14 +82,18 @@ const putStudentSlice = createSlice({
         state.status = LOADING;
         state.error = null;
       })
-      .addCase(PutStudentRequest.fulfilled, (state, action: PayloadAction<PutStudentResponse>) => {
-        state.status = SUCCEEDED;
-        state.response = action.payload;
-      })
+      .addCase(
+        PutStudentRequest.fulfilled,
+        (state, action: PayloadAction<PutStudentResponse>) => {
+          state.status = SUCCEEDED;
+          state.response = action.payload;
+        }
+      )
       .addCase(PutStudentRequest.rejected, (state, action) => {
         state.status = FAILED;
         state.error =
-          (action.payload as { message?: string })?.message || 'Failed to update student';
+          (action.payload as { message?: string })?.message ||
+          'Failed to update student';
       });
   },
 });
@@ -97,11 +105,17 @@ const selectPutStudentState = (state: RootState) => state.PatchStudent;
 
 export const selectPutStudentLoading = createSelector(
   selectPutStudentState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );
 export const selectPutStudentSuccess = createSelector(
   selectPutStudentState,
-  (s) => s.status === SUCCEEDED,
+  (s) => s.status === SUCCEEDED
 );
-export const selectPutStudentError = createSelector(selectPutStudentState, (s) => s.error);
-export const selectPutStudentResponse = createSelector(selectPutStudentState, (s) => s.response);
+export const selectPutStudentError = createSelector(
+  selectPutStudentState,
+  (s) => s.error
+);
+export const selectPutStudentResponse = createSelector(
+  selectPutStudentState,
+  (s) => s.response
+);

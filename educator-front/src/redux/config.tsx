@@ -19,23 +19,25 @@ interface CombinedConfig extends ServerConfig {
   EducatorAPI: string;
   CreateEducatorAPI: string;
   VerifyInviteAPI: string;
+  AcceptInviteAPI: string;
   UpdateEducatorAPI: string;
   DeleteEducatorAPI: string;
   ResendInviteAPI: string;
-  SimulationCatalogAPI: string;
   SimulationCatalogDetailAPI: string;
   SimulationCatalogScenariosAPI: string;
   AddToLibraryAPI: string;
   AddToBulkLibraryAPI: string;
+  RemoveBulkLibraryAPI: string;
   RemoveFromLibraryAPI: string;
   MyLibraryAPI: string;
   LogOutAPI: string;
+  SelectRoleAPI: string;
+  MeAPI: string;
   SimulationAPI: string;
   SimulationByUnitApi: string;
   ClassUserAPI: string;
   ReportStudentApi: string;
   GetSimulationApi: string;
-  PutclassSimsApi: string;
   DeleteclassSimsApi: string;
   StudentEmailReport: string;
   StudentUserAPI: string;
@@ -47,7 +49,6 @@ interface CombinedConfig extends ServerConfig {
   ChangePasswordAPI: string;
   UpdateProfileAPI: string;
   GetProfilePictureAPI: string;
-  RemoveProfilePictureAPI: string;
   DashboardOverviewAPI: string;
   SimulationCompletedCountAPI: string;
   SimsstudentCompletedReport: string;
@@ -65,7 +66,6 @@ interface CombinedConfig extends ServerConfig {
   READINESS: string;
   ClassesNeedingAttentionAPI: string;
   MarkReportViewedAPI: string;
-  ProductAPI: string;
   UserTranscriptAPI: string;
   StudentReportAPI: string;
   StudentAdminReportAPI: string;
@@ -76,11 +76,13 @@ interface CombinedConfig extends ServerConfig {
   LmsConfigureAPI: string;
   LmsEducatorConfigAPI: string;
   LmsEducatorConfigureAPI: string;
+  LmsTestConfigAPI: string;
   LmsMoodleMappedClassesAPI: string;
   LmsProvisionSyncAPI: string;
   LmsMoodleStudentsAPI: string;
   LmsMoodleCoursesAPI: string;
   LiveClassesAPI: string;
+  GoogleClassroomConnectionAPI: string;
   ClassTransferAPI: string;
   RequestSeatsAPI: string;
   RemoveSeatsAPI: string;
@@ -107,6 +109,8 @@ export const setServerConfig = (baseUrl: string): CombinedConfig => {
     ResendOTPAPI: `${baseUrl}/api/auth/resend-otp`,
     RedeemAPI: `${baseUrl}/api/auth/redeem`,
     LogOutAPI: `${baseUrl}/api/auth/logout`,
+    SelectRoleAPI: `${baseUrl}/api/auth/select-role`,
+    MeAPI: `${baseUrl}/api/auth/me`,
     ClassAPI: `${baseUrl}/api/classes`,
     ClassBulkCreateAPI: `${baseUrl}/api/classes/bulk`,
     SchoolAPI: `${baseUrl}/api/schools`,
@@ -115,23 +119,23 @@ export const setServerConfig = (baseUrl: string): CombinedConfig => {
     EducatorAPI: `${baseUrl}/api/educators/admin`,
     InviteEducatorAPI: `${baseUrl}/api/invites/create`,
     CreateEducatorAPI: `${baseUrl}/api/auth/signup`,
-    VerifyInviteAPI: `${baseUrl}/api/invites`,
+    VerifyInviteAPI: `${baseUrl}/api/invites/verify-token`,
+    AcceptInviteAPI: `${baseUrl}/api/invites/accept-invite`,
     UpdateEducatorAPI: `${baseUrl}/api/educators`,
     DeleteEducatorAPI: `${baseUrl}/api/educators`,
     ResendInviteAPI: `${baseUrl}/api/educators`,
-    SimulationCatalogAPI: `${baseUrl}/api/simulation-catalog/dashboard`,
-    SimulationCatalogDetailAPI: `${baseUrl}/api/simulation-catalog`,
-    SimulationCatalogScenariosAPI: `${baseUrl}/api/simulation-catalog/scenarios`,
+    SimulationCatalogDetailAPI: `${baseUrl}/api/simulations`,
+    SimulationCatalogScenariosAPI: `${baseUrl}/api/simulations/educators`,
     AddToLibraryAPI: `${baseUrl}/api/educator-simulations/add-to-library`,
     AddToBulkLibraryAPI: `${baseUrl}/api/educator-simulations/add-to-library-bulk`,
     RemoveFromLibraryAPI: `${baseUrl}/api/educator-simulations/remove-from-library`,
+    RemoveBulkLibraryAPI: `${baseUrl}/api/educator-simulations/remove-from-library-bulk`,
     MyLibraryAPI: `${baseUrl}/api/educator-simulations/my-library`,
     SimulationAPI: `${baseUrl}/api/class-simulations`,
-    SimulationByUnitApi: `${baseUrl}/api/simulations/unit`,
+    SimulationByUnitApi: `${baseUrl}/api/simulations/by-unit`,
     ClassUserAPI: `${baseUrl}/api/classes/user`,
     ReportStudentApi: `${baseUrl}/api/students/class`,
     GetSimulationApi: `${baseUrl}/api/class-simulations/class`,
-    PutclassSimsApi: `${baseUrl}/api/class-simulations`,
     DeleteclassSimsApi: `${baseUrl}/api/class-simulations`,
     StudentEmailReport: `${baseUrl}/api/students/email-report`,
     StudentUserAPI: `${baseUrl}/api/students/class`,
@@ -147,9 +151,8 @@ export const setServerConfig = (baseUrl: string): CombinedConfig => {
     SimulationReportsBySimulationAPI: `${baseUrl}/api/simulation-reports/simulation`,
     ClassSimulationDropdownAPI: `${baseUrl}/api/class-simulations/class`,
     UsersAPI: `${baseUrl}/api/users`,
-    ChangePasswordAPI: `${baseUrl}/api/users/change-password`,
+    ChangePasswordAPI: `${baseUrl}/api/auth/change-password`,
     UpdateProfileAPI: `${baseUrl}/api/users/profile`,
-    RemoveProfilePictureAPI: `${baseUrl}/api/users/profile-picture`,
     GetProfilePictureAPI: `${baseUrl}/api/users/profile-picture`,
     DashboardOverviewAPI: `${baseUrl}/api/dashboard/overview`,
     SimulationCompletedCountAPI: `${baseUrl}/api/simulation-reports/stats/monthly`,
@@ -160,7 +163,6 @@ export const setServerConfig = (baseUrl: string): CombinedConfig => {
     READINESS: `${baseUrl}/readyz`,
     ClassesNeedingAttentionAPI: `${baseUrl}/api/simulation-reports/classes-needing-attention`,
     MarkReportViewedAPI: `${baseUrl}/api/simulation-reports`,
-    ProductAPI:`${baseUrl}/api/Products/bundle`,
     UserTranscriptAPI: `${baseUrl}/api/simulation-reports/user-transcript`,
     StudentReportAPI: `${baseUrl}/api/reports`,
     StudentAdminReportAPI: `${baseUrl}/api/admin/reports`,
@@ -171,16 +173,18 @@ export const setServerConfig = (baseUrl: string): CombinedConfig => {
     LmsConfigureAPI: `${baseUrl}/api/lms/schools`,
     LmsEducatorConfigAPI: `${baseUrl}/api/lms/educator/config`,
     LmsEducatorConfigureAPI: `${baseUrl}/api/lms/educator/configure`,
+    LmsTestConfigAPI: `${baseUrl}/api/lms/test-config`,
     LmsMoodleMappedClassesAPI: `${baseUrl}/api/lms/moodle/mapped-classes`,
     LmsProvisionSyncAPI: `${baseUrl}/api/lms/provision/sync`,
     LmsMoodleStudentsAPI: `${baseUrl}/api/lms/moodle/students`,
     LmsMoodleCoursesAPI: `${baseUrl}/api/lms/moodle/courses`,
     LiveClassesAPI: `${baseUrl}/api/lms/live-classes`,
+    GoogleClassroomConnectionAPI: `${baseUrl}/api/google/schools`,
     ClassTransferAPI: `${baseUrl}/api/class-transfers`,
     RequestSeatsAPI: `${baseUrl}/api/educators/request-seats`,
     RemoveSeatsAPI: `${baseUrl}/api/educators`,
     ReallocateSeatsAPI: `${baseUrl}/api/educators`,
-    SimulationCatalogCombinedAPI: `${baseUrl}/api/simulation-catalog/combined`,
+    SimulationCatalogCombinedAPI: `${baseUrl}/api/simulations/combined`,
   };
 
   return jsonConcat(server, combine);

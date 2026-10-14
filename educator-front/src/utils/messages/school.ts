@@ -6,7 +6,8 @@ export const SCHOOL_VALIDATION = {
   NAME_NO_EMOJI: 'Emojis are not allowed in school name',
   NAME_NO_LEADING_SPACE: 'School name cannot start with a space',
   NAME_INJECTION: 'School name contains invalid content',
-  NAME_CONSECUTIVE_SPECIALS: 'School name cannot have more than 2 consecutive special characters',
+  NAME_CONSECUTIVE_SPECIALS:
+    'School name cannot have more than 2 consecutive special characters',
   NAME_NO_CODE: 'School name cannot contain programming code or scripts',
   ADDRESS_REQUIRED: 'School address is required',
   ALREADY_EXISTS: 'School already exists',
@@ -52,7 +53,8 @@ export const SCHOOL_EMPTY_STATES = {
 };
 
 export const SCHOOL_CONFIRMATIONS = {
-  DELETE: 'Are you sure you want to delete this School? This action cannot be undone.',
+  DELETE:
+    'Are you sure you want to delete this School? This action cannot be undone.',
 };
 
 export const SCHOOL_PAGE = {

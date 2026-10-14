@@ -1,5 +1,10 @@
 import type { FullConfig } from '@playwright/test';
-import { Reporter, Suite, TestCase, TestResult } from '@playwright/test/reporter';
+import {
+  type Reporter,
+  type Suite,
+  type TestCase,
+  type TestResult,
+} from '@playwright/test/reporter';
 import { generateHtmlReportFromPlaywrightResults } from './report-generator';
 
 interface TestRecord {
@@ -39,11 +44,17 @@ class PlaywrightHtmlReporter implements Reporter {
   onTestEnd(test: TestCase, result: TestResult) {
     const filePath = test.location.file;
     const suiteTitle = this.resolveSuiteTitle(test);
-    
+
     const testRecord: TestRecord = {
       title: test.title,
       status: result.status,
-      error: result.status === 'failed' ? { message: result.error?.message || 'Unknown error', stack: result.error?.stack } : undefined,
+      error:
+        result.status === 'failed'
+          ? {
+              message: result.error?.message || 'Unknown error',
+              stack: result.error?.stack,
+            }
+          : undefined,
       duration: result.duration,
       suiteTitle,
     };
@@ -51,7 +62,7 @@ class PlaywrightHtmlReporter implements Reporter {
     if (!this.fileResults.has(filePath)) {
       this.fileResults.set(filePath, []);
     }
-    
+
     this.fileResults.get(filePath)!.push(testRecord);
   }
 
@@ -63,13 +74,19 @@ class PlaywrightHtmlReporter implements Reporter {
     }
 
     try {
-      const testResultsData: TestFileResults[] = Array.from(this.fileResults.entries()).map(([filePath, testResults]) => ({
+      const testResultsData: TestFileResults[] = Array.from(
+        this.fileResults.entries()
+      ).map(([filePath, testResults]) => ({
         testFilePath: filePath,
         testResults,
       }));
 
-      const isRegression = testResultsData.some(({ testFilePath }) => testFilePath.includes('regression'));
-      const outputFileName = isRegression ? 'ui-regression-test-report.html' : 'ui-smoke-test-report.html';
+      const isRegression = testResultsData.some(({ testFilePath }) =>
+        testFilePath.includes('regression')
+      );
+      const outputFileName = isRegression
+        ? 'ui-regression-test-report.html'
+        : 'ui-smoke-test-report.html';
 
       generateHtmlReportFromPlaywrightResults(testResultsData, outputFileName);
 

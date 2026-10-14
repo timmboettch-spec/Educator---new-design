@@ -13,6 +13,16 @@
 
 let _sessionReady = false;
 
+/** True while LTI session exchange replaces an existing portal JWT. */
+let _ltiSessionHandoff = false;
+
+type HandoffListener = () => void;
+const handoffListeners = new Set<HandoffListener>();
+
+function notifyLtiHandoffListeners(): void {
+  handoffListeners.forEach((listener) => listener());
+}
+
 /** Called by SessionRestorer after credentials are verified or cleared. */
 export const markSessionReady = (): void => {
   _sessionReady = true;
@@ -24,4 +34,36 @@ export const isSessionReady = (): boolean => _sessionReady;
 /** Reset between test runs. */
 export const resetSessionReady = (): void => {
   _sessionReady = false;
+  _ltiSessionHandoff = false;
+  notifyLtiHandoffListeners();
+};
+
+/**
+ * LTI launch is swapping the portal session (e.g. admin → educator).
+ * While true, 401s from the revoked prior JWT must not forceLogout and wipe
+ * the new educator cookies/Redux that were just written.
+ * AppRouter also suppresses auth-based redirects so users only see one route.
+ */
+export const beginLtiSessionHandoff = (): void => {
+  if (_ltiSessionHandoff) return;
+  _ltiSessionHandoff = true;
+  notifyLtiHandoffListeners();
+};
+
+export const endLtiSessionHandoff = (): void => {
+  if (!_ltiSessionHandoff) return;
+  _ltiSessionHandoff = false;
+  notifyLtiHandoffListeners();
+};
+
+export const isLtiSessionHandoff = (): boolean => _ltiSessionHandoff;
+
+/** Subscribe to LTI handoff start/end so React can re-render (loader / routing). */
+export const subscribeLtiSessionHandoff = (
+  listener: HandoffListener
+): (() => void) => {
+  handoffListeners.add(listener);
+  return () => {
+    handoffListeners.delete(listener);
+  };
 };

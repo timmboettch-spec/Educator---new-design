@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+package-lock.json
+tests/lint/reports
+tests/unit/reports
+tests/integration/reports
+tests/e2e/reports
+tests/e2e/test-results
+tests/e2e/results
+eslint-report.json

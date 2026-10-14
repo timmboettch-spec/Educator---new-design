@@ -1,9 +1,11 @@
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Modal from '../../components/ui/Modal';
 import { Button } from '../ui/Button';
-import { toast } from '../common/Toast';
 import { ACCOUNT_VALIDATION } from '@/utils/messages/account';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
 import FormField from '../ui/FormField';
 import Input from '../ui/Input';
 import {
@@ -23,10 +25,12 @@ type EditProfileModalProps = {
   showEditProfileModal: boolean;
   setShowEditProfileModal: (open: boolean) => void;
   editName: string;
+  /** The name as currently saved; Save stays disabled until it changes. */
+  savedName: string;
   setFullNameError: (error: string) => void;
-  setFullName: (name: string) => void;
   email: string;
-  handleSave: (name: string) => Promise<void>;
+  /** Resolves to true once saved; the dialog stays open when it is false. */
+  handleSave: (name: string) => Promise<boolean>;
   fullNameError: string;
   setEditName: (name: string) => void;
   copy?: {
@@ -43,24 +47,25 @@ export default function EditProfileModal({
   showEditProfileModal,
   setShowEditProfileModal,
   editName,
+  savedName,
   setFullNameError,
-  setFullName,
   email,
   handleSave,
   fullNameError,
   setEditName,
   copy,
 }: EditProfileModalProps) {
-  const originalNameRef = useRef('');
+  const { t } = useTranslation('account');
   const [isSubmitting, setIsSubmitting] = useState(false);
   useEffect(() => {
-    if (showEditProfileModal) {
-      originalNameRef.current = editName;
-      setIsSubmitting(false);
-    }
+    if (showEditProfileModal) setIsSubmitting(false);
   }, [showEditProfileModal]);
 
   if (!showEditProfileModal) return null;
+
+  const language =
+    localStorage.getItem('app_language')?.toLowerCase() === 'es' ? 'es' : 'en';
+  const locale = language === 'es' ? loginEs : loginEn;
 
   const localizedCopy = {
     title: copy?.title ?? 'Edit Profile',
@@ -71,12 +76,18 @@ export default function EditProfileModal({
     email: copy?.email ?? 'Email',
   };
 
+  const isUnchanged =
+    trimBoundaryWhitespace(editName) === trimBoundaryWhitespace(savedName);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (isSubmitting) return;
     const trimmed = trimBoundaryWhitespace(editName);
     if (!trimmed) {
-      setFullNameError(ACCOUNT_VALIDATION.FULL_NAME_REQUIRED);
+      setFullNameError(
+        locale.validation.fullNameRequired ??
+          ACCOUNT_VALIDATION.FULL_NAME_REQUIRED
+      );
       return;
     }
     if (
@@ -87,17 +98,14 @@ export default function EditProfileModal({
       hasCodeLikeSyntaxPattern(trimmed) ||
       hasNameCodeLikePattern(trimmed)
     ) {
-      setFullNameError('Full name cannot include HTML, script, or code-like content');
-      return;
-    }    if (trimmed === trimBoundaryWhitespace(originalNameRef.current)) {
-      toast.error(ACCOUNT_VALIDATION.NO_CHANGES);
+      setFullNameError(locale.validation.fullNameUnsafe);
       return;
     }
+    // Save is disabled until the name changes; this also covers Enter.
+    if (isUnchanged) return;
     setIsSubmitting(true);
-    setFullName(trimmed);
-    setShowEditProfileModal(false);
     try {
-      await handleSave(trimmed);
+      if (await handleSave(trimmed)) setShowEditProfileModal(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -106,13 +114,18 @@ export default function EditProfileModal({
   return (
     <Modal
       isOpen={showEditProfileModal}
-      onClose={() => setShowEditProfileModal(false)}
+      // Closing mid-save would let a reopened dialog start a second save and
+      // then be closed by the first one finishing.
+      onClose={() => {
+        if (!isSubmitting) setShowEditProfileModal(false);
+      }}
       title={localizedCopy.title}
       footer={
         <div className="flex gap-4">
           <Button
             type="button"
             onClick={() => setShowEditProfileModal(false)}
+            disabled={isSubmitting}
             variant="secondary"
             className="w-1/2 h-11 rounded-full"
           >
@@ -124,27 +137,46 @@ export default function EditProfileModal({
             variant="gradient"
             size="lg"
             className="w-1/2"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isUnchanged}
           >
-            {localizedCopy.saveChanges}
+            {isSubmitting ? t('editProfile.saving') : localizedCopy.saveChanges}
           </Button>
         </div>
       }
     >
-      <form id="edit-profile-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-     
+      <form
+        id="edit-profile-form"
+        onSubmit={handleSubmit}
+        className="flex flex-col gap-4"
+      >
         <button
           type="submit"
           aria-hidden="true"
           tabIndex={-1}
-          style={{ position: 'absolute', width: 0, height: 0, padding: 0, border: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}
+          style={{
+            position: 'absolute',
+            width: 0,
+            height: 0,
+            padding: 0,
+            border: 0,
+            overflow: 'hidden',
+            opacity: 0,
+            pointerEvents: 'none',
+          }}
         />
-        <FormField label={localizedCopy.fullName} required error={fullNameError || undefined}>
+        <FormField
+          label={localizedCopy.fullName}
+          required
+          error={fullNameError || undefined}
+        >
           <Input
             value={editName}
             placeholder={localizedCopy.fullNamePlaceholder}
             onChange={(e) => {
-              const val = sanitizeTextForTyping(e.target.value, EDIT_NAME_MAX_LENGTH)
+              const val = sanitizeTextForTyping(
+                e.target.value,
+                EDIT_NAME_MAX_LENGTH
+              )
                 .replace(/^ +/, '')
                 .replace(/  +/g, ' ');
               if (/^ +$/.test(val)) return;
@@ -153,7 +185,8 @@ export default function EditProfileModal({
                 hasBlockedCodingKeyword(val) ||
                 hasCodeLikeSyntaxPattern(val) ||
                 hasNameCodeLikePattern(val)
-              ) return;
+              )
+                return;
               setEditName(val);
               if (fullNameError) setFullNameError('');
             }}

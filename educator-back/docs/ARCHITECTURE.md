@@ -64,11 +64,17 @@
                 │
                 ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│                Microsoft Graph / Exchange Online                 │
-│  App registration: MailerForAzureContainers (Mail.Send)         │
-│  Sender mailbox:   no-reply@realityworks.com                    │
-│  Endpoint:         /v1.0/users/{MAIL_FROM}/sendMail             │
-│  Credentials:      shared Key Vault akv-all1-all                │
+│           Azure Communication Services — Email (ACS)             │
+│  Auth:             ManagedIdentityCredential (this app's own    │
+│                     user-assigned identity — service principal  │
+│                     granted "Communication and Email Service    │
+│                     Owner" on the ACS resource; see              │
+│                     infra/modules/acsEmail.bicep)                 │
+│  Sender domain:    dev.rwai.curionn.com (dev, CustomerManaged)   │
+│                     qa.rwai.curionn.com (qa, CustomerManaged)     │
+│                     realityworks.com (prod, CustomerManaged)      │
+│  Client:           @azure/communication-email EmailClient        │
+│                     (src/mail/mail.service.ts)                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -113,7 +119,7 @@ The Educator App Backend is part of the larger **Realityworks AI Healthcare Simu
 │  │   └─────────────────────────────────────────────────────────────────────────────────┘ │  │
 │  └───────────────────────────────────────────────────────────────────────────────────────┘  │
 │              ▲                                                                              │
-│              │ TutorPatientService reads simulation data + reports                          │
+│              │ seeders import units / scenarios / transcripts into Postgres                 │
 │              │                                                                              │
 │  ┌───────────┴───────────────────────────────────────────────────────────────────────────┐  │
 │  │                        EDUCATOR MANAGEMENT LAYER                                       │  │
@@ -122,11 +128,11 @@ The Educator App Backend is part of the larger **Realityworks AI Healthcare Simu
 │  │  │                  Educator-App-Backend (THIS REPO)                                │  │  │
 │  │  │                                                                                  │  │  │
 │  │  │   ┌─────────────────────────┐    ┌─────────────────────────────────────────┐    │  │  │
-│  │  │   │  TutorPatientService    │    │      PostgreSQL (per-env)               │    │  │  │
-│  │  │   │  reads shared blob:     │    │      psql-{env}1-rwai-edu              │    │  │  │
+│  │  │   │  Database seeders       │    │      PostgreSQL (per-env)               │    │  │  │
+│  │  │   │  import shared blob:    │    │      psql-{env}1-rwai-edu              │    │  │  │
 │  │  │   │  - units.json           │    │                                         │    │  │  │
 │  │  │   │  - scenarios.json       │    │   ┌─────────────────────────────────┐   │    │  │  │
-│  │  │   │  - reports.json         │    │   │ educators | classes | students  │   │    │  │  │
+│  │  │   │  - transcripts.json     │    │   │ educators | classes | students  │   │    │  │  │
 │  │  │   └─────────────────────────┘    │   │ simulations | invites | schools │   │    │  │  │
 │  │  │                                  │   └─────────────────────────────────┘   │    │  │  │
 │  │  │   ┌─────────────────────────┐    └─────────────────────────────────────────┘    │  │  │
@@ -171,12 +177,13 @@ The Educator App Backend is part of the larger **Realityworks AI Healthcare Simu
 └────────┬─────────┘                           └──────────────────┘
          │
          │ student completes simulation
-         │ writes report to blob
+         │ posts report to /students-backend
          ▼
-┌──────────────────┐    TutorPatientService    ┌──────────────────┐
-│  Azure Blob      │ ◄─────────────────────────│  This Backend    │
-│  reports.json    │    reads reports          │  (API response)  │
-└──────────────────┘                           └────────┬─────────┘
+┌──────────────────┐    SimulationReport       ┌──────────────────┐
+│  PostgreSQL      │ ◄─────────────────────────│  This Backend    │
+│  simulation_     │    Repository             │  (API response)  │
+│  reports         │                           └────────┬─────────┘
+└──────────────────┘                                    │
                                                         │
                                                         │ returns reports to
                                                         ▼
@@ -195,28 +202,20 @@ The Educator App Backend is part of the larger **Realityworks AI Healthcare Simu
 | Storage Account | `asa{env}rwai` | ❌ (shared) | ✅ Same storage |
 | Blob Container | `json-data` | ❌ (shared) | ✅ Same container |
 | Blob Container | `profile-pictures` | ✅ Educator-only | ❌ |
+| Blob Container | `voice-profiles` | ✅ Educator-only (created by the backend; the audio worker reads it) | ❌ |
 | PostgreSQL | `psql-{env}1-rwai-edu` | ✅ Educator-only | ❌ (separate DB) |
 | ACR | `acrall1rwai` | ✅ Shared | ✅ Same registry |
 
 ### Key Integration Services
 
-#### TutorPatientService
+#### Blob data import
 
-Reads simulation content and student reports from the **shared** Azure Blob Storage:
+The app no longer reads the shared `json-data` container at runtime. Simulation content
+(`units.json`, `scenarios.json`), transcripts and sales-order lines are imported into Postgres
+by the seeders in `src/database/seeders/`; student reports are written to and read from the
+`simulation_reports` table via `SimulationReportRepository`.
 
-```typescript
-// src/common/utils/tutor-patient.service.ts
-@Injectable()
-export class TutorPatientService {
-  // Reads from shared json-data container
-  async getUnits(): Promise<object[]>;        // units.json
-  async getScenarios(): Promise<object[]>;    // scenarios.json
-  async getReports(): Promise<object[]>;      // reports.json (written by HS-online-AI)
-  async getReportsByStudentCode(code: string): Promise<{ matched: object[]; isMatch: boolean }>;
-}
-```
-
-**Environment Variables**:
+**Environment Variables** (used by the seeders):
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `AZURE_STORAGE_CONNECTION_STRING` | Shared storage account | (from Key Vault) |
@@ -224,7 +223,7 @@ export class TutorPatientService {
 
 #### Blob Data Protection
 
-The shared storage accounts (`asaqarwai` for dev/qa, `asaprodrwai` for prod) have account-level data protection enabled. These settings cover every container (`json-data`, `profile-pictures`, `rwai-data-files`, `edu-uploads`) and apply to both this backend and HS-online-AI-app.
+The shared storage accounts (`asaqarwai` for dev/qa, `asaprodrwai` for prod) have account-level data protection enabled. These settings cover every container (`json-data`, `profile-pictures`, `rwai-data-files`, `edu-uploads`, `voice-profiles`) and apply to both this backend and HS-online-AI-app.
 
 | Setting | dev + qa | prod |
 |---|---|---|
@@ -239,6 +238,27 @@ The shared storage accounts (`asaqarwai` for dev/qa, `asaprodrwai` for prod) hav
 **Restore procedures**: see the [Blob Data Restore Runbook](https://github.com/Realityworks-AI/HS-online-AI-app/blob/dev/docs/RUNBOOK.md#blob-data-restore-runbook) for step-by-step examples (undelete a blob, restore a prior version, restore a deleted container, point-in-time restore, change-feed forensics).
 
 **Note**: dev and qa share the same storage account (`asaqarwai`), so a Point-in-Time Restore against qa will also roll dev back to that same point in time.
+
+#### Voice profiles (patient TTS reference audio)
+
+Admins (scenario admin role) upload a reference recording per voice at `POST /api/voice-profiles`;
+the audio worker clones the patient's speech from it. The reference clip lives in the
+`voice-profiles` blob container at `voices/<voiceProfileId>/voice.wav`.
+
+- **Upload vs stored length**: an upload must be 5-30 s (WAV, MP3, M4A/MP4, Ogg, WebM or FLAC, max
+  20 MB). The backend identifies the container from the file's magic bytes (the client's MIME type
+  is not trusted), then ffmpeg trims the ends, normalises loudness and resamples to 24 kHz mono
+  16-bit WAV, and the **stored clip is cut to 10 s** (`VoiceProfileConstants.AUDIO.OUTPUT_MAX_S`).
+- **Container**: created by the backend on first upload (`createIfNotExists`). DevOps does not
+  provision it; they only need to grant the audio worker read access to it.
+- **Storage account**: dev and qa share `asaqarwai`, so they also share the `voice-profiles`
+  container (blob paths are per-profile UUIDs and do not collide). Prod uses `asaprodrwai`.
+- **Scenario voice**: `voiceProfileId` on a scenario must be an active profile (400 otherwise). A
+  profile cannot be retired while a scenario uses it, and the check and the write are serialised
+  with row locks, so a concurrent assignment cannot slip past a retire.
+- **Reads**: the authenticated scenario reads return the resolved `voiceProfile`. The public share
+  link, `GET /api/simulations/:scenarioId/public`, deliberately returns neither `voiceProfile` nor
+  `voiceProfileId`.
 
 #### HS-online-AI-app → Educator API
 
@@ -355,10 +375,7 @@ edu-node-env
 edu-app-port
 edu-jwt-secret                           ← sensitive (empty preserves existing)
 edu-jwt-expires-in
-edu-mail-from
-edu-graph-tenant-id                      ← empty-allowed
-edu-graph-client-id                      ← empty-allowed
-edu-graph-client-secret                  ← sensitive (empty preserves existing)
+edu-mail-from                            ← dev.rwai.curionn.com (dev) / qa.rwai.curionn.com (qa) / realityworks.com (prod)
 edu-azure-storage-account                ← empty-allowed
 edu-azure-storage-container              ← empty-allowed
 edu-azure-storage-connection-string      ← sensitive (empty preserves existing)
@@ -434,7 +451,7 @@ acrall1rwai.azurecr.io/educator-backend:abc1234-dev-latest
 
 6. **Teams notification** with deploy status, image SHA, lint summary, and frontend/backend URLs.
 
-**Database migrations + seeders** run **inline at container startup** via the Dockerfile `CMD` (`npm run migration:run && npm run seed:roles && node dist/main.js`). There is no separate migrate job in the pipeline.
+**Database migrations + seeders** run **inline at container startup** via the Dockerfile `CMD` (`npm run migration:run && npm run seed:prod && node dist/main.js`). `seed:prod` auto-discovers and runs every seeder file in `src/database/seeders/`, not just roles. There is no separate migrate job in the pipeline.
 
 **Environment Mapping**:
 | Git Branch | Environment | Container App           | Database              | Image Tag |
@@ -476,7 +493,7 @@ acrall1rwai.azurecr.io/educator-backend:abc1234-dev-latest
 
 ### TypeORM Migrations
 
-**Location**: `src/migrations/`
+**Location**: `src/database/migrations/`
 
 **File Naming**: `{timestamp}-{Description}.ts`
 
@@ -492,7 +509,7 @@ acrall1rwai.azurecr.io/educator-backend:abc1234-dev-latest
 
 Migrations run **inline at container startup** via the Dockerfile `CMD`:
 ```
-npm run migration:run && npm run seed:roles && node dist/main.js
+npm run migration:run && npm run seed:prod && node dist/main.js
 ```
 
 For an ad-hoc/manual migration run (e.g. against a freshly provisioned env before first deploy):

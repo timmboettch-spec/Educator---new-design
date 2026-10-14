@@ -14,7 +14,7 @@ import FormField from '../../ui/FormField';
 import Input from '../../ui/Input';
 import Modal from '../../ui/Modal';
 import { Button } from '../../ui/Button';
-import { SimulationItem } from '@/types';
+import { type SimulationItem } from '@/types';
 import type { Student } from '../../../types/Class_types';
 
 interface Props {
@@ -47,7 +47,7 @@ const HEADERS = [
 function isUuidLike(value: string | null | undefined): boolean {
   if (!value) return false;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value.trim(),
+    value.trim()
   );
 }
 
@@ -71,7 +71,10 @@ function buildFilename(className: string | undefined, simName: string): string {
 function formatScore(r: SimulationReport): string {
   const raw = r.score ?? r.scoreJson?.overallScore ?? null;
   if (raw === null) return r.performanceLabel ?? '—';
-  const pct = raw <= 1 && raw >= 0 ? Math.round(Number(raw) * 100) : Math.round(Number(raw));
+  const pct =
+    raw <= 1 && raw >= 0
+      ? Math.round(Number(raw) * 100)
+      : Math.round(Number(raw));
   return `${pct}%`;
 }
 
@@ -82,7 +85,8 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function toAttemptNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.trunc(value));
+  if (typeof value === 'number' && Number.isFinite(value))
+    return Math.max(0, Math.trunc(value));
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) return Math.max(0, Math.trunc(parsed));
@@ -124,10 +128,21 @@ function extractAttemptFromReport(r: SimulationReport): number | null {
 }
 
 function toRow(r: GradeRow): string[] {
-  return [r.studentName, r.studentId, r.score, r.attempt, r.submissionDate, r.simsCompleted];
+  return [
+    r.studentName,
+    r.studentId,
+    r.score,
+    r.attempt,
+    r.submissionDate,
+    r.simsCompleted,
+  ];
 }
 
-function exportPDF(rows: GradeRow[], className: string | undefined, simTitle: string): void {
+function exportPDF(
+  rows: GradeRow[],
+  className: string | undefined,
+  simTitle: string
+): void {
   const doc = new jsPDF();
   doc.setFontSize(16);
   doc.setTextColor(234, 88, 12);
@@ -147,7 +162,14 @@ function exportPDF(rows: GradeRow[], className: string | undefined, simTitle: st
   doc.save(`${buildFilename(className, simTitle)}.pdf`);
 }
 
-export default function ExportGradeModal({ sim, className, classId, students, onClose, disabled }: Props) {
+export default function ExportGradeModal({
+  sim,
+  className,
+  classId,
+  students,
+  onClose,
+  disabled,
+}: Props) {
   const dispatch = useAppDispatch();
   const [exporting, setExporting] = useState(false);
   const classReports = useAppSelector(selectClassReports);
@@ -165,9 +187,13 @@ export default function ExportGradeModal({ sim, className, classId, students, on
   const simId = String(sim.simulation_id ?? sim.id ?? '').trim();
   const normTitle = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '');
   const simReports = classReports.filter((r: SimulationReport) => {
-    const rId = String(r.scenarioId ?? r.simulation_id ?? r.scenario_id ?? '').trim();
+    const rId = String(
+      r.scenarioId ?? r.simulation_id ?? r.scenario_id ?? ''
+    ).trim();
     if (simId && rId && rId === simId) return true;
-    const rTitle = normTitle(r.scenarioTitle ?? r.simulation_name ?? r.scenario_title ?? '');
+    const rTitle = normTitle(
+      r.scenarioTitle ?? r.simulation_name ?? r.scenario_title ?? ''
+    );
     const sTitle = normTitle(sim.simulation_title ?? '');
     return sTitle && rTitle && rTitle === sTitle;
   });
@@ -180,50 +206,53 @@ export default function ExportGradeModal({ sim, className, classId, students, on
     studentMap.get(key)!.push(r);
   }
 
-  const gradeRows: GradeRow[] = Array.from(studentMap.values()).map((reports) => {
-    // Best attempt = highest score
-    const best = reports.reduce((a, b) => {
-      const aScore = a.score ?? a.scoreJson?.overallScore ?? -1;
-      const bScore = b.score ?? b.scoreJson?.overallScore ?? -1;
-      return Number(aScore) >= Number(bScore) ? a : b;
-    });
-    const bestRaw = best as unknown as Record<string, unknown>;
-    const lookupKeys = [
-      best.userId,
-      best.student_id,
-      (bestRaw['user_id'] as string | undefined),
-      (bestRaw['student_id'] as string | undefined),
-      best.id,
-    ].filter(Boolean) as string[];
-    const matchedStudent = lookupKeys
-      .map((k) => studentLookup.get(String(k)))
-      .find((s): s is Student => Boolean(s));
-    const fallbackStudentId = best.student_id ?? best.userId ?? '—';
-    const studentId =
-      matchedStudent?.student_id ??
-      (fallbackStudentId && !isUuidLike(fallbackStudentId)
-        ? fallbackStudentId
-        : '—');
-    const resolvedName =
-      matchedStudent?.student_name ??
-      best.studentName ??
-      best.student_name ??
-      studentId;
-    const attemptFromBlob = reports.reduce((max, report) => {
-      const v = extractAttemptFromReport(report);
-      return v != null ? Math.max(max, v) : max;
-    }, 0);
-    const attemptCount = attemptFromBlob > 0 ? attemptFromBlob : reports.length;
+  const gradeRows: GradeRow[] = Array.from(studentMap.values()).map(
+    (reports) => {
+      // Best attempt = highest score
+      const best = reports.reduce((a, b) => {
+        const aScore = a.score ?? a.scoreJson?.overallScore ?? -1;
+        const bScore = b.score ?? b.scoreJson?.overallScore ?? -1;
+        return Number(aScore) >= Number(bScore) ? a : b;
+      });
+      const bestRaw = best as unknown as Record<string, unknown>;
+      const lookupKeys = [
+        best.userId,
+        best.student_id,
+        bestRaw['user_id'] as string | undefined,
+        bestRaw['student_id'] as string | undefined,
+        best.id,
+      ].filter(Boolean) as string[];
+      const matchedStudent = lookupKeys
+        .map((k) => studentLookup.get(String(k)))
+        .find((s): s is Student => Boolean(s));
+      const fallbackStudentId = best.student_id ?? best.userId ?? '—';
+      const studentId =
+        matchedStudent?.student_id ??
+        (fallbackStudentId && !isUuidLike(fallbackStudentId)
+          ? fallbackStudentId
+          : '—');
+      const resolvedName =
+        matchedStudent?.student_name ??
+        best.studentName ??
+        best.student_name ??
+        studentId;
+      const attemptFromBlob = reports.reduce((max, report) => {
+        const v = extractAttemptFromReport(report);
+        return v != null ? Math.max(max, v) : max;
+      }, 0);
+      const attemptCount =
+        attemptFromBlob > 0 ? attemptFromBlob : reports.length;
 
-    return {
-      studentName: resolvedName,
-      studentId,
-      score: formatScore(best),
-      attempt: String(attemptCount),
-      submissionDate: formatDate(best.scenarioEndTime ?? best.completed_at),
-      simsCompleted: String(reports.length),
-    };
-  });
+      return {
+        studentName: resolvedName,
+        studentId,
+        score: formatScore(best),
+        attempt: String(attemptCount),
+        submissionDate: formatDate(best.scenarioEndTime ?? best.completed_at),
+        simsCompleted: String(reports.length),
+      };
+    }
+  );
 
   const handleExport = async () => {
     setExporting(true);
@@ -271,7 +300,12 @@ export default function ExportGradeModal({ sim, className, classId, students, on
             type="button"
             variant="gradient"
             onClick={handleExport}
-            disabled={disabled || exporting || reportsStatus === 'loading' || gradeRows.length === 0}
+            disabled={
+              disabled ||
+              exporting ||
+              reportsStatus === 'loading' ||
+              gradeRows.length === 0
+            }
             className="w-full h-11 rounded-full flex items-center justify-center gap-2"
           >
             {exporting ? (

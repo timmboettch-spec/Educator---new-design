@@ -22,6 +22,15 @@ param administratorLogin string
 param administratorPassword string
 param workspaceId string
 
+@description('Extra databases created on the same server alongside databaseName — e.g. a dev-only "educator_preview" DB that a CI preflight job migrates against, so a bad migration is caught before it ever touches databaseName. Same server/credentials, isolated schema.')
+param additionalDatabaseNames array = []
+
+@description('Dev-only: enables Entra ID (AAD token) auth ALONGSIDE password auth (both stay usable — this never disables passwordAuth). Lets callers that already have an Entra identity (the backend UAI, the CI/deploy SP) connect with a short-lived access token instead of a long-lived static password.')
+param enableEntraAuth bool = false
+
+@description('Entra principals granted DB administrator rights when enableEntraAuth is true. Each entry: { objectId, principalName, principalType (User|Group|ServicePrincipal) }.')
+param aadAdmins array = []
+
 var isProd = environment == 'prod'
 
 var skuMap = {
@@ -55,11 +64,26 @@ resource pg 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
     }
     authConfig: {
       passwordAuth: 'Enabled'
-      activeDirectoryAuth: 'Disabled'
+      activeDirectoryAuth: enableEntraAuth ? 'Enabled' : 'Disabled'
       tenantId: subscription().tenantId
     }
   }
 }
+
+// Grants DB administrator rights to Entra principals (dev-only today — see
+// enableEntraAuth). Password auth (administratorLogin/administratorPassword
+// above) stays enabled regardless; this is additive, not a replacement.
+resource aadAdminAssignments 'Microsoft.DBforPostgreSQL/flexibleServers/administrators@2024-11-01-preview' = [
+  for admin in aadAdmins: if (enableEntraAuth) {
+    parent: pg
+    name: admin.objectId
+    properties: {
+      principalType: admin.principalType
+      principalName: admin.principalName
+      tenantId: subscription().tenantId
+    }
+  }
+]
 
 resource db 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
   parent: pg
@@ -69,6 +93,17 @@ resource db 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
     collation: 'en_US.utf8'
   }
 }
+
+resource additionalDbs 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = [
+  for dbName in additionalDatabaseNames: {
+    parent: pg
+    name: dbName
+    properties: {
+      charset: 'UTF8'
+      collation: 'en_US.utf8'
+    }
+  }
+]
 
 // Allow Azure services (incl. Container Apps Environment outbound IPs) to
 // reach the server. Tighten to a specific allowlist in a follow-up.

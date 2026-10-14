@@ -1,3 +1,22 @@
+export enum StudentCodeStatus {
+  ACTIVE = 'ACTIVE',
+  REVOKED = 'REVOKED',
+}
+
+export enum StudentSortField {
+  STUDENT_CODE = 'studentCode',
+  NAME = 'name',
+  TIME_SPENT = 'timeSpent',
+  TIME_REMAINING = 'timeRemaining',
+  SIMS_COMPLETED = 'simsCompleted',
+  SCORE = 'score',
+  SUBMISSION_DATE = 'submissionDate',
+  STATUS = 'status',
+  IS_ACTIVE = 'isActive',
+  REPORTS = 'reports',
+  CODE_STATUS = 'codeStatus',
+}
+
 export const StudentConstants = {
   ROUTES: {
     BASE: 'students',
@@ -13,6 +32,7 @@ export const StudentConstants = {
     SIMULATIONS_BY_CODE: 'simulations/:studentCode',
     START_ASSESSMENT: ':studentId/start-assessment',
     BULK: 'bulk',
+    BULK_UPLOAD: 'bulk-upload',
   },
   SWAGGER: {
     TAG: 'Students',
@@ -23,6 +43,7 @@ export const StudentConstants = {
       'Invalid student code. No student found with the provided code. Please check and try again.',
     CLASS_INACTIVE:
       'Access denied. Your student account or class is currently inactive. Please contact your educator.',
+    EDUCATOR_INACTIVE: 'Your educator is in an inactive state. Please contact your educator.',
     CLASS_DRAFT:
       'Access denied. Your student account or class is currently draft. Please contact your educator.',
     CLASS_ARCHIVED:
@@ -61,10 +82,6 @@ export const StudentConstants = {
     COLLISION_ERROR: 'Failed to generate unique student ID after multiple attempts',
     CODE_FORMAT_INVALID:
       'Generated student code does not match required CCC-XXXX format (3-char prefix, hyphen, 4-char alphanumeric suffix)',
-    ASSESSMENT_ALREADY_COMPLETED:
-      'Assessment already completed for this simulation. No further attempts (Practice or Assessment) are allowed.',
-    PRACTICE_NOT_ALLOWED:
-      'Assessment already completed for this simulation. Practice mode is no longer available.',
     EMAIL_IN_USE: 'Email already in use by an Admin or Educator',
     EMAIL_ALREADY: 'Email already enrolled in this class.',
     EMAIL_ALREADY_EXISTS: 'Email already exists in the system',
@@ -85,7 +102,7 @@ export const StudentConstants = {
     NO_TOKEN_PROVIDED: 'No token provided',
     ASSESSMENT_CAN_PROCEED: 'Assessment attempt validated. You may proceed.',
     EDUCATOR_NOT_FOUND: 'Educator not found',
-    NO_PERMISSION: 'You do not have permission to delete this student'
+    NO_PERMISSION: 'You do not have permission to delete this student',
   },
   CSV_HEADERS: {
     STUDENT_ID: 'student_id',
@@ -93,9 +110,5 @@ export const StudentConstants = {
     EMAIL: 'email',
     CLASS_ID: 'class_id',
     USER_ID: 'user_id',
-  },
-  ROLES: {
-    EDUCATOR: 'Educator',
-    DISTRICT_ADMIN: 'District Admin',
   },
 };

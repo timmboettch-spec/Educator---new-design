@@ -36,14 +36,21 @@ export class SignupPage extends BasePage {
       await this.fill(commonLocators.passwordInput, data.password);
     }
     if (data.confirmPassword !== undefined) {
-      await this.fill(commonLocators.confirmPasswordInput, data.confirmPassword);
+      await this.fill(
+        commonLocators.confirmPasswordInput,
+        data.confirmPassword
+      );
     }
 
     await this.click(commonLocators.signUpButton);
   }
 
   async hasPostSignupMessage(): Promise<boolean> {
-    return this.page.getByText(/verification|success|confirm/i).first().isVisible().catch(() => false);
+    return this.page
+      .getByText(/verification|success|confirm/i)
+      .first()
+      .isVisible()
+      .catch(() => false);
   }
 
   async isOnSignupPage(): Promise<boolean> {
@@ -78,7 +85,9 @@ export class SignupPage extends BasePage {
     await this.fill(commonLocators.passwordInput, 'Test@123');
     await this.fill(commonLocators.confirmPasswordInput, 'Test@1234');
     await this.click(commonLocators.signUpButton);
-    await this.expectTextVisible('Password and confirm password must be the same');
+    await this.expectTextVisible(
+      'Password and confirm password must be the same'
+    );
     await this.page.waitForTimeout(2000);
     await this.page.reload();
     await this.waitForVisible(commonLocators.fullNameInput);
@@ -114,7 +123,7 @@ export class SignupPage extends BasePage {
     await this.fill(commonLocators.confirmPasswordInput, password);
     await Promise.all([
       this.page.waitForURL(/login/i, { timeout: 30000 }),
-      this.click(commonLocators.signUpButton)
+      this.click(commonLocators.signUpButton),
     ]);
 
     this.latestUser = { email, password };
@@ -197,7 +206,10 @@ export class LoginPage extends BasePage {
     return new SchoolPage(this.page).schoolvalidation();
   }
 
-  async createEducatorInPortal(): Promise<{ educatorName: string; educatorEmail: string }> {
+  async createEducatorInPortal(): Promise<{
+    educatorName: string;
+    educatorEmail: string;
+  }> {
     return new EducatorPage(this.page).createEducatorInPortal();
   }
 
@@ -205,8 +217,14 @@ export class LoginPage extends BasePage {
     return new EducatorPage(this.page).viewandediteducator();
   }
 
-  async verifyEducatorEmailAndCompleteSignup(educatorName: string, educatorEmail: string): Promise<void> {
-    return new EducatorPage(this.page).verifyEducatorEmailAndCompleteSignup(educatorName, educatorEmail);
+  async verifyEducatorEmailAndCompleteSignup(
+    educatorName: string,
+    educatorEmail: string
+  ): Promise<void> {
+    return new EducatorPage(this.page).verifyEducatorEmailAndCompleteSignup(
+      educatorName,
+      educatorEmail
+    );
   }
 
   async ForgotPasswordPage(): Promise<void> {
@@ -245,7 +263,10 @@ export class ForgotPasswordPage extends BasePage {
 
   async submitWithEmail(email: string): Promise<void> {
     if (email) await this.fill(commonLocators.emailInput, email);
-    await this.page.getByRole('button', { name: /Send OTP|Send|Submit|Reset/i }).first().click();
+    await this.page
+      .getByRole('button', { name: /Send OTP|Send|Submit|Reset/i })
+      .first()
+      .click();
     await this.page.waitForTimeout(2000);
   }
 

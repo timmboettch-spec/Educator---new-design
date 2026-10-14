@@ -1,6 +1,9 @@
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from '../../../components/common/Toast';
+import loginEn from '../../../locales/auth/login/en.json';
+import loginEs from '../../../locales/auth/login/es.json';
+import { translateApiError } from '../../../utils/translateApiError';
 import {
   clearEmailAccessCodeState,
   selectEmailAccessCodeError,
@@ -14,6 +17,13 @@ import Input from '../../ui/Input';
 import Modal from '../../ui/Modal';
 import Textarea from '../../ui/Textarea';
 
+type SupportedLang = 'en' | 'es';
+const getStoredLanguage = (): SupportedLang => {
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
+};
+
 interface Props {
   student: {
     id: string;
@@ -25,8 +35,13 @@ interface Props {
   onClose: () => void;
 }
 
-export default function StudentEmailAccessCodeModal({ student, onClose }: Props) {
+export default function StudentEmailAccessCodeModal({
+  student,
+  onClose,
+}: Props) {
   const dispatch = useAppDispatch();
+  const language = getStoredLanguage();
+  const locale = language === 'es' ? loginEs : loginEn;
   const isLoading = useAppSelector(selectEmailAccessCodeLoading);
   const isSuccess = useAppSelector(selectEmailAccessCodeSuccess);
   const error = useAppSelector(selectEmailAccessCodeError);
@@ -39,13 +54,13 @@ export default function StudentEmailAccessCodeModal({ student, onClose }: Props)
     if (isSuccess) {
       dispatch(clearEmailAccessCodeState());
       onClose();
-      setTimeout(() => toast.success('Email sent successfully'), 100);
+      setTimeout(() => toast.success(locale.toast.emailSentSuccessfully), 100);
     }
-  }, [isSuccess]);
+  }, [isSuccess, dispatch, onClose, locale.toast.emailSentSuccessfully]);
 
   useEffect(() => {
-    if (error) toast.error(error);
-  }, [error]);
+    if (error) toast.error(translateApiError(error, language));
+  }, [error, language]);
 
   useEffect(() => {
     return () => {
@@ -68,48 +83,50 @@ export default function StudentEmailAccessCodeModal({ student, onClose }: Props)
         class_id: student.class_id!,
         student_id: student.id,
         email: student.email,
-      }),
+      })
     );
   };
 
   return (
-    <Modal isOpen onClose={onClose} title="Email Student Code">
+    <Modal isOpen onClose={onClose} title={locale.emailModal.titleStudentCode}>
       <div className="flex flex-col gap-4">
         <Input
-          label="To"
+          label={locale.emailModal.to}
           value={student.email ?? ''}
           disabled
           inputClassName="bg-gray-100 text-gray-500 cursor-not-allowed"
         />
 
         <Input
-          label="Subject"
+          label={locale.emailModal.subject}
           value={subject}
           onChange={(e) => setSubject(e.target.value)}
-          placeholder="Student Code"
+          placeholder={locale.emailModal.subjectPlaceholderCode}
         />
 
         <Textarea
-          label="Message"
+          label={locale.emailModal.message}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Add a message..."
+          placeholder={locale.emailModal.messagePlaceholder}
           rows={4}
           textareaClassName="py-2.5"
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Student Code</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            {locale.emailModal.studentCode}
+          </label>
           <div className="flex items-center gap-2">
-            <div className="flex-1 px-4 py-3 bg-primary-50 border border-primary-200 rounded-2xl text-center">
-              <span className="text-primary-500 font-bold text-lg tracking-widest">
+            <div className="flex-1 px-4 py-3 bg-orange-50 border border-orange-200 rounded-2xl text-center">
+              <span className="text-orange-500 font-bold text-lg tracking-widest">
                 {student.student_id}
               </span>
             </div>
             <button
               onClick={handleCopy}
               className="p-3 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-colors"
-              title="Copy student code"
+              title={locale.emailModal.copyStudentCode}
             >
               {copied ? (
                 <Check size={18} className="text-green-500" />
@@ -127,16 +144,16 @@ export default function StudentEmailAccessCodeModal({ student, onClose }: Props)
             onClick={onClose}
             disabled={isLoading}
           >
-            Back
+            {locale.emailModal.back}
           </Button>
           <Button
             variant="gradient"
             className="flex-1 h-11 rounded-full text-sm"
             onClick={handleSend}
             loading={isLoading}
-            loadingText="Sending..."
+            loadingText={locale.common.sending}
           >
-            Send Via Email
+            {locale.emailModal.sendViaEmail}
           </Button>
         </div>
       </div>

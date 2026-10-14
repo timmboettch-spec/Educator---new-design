@@ -18,7 +18,7 @@ export interface SendEmailReportPayload {
   scenario_title?: string | null;
   report_id?: string;
   report_key?: string;
- 
+
   report_type?: 'assessment' | 'progress';
   pdf_base64?: string;
 }
@@ -49,13 +49,18 @@ export const sendEmailReportRequest = createAsyncThunk<
     };
     if (payload.class_id) body.class_id = payload.class_id;
     if (payload.student_id) body.student_id = payload.student_id;
-    if (payload.email != null && payload.email !== '') body.email = payload.email;
-    if (payload.student_name != null && payload.student_name !== '') body.student_name = payload.student_name;
+    if (payload.email != null && payload.email !== '')
+      body.email = payload.email;
+    if (payload.student_name != null && payload.student_name !== '')
+      body.student_name = payload.student_name;
     if (payload.score != null) body.score = payload.score;
     if (payload.attempt != null) body.attempt = payload.attempt;
-    if (payload.time_spent != null && payload.time_spent !== '') body.time_spent = payload.time_spent;
-    if (payload.sims_completed != null && payload.sims_completed !== '') body.sims_completed = payload.sims_completed;
-    if (payload.scenario_title != null && payload.scenario_title !== '') body.scenario_title = payload.scenario_title;
+    if (payload.time_spent != null && payload.time_spent !== '')
+      body.time_spent = payload.time_spent;
+    if (payload.sims_completed != null && payload.sims_completed !== '')
+      body.sims_completed = payload.sims_completed;
+    if (payload.scenario_title != null && payload.scenario_title !== '')
+      body.scenario_title = payload.scenario_title;
     if (payload.report_id) body.report_id = payload.report_id;
     if (payload.report_key) body.report_key = payload.report_key;
     if (payload.report_type) body.report_type = payload.report_type;
@@ -72,7 +77,9 @@ export const sendEmailReportRequest = createAsyncThunk<
         };
       };
     };
-    return rejectWithValue(error.response?.data?.message || 'Something went wrong');
+    return rejectWithValue(
+      error.response?.data?.message || 'Something went wrong'
+    );
   }
 });
 
@@ -108,8 +115,11 @@ const emailReportSlice = createSlice({
 
 export const { clearEmailReportState } = emailReportSlice.actions;
 
-export const selectEmailReportLoading = (state: RootState) => state.StudentEmailReport.loading;
-export const selectEmailReportSuccess = (state: RootState) => state.StudentEmailReport.success;
-export const selectEmailReportError = (state: RootState) => state.StudentEmailReport.error;
+export const selectEmailReportLoading = (state: RootState) =>
+  state.StudentEmailReport.loading;
+export const selectEmailReportSuccess = (state: RootState) =>
+  state.StudentEmailReport.success;
+export const selectEmailReportError = (state: RootState) =>
+  state.StudentEmailReport.error;
 
 export default emailReportSlice.reducer;

@@ -1,5 +1,9 @@
 ﻿import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import config from '../../config';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
@@ -84,7 +88,7 @@ const postStudentSlice = createSlice({
         (state, action: PayloadAction<PostStudentResponse>) => {
           state.status = SUCCEEDED;
           state.response = action.payload;
-        },
+        }
       )
       .addCase(PostStudentRequest.rejected, (state, action) => {
         state.status = FAILED;
@@ -100,11 +104,17 @@ const selectPostStudentState = (state: RootState) => state.PostStudent;
 
 export const selectPostStudentLoading = createSelector(
   selectPostStudentState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );
 export const selectPostStudentSuccess = createSelector(
   selectPostStudentState,
-  (s) => s.status === SUCCEEDED,
+  (s) => s.status === SUCCEEDED
 );
-export const selectPostStudentError = createSelector(selectPostStudentState, (s) => s.error);
-export const selectPostStudentResponse = createSelector(selectPostStudentState, (s) => s.response);
+export const selectPostStudentError = createSelector(
+  selectPostStudentState,
+  (s) => s.error
+);
+export const selectPostStudentResponse = createSelector(
+  selectPostStudentState,
+  (s) => s.response
+);

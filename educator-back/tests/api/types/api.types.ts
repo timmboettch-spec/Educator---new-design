@@ -25,13 +25,11 @@ export interface LoginCredentials {
 }
 
 export interface BaseApiResponse<T> {
-
   status: string;
 
   message: string;
 
   data: T;
-
 }
 /**
  * User registration data
@@ -69,14 +67,15 @@ export interface RedeemCodeData {
 // ============================================================================
 
 /**
- * Generic API response wrapper
+ * Generic API response wrapper — the unified `{ message, data, meta, error }` envelope every
+ * route produces.
  */
 export interface ApiResponse<T = unknown> {
-  status: 'SUCCESS' | 'FAILED' | 'ERROR';
   message: string;
   data: T | null;
+  meta?: unknown;
+  error?: string | ApiError[] | null;
   timestamp?: string;
-  errors?: ApiError[];
 }
 
 /**
@@ -92,31 +91,23 @@ export interface ApiError {
  * Login API response data
  */
 export interface LoginResponseData {
-
   status: string;
 
   message: string;
 
   data: {
-
     tokens: {
-
       accessToken: string;
 
       refreshToken?: string;
-
     };
 
     user: {
-
       id: string;
 
       email: string;
-
     };
-
   };
-
 }
 /**
  * User information in response
@@ -327,33 +318,25 @@ export interface ValidationResult {
  * Complete register API test data
  */
 export interface RegisterApiTestData {
-
   loginUser: {
-
     email: string;
 
     password: string;
-
   };
 
   educatorLogin: {
-
     email: string;
 
     password: string;
-
   };
 
   educatorcreate: {
-
     firstName: string;
 
     password: string;
 
     email: string;
-
   };
-
 }
 
 /**
@@ -415,11 +398,13 @@ export interface FileUpload {
 export type AssertionCallback = (message: string, passed: boolean) => void;
 
 /**
- * Error type for API errors
+ * Error type for API errors — the unified error envelope `HttpExceptionFilter` produces.
  */
 export interface ApiErrorResponse {
-  status: 'FAILED' | 'ERROR';
   message: string;
+  data: null;
+  meta: null;
+  error: string | Record<string, string>;
   code?: string;
   details?: Record<string, unknown>;
 }

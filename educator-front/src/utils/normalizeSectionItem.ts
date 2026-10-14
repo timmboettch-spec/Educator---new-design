@@ -1,26 +1,82 @@
-import { SectionItem, SimulationDetail, UnitScenario } from '@/types';
+import type { SectionItem, SimulationDetail, UnitScenario } from '@/types';
 import { parseAvatarEnabled } from './simulationType';
 
 const toStr = (v: unknown): string => (v == null ? '' : String(v));
 const toOptStr = (v: unknown): string | undefined =>
   v == null || v === '' ? undefined : String(v);
 
+const asRecords = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) && typeof item === 'object' && !Array.isArray(item)
+    );
+  }
+  if (typeof value !== 'string') return [];
+  try {
+    return asRecords(JSON.parse(value));
+  } catch {
+    return [];
+  }
+};
+
+const actionRecords = (raw: UnitScenario): Record<string, unknown>[] => {
+  const root = raw as Record<string, unknown>;
+  const sources = [
+    root,
+    root.simulation,
+    root.scenario,
+    root.details,
+    root.configuration,
+  ].filter(
+    (source): source is Record<string, unknown> =>
+      Boolean(source) && typeof source === 'object' && !Array.isArray(source)
+  );
+  return sources.flatMap((source) => [
+    ...asRecords(source.actions),
+    ...asRecords(source.actionItems),
+    ...asRecords(source.action_items),
+    ...asRecords(source.assessments),
+    ...asRecords(source.interventions),
+    ...asRecords(source.tasks),
+  ]);
+};
+
+const orderRecords = (raw: UnitScenario): Record<string, unknown>[] => {
+  const root = raw as Record<string, unknown>;
+  const sources = [
+    root,
+    root.simulation,
+    root.scenario,
+    root.details,
+    root.configuration,
+  ].filter(
+    (source): source is Record<string, unknown> =>
+      Boolean(source) && typeof source === 'object' && !Array.isArray(source)
+  );
+  return sources.flatMap((source) => asRecords(source.orders));
+};
+
 /**
  * Filter out simulation-mode labels that should not be displayed as product categories.
  * "AI Only" and "Manikin" are simulation configuration modes, not product categories.
  */
 export const sanitizeCategory = (value: unknown): string | undefined => {
-  const str = String(value ?? '').trim().toLowerCase();
+  const str = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!str) return undefined;
   if (str === 'ai only' || str === 'manikin') return undefined;
   return toOptStr(value);
 };
 
-export const normalizeSectionItem = (item: Record<string, unknown>): SectionItem => ({
+export const normalizeSectionItem = (
+  item: Record<string, unknown>
+): SectionItem => ({
   ...(item as Partial<SectionItem>),
   id: Number.isFinite(Number(item.id)) ? Number(item.id) : 0,
   scenarioId: toOptStr(
-    item.scenarioId ?? item.scenario_id ?? item.scenarioID ?? item.simulation_id,
+    item.scenarioId ?? item.scenario_id ?? item.scenarioID ?? item.simulation_id
   ),
   title: toStr(item.title ?? item.name),
   image: toStr(
@@ -66,92 +122,130 @@ export const normalizeSectionItem = (item: Record<string, unknown>): SectionItem
 export const normalizeToSimulationDetail = (
   raw: UnitScenario,
   simulationId: string | number,
-  fallback: SectionItem,
-): SimulationDetail => ({
-  id: Number.isFinite(Number(simulationId)) ? Number(simulationId) : 0,
-  title: (raw.title as string) || fallback.title,
-  subtitle: raw.subtitle || fallback.subtitle || '',
-  image_url:
-    raw.scenarioImage ||
-    raw.imageURL ||
-    raw.imageUrl ||
-    raw.image_url ||
-    raw.image ||
-    raw.scenario_image ||
-    raw.cover_image ||
-    raw.coverImage ||
-    raw.thumbnail ||
-    raw.blob_url ||
-    raw.blobUrl ||
-    fallback.image ||
-    '',
-  scenarioImage:
-    raw.scenarioImage ||
-    raw.imageURL ||
-    raw.imageUrl ||
-    raw.image_url ||
-    raw.image ||
-    raw.scenario_image ||
-    raw.cover_image ||
-    raw.coverImage ||
-    raw.thumbnail ||
-    raw.blob_url ||
-    raw.blobUrl ||
-    fallback.image ||
-    '',
-  images: raw.images ?? fallback.images,
-  usage: (raw.usage as string) || '',
-  unit: raw.unit_id || fallback.unit || '',
-  category: '', // Category is now derived from avatarEnabled only
-  language: raw.language || fallback.language || '',
-  targetAudience: raw.targetAudience ?? fallback.targetAudience,
-  difficultyLevel: raw.difficultyLevel || raw.difficulty || fallback.difficulty || '',
-  estimatedDuration:
-    raw.estimatedDuration ||
-    (raw as Record<string, unknown>).estimated_duration as string ||
-    (raw as Record<string, unknown>).estimated_duration_minutes as string ||
-    raw.duration ||
-    ((raw.studentBriefing as Record<string, unknown> | undefined)?.timeAllotment as string | undefined) ||
-    ((raw.studentBriefing as Record<string, unknown> | undefined)?.time_allotment as string | undefined) ||
-    fallback.duration ||
-    '',
-  purpose: raw.purpose || raw.objective || fallback.purpose || '',
-  description: raw.description || fallback.description || '',
-  learning_objectives: raw.learning_objectives ?? fallback.learning_objectives,
-  developer: raw.developer || fallback.developer || '',
-  institution: raw.institution || fallback.institution || '',
-  last_update: raw.last_update || raw.updatedAt || fallback.last_update || '',
-  simulation_privacy: (raw.simulation_privacy as string) || '',
-  department: (raw.department as string) || '',
-  learnerLevel: (raw.learnerLevel as string) || (raw.learner_level as string) || '',
-  learningObjective: (raw.learningObjective as string) || (raw.learning_objective as string) || '',
-  voice: (raw.voice as string) || '',
-  sbar: raw.sbar as SimulationDetail['sbar'] | undefined,
-  studentBriefing: raw.studentBriefing
-    ? {
-        safeEnvironment: (raw.studentBriefing as Record<string, unknown>).safeEnvironment as string | undefined,
-        facilitatorSupport: (raw.studentBriefing as Record<string, unknown>).facilitatorSupport as string | undefined,
-        orientationSpace: (raw.studentBriefing as Record<string, unknown>).orientationSpace as string | undefined,
-        orientationEquipment: (raw.studentBriefing as Record<string, unknown>).orientationEquipment as string | undefined,
-        evaluation: (raw.studentBriefing as Record<string, unknown>).evaluation as string | undefined,
-        rolesExpectations: (raw.studentBriefing as Record<string, unknown>).rolesExpectations as string | undefined,
-        simulationLimitations: (raw.studentBriefing as Record<string, unknown>).simulationLimitations as string | undefined,
-        timeAllotment: (raw.studentBriefing as Record<string, unknown>).timeAllotment as string | undefined,
-        purpose: (raw.studentBriefing as Record<string, unknown>).purpose as string | undefined,
-        learningObjectives: (raw.studentBriefing as Record<string, unknown>).learningObjectives as string | undefined,
-        closingReminder: (raw.studentBriefing as Record<string, unknown>).closingReminder as string | undefined,
-      }
-    : undefined,
-  topicsAddressed: (raw.topicsAddressed as string) || '',
-  productName: ((raw.productSetup as Record<string, unknown>)?.title as string) || '',
-  additionalEquipment: (raw.additionalEquipment as string) || '',
-  optionalEquipment: (raw.optionalEquipment as string) || '',
-  setupNotes: (raw.setupNotes as string) || '',
-  prebriefScriptPdf: (raw.prebriefScriptPdf as string) || (raw.preBriefPdf as string) || '',
-  debriefPointsPdf: (raw.debriefPointsPdf as string) || '',
-  setupNotesPdf: (raw.setupNotesPdf as string) || '',
-  facilitationNotesPdf: (raw.facilitationNotesPdf as string) || '',
-  printableSbarPdf: (raw.printableSbarPdf as string) || '',
-  printablePatientChartPdf: (raw.printablePatientChartPdf as string) || '',
-  avatarEnabled: parseAvatarEnabled(raw.avatarEnabled),
-});
+  fallback: SectionItem
+): SimulationDetail => {
+  const normalizedActions = actionRecords(raw);
+  const normalizedOrders = orderRecords(raw);
+  return {
+    id: raw.id ?? raw.scenario_id ?? raw.scenarioId ?? simulationId,
+    title: (raw.title as string) || fallback.title,
+    subtitle: raw.subtitle || fallback.subtitle || '',
+    image_url:
+      raw.scenarioImage ||
+      raw.imageURL ||
+      raw.imageUrl ||
+      raw.image_url ||
+      raw.image ||
+      raw.scenario_image ||
+      raw.cover_image ||
+      raw.coverImage ||
+      raw.thumbnail ||
+      raw.blob_url ||
+      raw.blobUrl ||
+      fallback.image ||
+      '',
+    scenarioImage:
+      raw.scenarioImage ||
+      raw.imageURL ||
+      raw.imageUrl ||
+      raw.image_url ||
+      raw.image ||
+      raw.scenario_image ||
+      raw.cover_image ||
+      raw.coverImage ||
+      raw.thumbnail ||
+      raw.blob_url ||
+      raw.blobUrl ||
+      fallback.image ||
+      '',
+    images: raw.images ?? fallback.images,
+    usage: (raw.usage as string) || '',
+    unit: (raw.unitId as string) || raw.unit_id || fallback.unit || '',
+    category: '', // Category is now derived from avatarEnabled only
+    language: raw.language || fallback.language || '',
+    targetAudience: raw.targetAudience ?? fallback.targetAudience,
+    difficultyLevel:
+      raw.difficultyLevel || raw.difficulty || fallback.difficulty || '',
+    estimatedDuration:
+      raw.estimatedDuration ||
+      ((raw as Record<string, unknown>).estimated_duration as string) ||
+      ((raw as Record<string, unknown>).estimated_duration_minutes as string) ||
+      raw.duration ||
+      ((raw.studentBriefing as Record<string, unknown> | undefined)
+        ?.timeAllotment as string | undefined) ||
+      ((raw.studentBriefing as Record<string, unknown> | undefined)
+        ?.time_allotment as string | undefined) ||
+      fallback.duration ||
+      '',
+    purpose: raw.purpose || raw.objective || fallback.purpose || '',
+    description: raw.description || fallback.description || '',
+    learning_objectives:
+      raw.learning_objectives ?? fallback.learning_objectives,
+    developer: raw.developer || fallback.developer || '',
+    institution: raw.institution || fallback.institution || '',
+    last_update: raw.last_update || raw.updatedAt || fallback.last_update || '',
+    simulation_privacy: (raw.simulation_privacy as string) || '',
+    department: (raw.department as string) || '',
+    learnerLevel:
+      (raw.learnerLevel as string) || (raw.learner_level as string) || '',
+    learningObjective:
+      (raw.learningObjective as string) ||
+      (raw.learning_objective as string) ||
+      '',
+    voice: (raw.voice as string) || '',
+    sbar: raw.sbar as SimulationDetail['sbar'] | undefined,
+    studentBriefing: raw.studentBriefing
+      ? {
+          safeEnvironment: (raw.studentBriefing as Record<string, unknown>)
+            .safeEnvironment as string | undefined,
+          facilitatorSupport: (raw.studentBriefing as Record<string, unknown>)
+            .facilitatorSupport as string | undefined,
+          orientationSpace: (raw.studentBriefing as Record<string, unknown>)
+            .orientationSpace as string | undefined,
+          orientationEquipment: (raw.studentBriefing as Record<string, unknown>)
+            .orientationEquipment as string | undefined,
+          evaluation: (raw.studentBriefing as Record<string, unknown>)
+            .evaluation as string | undefined,
+          rolesExpectations: (raw.studentBriefing as Record<string, unknown>)
+            .rolesExpectations as string | undefined,
+          simulationLimitations: (
+            raw.studentBriefing as Record<string, unknown>
+          ).simulationLimitations as string | undefined,
+          timeAllotment: (raw.studentBriefing as Record<string, unknown>)
+            .timeAllotment as string | undefined,
+          purpose: (raw.studentBriefing as Record<string, unknown>).purpose as
+            string | undefined,
+          learningObjectives: (raw.studentBriefing as Record<string, unknown>)
+            .learningObjectives as string | undefined,
+          closingReminder: (raw.studentBriefing as Record<string, unknown>)
+            .closingReminder as string | undefined,
+        }
+      : undefined,
+    topicsAddressed: (raw.topicsAddressed as string) || '',
+    productName:
+      ((raw.productSetup as Record<string, unknown>)?.title as string) || '',
+    additionalEquipment: (raw.additionalEquipment as string) || '',
+    optionalEquipment: (raw.optionalEquipment as string) || '',
+    setupNotes: (raw.setupNotes as string) || '',
+    prebriefScriptPdf:
+      (raw.prebriefScriptPdf as string) || (raw.preBriefPdf as string) || '',
+    debriefPointsPdf: (raw.debriefPointsPdf as string) || '',
+    setupNotesPdf: (raw.setupNotesPdf as string) || '',
+    facilitationNotesPdf: (raw.facilitationNotesPdf as string) || '',
+    printableSbarPdf: (raw.printableSbarPdf as string) || '',
+    printablePatientChartPdf: (raw.printablePatientChartPdf as string) || '',
+    avatarEnabled: parseAvatarEnabled(raw.avatarEnabled),
+    historyVisibility: (raw.historyVisibility as string) || '',
+    simulationStartTime: (raw.simulationStartTime as string) || '',
+    productSetup: raw.productSetup as
+      SimulationDetail['productSetup'] | undefined,
+    grading: raw.grading as SimulationDetail['grading'] | undefined,
+    patientData: raw.patientData as SimulationDetail['patientData'] | undefined,
+    aiPatientData: raw.aiPatientData as
+      SimulationDetail['aiPatientData'] | undefined,
+    teamCommunication: raw.teamCommunication as
+      SimulationDetail['teamCommunication'] | undefined,
+    actions: normalizedActions.length ? normalizedActions : undefined,
+    orders: normalizedOrders.length ? normalizedOrders : undefined,
+  };
+};

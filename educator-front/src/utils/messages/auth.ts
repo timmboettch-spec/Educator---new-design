@@ -34,11 +34,13 @@ export const AUTH_MESSAGES = {
     SIGN_OUT: 'Sign Out',
     VERIFICATION_CODE_SENT: "We've sent 4 digit verification code to",
     AND_NEW_PASSWORD: 'and your new password.',
-    REDEEM_CODE_SUBTITLE: 'Your account has been provisioned with full access privileges.',
+    REDEEM_CODE_SUBTITLE:
+      'Your account has been provisioned with full access privileges.',
     LOGIN_BY_REDEEM_CODE: 'Login by Redeem Code',
     VALID_UNTIL: 'Valid Until',
     INCLUDED: 'Included',
-    ENTER_REDEEM_CODE_SUBTITLE: 'Your account has been provisioned with full access privileges.',
+    ENTER_REDEEM_CODE_SUBTITLE:
+      'Your account has been provisioned with full access privileges.',
     // LOGIN_BY_REDEEM_CODE: 'Login by Redeem Code',
     // VALID_UNTIL: 'Valid Until',
     // INCLUDED: 'Included',

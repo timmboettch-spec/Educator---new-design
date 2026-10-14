@@ -1,0 +1,53 @@
+{
+  "SERVER": {
+    "INTERNAL_SERVER": "Something went wrong. Please try again later.",
+    "PAGE_NOT_FOUND": "The requested resource was not found."
+  },
+  "DB": {
+    "DUPLICATE_ENTRY": "{key} already exists.",
+    "FK_CONSTRAINT": "This record is referenced by other data and cannot be modified.",
+    "INVALID_REQUEST": "Invalid request.",
+    "NOT_FOUND": "{key} not found."
+  },
+  "PREVIEW": {
+    "ALLOWANCE_EXHAUSTED": "You have used all of your previews for this simulation."
+  },
+  "CLASS": {
+    "ARCHIVED": "This class is archived, so its simulations can no longer be edited."
+  },
+  "CLASS_SIMULATION": {
+    "OVERLAPPING_ASSIGNMENT": "This simulation is already assigned to this class for an overlapping date range."
+  },
+  "COMMON": {
+    "BAD_REQUEST": "The request could not be processed.",
+    "UNAUTHORIZED": "You are not authorized to perform this action.",
+    "FORBIDDEN": "You do not have permission to perform this action.",
+    "VALIDATION_ERROR": "Validation Errors",
+    "TOO_MANY_REQUESTS": "Too many requests. Please try again later.",
+    "UPSTREAM_TIMEOUT": "The {integration} service timed out. Please try again later.",
+    "INVALID_DATE_RANGE": "{startKey} must be on or before {endKey}."
+  },
+  "AVATAR": {
+    "READY_WITHOUT_MAP": "Cannot mark avatar ready: unrealMap is not set"
+  },
+  "VOICE_PROFILE": {
+    "NO_FILE": "No audio file was uploaded. Attach a WAV or MP3 recording (5-30 seconds of clear speech) in the 'file' field.",
+    "FILE_TOO_LARGE": "The audio file is larger than {maxMb} MB. Upload a shorter or compressed recording of 5-30 seconds of speech.",
+    "UNDECODABLE": "The file could not be read as audio. Upload a WAV, MP3, M4A, OGG, WebM or FLAC recording of 5-30 seconds of clear speech.",
+    "TOO_SHORT": "The recording is {seconds} s long, but it must be at least {min} s. Upload 5-30 seconds of continuous speech.",
+    "TOO_LONG": "The recording is {seconds} s long, but it must be at most {max} s. Trim it to 5-30 seconds of speech and upload it again.",
+    "TOO_SILENT": "{percent}% of the recording is silence (the limit is {max}%). Upload a recording in which the speaker talks for most of the clip.",
+    "CLIPPED": "The recording is clipped (distorted): {percent}% of samples hit full scale. Re-record at a lower input volume and upload it again.",
+    "PROCESSING_TIMEOUT": "Processing the recording took too long. Upload a standard WAV or MP3 file of 5-30 seconds.",
+    "PROCESSING_UNAVAILABLE": "Audio processing is unavailable on the server. Please contact support.",
+    "RETIRED": "This voice profile is retired.",
+    "RETIRED_READ_ONLY": "This voice profile is retired and can no longer be changed. Create a new voice profile instead.",
+    "DISPLAY_NAME_TAKEN": "An active voice profile named \"{displayName}\" already exists. Choose a different name.",
+    "DEFAULT_TAKEN": "\"{displayName}\" is already the default {gender} voice. Clear its default first.",
+    "IN_USE": "This voice profile is used by {count} scenario(s): {ids}. Assign a different voice to those scenarios, then retire it.",
+    "IS_DEFAULT": "This voice profile is the default {gender} voice. Clear its default before retiring it.",
+    "AUDIO_MISSING": "The audio for this voice profile is missing from storage. Upload it again.",
+    "SCENARIO_VOICE_INVALID": "voiceProfileId {voiceProfileId} is not an active voice profile. Choose an active voice, or clear it.",
+    "GENDER_MISMATCH": "This voice's gender is \"{gender}\", so it can't be set as the default for \"{defaultForGender}\". Set gender to \"{defaultForGender}\" first, or choose a different default."
+  }
+}

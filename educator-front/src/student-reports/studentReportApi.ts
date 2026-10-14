@@ -3,7 +3,11 @@ import {
   fetchScenarioById,
   fetchTranscriptLog,
 } from '../api/reportTranscriptApi';
-import type { AssessmentReport, ConversationMessage, Scenario } from '../types/assessmentReport';
+import type {
+  AssessmentReport,
+  ConversationMessage,
+  Scenario,
+} from '../types/assessmentReport';
 
 /** HS-online `lib/api` shape for student report/transcript views. */
 export const studentReportApi = {
@@ -11,7 +15,10 @@ export const studentReportApi = {
     fetchReportById(reportId) as Promise<AssessmentReport>,
 
   getLog: (logId: string) =>
-    fetchTranscriptLog(logId) as Promise<{ messages?: ConversationMessage[]; startedAt?: string }>,
+    fetchTranscriptLog(logId) as Promise<{
+      messages?: ConversationMessage[];
+      startedAt?: string;
+    }>,
 
   getScenario: (scenarioId: string) =>
     fetchScenarioById(scenarioId) as Promise<Scenario>,

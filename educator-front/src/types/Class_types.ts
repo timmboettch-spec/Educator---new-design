@@ -1,4 +1,4 @@
-import { SimulationItem, SimulationReport } from '../types/index';
+import { type SimulationItem, type SimulationReport } from '../types/index';
 
 export interface Student {
   id?: string;
@@ -14,6 +14,12 @@ export interface Student {
   submission_date?: string | null;
   time_spent?: string | null;
   time_remaining?: string | null;
+}
+
+export interface ClassLmsLinkageSummary {
+  provider: 'moodle' | 'canvas' | 'google_classroom' | 'lms';
+  courseId: string;
+  courseName: string | null;
 }
 
 export interface Class {
@@ -32,8 +38,13 @@ export interface Class {
   sims?: SimulationItem[];
   reports?: SimulationReport[];
   reportCount?: number;
+  /** Counts from `/api/classes` (preferred over `students`/`sims` lengths). */
+  studentsCount?: number;
+  simsCount?: number;
+  reportsCount?: number;
   unreadReportCount?: number;
   needsAttention?: boolean;
+  lms_linkage?: ClassLmsLinkageSummary | null;
 }
 
 export type ClassWithStudents = Class;
@@ -60,21 +71,19 @@ export interface SimRow {
 export interface ClassFormValues {
   school_id: string;
   class_name: string;
-  status: 'ACTIVE' | 'DRAFT' | 'INACTIVE' | 'ARCHIEVED' | 'ATTENTION' | '';
+  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIEVED' | '';
   start_date: string;
   end_date: string;
   total_no_of_students: string;
 }
 
 export type FilterState = {
-  className: string;
-  status: string;
-  /** Class names to include (multi-select); empty/undefined = all. */
-  classNames?: string[];
-  /** Effective statuses (UPPERCASE) to include (multi-select); empty = all. */
-  statuses?: string[];
-  /** School names to include (multi-select); empty/undefined = all schools. */
+  /** School ids to include (multi-select); empty/undefined = all schools. */
   schools?: string[];
+  /** Class ids to include (multi-select); empty/undefined = all. */
+  classIds?: string[];
+  /** Statuses (UPPERCASE) to include (multi-select); empty = all. */
+  statuses?: string[];
   /** Only classes starting on/after this date (YYYY-MM-DD). */
   startDate?: string;
   /** Only classes ending on/before this date (YYYY-MM-DD). */
@@ -101,7 +110,7 @@ export const getSimStatus = (startDate: string, dueDate: string) => {
 export const simStatusColor = (status: string) => {
   if (status === 'future') return 'text-green-600';
   if (status === 'past') return 'text-red-500';
-  return 'text-primary-500';
+  return 'text-orange-500';
 };
 
 export const getStatusLabel = (status?: string) => {

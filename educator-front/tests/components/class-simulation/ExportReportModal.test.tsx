@@ -1,5 +1,13 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, test, vi, type Mock } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+  vi,
+  type Mock,
+} from 'vitest';
 import ExportGradeModal from '../../../src/components/class/simulation/ExportGradeModal';
 import { useAppSelector } from '../../../src/store/hooks';
 import {
@@ -69,7 +77,10 @@ const sampleReports = [
   },
 ];
 
-function renderComponent(options?: { reports?: unknown[]; disabled?: boolean }) {
+function renderComponent(options?: {
+  reports?: unknown[];
+  disabled?: boolean;
+}) {
   classReportsMock = options?.reports ?? sampleReports;
   classResponseMock = {
     data: {
@@ -84,7 +95,7 @@ function renderComponent(options?: { reports?: unknown[]; disabled?: boolean }) 
       classId="class-1"
       onClose={onCloseMock}
       disabled={options?.disabled}
-    />,
+    />
   );
 }
 
@@ -96,11 +107,13 @@ describe('ExportGradeModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    (useAppSelector as unknown as Mock).mockImplementation((selector: unknown) => {
-      if (selector === selectClassReports) return classReportsMock;
-      if (selector === selectClassReportsStatus) return 'succeeded';
-      return classResponseMock;
-    });
+    (useAppSelector as unknown as Mock).mockImplementation(
+      (selector: unknown) => {
+        if (selector === selectClassReports) return classReportsMock;
+        if (selector === selectClassReportsStatus) return 'succeeded';
+        return classResponseMock;
+      }
+    );
 
     if (!URL.createObjectURL) {
       Object.defineProperty(URL, 'createObjectURL', {
@@ -154,7 +167,9 @@ describe('ExportGradeModal', () => {
     });
 
     expect(mocks.autoTableMock).toHaveBeenCalledTimes(1);
-    expect(mocks.savePdfMock).toHaveBeenCalledWith('Class_A_Heart_Model_grades.pdf');
+    expect(mocks.savePdfMock).toHaveBeenCalledWith(
+      'Class_A_Heart_Model_grades.pdf'
+    );
     expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 
@@ -184,7 +199,9 @@ describe('ExportGradeModal', () => {
       await vi.advanceTimersByTimeAsync(300);
     });
 
-    expect(mocks.savePdfMock).toHaveBeenCalledWith('Class_A_Heart_Model_grades.pdf');
+    expect(mocks.savePdfMock).toHaveBeenCalledWith(
+      'Class_A_Heart_Model_grades.pdf'
+    );
     expect(onCloseMock).toHaveBeenCalledTimes(1);
   });
 });

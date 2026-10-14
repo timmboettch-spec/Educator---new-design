@@ -1,84 +1,90 @@
+import { Reflector } from '@nestjs/core';
+import { ROLES_KEY } from 'src/common/decorators/required-roles.decorator';
 import { Test, TestingModule } from '@nestjs/testing';
-import {
-  BadRequestException,
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ClassTransferController } from '../../../src/class-transfer/class-transfer.controller';
 import { ClassTransferService } from '../../../src/class-transfer/class-transfer.service';
-import {
-  ClassTransferAudit,
-  ClassTransferStatus,
-} from '../../../src/class-transfer/entity/class-transfer-audit.entity';
+
 import type { ClassTransferDto } from '../../../src/class-transfer/dto/class-transfer.dto';
-import { Class } from '../../../src/class/entity/class.entity';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
-import { EducatorSimulation } from '../../../src/educator-simulations/entity/educator-simulation.entity';
-import { Student } from '../../../src/students/entity/students.entity';
+
 import { NotificationsGateway } from '../../../src/notifications/notifications.gateway';
+import { LoggerService } from '../../../src/common/services';
 import { CommonStatus } from '../../../src/common/enums/status.enum';
 import type { JwtRequest } from '../../../src/common/types';
 import { AppStatus } from '../../../src/common/utils/messages';
 import { ClassTransferConstants } from '../../../src/class-transfer/class-transfer.constants';
+import {
+  CLASS_REPOSITORY,
+  CLASS_TRANSFER_AUDIT_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  GOOGLE_SCHOOL_CONNECTION_REPOSITORY,
+} from '../../../src/database/tokens';
+import { I18nService } from 'nestjs-i18n';
+import { ClsService } from 'nestjs-cls';
+import { ConfigService } from '@nestjs/config';
+import {
+  ClassTransferAudit,
+  ClassTransferStatus,
+  Class,
+  Educator,
+  Student,
+  UserRole,
+} from 'src/database/entities';
+import { RoleSlug } from 'src/common/constants';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
-const makeReq = (userId: string, roles: string[]): JwtRequest =>
+const makeReq = (userId: string, roles: RoleSlug[]): JwtRequest =>
   Object.assign(new Request('http://localhost'), {
     user: { userId, roles, email: `${userId}@test.com` },
   });
 
-const adminReq   = makeReq('admin-1', ['Admin']);
-const educatorReq = makeReq('edu-1',  ['Educator']);
+const adminReq = makeReq('admin-1', [RoleSlug.DISTRICT_ADMIN]);
 
 const makeEducator = (o: Partial<Educator> = {}): Educator =>
-  ({ id: 'edu-1', email: 'edu@test.com', full_name: 'Alice Educator',
-     status: CommonStatus.ACTIVE, is_active: true, deleted_at: null, ...o }) as Educator;
+  ({
+    id: 'edu-1',
+    full_name: 'Alice Educator',
+    is_active: true,
+    deleted_at: null,
+    // `Educator.email`/`.status` no longer exist — identity/status resolve via the linked
+    // `userRole.user`/`userRole.status` chain, so the default mock is v2-linked by default.
+    userRole: {
+      userId: 'user-1',
+      status: CommonStatus.ACTIVE,
+      user: { id: 'user-1', email: 'edu@test.com', password: null },
+    } as unknown as UserRole,
+    ...o,
+  }) as Educator;
 
-const makeClass = (o: Partial<Class> = {}): Class =>
-  ({ id: 'class-1', class_name: 'Biology 101', educator_id: 'edu-1',
-     is_active: true, deleted_at: null, educator: makeEducator(), students: [], ...o });
+const makeClass = (o: Partial<Class> = {}): Class => ({
+  id: 'class-1',
+  class_name: 'Biology 101',
+  educator_id: 'edu-1',
+  is_active: true,
+  deleted_at: null,
+  educator: makeEducator(),
+  students: [],
+  ...o,
+});
 
-const makeAudit = (o: Partial<ClassTransferAudit> = {}): ClassTransferAudit =>
-  ({ id: 'audit-1', classId: 'class-1', className: 'Biology 101',
-     sourceEducatorId: 'edu-1', sourceEducatorName: 'Alice Educator',
-     targetEducatorId: 'edu-2', targetEducatorName: 'Bob Educator',
-     adminId: 'admin-1', adminEmail: 'admin@test.com',
-     status: ClassTransferStatus.SUCCESS, notes: null,
-     transferredAt: new Date('2026-01-15T10:00:00Z'), ...o });
+const makeAudit = (o: Partial<ClassTransferAudit> = {}): ClassTransferAudit => ({
+  id: 'audit-1',
+  classId: 'class-1',
+  className: 'Biology 101',
+  sourceEducatorId: 'edu-1',
+  sourceEducatorName: 'Alice Educator',
+  targetEducatorId: 'edu-2',
+  targetEducatorName: 'Bob Educator',
+  adminId: 'admin-1',
+  adminEmail: 'admin@test.com',
+  status: ClassTransferStatus.SUCCESS,
+  notes: null,
+  transferredAt: new Date('2026-01-15T10:00:00Z'),
+  ...o,
+});
 
 const validDto: ClassTransferDto = { classId: 'class-1', targetEducatorId: 'edu-2' };
-
-// ── Mock builder ──────────────────────────────────────────────────────────
-
-/** Creates a fresh mock manager with all methods the service uses inside the transaction. */
-function makeMockManager(audit: ClassTransferAudit): {
-  manager: { update: jest.Mock; find: jest.Mock; create: jest.Mock; save: jest.Mock; createQueryBuilder: jest.Mock; getRepository: jest.Mock };
-  qb: { update: jest.Mock; set: jest.Mock; where: jest.Mock; andWhere: jest.Mock; execute: jest.Mock; getMany: jest.Mock };
-} {
-  const qb = {
-    update:       jest.fn().mockReturnThis(),
-    set:          jest.fn().mockReturnThis(),
-    where:        jest.fn().mockReturnThis(),
-    andWhere:     jest.fn().mockReturnThis(),
-    execute:      jest.fn().mockResolvedValue({ affected: 1 }),
-    getMany:      jest.fn().mockResolvedValue([]),
-  };
-
-  const manager = {
-    update:             jest.fn().mockResolvedValue(undefined),
-    find:               jest.fn().mockResolvedValue([]),
-    create:             jest.fn().mockReturnValue(audit),
-    save:               jest.fn().mockResolvedValue(audit),
-    createQueryBuilder: jest.fn().mockReturnValue(qb),
-    getRepository:      jest.fn().mockReturnValue({ createQueryBuilder: jest.fn().mockReturnValue(qb) }),
-  };
-
-  return { manager, qb };
-}
 
 // ── Test suite ────────────────────────────────────────────────────────────
 
@@ -86,59 +92,55 @@ describe('ClassTransfer (Controller + Service)', () => {
   let controller: ClassTransferController;
   let service: ClassTransferService;
 
-  const classRepo        = { findOne: jest.fn(), find: jest.fn(),
-                              createQueryBuilder: jest.fn() };
-  const educatorRepo     = { findOne: jest.fn() };
-  const classSimRepo     = { find: jest.fn() };
-  const educatorSimRepo  = { find: jest.fn() };
-  const auditRepo        = { find: jest.fn() };
-
-  let mockManager: ReturnType<typeof makeMockManager>['manager'];
-
-  const dataSource = {
-    transaction: jest.fn(),
+  const classRepo = {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    findActiveByEducatorWithSchool: jest.fn(),
+    transferToEducator: jest.fn(),
   };
+  const educatorRepo = { findOne: jest.fn() };
+  const auditRepo = { find: jest.fn() };
 
   const notificationsGateway = {
     notifyClassTransferSourceEducator: jest.fn().mockResolvedValue(undefined),
-    notifyClassTransferTargetEducator:  jest.fn().mockResolvedValue(undefined),
+    notifyClassTransferTargetEducator: jest.fn().mockResolvedValue(undefined),
   };
 
   beforeEach(async () => {
-    const audit = makeAudit();
-    const { manager } = makeMockManager(audit);
-    mockManager = manager;
-    dataSource.transaction.mockImplementation(
-      (cb: (m: typeof manager) => Promise<ClassTransferAudit>) => cb(manager),
-    );
+    classRepo.transferToEducator.mockResolvedValue(makeAudit());
 
-    // Default QB chain for getEducatorClasses
-    const qb = {
-      select:   jest.fn().mockReturnThis(),
-      leftJoin: jest.fn().mockReturnThis(),
-      where:    jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
-      orderBy:  jest.fn().mockReturnThis(),
-      getMany:  jest.fn().mockResolvedValue([]),
-    };
-    classRepo.createQueryBuilder.mockReturnValue(qb);
+    // Default result for getEducatorClasses
+    classRepo.findActiveByEducatorWithSchool.mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClassTransferController],
       providers: [
         ClassTransferService,
-        { provide: getRepositoryToken(Class),             useValue: classRepo },
-        { provide: getRepositoryToken(Educator),          useValue: educatorRepo },
-        { provide: getRepositoryToken(ClassSimulation),   useValue: classSimRepo },
-        { provide: getRepositoryToken(EducatorSimulation), useValue: educatorSimRepo },
-        { provide: getRepositoryToken(ClassTransferAudit), useValue: auditRepo },
-        { provide: DataSource,                            useValue: dataSource },
-        { provide: NotificationsGateway,                  useValue: notificationsGateway },
+        { provide: CLASS_REPOSITORY, useValue: classRepo },
+        { provide: EDUCATOR_REPOSITORY, useValue: educatorRepo },
+        { provide: CLASS_TRANSFER_AUDIT_REPOSITORY, useValue: auditRepo },
+        { provide: NotificationsGateway, useValue: notificationsGateway },
+        // Dependencies of the bulk transfer method on the same service; unused by these tests.
+        { provide: GOOGLE_SCHOOL_CONNECTION_REPOSITORY, useValue: {} },
+        { provide: I18nService, useValue: {} },
+        { provide: ClsService, useValue: {} },
+        { provide: ConfigService, useValue: { get: () => undefined } },
+        {
+          provide: LoggerService,
+          useValue: {
+            log: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+            debug: jest.fn(),
+            verbose: jest.fn(),
+            fatal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     controller = module.get(ClassTransferController);
-    service    = module.get(ClassTransferService);
+    service = module.get(ClassTransferService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -146,30 +148,33 @@ describe('ClassTransfer (Controller + Service)', () => {
   // ── RBAC ──────────────────────────────────────────────────────────────
 
   describe('RBAC', () => {
-    it('INTEGRATION: Educator cannot POST transfer', async () => {
-      await expect(controller.transfer(validDto, educatorReq)).rejects.toThrow(ForbiddenException);
+    // Per ADR-0006 these routes no longer refuse an educator inside the handler — the
+    // imperative isAdmin() check was replaced by @RequiredRoles(DISTRICT_ADMIN), which the
+    // global AuthGuard evaluates before the handler runs. A unit test calling the controller
+    // method directly bypasses the guard entirely, so it can only assert the declaration.
+    // Runtime enforcement is proved in tests/integration/auth/route-coverage.integration.spec.ts.
+    it.each([
+      ['transfer', ClassTransferController.prototype.transfer],
+      ['getAuditHistory', ClassTransferController.prototype.getAuditHistory],
+      ['getEducatorClasses', ClassTransferController.prototype.getEducatorClasses],
+    ])('declares @RequiredRoles(DISTRICT_ADMIN) on %s, locking educators out', (_name, handler) => {
+      const roles = new Reflector().getAllAndOverride<RoleSlug[]>(ROLES_KEY, [
+        handler as () => unknown,
+        ClassTransferController,
+      ]);
+      expect(roles).toEqual([RoleSlug.DISTRICT_ADMIN]);
+      expect(roles).not.toContain(RoleSlug.EDUCATOR);
     });
 
-    it('INTEGRATION: Educator cannot GET audit', async () => {
-      await expect(controller.getAuditHistory({}, educatorReq)).rejects.toThrow(ForbiddenException);
+    it('INTEGRATION: District Admin role is permitted', async () => {
+      const req = makeReq('admin-1', [RoleSlug.DISTRICT_ADMIN]);
+      classRepo.findOne.mockResolvedValue(makeClass());
+      educatorRepo.findOne
+        .mockResolvedValueOnce(makeEducator())
+        .mockResolvedValueOnce(makeEducator({ id: 'edu-2' }));
+      const res = await controller.transfer(validDto, req);
+      expect(res.status).toBe(AppStatus.SUCCESS);
     });
-
-    it('INTEGRATION: Educator cannot GET educator classes', async () => {
-      await expect(controller.getEducatorClasses('edu-1', educatorReq)).rejects.toThrow(ForbiddenException);
-    });
-
-    it.each([['Admin', ['Admin']], ['District Admin', ['District Admin']]])(
-      'INTEGRATION: %s role is permitted',
-      async (_, roles) => {
-        const req = makeReq('admin-1', roles);
-        classRepo.findOne.mockResolvedValue(makeClass());
-        educatorRepo.findOne
-          .mockResolvedValueOnce(makeEducator())
-          .mockResolvedValueOnce(makeEducator({ id: 'edu-2' }));
-        const res = await controller.transfer(validDto, req);
-        expect(res.status).toBe(AppStatus.SUCCESS);
-      },
-    );
   });
 
   // ── Validation ────────────────────────────────────────────────────────
@@ -197,8 +202,9 @@ describe('ClassTransfer (Controller + Service)', () => {
 
     it('throws BadRequestException when source === target', async () => {
       classRepo.findOne.mockResolvedValue(makeClass({ educator_id: 'edu-2' }));
-      await expect(service.transfer({ classId: 'class-1', targetEducatorId: 'edu-2' }, 'admin-1'))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.transfer({ classId: 'class-1', targetEducatorId: 'edu-2' }, 'admin-1'),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('throws NotFoundException when source educator missing', async () => {
@@ -225,7 +231,7 @@ describe('ClassTransfer (Controller + Service)', () => {
       classRepo.findOne.mockResolvedValue(makeClass());
       educatorRepo.findOne
         .mockResolvedValueOnce(makeEducator())
-        .mockResolvedValueOnce(makeEducator({ id: 'edu-2', status: CommonStatus.INACTIVE, is_active: false }));
+        .mockResolvedValueOnce(makeEducator({ id: 'edu-2', is_active: false }));
       await expect(service.transfer(validDto, 'admin-1')).rejects.toThrow(
         ClassTransferConstants.ERRORS.TARGET_EDUCATOR_INACTIVE,
       );
@@ -233,8 +239,9 @@ describe('ClassTransfer (Controller + Service)', () => {
 
     it('throws correct message for same educator', async () => {
       classRepo.findOne.mockResolvedValue(makeClass({ educator_id: 'edu-2' }));
-      await expect(service.transfer({ classId: 'class-1', targetEducatorId: 'edu-2' }, 'admin-1'))
-        .rejects.toThrow(ClassTransferConstants.ERRORS.SAME_EDUCATOR);
+      await expect(
+        service.transfer({ classId: 'class-1', targetEducatorId: 'edu-2' }, 'admin-1'),
+      ).rejects.toThrow(ClassTransferConstants.ERRORS.SAME_EDUCATOR);
     });
   });
 
@@ -256,46 +263,30 @@ describe('ClassTransfer (Controller + Service)', () => {
       expect(result.data?.targetEducatorId).toBe('edu-2');
     });
 
-    it('updates classes.educator_id via manager.update()', async () => {
-      await service.transfer(validDto, 'admin-1');
-      expect(mockManager.update).toHaveBeenCalledWith(
-        Class, { id: 'class-1' }, { educator_id: 'edu-2' },
-      );
-    });
-
-    it('calls manager.update for students educator_id', async () => {
-      await service.transfer(validDto, 'admin-1');
-      expect(mockManager.update).toHaveBeenCalledWith(
-        Student,
-        { class_id: 'class-1' },
-        { educator_id: 'edu-2' },
-      );
-    });
-
-    it('updates both class and students records within same transaction', async () => {
-      await service.transfer(validDto, 'admin-1');
-      expect(mockManager.update).toHaveBeenCalledTimes(2);
-    });
-
-    it('creates audit record with correct fields', async () => {
-      await service.transfer(validDto, 'admin-1');
-      expect(mockManager.create).toHaveBeenCalledWith(
-        ClassTransferAudit,
-        expect.objectContaining({
-          classId: 'class-1',
-          sourceEducatorId: 'edu-1',
-          targetEducatorId: 'edu-2',
-          adminId: 'admin-1',
-          status: ClassTransferStatus.SUCCESS,
-        }),
-      );
+    it('delegates every write to one transactional repository call', async () => {
+      await service.transfer(validDto, 'admin-1', 'admin@test.com');
+      expect(classRepo.transferToEducator).toHaveBeenCalledTimes(1);
+      expect(classRepo.transferToEducator).toHaveBeenCalledWith({
+        classId: 'class-1',
+        className: 'Biology 101',
+        sourceEducatorId: 'edu-1',
+        sourceEducatorName: 'Alice Educator',
+        targetEducatorId: 'edu-2',
+        targetEducatorName: 'Bob Educator',
+        adminId: 'admin-1',
+        adminEmail: 'admin@test.com',
+      });
     });
 
     it('fires source educator notification', async () => {
       await service.transfer(validDto, 'admin-1');
       await Promise.resolve();
       expect(notificationsGateway.notifyClassTransferSourceEducator).toHaveBeenCalledWith(
-        'edu-1', 'Biology 101', 'Bob Educator', expect.any(String),
+        'edu-1',
+        'class-1',
+        'Biology 101',
+        'Bob Educator',
+        expect.any(String),
       );
     });
 
@@ -303,14 +294,33 @@ describe('ClassTransfer (Controller + Service)', () => {
       await service.transfer(validDto, 'admin-1');
       await Promise.resolve();
       expect(notificationsGateway.notifyClassTransferTargetEducator).toHaveBeenCalledWith(
-        'edu-2', 'Biology 101', 'Alice Educator', expect.any(String),
+        'edu-2',
+        'class-1',
+        'Biology 101',
+        'Alice Educator',
+        expect.any(String),
       );
     });
 
     it('notification failure does NOT roll back the transfer', async () => {
-      notificationsGateway.notifyClassTransferSourceEducator
-        .mockRejectedValueOnce(new Error('socket down'));
+      notificationsGateway.notifyClassTransferSourceEducator.mockRejectedValueOnce(
+        new Error('socket down'),
+      );
       await expect(service.transfer(validDto, 'admin-1')).resolves.toMatchObject({ success: true });
+    });
+  });
+
+  describe('transfer() — rollback', () => {
+    it('sends no notification and propagates the error when the repository transaction fails', async () => {
+      classRepo.findOne.mockResolvedValue(makeClass());
+      educatorRepo.findOne
+        .mockResolvedValueOnce(makeEducator())
+        .mockResolvedValueOnce(makeEducator({ id: 'edu-2', full_name: 'Bob Educator' }));
+      classRepo.transferToEducator.mockRejectedValue(new Error('library sync failed'));
+
+      await expect(service.transfer(validDto, 'admin-1')).rejects.toThrow('library sync failed');
+      expect(notificationsGateway.notifyClassTransferSourceEducator).not.toHaveBeenCalled();
+      expect(notificationsGateway.notifyClassTransferTargetEducator).not.toHaveBeenCalled();
     });
   });
 
@@ -327,7 +337,9 @@ describe('ClassTransfer (Controller + Service)', () => {
       auditRepo.find.mockResolvedValue([makeAudit()]);
       await service.getAuditHistory({ classId: 'class-1' });
       expect(auditRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ classId: 'class-1' }) as object }),
+        expect.objectContaining({
+          where: expect.objectContaining({ classId: 'class-1' }) as object,
+        }),
       );
     });
 
@@ -335,7 +347,9 @@ describe('ClassTransfer (Controller + Service)', () => {
       auditRepo.find.mockResolvedValue([]);
       await service.getAuditHistory({ sourceEducatorId: 'edu-1' });
       expect(auditRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ sourceEducatorId: 'edu-1' }) as object }),
+        expect.objectContaining({
+          where: expect.objectContaining({ sourceEducatorId: 'edu-1' }) as object,
+        }),
       );
     });
 
@@ -343,7 +357,9 @@ describe('ClassTransfer (Controller + Service)', () => {
       auditRepo.find.mockResolvedValue([]);
       await service.getAuditHistory({ targetEducatorId: 'edu-2' });
       expect(auditRepo.find).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ targetEducatorId: 'edu-2' }) as object }),
+        expect.objectContaining({
+          where: expect.objectContaining({ targetEducatorId: 'edu-2' }) as object,
+        }),
       );
     });
 
@@ -357,46 +373,28 @@ describe('ClassTransfer (Controller + Service)', () => {
   // ── getEducatorClasses ────────────────────────────────────────────────
 
   describe('getEducatorClasses()', () => {
-    it('returns classes via QueryBuilder (no raw SQL)', async () => {
-      const qb = {
-        select: jest.fn().mockReturnThis(), leftJoin: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(), orderBy: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([makeClass(), makeClass({ id: 'class-2' })]),
-      };
-      classRepo.createQueryBuilder.mockReturnValue(qb);
+    it('returns classes via the repository adapter (no raw SQL)', async () => {
+      classRepo.findActiveByEducatorWithSchool.mockResolvedValue([
+        makeClass(),
+        makeClass({ id: 'class-2' }),
+      ]);
       const result = await service.getEducatorClasses('edu-1');
       expect(result.success).toBe(true);
       expect(result.data).toHaveLength(2);
     });
 
     it('returns empty array when educator has no classes', async () => {
-      const qb = {
-        select: jest.fn().mockReturnThis(), leftJoin: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(), orderBy: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([]),
-      };
-      classRepo.createQueryBuilder.mockReturnValue(qb);
+      classRepo.findActiveByEducatorWithSchool.mockResolvedValue([]);
       const result = await service.getEducatorClasses('edu-1');
       expect(result.data).toHaveLength(0);
     });
 
     it('Admin can call getEducatorClasses endpoint', async () => {
-      const qb = {
-        select: jest.fn().mockReturnThis(), leftJoin: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(), orderBy: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([makeClass()]),
-      };
-      classRepo.createQueryBuilder.mockReturnValue(qb);
+      classRepo.findActiveByEducatorWithSchool.mockResolvedValue([makeClass()]);
       const result = await controller.getEducatorClasses('edu-1', adminReq);
       expect(result.status).toBe(AppStatus.SUCCESS);
     });
 
-    it('Educator cannot call getEducatorClasses endpoint', async () => {
-      await expect(controller.getEducatorClasses('edu-1', educatorReq))
-        .rejects.toThrow(ForbiddenException);
-    });
+    // Educator lockout is now a declaration, asserted once in the RBAC block above.
   });
 });

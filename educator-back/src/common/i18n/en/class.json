@@ -1,0 +1,20 @@
+{
+  "TRANSFER": {
+    "BULK_COMPLETED": "{transferred} of {requested} classes transferred.",
+    "SAME_EDUCATOR": "The educator the classes are moving from and the receiving educator cannot be the same.",
+    "SOURCE_INACTIVE": "The educator the classes are moving from is not active.",
+    "TARGET_INACTIVE": "The receiving educator is not active.",
+    "MISSING_ADMIN": "Missing authenticated district admin id.",
+    "GOOGLE_ADD_TARGET_TO_COURSE": "This class is linked to Google Classroom. Add {targetName} to the Google Classroom course first so roster sync and grade passback keep working.",
+    "REASON": {
+      "CLASS_NOT_FOUND": "Class not found.",
+      "CLASS_INACTIVE": "This class is inactive and cannot be transferred.",
+      "CLASS_ARCHIVED": "This class is archived and cannot be transferred.",
+      "CLASS_NOT_OWNED_BY_SOURCE": "This class no longer belongs to the educator it is moving from.",
+      "TARGET_NOT_IN_CLASS_SCHOOL": "The receiving educator is not assigned to this class's school.",
+      "TARGET_NO_GOOGLE_CONNECTION": "This class is linked to Google Classroom and {targetName} has not connected Google for this school. Connect Google and add {targetName} to the Google Classroom course first.",
+      "TRANSFER_FAILED": "This class could not be transferred. Please try again.",
+      "NOT_PROCESSED": "This class was not processed because the request ran out of time. Please retry."
+    }
+  }
+}

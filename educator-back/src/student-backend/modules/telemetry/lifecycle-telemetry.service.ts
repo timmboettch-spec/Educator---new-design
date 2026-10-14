@@ -1,8 +1,11 @@
 /* eslint-disable @typescript-eslint/no-base-to-string */
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { trace, type Tracer } from '@opentelemetry/api';
+
+import { LoggerService } from '../../../common/services';
 
 import {
   LIFECYCLE_SCHEMA_VERSION,
@@ -26,7 +29,6 @@ import {
  */
 @Injectable()
 export class LifecycleTelemetryService {
-  private readonly logger = new Logger(LifecycleTelemetryService.name);
   private readonly tracer: Tracer;
 
   /**
@@ -46,10 +48,13 @@ export class LifecycleTelemetryService {
    */
   private readonly enabled: boolean;
 
-  constructor() {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly logger: LoggerService,
+  ) {
     this.tracer = trace.getTracer('lifecycle-telemetry-service', LIFECYCLE_SCHEMA_VERSION);
-    this.samplingPriority = parseInt(process.env.TELEMETRY_SAMPLING_PRIORITY ?? '100', 10);
-    this.enabled = process.env.TELEMETRY_LIFECYCLE_ENABLED !== 'false';
+    this.samplingPriority = this.configService.get<number>('telemetry.samplingPriority', 100);
+    this.enabled = this.configService.get<boolean>('telemetry.lifecycleEnabled', true);
 
     this.logger.log(
       `LifecycleTelemetryService initialized (enabled=${this.enabled}, samplingPriority=${this.samplingPriority})`,

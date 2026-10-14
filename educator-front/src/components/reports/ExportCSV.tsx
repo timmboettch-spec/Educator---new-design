@@ -6,7 +6,7 @@ export function ExportCSV(
   rows: string[][],
   fromDate: string,
   toDate: string,
-  filenameBase: string,
+  filenameBase: string
 ): void {
   const meta = getMetaLines(source, fromDate, toDate);
   const lines = [
@@ -15,7 +15,9 @@ export function ExportCSV(
     TABLE_HEADERS.join(','),
     ...rows.map((r) => r.map((v) => `"${v}"`).join(',')),
   ];
-  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob([lines.join('\n')], {
+    type: 'text/csv;charset=utf-8;',
+  });
   triggerDownload(blob, `${filenameBase}.csv`);
 }
 

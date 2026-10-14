@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { LmsSchoolConfig } from 'src/lms/entity/lms-school-config.entity';
+
 import { AuthModule } from 'src/auth/auth.module';
+import { ClassSimulationsModule } from 'src/class-simulations/class-simulations.module';
+import { ClassesModule } from 'src/class/classes.module';
 import { LmsModule } from 'src/lms/lms.module';
 import { StudentsModule } from 'src/students/students.module';
 import { LtiController } from './lti.controller';
@@ -10,11 +11,29 @@ import { LtiService } from './lti.service';
 import { LtiJwtService } from './lti-jwt.service';
 import { LtiStateService } from './lti-state.service';
 import { LtiSessionService } from './lti-session.service';
+import { LtiDeepLinkingService } from './services/lti-deep-linking.service';
+import { LtiSubmissionReviewService } from './services/lti-submission-review.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([LmsSchoolConfig]), AuthModule, LmsModule, StudentsModule],
+  imports: [AuthModule, ClassSimulationsModule, ClassesModule, LmsModule, StudentsModule],
   controllers: [LtiController],
-  providers: [LtiKeyService, LtiService, LtiJwtService, LtiStateService, LtiSessionService],
-  exports: [LtiKeyService, LtiService, LtiJwtService, LtiStateService, LtiSessionService],
+  providers: [
+    LtiKeyService,
+    LtiService,
+    LtiJwtService,
+    LtiStateService,
+    LtiSessionService,
+    LtiDeepLinkingService,
+    LtiSubmissionReviewService,
+  ],
+  exports: [
+    LtiKeyService,
+    LtiService,
+    LtiJwtService,
+    LtiStateService,
+    LtiSessionService,
+    LtiDeepLinkingService,
+    LtiSubmissionReviewService,
+  ],
 })
 export class LtiModule {}

@@ -6,13 +6,43 @@ set -euo pipefail
 
 # ── deploy (Bicep) ───────────────────────────────────────────────────────
 echo "::group::Bicep deploy ($BICEP_TEMPLATE)"
+DEPLOY_LOG="$(mktemp)"
+set +e
 # shellcheck disable=SC2086
 az deployment group create \
   --resource-group "$RESOURCE_GROUP" \
   --name "aca-deploy-${RUN_ID}" \
   --template-file "$BICEP_TEMPLATE" \
   --parameters $BICEP_PARAMS \
-  --only-show-errors
+  --only-show-errors 2>&1 | tee "$DEPLOY_LOG"
+DEPLOY_STATUS="${PIPESTATUS[0]}"
+set -e
+
+if [ "$DEPLOY_STATUS" -ne 0 ]; then
+  # Revision suffixes derived deterministically from the image tag (e.g.
+  # preview-deploy.bicep's uniqueString(backendImageTag)) are byte-identical
+  # across a re-run of the same commit/tag with no new push. That re-run then
+  # collides with the still-healthy revision the earlier run already created
+  # ("revision with suffix ... already exists"), even though nothing is
+  # actually wrong. Treat that specific, already-healthy case as a no-op
+  # instead of failing the whole deploy — anything else still fails for real.
+  COLLIDED_SUFFIX=$(grep -oP "revision with suffix \K\S+" "$DEPLOY_LOG" | head -1 || true)
+  if [ -n "$COLLIDED_SUFFIX" ]; then
+    echo "::warning::Revision suffix '$COLLIDED_SUFFIX' already exists — checking if it's a healthy leftover from a previous run of this same build."
+    EXISTING_STATE=$(az containerapp revision show \
+      --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+      --revision "${CONTAINER_APP}--${COLLIDED_SUFFIX}" \
+      --query "properties.healthState" -o tsv 2>/dev/null || echo "Unknown")
+    if [ "$EXISTING_STATE" = "Healthy" ]; then
+      echo "Existing revision ${CONTAINER_APP}--${COLLIDED_SUFFIX} is Healthy — treating this deploy as a no-op (same commit re-run)."
+    else
+      echo "::error::Revision suffix collision but existing revision is not Healthy (state: $EXISTING_STATE) — failing."
+      exit 1
+    fi
+  else
+    exit "$DEPLOY_STATUS"
+  fi
+fi
 echo "::endgroup::"
 
 # ── resolve fqdn + revision ──────────────────────────────────────────────

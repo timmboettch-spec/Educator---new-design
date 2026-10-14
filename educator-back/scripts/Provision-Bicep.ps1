@@ -29,9 +29,16 @@
 
 .NOTES
     Required env vars (read by *.bicepparam): IMAGE_TAG, POSTGRES_ADMIN_PASSWORD,
-    JWT_SECRET, GRAPH_CLIENT_SECRET, AZURE_STORAGE_CONNECTION_STRING,
-    GRAPH_TENANT_ID, GRAPH_CLIENT_ID, LTI_FALLBACK_KEY_ID,
-    LTI_FALLBACK_PRIVATE_KEY_PEM. Empty values preserve existing KV secrets.
+    JWT_SECRET, AZURE_STORAGE_CONNECTION_STRING, LTI_FALLBACK_KEY_ID,
+    LTI_FALLBACK_PRIVATE_KEY_PEM, OPENAI_API_KEY, APPLICATIONINSIGHTS_API_KEY,
+    SPEECH_ENGINE_API_KEY, EMAIL_USER, EMAIL_PASS, LMS_SECRETS_ENCRYPTION_KEY, CRYPTO_SECRET, AI_MODEL,
+    APPLICATIONINSIGHTS_APP_ID, REPORT_EMAIL_TO, EMAIL_HOST, EMAIL_PORT,
+    EMAIL_FROM, EMAIL_MODE. Empty values preserve existing KV secrets.
+
+    OPENAI_API_KEY / APPLICATIONINSIGHTS_API_KEY write to Educator's own
+    edu-openai-api-key / edu-appinsights-api-key secrets (seeded with the same
+    values as HS-Online-AI's shared OPENAI-API-KEY / APPLICATIONINSIGHTS-API-KEY
+    secrets) rather than referencing the shared secrets directly.
 
     This script ALSO sets BACKEND_CUSTOM_DOMAIN and BACKEND_CUSTOM_DOMAIN_CERT_ID
     based on the live ACA so re-provisions never wipe the binding.

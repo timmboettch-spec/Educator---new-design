@@ -21,14 +21,16 @@ if (!fs.existsSync(REPORTS_DIR)) {
   fs.mkdirSync(REPORTS_DIR, { recursive: true });
 }
 
-const results = /** @type {JestResults} */ (/** @type {unknown} */ (JSON.parse(fs.readFileSync(INPUT, 'utf-8'))));
+const results = /** @type {JestResults} */ (
+  /** @type {unknown} */ (JSON.parse(fs.readFileSync(INPUT, 'utf-8')))
+);
 
 /**
  * @param {string} str
  * @returns {string}
  */
 function toTitleCase(str) {
-  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 /**
@@ -92,9 +94,12 @@ const endTime = suites.reduce((max, s) => Math.max(max, s.endTime ?? 0), 0);
 const durationMs = endTime > startTime ? endTime - startTime : null;
 const durationLabel = durationMs !== null ? formatDuration(durationMs) : '—';
 
-let totalTests = 0, passed = 0, failed = 0, skipped = 0;
-suites.forEach(suite => {
-  (suite.assertionResults ?? []).forEach(t => {
+let totalTests = 0,
+  passed = 0,
+  failed = 0,
+  skipped = 0;
+suites.forEach((suite) => {
+  (suite.assertionResults ?? []).forEach((t) => {
     totalTests++;
     if (t.status === 'passed') passed++;
     else if (t.status === 'failed') failed++;
@@ -107,7 +112,7 @@ const generated = new Date().toLocaleString();
 /** @type {Map<string, ModuleEntry>} */
 const moduleMap = new Map();
 
-suites.forEach(suite => {
+suites.forEach((suite) => {
   const filePath = suite.name || suite.testFilePath || '';
   const modName = moduleNameFromPath(filePath);
   const label = fileLabel(filePath);
@@ -115,7 +120,7 @@ suites.forEach(suite => {
   const mod = /** @type {ModuleEntry} */ (moduleMap.get(modName));
   if (!mod.files.has(label)) mod.files.set(label, []);
   const fileTests = /** @type {AssertionResult[]} */ (mod.files.get(label));
-  (suite.assertionResults ?? []).forEach(t => {
+  (suite.assertionResults ?? []).forEach((t) => {
     fileTests.push(t);
     if (t.status === 'failed') mod.hasFail = true;
   });
@@ -128,8 +133,8 @@ function buildModuleSections() {
   let html = '';
   for (const [modName, mod] of moduleMap) {
     const allTests = [...mod.files.values()].flat();
-    const modPassed = allTests.filter(t => t.status === 'passed').length;
-    const modFailed = allTests.filter(t => t.status === 'failed').length;
+    const modPassed = allTests.filter((t) => t.status === 'passed').length;
+    const modFailed = allTests.filter((t) => t.status === 'failed').length;
     const modTotal = allTests.length;
     const failClass = mod.hasFail ? ' mod-fail' : '';
 
@@ -150,11 +155,14 @@ function buildModuleSections() {
         <div class="file-group">
           <div class="file-title">${escapeHtml(label)} (${tests.length} tests)</div>
           <div class="test-list">`;
-      tests.forEach(t => {
-        const status = t.status === 'passed' ? 'passed' : t.status === 'failed' ? 'failed' : 'skipped';
+      tests.forEach((t) => {
+        const status =
+          t.status === 'passed' ? 'passed' : t.status === 'failed' ? 'failed' : 'skipped';
         const ancestors = (t.ancestorTitles ?? []).join(' › ');
         const desc = ancestors ? escapeHtml(ancestors) : '—';
-        const errorMsg = (t.failureMessages ?? []).map(m => escapeHtml(m.split('\n')[0])).join(' ');
+        const errorMsg = (t.failureMessages ?? [])
+          .map((m) => escapeHtml(m.split('\n')[0]))
+          .join(' ');
         html += `
             <div class="test-card" data-status="${status}">
               <div class="test-item">

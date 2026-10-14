@@ -1,33 +1,29 @@
- 
- 
- 
-import { AlertCircle, CheckCircle, CheckCircle2, XCircle } from "lucide-react";
-import { translateSequencingPhrase } from "./translateSequencingPhrase";
+import { useEffect } from 'react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  CheckCircle2,
+  Trophy,
+  XCircle,
+} from 'lucide-react';
+import { translateSequencingPhrase } from './translateSequencingPhrase';
 
-// ─── Medication / order title translation ─────────────────────────────────
-// English → Spanish medication or order-title map. Keys are stored in a
-// canonical form: NFKC-normalized, lowercased, whitespace collapsed, and
-// every dash variant (hyphen-minus, hyphen, non-breaking hyphen, figure
-// dash, en-dash, em-dash, horizontal bar, minus) mapped to a plain "-"
-// so the input dash style does not matter. Extend as more scenarios
-// surface untranslated names — the long-term fix is for the backend to
-// return pre-localized order titles (same pattern HS-online uses via
-// its scenario-orders pairing map).
 const MEDICATION_NAME_ES: Record<string, string> = {
-  "cold therapy - ice application": "Terapia de Frío – Aplicación de Hielo",
+  'cold therapy - ice application': 'Terapia de Frío – Aplicación de Hielo',
 };
 
 const normalizeMedKey = (raw: string): string =>
   raw
-    .normalize("NFKC")
-    .replace(/\u00A0/g, " ")
-    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, "-")
+    .normalize('NFKC')
+    .replace(/\u00A0/g, ' ')
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2015\u2212]/g, '-')
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, " ");
+    .replace(/\s+/g, ' ');
 
-function translateMedName(name: string, language: "en" | "es"): string {
-  if (!name || language !== "es") return name;
+function translateMedName(name: string, language: 'en' | 'es'): string {
+  if (!name || language !== 'es') return name;
   return MEDICATION_NAME_ES[normalizeMedKey(name)] ?? name;
 }
 
@@ -76,53 +72,136 @@ export interface RubricsLabels {
   noItems: string;
   noneIdentified: string;
   weight: string;
+  outOf100?: string;
+  jumpTo?: string;
+  seqSublabelPrioritizedCorrectly?: string;
+  seqSublabelNotPrioritizedCorrectly?: string;
+  seqExampleOutOfOrderGeneric?: string;
+  seqSummaryContext?: string;
+  seqPerfAll?: string;
+  seqPerfMost?: string;
+  seqPerfFew?: string;
+  seqPerfNone?: string;
+  seqRecReflectEbp?: string;
+  priorityCompletedCorrectly?: string;
+  priorityCompletedIncorrectly?: string;
+  priorityNotCompleted?: string;
+  nonPriorityActionsPerformed?: string;
+  otherNonPriorityCompleted?: string;
+  recReviewEvidenceBased?: string;
+  recReviewBriefingSbar?: string;
+  recReflect?: string;
+  recReflectSafety?: string;
+  recReflectDocumentation?: string;
+  recReflectCommunication?: string;
+  recReflectMedication?: string;
+  actionsTitle?: string;
+  prioritySummary?: string;
+  distractorSummary?: string;
+  optionalSummary?: string;
+  otherNonPrioritySummary?: string;
 }
 
 const defaultRubricsLabels: RubricsLabels = {
-  na: "N/A",
-  exceptional: "EXCEPTIONAL",
-  meetsExpectations: "MEETS EXPECTATIONS",
-  needsImprovement: "NEEDS IMPROVEMENT",
-  actions: "Actions & Interventions",
-  medications: "Medications",
-  ppe: "PPE, Privacy, & Safety Actions",
-  documentation: "Clinical Documentation",
-  communication: "Communication",
-  sequencing: "Sequencing & Prioritization",
-  noMandatoryActions: "No mandatory actions or interventions were configured for this scenario.",
-  noMandatoryPpe: "No mandatory PPE, privacy or safety requirements were configured for this scenario.",
-  performedMultipleTimes: "Performed multiple times",
-  teamCommunication: "TEAM COMMUNICATION",
-  satisfactory: "SATISFACTORY",
-  unsatisfactory: "UNSATISFACTORY",
-  notDone: "NOT DONE",
-  optionalActionsCompleted: "Optional Actions Completed",
-  optionalMedicationsCompleted: "Optional Medications Completed",
-  distractorActionsCompleted: "Distractor Actions Completed",
-  noDistractorActions: "No distractor actions performed.",
-  noDistractorMedications: "No distractor medications administered.",
-  medicationAdministeredCorrectly: "Medication administered correctly.",
-  medicationNotAdministeredCorrectly: "Medication was not administered correctly.",
-  mandatoryMedicationMissed: "Mandatory medication was not administered.",
-  medicationsSummaryNone: "No medication orders were administered.",
-  medicationsSummaryAllCorrect: "All mandatory medication orders were administered correctly.",
-  medicationsSummaryAllMissed: "{n} mandatory medication order(s) were missed.",
-  medicationsSummaryPartial: "{a} of {b} mandatory medication order(s) were administered correctly.",
-  medicationsSummaryOptional: "{n} optional medication(s) completed correctly.",
-  sequencingPending: "Sequencing & Prioritization grading is pending",
-  sequencingReview: "Review the sequencing requirements for these steps to improve clinical prioritization.",
-  inappropriateActions: "Inappropriate Actions",
-  inappropriateIntro: "During this simulation, one or more actions were classified as inappropriate or distractor actions within the context of this scenario. These actions were not aligned with the expected clinical pathway or defined scenario objectives. Although identified as inappropriate, these actions do not affect the overall score or grade for this simulation.",
-  inappropriateMayReflect: "Inappropriate actions may reflect:",
-  recommendationsContext: "The actions listed above were inappropriate within the context of this scenario. These actions should generally be avoided in clinical situations similar to this one unless clearly supported by patient assessment findings.",
-  inappropriateNoImpact: "The inappropriate actions identified here do not impact",
-  strengths: "Strengths",
-  weaknesses: "Weaknesses / Opportunities",
-  improvementRecommendations: "Improvement Recommendations",
-  noItemsIdentified: "No items identified.",
-  noItems: "No items.",
-  noneIdentified: "None identified.",
-  weight: "WEIGHT",
+  na: 'N/A',
+  exceptional: 'EXCEPTIONAL',
+  meetsExpectations: 'MEETS EXPECTATIONS',
+  needsImprovement: 'NEEDS IMPROVEMENT',
+  actions: 'Actions & Interventions',
+  medications: 'Medications',
+  ppe: 'Implementation of Common Strategies for Privacy, Infection Prevention & Environmental Safety',
+  documentation: 'Completion of Documentation in the Electronic Record',
+  communication: 'Demonstration of Professional & Therapeutic Communication',
+  sequencing: 'Prioritization of Care',
+  noMandatoryActions:
+    'No mandatory actions or interventions were configured for this scenario.',
+  noMandatoryPpe:
+    'No mandatory PPE, privacy or safety requirements were configured for this scenario.',
+  performedMultipleTimes: 'Performed multiple times',
+  teamCommunication: 'TEAM COMMUNICATION',
+  satisfactory: 'SATISFACTORY',
+  unsatisfactory: 'UNSATISFACTORY',
+  notDone: 'NOT DONE',
+  optionalActionsCompleted: 'Optional Actions Completed',
+  optionalMedicationsCompleted: 'Optional Medications Completed',
+  distractorActionsCompleted: 'Distractor Actions Completed',
+  noDistractorActions: 'No distractor actions performed.',
+  noDistractorMedications: 'No distractor medications administered.',
+  medicationAdministeredCorrectly: 'Medication administered correctly.',
+  medicationNotAdministeredCorrectly:
+    'Medication was not administered correctly.',
+  mandatoryMedicationMissed: 'Mandatory medication was not administered.',
+  medicationsSummaryNone: 'No medication orders were administered.',
+  medicationsSummaryAllCorrect:
+    'All mandatory medication orders were administered correctly.',
+  medicationsSummaryAllMissed: '{n} mandatory medication order(s) were missed.',
+  medicationsSummaryPartial:
+    '{a} of {b} mandatory medication order(s) were administered correctly.',
+  medicationsSummaryOptional: '{n} optional medication(s) completed correctly.',
+  sequencingPending: 'Sequencing & Prioritization grading is pending',
+  sequencingReview:
+    'Review the sequencing requirements for these steps to improve clinical prioritization.',
+  inappropriateActions: 'Inappropriate Actions',
+  inappropriateIntro:
+    'During this simulation, one or more actions were classified as inappropriate or distractor actions within the context of this scenario. These actions were not aligned with the expected clinical pathway or defined scenario objectives. Although identified as inappropriate, these actions do not affect the overall score or grade for this simulation.',
+  inappropriateMayReflect: 'Inappropriate actions may reflect:',
+  recommendationsContext:
+    'The actions listed above were inappropriate within the context of this scenario. These actions should generally be avoided in clinical situations similar to this one unless clearly supported by patient assessment findings.',
+  inappropriateNoImpact:
+    'The inappropriate actions identified here do not impact',
+  strengths: 'Strengths',
+  weaknesses: 'Weaknesses / Opportunities',
+  improvementRecommendations: 'Improvement Recommendations',
+  noItemsIdentified: 'No items identified.',
+  noItems: 'No items.',
+  noneIdentified: 'None identified.',
+  priorityCompletedCorrectly: 'PRIORITY ITEMS COMPLETED CORRECTLY',
+  priorityCompletedIncorrectly: 'PRIORITY ITEMS COMPLETED INCORRECTLY',
+  priorityNotCompleted: 'PRIORITY ITEMS NOT COMPLETED',
+  nonPriorityActionsPerformed: 'NON-PRIORITY ACTIONS PERFORMED',
+  otherNonPriorityCompleted: 'Other Non-Priority Items Completed',
+  recReviewEvidenceBased:
+    'Review the evidence-based rationale and guidelines for clinical interventions performed during patient care.',
+  recReviewBriefingSbar:
+    'Review the pre-simulation scenario briefing, clinical documentation, and SBAR handover to ensure all mandatory assessments, interventions, and safety checks are identified and completed.',
+  recReflect:
+    'Reflect on your overall clinical decision-making during the simulation and identify specific opportunities to improve care delivery in future scenarios.',
+  recReflectSafety:
+    'Reflect on infection prevention, patient privacy, and environmental safety protocols to ensure a safe clinical environment.',
+  recReflectDocumentation:
+    'Reflect on thorough and timely electronic health record documentation standards to support continuity of care.',
+  recReflectCommunication:
+    'Reflect on professional communication and SBAR handoff protocols to enhance care team collaboration and patient interaction.',
+  recReflectMedication:
+    'Reflect on safe medication administration rights and verification protocols to prevent medication errors.',
+  actionsTitle: 'Completion of Assessments, Care, Interventions, & Tasks',
+  prioritySummary:
+    'The student correctly completed {correct} of the {total} required priority item(s) for this simulation.',
+  distractorSummary:
+    'The student also performed {count} distractor item(s) that were not an appropriate or prioritized item for this simulation.',
+  optionalSummary:
+    'The student also completed {count} non-priority optional action(s).',
+  otherNonPrioritySummary:
+    'Other non-priority items were also completed correctly ({count}).',
+  weight: 'WEIGHT',
+  outOf100: 'out of 100',
+  jumpTo: 'Jump To',
+  seqSublabelPrioritizedCorrectly: 'Items Prioritized Correctly',
+  seqSublabelNotPrioritizedCorrectly: 'Items Not Prioritized Correctly',
+  seqExampleOutOfOrderGeneric:
+    'Review scenario clinical guidelines to ensure critical actions are performed in the correct sequence.',
+  seqSummaryContext:
+    'During a clinical scenario, performing actions in the proper order is essential to ensure patient safety, support effective care transitions, and prevent complications.',
+  seqPerfAll:
+    'The student prioritized and performed all {passed} of {total} required clinical actions in the correct sequence.',
+  seqPerfMost:
+    'The student prioritized and performed most clinical actions ({passed} of {total}) in the correct sequence.',
+  seqPerfFew:
+    'The student prioritized and performed few clinical actions ({passed} of {total}) in the correct sequence.',
+  seqPerfNone:
+    'The student did not prioritize or perform any of the required clinical actions in the correct sequence.',
+  seqRecReflectEbp:
+    'Reflect on evidence-based practice rationale for sequencing actions to establish a clear clinical workflow during patient care.',
 };
 
 type StrengthWeakness = {
@@ -214,10 +293,44 @@ export type RubricsPayload = {
 };
 
 function formatScore(value: unknown) {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return "—";
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return '—';
   }
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function BadgeTrophy({ label, score }: { label?: string; score?: number }) {
+  if (typeof score !== 'number' || isNaN(score) || !label) {
+    return null;
+  }
+
+  const isExceptional =
+    label.toLowerCase().includes('exceptional') ||
+    label.toLowerCase().includes('excepcional');
+
+  const isMeets =
+    label.toLowerCase().includes('meets') ||
+    label.toLowerCase().includes('cumple');
+
+  if (isExceptional) {
+    return (
+      <Trophy
+        data-pdf-trophy
+        className="w-4 h-4 text-amber-500 fill-amber-400 flex-shrink-0 overflow-visible"
+      />
+    );
+  }
+
+  if (isMeets) {
+    return (
+      <Trophy
+        data-pdf-trophy
+        className="w-4 h-4 text-slate-400 fill-slate-300 flex-shrink-0 overflow-visible"
+      />
+    );
+  }
+
+  return null;
 }
 
 function ScoreBadge({
@@ -233,96 +346,148 @@ function ScoreBadge({
   subCategory?: string;
   labels?: RubricsLabels;
 }) {
-  const num = typeof score === "number" && !isNaN(score) ? score : undefined;
+  const num = typeof score === 'number' && !isNaN(score) ? score : undefined;
 
   const displayValue =
-    typeof weightedScore === "number" && !isNaN(weightedScore)
+    typeof weightedScore === 'number' && !isNaN(weightedScore)
       ? weightedScore
       : score;
   const maxValue = weight ?? 100;
 
   const isDocumentation =
-    subCategory?.toLowerCase() === "documentation" ||
-    subCategory?.toLowerCase() === "clinical documentation";
+    subCategory?.toLowerCase() === 'documentation' ||
+    subCategory?.toLowerCase() === 'clinical documentation';
 
   const styleKey =
     num === undefined
-      ? "na"
+      ? 'na'
       : isDocumentation
-        ? num >= 70 ? "exceptional" : num >= 51 ? "meet" : "needsImprovement"
-        : num > 90 ? "exceptional" : num >= 75 ? "meetsExpectations" : "needsImprovement";
+        ? num >= 70
+          ? 'exceptional'
+          : num >= 51
+            ? 'meet'
+            : 'needsImprovement'
+        : num > 90
+          ? 'exceptional'
+          : num >= 75
+            ? 'meetsExpectations'
+            : 'needsImprovement';
 
-  const styleMap: Record<string, { bg: string; border: string; text: string; color: string; label: string }> = {
-    na: { bg: "bg-gray-100", border: "border-gray-300", text: "text-gray-500", color: "#6b7280", label: labels.na },
-    exceptional: { bg: "bg-blue-50", border: "border-blue-200", text: "text-blue-600", color: "#1d4ed8", label: labels.exceptional },
-    meet: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-600", color: "#059669", label: labels.meetsExpectations },
-    meetsExpectations: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-600", color: "#059669", label: labels.meetsExpectations },
-    needsImprovement: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", color: "#b91c1c", label: labels.needsImprovement },
+  const styleMap: Record<
+    string,
+    { bg: string; border: string; text: string; color: string; label: string }
+  > = {
+    na: {
+      bg: 'bg-gray-100',
+      border: 'border-gray-300',
+      text: 'text-gray-500',
+      color: '#6b7280',
+      label: labels.na,
+    },
+    exceptional: {
+      bg: 'bg-blue-50',
+      border: 'border-blue-200',
+      text: 'text-blue-600',
+      color: '#1d4ed8',
+      label: labels.exceptional,
+    },
+    meet: {
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
+      text: 'text-emerald-600',
+      color: '#059669',
+      label: labels.meetsExpectations,
+    },
+    meetsExpectations: {
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200',
+      text: 'text-emerald-600',
+      color: '#059669',
+      label: labels.meetsExpectations,
+    },
+    needsImprovement: {
+      bg: 'bg-red-50',
+      border: 'border-red-200',
+      text: 'text-red-700',
+      color: '#b91c1c',
+      label: labels.needsImprovement,
+    },
   };
 
   const styles = styleMap[styleKey];
 
   return (
-    <span
-      className="text-sm font-semibold uppercase tracking-wide"
-      style={{ color: styles.color }}
+    <div
+      className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0"
       title={
         displayValue !== undefined
           ? `Score: ${formatScore(displayValue)} / ${maxValue}`
           : undefined
       }
     >
-      {styles.label}
-    </span>
+      <BadgeTrophy label={styles.label} score={num} />
+      <span style={{ color: styles.color }}>{styles.label}</span>
+    </div>
   );
 }
 
-function SequencingLabelBadge({ score, labels = defaultRubricsLabels }: { score?: number; labels?: RubricsLabels }) {
-  const pct = typeof score === "number" && !isNaN(score) ? score : undefined;
-  const styleKey = pct === undefined ? "na" : pct > 90 ? "exceptional" : pct >= 75 ? "meetsExpectations" : "needsImprovement";
+function SequencingLabelBadge({
+  score,
+  labels = defaultRubricsLabels,
+}: {
+  score?: number;
+  labels?: RubricsLabels;
+}) {
+  const pct = typeof score === 'number' && !isNaN(score) ? score : undefined;
+  const styleKey =
+    pct === undefined
+      ? 'na'
+      : pct > 90
+        ? 'exceptional'
+        : pct >= 75
+          ? 'meetsExpectations'
+          : 'needsImprovement';
   const styleMap: Record<string, { color: string; label: string }> = {
-    na: { color: "#6b7280", label: labels.na },
-    exceptional: { color: "#1d4ed8", label: labels.exceptional },
-    meetsExpectations: { color: "#059669", label: labels.meetsExpectations },
-    needsImprovement: { color: "#b91c1c", label: labels.needsImprovement },
+    na: { color: '#6b7280', label: labels.na },
+    exceptional: { color: '#1d4ed8', label: labels.exceptional },
+    meetsExpectations: { color: '#059669', label: labels.meetsExpectations },
+    needsImprovement: { color: '#b91c1c', label: labels.needsImprovement },
   };
   const styles = styleMap[styleKey];
   return (
-    <span
-      className="text-sm font-bold tracking-wide uppercase"
-      style={{ color: styles.color }}
-    >
-      {styles.label}
-    </span>
+    <div className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider whitespace-nowrap flex-shrink-0">
+      <BadgeTrophy label={styles.label} score={pct} />
+      <span style={{ color: styles.color }}>{styles.label}</span>
+    </div>
   );
 }
 
-type BadgeTone = "good" | "warn" | "info" | "danger" | "neutral" | "orange";
+type BadgeTone = 'good' | 'warn' | 'info' | 'danger' | 'neutral' | 'orange';
 
 const BADGE_STYLES: Record<BadgeTone, { pill: string; dot: string }> = {
   good: {
-    pill: "bg-emerald-50 border-emerald-200 text-emerald-800",
-    dot: "bg-emerald-500",
+    pill: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+    dot: 'bg-emerald-500',
   },
   warn: {
-    pill: "bg-amber-50 border-amber-200 text-amber-800",
-    dot: "bg-amber-500",
+    pill: 'bg-amber-50 border-amber-200 text-amber-800',
+    dot: 'bg-amber-500',
   },
   info: {
-    pill: "bg-blue-50 border-blue-200 text-blue-800",
-    dot: "bg-blue-500",
+    pill: 'bg-blue-50 border-blue-200 text-blue-800',
+    dot: 'bg-blue-500',
   },
   danger: {
-    pill: "bg-red-50 border-red-200 text-red-800",
-    dot: "bg-red-500",
+    pill: 'bg-red-50 border-red-200 text-red-800',
+    dot: 'bg-red-500',
   },
   orange: {
-    pill: "bg-primary-50 border-primary-200 text-primary-800",
-    dot: "bg-primary-500",
+    pill: 'bg-orange-50 border-orange-200 text-orange-800',
+    dot: 'bg-orange-500',
   },
   neutral: {
-    pill: "bg-gray-100 border-gray-300 text-gray-600",
-    dot: "bg-gray-400",
+    pill: 'bg-gray-100 border-gray-300 text-gray-600',
+    dot: 'bg-gray-400',
   },
 };
 
@@ -338,15 +503,15 @@ function SectionBadge({
   const s = BADGE_STYLES[tone];
   // PDF text color mapped by label text (matches user-requested spec)
   const lower = title.toLowerCase();
-  const pdfColor = lower.includes("strength")
-    ? "#065f46"
-    : lower.includes("weakness") || lower.includes("opportunit")
-      ? "#dc2626"
-      : lower.includes("optional")
-        ? "#eab308"
-        : lower.includes("distractor")
-          ? "#b45309"
-          : "#374151";
+  const pdfColor = lower.includes('strength')
+    ? '#065f46'
+    : lower.includes('weakness') || lower.includes('opportunit')
+      ? '#dc2626'
+      : lower.includes('optional')
+        ? '#eab308'
+        : lower.includes('distractor')
+          ? '#b45309'
+          : '#374151';
   return (
     <>
       {/* On-screen pill — stripped from PDF via ignoreElements */}
@@ -367,23 +532,251 @@ function SectionBadge({
         data-pdfonly
         aria-hidden="true"
         style={{
-          display: "none",
+          display: 'none',
           color: pdfColor,
           fontWeight: 600,
-          fontSize: "12px",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
+          fontSize: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
         }}
       >
-        {title}&nbsp;{count}
+        {title} ({count})
       </span>
     </>
   );
 }
 
-function ItemRow({ item, tone, performedMultipleTimesLabel = "Performed multiple times" }: { item: StrengthWeakness; tone: BadgeTone; performedMultipleTimesLabel?: string }) {
+function cleanSequencingStrengthPoint(rawPoint: string): string {
+  let cleaned = rawPoint.trim();
+  cleaned = cleaned.replace(/^correctly\s+sequenced\s*:\s*/i, '');
+  cleaned = cleaned.replace(/^correctly\s+sequenced\s+/i, '');
+  cleaned = cleaned.replace(
+    /\s*\(\s*(group|subgroup)\s+[a-z0-9\s>]+\s*\)/gi,
+    ''
+  );
+  cleaned = cleaned.replace(/→\s*and\s+\d+\s+more.*/i, '');
+  cleaned = cleaned.replace(/and\s+\d+\s+more.*/i, '');
+  cleaned = cleaned.replace(/\s*performed\s*$/i, '');
+  cleaned = cleaned.replace(/^['"“‘]+|['"”’]+$/g, '');
+  return cleaned.trim() || rawPoint;
+}
+
+function isGenericGroupLabel(txt: string): boolean {
+  if (!txt) return true;
+  const clean = txt.trim().toLowerCase();
+  if (/overall\s+sequencing/i.test(clean)) return true;
+  if (/\bgroup\s+[a-z0-9]/i.test(clean)) return true;
+  if (/\bsubgroup\s+[a-z0-9]/i.test(clean)) return true;
+  if (/all\s+groups/i.test(clean)) return true;
+  if (/\b(strict|flexible)\b/i.test(clean)) return true;
+  if (/timing\s+requirement/i.test(clean)) return true;
+  if (/review\s+scenario\s+clinical\s+guidelines/i.test(clean)) return true;
+  return false;
+}
+
+function extractActionNamesFromSentence(text: string): string[] {
+  if (!text) return [];
+  const extracted: string[] = [];
+
+  const matches = text.match(/['"“]([^'"”]+)['"”]/g);
+  if (matches) {
+    matches.forEach((m) => {
+      const cleaned = cleanSequencingStrengthPoint(m);
+      if (cleaned && !isGenericGroupLabel(cleaned)) {
+        extracted.push(cleaned);
+      }
+    });
+  }
+
+  if (extracted.length === 0) {
+    let cleanText = text;
+    cleanText = cleanText.replace(/^specific\s+issues\s*:\s*/i, '');
+    cleanText = cleanText.replace(/was\s+performed\s+(before|after).*/i, '');
+    cleanText = cleanText.replace(/was\s+not\s+(completed|performed).*/i, '');
+    cleanText = cleanText.replace(/was\s+completed\s+out\s+of\s+order.*/i, '');
+    cleanText = cleanText.replace(
+      /this\s+(group|subgroup)\s+includes\s*:\s*/i,
+      ''
+    );
+    cleanText = cleanText.replace(/no\s+items\s+were\s+completed.*/i, '');
+    const cleaned = cleanSequencingStrengthPoint(cleanText);
+    if (cleaned && !isGenericGroupLabel(cleaned) && cleaned.length > 2) {
+      extracted.push(cleaned);
+    }
+  }
+
+  return extracted;
+}
+
+function extractOutOfOrderActions(
+  weaknessList: StrengthWeakness[],
+  parentResultsArr: SequencingParentResult[],
+  _fallbackDefault?: string
+): string[] {
+  const actions: string[] = [];
+
+  for (const w of weaknessList) {
+    if (w.point) {
+      actions.push(...extractActionNamesFromSentence(w.point));
+    }
+    if (w.example) {
+      actions.push(...extractActionNamesFromSentence(w.example));
+    }
+  }
+
+  if (Array.isArray(parentResultsArr)) {
+    for (const pr of parentResultsArr) {
+      if (Array.isArray(pr.failedReasons)) {
+        for (const reason of pr.failedReasons) {
+          actions.push(...extractActionNamesFromSentence(reason));
+        }
+      }
+      if (pr.parentLabel && !isGenericGroupLabel(pr.parentLabel)) {
+        const cleaned = cleanSequencingStrengthPoint(pr.parentLabel);
+        if (cleaned && !isGenericGroupLabel(cleaned)) {
+          actions.push(cleaned);
+        }
+      }
+    }
+  }
+
+  return Array.from(new Set(actions)).filter(Boolean);
+}
+
+function buildSequencingSummaryText(
+  passedCount: number,
+  totalCount: number,
+  labels: RubricsLabels
+): string {
+  const contextSentence =
+    labels.seqSummaryContext || defaultRubricsLabels.seqSummaryContext!;
+  let performanceSentence = '';
+
+  if (passedCount === totalCount) {
+    performanceSentence = (
+      labels.seqPerfAll || defaultRubricsLabels.seqPerfAll!
+    )
+      .replace('{passed}', String(passedCount))
+      .replace('{total}', String(totalCount));
+  } else if (passedCount > 0 && passedCount >= Math.floor(totalCount / 2)) {
+    performanceSentence = (
+      labels.seqPerfMost || defaultRubricsLabels.seqPerfMost!
+    )
+      .replace('{passed}', String(passedCount))
+      .replace('{total}', String(totalCount));
+  } else if (passedCount > 0) {
+    performanceSentence = (
+      labels.seqPerfFew || defaultRubricsLabels.seqPerfFew!
+    )
+      .replace('{passed}', String(passedCount))
+      .replace('{total}', String(totalCount));
+  } else {
+    performanceSentence = (
+      labels.seqPerfNone || defaultRubricsLabels.seqPerfNone!
+    )
+      .replace('{passed}', String(passedCount))
+      .replace('{total}', String(totalCount));
+  }
+
+  return `${contextSentence} ${performanceSentence}`;
+}
+
+export function isNotPerformed(text?: string | null): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('no evidence') ||
+    lower.includes('not documented') ||
+    lower.includes('not found') ||
+    lower.includes('not detected') ||
+    lower.includes('not recorded') ||
+    lower.includes('was not performed') ||
+    lower.includes('was not administered') ||
+    lower.includes('not performed') ||
+    lower.includes('not completed') ||
+    lower.includes('no se realizó') ||
+    lower.includes('no documentado')
+  );
+}
+
+export function stripActionPhrasing(text?: string | null): string {
+  if (!text) return '';
+
+  // Prefer quoted title when available (e.g. '...action "Obtain Vital Signs"' -> 'Obtain Vital Signs')
+  const quotedMatch = text.match(/["'“]([^"'”]+)["'”]/);
+  if (quotedMatch && quotedMatch[1]?.trim()) {
+    return quotedMatch[1].trim();
+  }
+
+  // De-duplicate action phrasing
+  const cleaned = text
+    .replace(
+      /^Correctly\s+(?:completed|performed|administered)\s*(?:action\s*)?:?\s*/i,
+      ''
+    )
+    .replace(
+      /^(?:Failed to|Did not|Omitted|Missed)\s+(?:complete|perform|administer)\s*(?:action\s*)?:?\s*/i,
+      ''
+    )
+    .replace(/^Correctly performed vital signs action\s*/i, '')
+    .replace(/^Completed action\s*/i, '')
+    .replace(/\s+correctly$/i, '')
+    .replace(/^Criterion\s+(?:not\s+)?met\s*:\s*/i, '')
+    .replace(/^Criterio\s+(?:no\s+)?cumplido\s*:\s*/i, '')
+    .trim();
+
+  return cleaned || text;
+}
+
+function buildGeneratedNarrative(
+  allStrengthsCount: number,
+  allWeaknessesCount: number,
+  distractorCount: number,
+  optionalCount: number,
+  fallbackSummary: string | undefined,
+  labels: RubricsLabels
+): string {
+  const totalPriority = allStrengthsCount + allWeaknessesCount;
+
+  if (totalPriority === 0) {
+    return (
+      fallbackSummary ||
+      labels.noMandatoryActions ||
+      'No mandatory actions required for this simulation.'
+    );
+  }
+
+  let narrative = (
+    labels.prioritySummary ||
+    'The student correctly completed {correct} of the {total} required priority item(s) for this simulation.'
+  )
+    .replace('{correct}', String(allStrengthsCount))
+    .replace('{total}', String(totalPriority));
+
+  const nonPriorityCount = distractorCount + optionalCount;
+  if (nonPriorityCount > 0) {
+    narrative +=
+      ' ' +
+      (
+        labels.otherNonPrioritySummary ||
+        'Other non-priority items were also completed correctly ({count}).'
+      ).replace('{count}', String(nonPriorityCount));
+  }
+
+  return narrative;
+}
+
+function ItemRow({
+  item,
+  tone,
+  performedMultipleTimesLabel = 'Performed multiple times',
+}: {
+  item: StrengthWeakness;
+  tone: BadgeTone;
+  performedMultipleTimesLabel?: string;
+}) {
   const s = BADGE_STYLES[tone];
-  const Icon = tone === "good" ? CheckCircle : AlertCircle;
+  const Icon = tone === 'good' ? CheckCircle : AlertCircle;
   return (
     <div data-pdf-nobreak className="flex items-start gap-3 py-2.5">
       <div
@@ -393,42 +786,55 @@ function ItemRow({ item, tone, performedMultipleTimesLabel = "Performed multiple
       </div>
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-800 leading-relaxed">
-          {item.point}
+          {stripActionPhrasing(item.point)}
         </p>
-        {item.count && item.count > 1 && (
-          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-            {performedMultipleTimesLabel}
-          </p>
-        )}
         {(() => {
-          // Medication strengths must still show the "Medicamento
-          // administrado correctamente" subtitle to match HS-online.
-          // For non-medication strengths keep the example hidden.
-          const exampleText = item.example ?? "";
+          const isMultipleTimes =
+            (typeof item.count === 'number' && item.count > 1) ||
+            /performed\s+multiple\s+times|multiple\s+times|varias\s+veces|realizado\s+varias\s+veces|repetido/i.test(
+              `${item.example ?? ''} ${item.point ?? ''}`
+            );
+
+          const isMultipleTimesExample =
+            /^(performed\s+multiple\s+times|multiple\s+times|varias\s+veces|realizado\s+varias\s+veces|repetido)$/i.test(
+              (item.example ?? '').trim()
+            );
+
           const isMedication =
-            exampleText.toLowerCase().includes("medication") ||
-            exampleText.toLowerCase().includes("medicamento");
-          if (isMedication && tone === "good") {
-            return (
-              <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                {exampleText}
-              </p>
-            );
-          }
-          if (item.example && tone !== "good") {
-            return (
-              <p className="text-xs text-gray-500 mt-1 italic leading-relaxed">
-                {item.example}
-              </p>
-            );
-          }
-          return null;
+            (item.example ?? '').toLowerCase().includes('medication') ||
+            (item.example ?? '').toLowerCase().includes('medicamento');
+
+          return (
+            <>
+              {isMultipleTimes && (
+                <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                  {performedMultipleTimesLabel}
+                </p>
+              )}
+              {isMedication ? (
+                tone === 'good' ? (
+                  <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                    {item.example}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-0.5 italic leading-relaxed">
+                    {item.example}
+                  </p>
+                )
+              ) : item.example && tone !== 'good' && !isMultipleTimesExample ? (
+                <p className="text-xs text-gray-500 mt-0.5 italic leading-relaxed">
+                  {item.example}
+                </p>
+              ) : null}
+            </>
+          );
         })()}
       </div>
     </div>
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ActionRow({
   action,
   tone,
@@ -437,17 +843,18 @@ function ActionRow({
   tone: BadgeTone;
 }) {
   const s = BADGE_STYLES[tone];
-  const isInstructor = tone === "neutral";
+  const isInstructor = tone === 'neutral';
   // Optional medications surface in this row regardless of correctness so the
   // learner can see they administered it. Reflect the result with a status
   // badge / red icon when the attempt was not fully correct.
-  const isMedication = action.type === "medication";
+  const isMedication = action.type === 'medication';
   const isIncorrect = isMedication && action.isCorrect === false;
   return (
     <div data-pdf-nobreak className="flex items-start gap-3 py-2.5">
       <div
-        className={`w-6 h-6 rounded-full ${isIncorrect ? "bg-red-500" : s.dot
-          } flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm`}
+        className={`w-6 h-6 rounded-full ${
+          isIncorrect ? 'bg-red-500' : s.dot
+        } flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm`}
       >
         {isIncorrect ? (
           <XCircle className="w-3.5 h-3.5 text-white" />
@@ -457,19 +864,19 @@ function ActionRow({
       </div>
       <div className="min-w-0 flex-1">
         <p
-          className={`text-sm leading-relaxed ${isInstructor ? "italic text-gray-500" : "font-medium text-gray-800"}`}
+          className={`text-sm leading-relaxed ${isInstructor ? 'italic text-gray-500' : 'font-medium text-gray-800'}`}
         >
           {action.title}
         </p>
         {isMedication && (
           <p className="text-xs text-gray-500 mt-1 leading-relaxed">
             {isIncorrect
-              ? "Medication performed incorrectly"
-              : "Medication performed correctly"}
+              ? 'Medication performed incorrectly'
+              : 'Medication performed correctly'}
           </p>
         )}
         {isInstructor && (
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-xs text-gray-400 mt-0.5">
             Not part of the scenario codes — excluded for educator review
           </p>
         )}
@@ -479,7 +886,7 @@ function ActionRow({
 }
 
 function EmptyNote({ text }: { text: string }) {
-  return <p className="text-sm text-gray-500 italic pl-1 py-1">{text}</p>;
+  return <p className="text-sm text-gray-400 italic pl-1 py-1">{text}</p>;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -487,6 +894,7 @@ function EmptyNote({ text }: { text: string }) {
 export default function RubricsSection({
   rubrics,
   userRole,
+  mode,
   mandatoryActions: _ma,
   optionalActions: _oa,
   medicationGradingResults,
@@ -495,12 +903,13 @@ export default function RubricsSection({
   scenarioRubricConfig,
   tcTypeRequirement,
   labels = defaultRubricsLabels,
-  language = "en",
+  language = 'en',
   sequenceLabelMap,
   onFlatScoreComputed,
 }: {
   rubrics: RubricsPayload;
   userRole?: string;
+  mode?: 'Practice' | 'Assessment' | string;
   mandatoryActions?: ActionDetail[];
   optionalActions?: ActionDetail[];
   medicationGradingResults?: MedicationGradingResult[];
@@ -513,40 +922,47 @@ export default function RubricsSection({
   }>;
   tcTypeRequirement?: string;
   labels?: RubricsLabels;
-  language?: "en" | "es";
+  language?: 'en' | 'es';
   sequenceLabelMap?: Record<string, string>;
   onFlatScoreComputed?: (
     flatScore: number,
     combinedWeight: number,
     backendActionsWeightedScore: number,
-    backendMedsWeightedScore: number,
+    backendMedsWeightedScore: number
   ) => void;
 }) {
-  const isAdmin = userRole === "admin" || userRole === "Admin";
+  const isPractice = mode === 'Practice';
+  const isAdmin = userRole === 'admin' || userRole === 'Admin';
   const itemsArray: RubricItem[] = rubrics?.items
     ? Object.values(rubrics.items)
     : [];
 
   const categoryOrder = [
-    "Action",
-    "Actions & Interventions",
-    "Medications",
-    "Expected Actions",
-    "PPE, Privacy, & Safety Actions",
-    "PPE",
-    "Privacy & Safety",
-    "Documentation",
-    "Clinical Documentation",
-    "Communication",
-    "Professional Communication",
-    "Timeline",
-    "Timing",
+    'Action',
+    'Actions & Interventions',
+    'Medications',
+    'Expected Actions',
+    'PPE, Privacy, & Safety Actions',
+    'PPE',
+    'Privacy & Safety',
+    'Documentation',
+    'Clinical Documentation',
+    'Communication',
+    'Professional Communication',
+    'Timeline',
+    'Timing',
   ];
 
   // Flat-pool combined score for the Actions+Medications card badge.
   // Computed inside the medications block and reused in the grouped Map merge.
   let flatPoolMergedScore: number | undefined;
   let flatPoolCombinedWeight: number | undefined;
+  let flatScoreArgs: {
+    combinedScore: number;
+    combinedWeight: number;
+    actionWS: number;
+    medWS: number;
+  } | null = null;
 
   // Build / replace the Medications rubric item using medicationGradingResults
   // (MAR data). Scoring is all-or-nothing per medication: a medication is only
@@ -573,7 +989,7 @@ export default function RubricsSection({
     // medication id when available, else by the order title.
     const seenMedKeys = new Set<string>();
     const dedupedResults = (medicationGradingResults ?? []).filter((r) => {
-      const key = (r.medicationId || r.orderTitle || r.medicationName || "")
+      const key = (r.medicationId || r.orderTitle || r.medicationName || '')
         .trim()
         .toLowerCase();
       if (!key) {
@@ -594,7 +1010,7 @@ export default function RubricsSection({
       if ((medResult as { isDistractor?: boolean }).isDistractor) {
         distractorActionDetails.push({
           title: medName,
-          type: "distractor",
+          type: 'distractor',
           isOptional: false,
           isCorrect,
           attemptsCount: 1,
@@ -608,7 +1024,7 @@ export default function RubricsSection({
       if (!isMandatory) {
         optionalActionDetails.push({
           title: medName,
-          type: "medication",
+          type: 'medication',
           isOptional: true,
           isCorrect,
           attemptsCount: 1,
@@ -642,12 +1058,11 @@ export default function RubricsSection({
     const expectedMandatoryCount = (mandatoryMedicationTitles ?? []).length;
     const mandatoryResultsCount = dedupedResults.filter(
       (r) =>
-        r.mandatory !== false &&
-        !(r as { isDistractor?: boolean }).isDistractor,
+        r.mandatory !== false && !(r as { isDistractor?: boolean }).isDistractor
     ).length;
     const trueMissedCount = Math.max(
       0,
-      expectedMandatoryCount - mandatoryResultsCount,
+      expectedMandatoryCount - mandatoryResultsCount
     );
     let missedMandatoryCount = 0;
     for (const title of mandatoryMedicationTitles ?? []) {
@@ -672,26 +1087,34 @@ export default function RubricsSection({
     // Get actual weight from scenario rubric configuration, fallback to 15
     const medsWeight =
       scenarioRubricConfig?.find(
-        (r) => r.subCategory === "Medications" || r.id === "rubric_medications",
+        (r) => r.subCategory === 'Medications' || r.id === 'rubric_medications'
       )?.weight ?? 15;
     // Count only correctly administered optional medications
     const correctOptionalCount = optionalActionDetails.filter(
-      (d) => d.isCorrect === true,
+      (d) => d.isCorrect === true
     ).length;
     const summaryText =
       mandatoryTotal === 0
         ? correctOptionalCount > 0
-          ? labels.medicationsSummaryOptional.replace("{n}", String(correctOptionalCount))
+          ? labels.medicationsSummaryOptional.replace(
+              '{n}',
+              String(correctOptionalCount)
+            )
           : labels.medicationsSummaryNone
         : mandatoryCorrect === mandatoryTotal
           ? labels.medicationsSummaryAllCorrect
           : missedMandatoryCount > 0 && mandatoryCorrect === 0
-            ? labels.medicationsSummaryAllMissed.replace("{n}", String(missedMandatoryCount))
-            : labels.medicationsSummaryPartial.replace("{a}", String(mandatoryCorrect)).replace("{b}", String(mandatoryTotal));
+            ? labels.medicationsSummaryAllMissed.replace(
+                '{n}',
+                String(missedMandatoryCount)
+              )
+            : labels.medicationsSummaryPartial
+                .replace('{a}', String(mandatoryCorrect))
+                .replace('{b}', String(mandatoryTotal));
     const medRubricItem: RubricItem = {
-      id: "rubric_medications",
-      name: "Medications",
-      subCategory: "Medications",
+      id: 'rubric_medications',
+      name: 'Medications',
+      subCategory: 'Medications',
       score: avgScore,
       weightedScore: Math.round((avgScore / 100) * medsWeight),
       weight: medsWeight,
@@ -705,24 +1128,24 @@ export default function RubricsSection({
     // and notify the parent so it can show a corrected overall score.
     {
       const actionIdx = itemsArray.findIndex((it) => {
-        const sub = (it?.subCategory ?? "").toLowerCase();
-        const nm = (it?.name ?? "").toLowerCase();
+        const sub = (it?.subCategory ?? '').toLowerCase();
+        const nm = (it?.name ?? '').toLowerCase();
         return (
-          sub === "action" ||
-          sub === "actions & interventions" ||
-          sub === "action / clinical interventions" ||
-          nm === "action" ||
-          nm === "actions & interventions"
+          sub === 'action' ||
+          sub === 'actions & interventions' ||
+          sub === 'action / clinical interventions' ||
+          nm === 'action' ||
+          nm === 'actions & interventions'
         );
       });
       if (actionIdx >= 0) {
         const actionItem = itemsArray[actionIdx];
         const mandatoryActionDetails = (actionItem.actionDetails ?? []).filter(
-          (d) => d.isOptional !== true && d.type !== "distractor",
+          (d) => d.isOptional !== true && d.type !== 'distractor'
         );
         const mandatoryActionsTotal = mandatoryActionDetails.length;
         const mandatoryActionsCorrect = mandatoryActionDetails.filter((d) => {
-          if (d.type === "vital") {
+          if (d.type === 'vital') {
             return ((d.attemptsCount as number) ?? 0) > 0;
           }
           return d.isCorrect === true;
@@ -737,12 +1160,12 @@ export default function RubricsSection({
             : (actionItem.score ?? 100);
         flatPoolMergedScore = combinedScore;
         flatPoolCombinedWeight = combinedWeight;
-        onFlatScoreComputed?.(
+        flatScoreArgs = {
           combinedScore,
           combinedWeight,
-          actionItem.weightedScore ?? 0,
-          medRubricItem.weightedScore ?? 0,
-        );
+          actionWS: actionItem.weightedScore ?? 0,
+          medWS: medRubricItem.weightedScore ?? 0,
+        };
       }
     }
 
@@ -750,8 +1173,8 @@ export default function RubricsSection({
     // so the UI consistently shows the MAR-driven per-medication result.
     const existingIdx = itemsArray.findIndex(
       (it) =>
-        (it?.subCategory ?? "").toLowerCase() === "medications" ||
-        (it?.name ?? "").toLowerCase() === "medications",
+        (it?.subCategory ?? '').toLowerCase() === 'medications' ||
+        (it?.name ?? '').toLowerCase() === 'medications'
     );
     if (existingIdx >= 0) {
       itemsArray[existingIdx] = medRubricItem;
@@ -760,9 +1183,26 @@ export default function RubricsSection({
     }
   }
 
+  useEffect(() => {
+    if (flatScoreArgs && onFlatScoreComputed) {
+      onFlatScoreComputed(
+        flatScoreArgs.combinedScore,
+        flatScoreArgs.combinedWeight,
+        flatScoreArgs.actionWS,
+        flatScoreArgs.medWS
+      );
+    }
+  }, [
+    flatScoreArgs?.combinedScore,
+    flatScoreArgs?.combinedWeight,
+    flatScoreArgs?.actionWS,
+    flatScoreArgs?.medWS,
+    onFlatScoreComputed,
+  ]);
+
   const sortedItems = [...itemsArray].sort((a, b) => {
-    const aKey = (a?.subCategory ?? a?.name ?? "").toLowerCase();
-    const bKey = (b?.subCategory ?? b?.name ?? "").toLowerCase();
+    const aKey = (a?.subCategory ?? a?.name ?? '').toLowerCase();
+    const bKey = (b?.subCategory ?? b?.name ?? '').toLowerCase();
     const ai = categoryOrder.findIndex((c) => aKey === c.toLowerCase());
     const bi = categoryOrder.findIndex((c) => bKey === c.toLowerCase());
     if (ai !== -1 && bi !== -1) {
@@ -778,10 +1218,10 @@ export default function RubricsSection({
   });
 
   const isSequencingItem = (item: RubricItem): boolean => {
-    const subCategory = String(item?.subCategory ?? "")
+    const subCategory = String(item?.subCategory ?? '')
       .toLowerCase()
       .trim();
-    const name = String(item?.name ?? "")
+    const name = String(item?.name ?? '')
       .toLowerCase()
       .trim();
     const hasSequencingLabel =
@@ -789,29 +1229,29 @@ export default function RubricsSection({
       /sequencing|prioritization/.test(name);
     return (
       hasSequencingLabel ||
-      subCategory === "timeline" ||
-      name === "timeline & timing"
+      subCategory === 'timeline' ||
+      name === 'timeline & timing'
     );
   };
 
   const sequencingCandidates = sortedItems.filter((item) =>
-    isSequencingItem(item),
+    isSequencingItem(item)
   );
   const preferredSequencingItem =
     sequencingCandidates.find(
       (item) =>
-        Array.isArray(item.parentResults) && item.parentResults.length > 0,
+        Array.isArray(item.parentResults) && item.parentResults.length > 0
     ) ?? sequencingCandidates[0];
 
   const normalizedItems: RubricItem[] = sortedItems.filter(
-    (item) => !isSequencingItem(item),
+    (item) => !isSequencingItem(item)
   );
 
   if (preferredSequencingItem) {
     normalizedItems.push({
       ...preferredSequencingItem,
       name: labels.sequencing,
-      subCategory: "Sequencing & Prioritization",
+      subCategory: 'Sequencing & Prioritization',
     });
   }
 
@@ -826,39 +1266,41 @@ export default function RubricsSection({
   // reports render in the active locale without requiring regeneration.
   // Mirrors the HS-online-AI-app implementation.
   const DOC_POINT_ES: Record<string, string> = {
-    "assessment findings documented via action tab observations":
-      "Hallazgos de evaluación documentados mediante observaciones de la pestaña de acciones",
-    "assessment findings documented":
-      "Hallazgos de evaluación documentados mediante observaciones de la pestaña de acciones",
-    "interventions documented via action tab observations":
-      "Intervenciones documentadas mediante observaciones de la pestaña de acciones",
-    "interventions documented":
-      "Intervenciones documentadas mediante observaciones de la pestaña de acciones",
-    "vital signs documented": "Signos vitales documentados",
-    "medical & health history updated": "Historia médica y de salud actualizada",
-    "medical and health history updated": "Historia médica y de salud actualizada",
-    "medical history updated": "Historia médica y de salud actualizada",
-    "medical and health history tab updated":
-      "Ficha de historial médico y de salud actualizada",
-    "patient emotional response documented":
-      "Respuesta emocional del paciente documentada",
-    "patient education documented": "Educación al paciente documentada",
-    "actions, assessment & intervention documentation":
-      "Documentación de acciones, evaluación e intervención",
-    "actions, assessment and intervention documentation":
-      "Documentación de acciones, evaluación e intervención",
+    'assessment findings documented via action tab observations':
+      'Hallazgos de evaluación documentados mediante observaciones de la pestaña de acciones',
+    'assessment findings documented':
+      'Hallazgos de evaluación documentados mediante observaciones de la pestaña de acciones',
+    'interventions documented via action tab observations':
+      'Intervenciones documentadas mediante observaciones de la pestaña de acciones',
+    'interventions documented':
+      'Intervenciones documentadas mediante observaciones de la pestaña de acciones',
+    'vital signs documented': 'Signos vitales documentados',
+    'medical & health history updated':
+      'Historia médica y de salud actualizada',
+    'medical and health history updated':
+      'Historia médica y de salud actualizada',
+    'medical history updated': 'Historia médica y de salud actualizada',
+    'medical and health history tab updated':
+      'Ficha de historial médico y de salud actualizada',
+    'patient emotional response documented':
+      'Respuesta emocional del paciente documentada',
+    'patient education documented': 'Educación al paciente documentada',
+    'actions, assessment & intervention documentation':
+      'Documentación de acciones, evaluación e intervención',
+    'actions, assessment and intervention documentation':
+      'Documentación de acciones, evaluación e intervención',
   };
 
   const DOC_EXAMPLE_ES: Record<string, string> = {
-    "no history tab fields were updated (recorded details, chief complaint, allergies, medications, social history, immunizations, or additional notes)":
-      "No se actualizaron los campos de la ficha de Historial (Detalles Registrados, Queja Principal, Alergias, Medicamentos, Historia Social, Inmunizaciones o Notas Adicionales)",
-    "no observations documented in any action":
-      "No se documentaron observaciones en ninguna acción",
-    "no documentation found": "No se encontró documentación",
-    "medication was not administered correctly.":
-      "El medicamento no se administró correctamente.",
-    "mandatory medication was not administered.":
-      "El medicamento obligatorio no fue administrado.",
+    'no history tab fields were updated (recorded details, chief complaint, allergies, medications, social history, immunizations, or additional notes)':
+      'No se actualizaron los campos de la ficha de Historial (Detalles Registrados, Queja Principal, Alergias, Medicamentos, Historia Social, Inmunizaciones o Notas Adicionales)',
+    'no observations documented in any action':
+      'No se documentaron observaciones en ninguna acción',
+    'no documentation found': 'No se encontró documentación',
+    'medication was not administered correctly.':
+      'El medicamento no se administró correctamente.',
+    'mandatory medication was not administered.':
+      'El medicamento obligatorio no fue administrado.',
   };
 
   // Communication rubric weakness/strength points sometimes arrive prefixed
@@ -866,14 +1308,14 @@ export default function RubricsSection({
   // Spanish "Criterio no cumplido: <English title>"). Translate the trailing
   // criterion title when it matches a well-known default.
   const CRITERION_TITLE_ES: Record<string, string> = {
-    "demonstrate empathy": "Demostrar empatía",
-    "use patient-centered communication strategies":
-      "Utilizar estrategias de comunicación centradas en el paciente",
+    'demonstrate empathy': 'Demostrar empatía',
+    'use patient-centered communication strategies':
+      'Utilizar estrategias de comunicación centradas en el paciente',
   };
 
   const translateCriterionTitle = (title: string): string => {
     if (!title) return title;
-    const normalized = title.trim().toLowerCase().replace(/\s+/g, " ");
+    const normalized = title.trim().toLowerCase().replace(/\s+/g, ' ');
     return CRITERION_TITLE_ES[normalized] ?? title;
   };
 
@@ -881,8 +1323,8 @@ export default function RubricsSection({
     /^(Criterio(?:n)?\s+(?:no\s+)?(?:not\s+)?(?:met|cumplido)\s*:\s*)(.+)$/i;
 
   const translateDocPoint = (raw?: string | null): string => {
-    if (!raw) return raw ?? "";
-    if (language !== "es") return raw;
+    if (!raw) return raw ?? '';
+    if (language !== 'es') return raw;
     const key = raw.toLowerCase().trim();
     const direct = DOC_POINT_ES[key];
     if (direct) return direct;
@@ -895,7 +1337,7 @@ export default function RubricsSection({
 
   const translateDocExample = (raw?: string | null): string | undefined => {
     if (!raw) return raw ?? undefined;
-    if (language !== "es") return raw;
+    if (language !== 'es') return raw;
     const key = raw.toLowerCase().trim();
     return DOC_EXAMPLE_ES[key] ?? raw;
   };
@@ -917,33 +1359,41 @@ export default function RubricsSection({
   // Translate backend-stored English rubric section names to the active locale
   // using the labels already provided by the parent (same source as HS app).
   const translateRubricName = (name?: string | null): string => {
-    if (!name) return "Rubric Item";
+    if (!name) return 'Rubric Item';
     const key = name.toLowerCase().trim();
+    const actionsTitleVal = labels.actionsTitle || labels.actions;
     const nameMap: Record<string, string> = {
-      "action": labels.actions,
-      "actions & interventions": labels.actions,
-      "actions and interventions": labels.actions,
-      "expected actions": labels.actions,
-      "medications": labels.medications,
-      "medication": labels.medications,
-      "ppe": labels.ppe,
-      "ppe, privacy & safety": labels.ppe,
-      "ppe, privacy, & safety actions": labels.ppe,
-      "privacy & safety": labels.ppe,
-      "documentation": labels.documentation,
-      "clinical documentation": labels.documentation,
-      "clinical documentation quality": labels.documentation,
-      "communication": labels.communication,
-      "professional communication": labels.communication,
-      "sequencing & prioritization": labels.sequencing,
-      "sequencing": labels.sequencing,
+      action: actionsTitleVal,
+      'actions & interventions': actionsTitleVal,
+      'actions and interventions': actionsTitleVal,
+      'expected actions': actionsTitleVal,
+      'completion of assessments, care, interventions, & tasks':
+        actionsTitleVal,
+      medications: labels.medications,
+      medication: labels.medications,
+      ppe: labels.ppe,
+      'ppe, privacy & safety': labels.ppe,
+      'ppe, privacy, & safety actions': labels.ppe,
+      'privacy & safety': labels.ppe,
+      documentation: labels.documentation,
+      'clinical documentation': labels.documentation,
+      'clinical documentation quality': labels.documentation,
+      'completion of documentation in the electronic record':
+        labels.documentation,
+      communication: labels.communication,
+      'professional communication': labels.communication,
+      'demonstration of professional & therapeutic communication':
+        labels.communication,
+      'prioritization of care': labels.sequencing,
+      'sequencing & prioritization': labels.sequencing,
+      sequencing: labels.sequencing,
     };
     return nameMap[key] ?? name;
   };
 
   const grouped = new Map<string, RubricItem[]>();
   for (const item of normalizedItems) {
-    const key = item?.subCategory ?? "Other";
+    const key = item?.subCategory ?? 'Other';
     const bucket = grouped.get(key) ?? [];
     bucket.push(item);
     grouped.set(key, bucket);
@@ -952,14 +1402,21 @@ export default function RubricsSection({
   // Consolidate Medications into the Actions & Interventions section
   // (mirrors HS student app behaviour — one combined card instead of two)
   {
-    const actionKeys = ["action", "actions & interventions", "actions and interventions", "expected actions"];
-    const medicationKeys = ["medications", "medication"];
+    const actionKeys = [
+      'action',
+      'actions & interventions',
+      'actions and interventions',
+      'expected actions',
+    ];
+    const medicationKeys = ['medications', 'medication'];
     let actionGroupKey: string | undefined;
     let medicationGroupKey: string | undefined;
     for (const key of grouped.keys()) {
       const lk = key.toLowerCase().trim();
-      if (!actionGroupKey && actionKeys.some((ak) => lk === ak)) actionGroupKey = key;
-      if (!medicationGroupKey && medicationKeys.some((mk) => lk === mk)) medicationGroupKey = key;
+      if (!actionGroupKey && actionKeys.some((ak) => lk === ak))
+        actionGroupKey = key;
+      if (!medicationGroupKey && medicationKeys.some((mk) => lk === mk))
+        medicationGroupKey = key;
     }
     if (actionGroupKey && medicationGroupKey) {
       const actionItems = grouped.get(actionGroupKey)!;
@@ -969,7 +1426,8 @@ export default function RubricsSection({
       if (primaryAction && primaryMed) {
         const combinedActionWeight = primaryAction.weight ?? 0;
         const combinedMedWeight = primaryMed.weight ?? 0;
-        const combinedWeight = flatPoolCombinedWeight ?? (combinedActionWeight + combinedMedWeight);
+        const combinedWeight =
+          flatPoolCombinedWeight ?? combinedActionWeight + combinedMedWeight;
         // Use flat-pool count-based score when available (matches HS student app badge)
         const mergedScore =
           flatPoolMergedScore !== undefined
@@ -978,19 +1436,25 @@ export default function RubricsSection({
               ? Math.round(
                   ((primaryAction.score ?? 100) * combinedActionWeight +
                     (primaryMed.score ?? 100) * combinedMedWeight) /
-                    combinedWeight,
+                    combinedWeight
                 )
               : Math.min(primaryAction.score ?? 100, primaryMed.score ?? 100);
-        const mergedWeightedScore = Math.round((mergedScore / 100) * combinedWeight);
-        const mergedSummary = [primaryAction.summary, primaryMed.summary].filter(Boolean).join(" ");
+        const mergedWeightedScore = Math.round(
+          (mergedScore / 100) * combinedWeight
+        );
+        const mergedSummary = [primaryAction.summary, primaryMed.summary]
+          .filter(Boolean)
+          .join(' ');
         // Match HS-online reference: only dedupe primaryAction.recommendations —
         // do NOT concatenate primaryMed.recommendations, which caused duplicate
         // "No items identified." bullets when the backend placed the same
         // placeholder in both action and medication rubric items.
         const mergedRecommendations = Array.from(
           new Set(
-            (primaryAction.recommendations ?? []).map((r) => (r ?? "").toString().trim()).filter(Boolean),
-          ),
+            (primaryAction.recommendations ?? [])
+              .map((r) => (r ?? '').toString().trim())
+              .filter(Boolean)
+          )
         );
         const mergedItem: RubricItem = {
           ...primaryAction,
@@ -998,9 +1462,18 @@ export default function RubricsSection({
           weightedScore: mergedWeightedScore,
           weight: combinedWeight,
           summary: mergedSummary || primaryAction.summary,
-          strengths: [...(primaryAction.strengths ?? []), ...(primaryMed.strengths ?? [])],
-          weaknesses: [...(primaryAction.weaknesses ?? []), ...(primaryMed.weaknesses ?? [])],
-          actionDetails: [...(primaryAction.actionDetails ?? []), ...(primaryMed.actionDetails ?? [])],
+          strengths: [
+            ...(primaryAction.strengths ?? []),
+            ...(primaryMed.strengths ?? []),
+          ],
+          weaknesses: [
+            ...(primaryAction.weaknesses ?? []),
+            ...(primaryMed.weaknesses ?? []),
+          ],
+          actionDetails: [
+            ...(primaryAction.actionDetails ?? []),
+            ...(primaryMed.actionDetails ?? []),
+          ],
           recommendations: mergedRecommendations,
         };
         grouped.set(actionGroupKey, [mergedItem, ...actionItems.slice(1)]);
@@ -1016,17 +1489,17 @@ export default function RubricsSection({
           // Medications are consolidated into the Actions section above.
           const _rawStrengths = item.strengths ?? [];
           const _rawWeaknesses = item.weaknesses ?? [];
-          const isSeqItem = !!(item.subCategory ?? item.name ?? "")
+          const isSeqItem = !!(item.subCategory ?? item.name ?? '')
             .toLowerCase()
             .match(/sequencing|prioritization/);
-          const allStrengths: StrengthWeakness[] = isSeqItem
+          const _rawAllStrengths: StrengthWeakness[] = isSeqItem
             ? _rawStrengths.map((s) => ({
                 ...s,
                 point: translateSeqText(s.point) || s.point,
                 example: s.example ? translateSeqText(s.example) : s.example,
               }))
             : _rawStrengths.map(translateSwItem);
-          const allWeaknesses: StrengthWeakness[] = isSeqItem
+          const _rawAllWeaknesses: StrengthWeakness[] = isSeqItem
             ? _rawWeaknesses.map((s) => ({
                 ...s,
                 point: translateSeqText(s.point) || s.point,
@@ -1034,29 +1507,56 @@ export default function RubricsSection({
               }))
             : _rawWeaknesses.map(translateSwItem);
 
+          const allStrengths: StrengthWeakness[] = [];
+          const _seenSt = new Set<string>();
+          for (const st of _rawAllStrengths) {
+            const cleanPoint = stripActionPhrasing(st.point)
+              .trim()
+              .toLowerCase();
+            const cleanEx = (st.example ?? '').trim().toLowerCase();
+            const key = `${cleanPoint}::${cleanEx}`;
+            if (!_seenSt.has(key)) {
+              _seenSt.add(key);
+              allStrengths.push(st);
+            }
+          }
+
+          const allWeaknesses: StrengthWeakness[] = [];
+          const _seenWk = new Set<string>();
+          for (const wk of _rawAllWeaknesses) {
+            const cleanPoint = stripActionPhrasing(wk.point)
+              .trim()
+              .toLowerCase();
+            const cleanEx = (wk.example ?? '').trim().toLowerCase();
+            const key = `${cleanPoint}::${cleanEx}`;
+            if (!_seenWk.has(key)) {
+              _seenWk.add(key);
+              allWeaknesses.push(wk);
+            }
+          }
+
           const optionalDone = (item.actionDetails ?? []).filter(
             (d: ActionDetail) => {
               // For optional actions, show them if they were attempted (attemptsCount > 0)
               // For vital-type optional actions, even incorrect attempts should be shown as completed
               if (d.isOptional === true) {
-                if (d.type === "vital") {
+                if (d.type === 'vital') {
                   return ((d.attemptsCount as number) ?? 0) > 0; // Show if any vitals were recorded
                 }
                 // Optional medications: only show if administered correctly.
-                if (d.type === "medication") {
+                if (d.type === 'medication') {
                   return d.isCorrect === true;
                 }
                 return d.isCorrect === true; // For non-vitals, show only if correct
               }
               return false;
-            },
+            }
           );
           // Distractor entries have no 'completed' field; their presence means they were performed
           const distractorDone = (item.actionDetails ?? []).filter(
-            (d: ActionDetail) => d.type === "distractor",
-
+            (d: ActionDetail) => d.type === 'distractor'
           );
-          const isSequencing = !!(item.subCategory ?? item.name ?? "")
+          const isSequencing = !!(item.subCategory ?? item.name ?? '')
             .toLowerCase()
             .match(/sequencing|prioritization/);
           const hasParentValidation =
@@ -1064,277 +1564,312 @@ export default function RubricsSection({
             Array.isArray(item.parentResults) &&
             item.parentResults.length > 0;
 
+          const rubricTitle = translateRubricName(item.name);
+          const rawId = item.id || item.subCategory || item.name || 'rubric';
+          const rubricAnchorId = `rubric-${rawId.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
           return (
             <div
+              id={rubricAnchorId}
               key={item.id ?? item.name ?? subCategory}
+              data-jump-section
+              data-jump-title={rubricTitle}
               data-pdf-rubric
-              className="bg-white rounded-lg border border-gray-200 p-6"
+              className="scroll-mt-16 sm:scroll-mt-20 bg-white rounded-lg border border-gray-200 p-6"
             >
               {/* ── Section header ── */}
-              <div className="flex items-start justify-between gap-4 mb-4">
-                <div>
-                  <h3 className="text-xl font-bold text-[#db8833]">
+              <div className="mb-4 space-y-1">
+                <div className="flex items-center justify-between gap-4">
+                  <h3 className="text-xl font-bold text-[#db8833] min-w-0 flex-1">
                     {translateRubricName(item.name)}
                   </h3>
-                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest mt-1">
+                  {isSequencing ? (
+                    <SequencingLabelBadge score={item.score} labels={labels} />
+                  ) : (
+                    <ScoreBadge
+                      score={item.score}
+                      weightedScore={item.weightedScore}
+                      weight={item.weight ?? 20}
+                      subCategory={item.subCategory}
+                      labels={labels}
+                    />
+                  )}
+                </div>
+                {!isPractice && (
+                  <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-widest">
                     {labels.weight} {item.weight ?? 20}%
                   </p>
-                </div>
-                {isSequencing ? (
-                  <SequencingLabelBadge score={item.score} labels={labels} />
-                ) : (
-                  <ScoreBadge
-                    score={item.score}
-                    weightedScore={item.weightedScore}
-                    weight={item.weight ?? 20}
-                    subCategory={item.subCategory}
-                    labels={labels}
-                  />
                 )}
               </div>
 
               {/* ── Summary ── */}
-              {isSequencing ? (
-                (() => {
-                  // Use summary directly from rubric if available
-                  if (item.summary?.trim()) {
-                    const isLegacyCount =
-                      /^\d+ of \d+ parent steps? passed sequencing validation/.test(
-                        item.summary.trim(),
-                      );
-                    // Use backend summary unless it's the old legacy format
-                    if (!isLegacyCount) {
+              {isSequencing
+                ? (() => {
+                    const parentResultsArr = Array.isArray(item.parentResults)
+                      ? item.parentResults
+                      : [];
+                    const totalCount = parentResultsArr.length;
+                    const passedCount = parentResultsArr.filter(
+                      (p) => p.passed
+                    ).length;
+
+                    if (totalCount === 0) {
                       return (
-                        <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                          {translateSeqText(item.summary)}
+                        <p className="text-sm text-gray-500 italic mb-5">
+                          {labels.sequencingPending}
                         </p>
                       );
                     }
-                  }
 
-                  // Fallback: Generate summary from parentResults for backwards compatibility
-                  const parentResultsArr = Array.isArray(item.parentResults)
-                    ? item.parentResults
-                    : [];
-                  const totalCount = parentResultsArr.length;
-                  const passedCount = parentResultsArr.filter(
-                    (p) => p.passed,
-                  ).length;
+                    const derivedSummary = buildSequencingSummaryText(
+                      passedCount,
+                      totalCount,
+                      labels
+                    );
 
-                  if (totalCount === 0) {
                     return (
-                      <p className="text-sm text-gray-500 italic mb-5">
-                        {labels.sequencingPending}
+                      <p className="text-sm text-gray-600 mb-5 leading-relaxed">
+                        {derivedSummary}
                       </p>
                     );
-                  }
+                  })()
+                : (() => {
+                    const isMedications =
+                      item.subCategory?.toLowerCase() === 'medications' ||
+                      item.name?.toLowerCase() === 'medications';
 
-                  let derivedSummary: string;
-                  if (passedCount === totalCount) {
-                    derivedSummary =
-                      `The learner successfully completed all ${totalCount
-                      } configured clinical action${totalCount !== 1 ? "s" : ""
-                      } in the correct sequence and within the required timeframes, ` +
-                      "demonstrating strong clinical prioritization and organized patient care delivery.";
-                  } else if (passedCount === 0) {
-                    const labels = parentResultsArr
-                      .map((p) => p.parentLabel || p.parentRef)
-                      .join(", ");
-                    derivedSummary =
-                      `None of the ${totalCount} configured clinical action${totalCount !== 1 ? "s were" : " was"
-                      } completed in the required sequence. ` +
-                      `The following steps were not correctly sequenced: ${labels}. ` +
-                      "This indicates a need to develop clinical prioritization and structured care delivery skills.";
-                  } else {
-                    const failedLabels = parentResultsArr
-                      .filter((p) => !p.passed)
-                      .map((p) => p.parentLabel || p.parentRef)
-                      .join(", ");
-                    const failedCount = totalCount - passedCount;
-                    derivedSummary =
-                      `The learner completed ${passedCount} of ${totalCount} clinical action${totalCount !== 1 ? "s" : ""
-                      } in the correct sequence. ` +
-                      `${failedCount} action${failedCount !== 1 ? "s were" : " was"
-                      } not correctly sequenced: ${failedLabels}. ` +
-                      labels.sequencingReview;
-                  }
+                    if (isMedications) {
+                      return (
+                        <p className="text-sm text-gray-600 mb-5 leading-relaxed whitespace-pre-line">
+                          {item.summary}
+                        </p>
+                      );
+                    }
 
-                  return (
-                    <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                      {derivedSummary}
-                    </p>
-                  );
-                })()
-              ) : item.summary ? (
-                <p className="text-sm text-gray-600 mb-5 leading-relaxed">
-                  {item.summary}
-                </p>
-              ) : null}
+                    const isComm =
+                      item.subCategory?.toLowerCase() === 'communication' ||
+                      item.subCategory?.toLowerCase() ===
+                        'professional communication' ||
+                      item.name?.toLowerCase().includes('communication');
+
+                    const narrativeText = isComm
+                      ? item.summary
+                      : buildGeneratedNarrative(
+                          allStrengths.length,
+                          allWeaknesses.length,
+                          distractorDone.length,
+                          optionalDone.length,
+                          item.summary,
+                          labels
+                        );
+
+                    return narrativeText ? (
+                      <p className="text-sm text-gray-600 mb-5 leading-relaxed whitespace-pre-line">
+                        {narrativeText}
+                      </p>
+                    ) : null;
+                  })()}
 
               {hasParentValidation && item.parentResults
                 ? (() => {
-                  // Use strengths/weaknesses directly from rubric if available
-                  // Otherwise, generate from parentResults for backwards compatibility
-                  const sequencingStrengths: StrengthWeakness[] =
-                    item.strengths && item.strengths.length > 0
-                      ? item.strengths.map((s) => ({
-                          ...s,
-                          point: translateSeqText(s.point) || s.point,
-                          example: s.example ? translateSeqText(s.example) : s.example,
-                        }))
-                      : item.parentResults
-                        .filter((p) => p.passed)
-                        .map((parent) => ({
-                          point: translateSeqText(parent.parentLabel || parent.parentRef) || (parent.parentLabel || parent.parentRef),
-                          example: translateSeqText("Completed in the correct sequence with all requirements met."),
-                        }));
+                    const parentResultsArr = Array.isArray(item.parentResults)
+                      ? item.parentResults
+                      : [];
 
-                  const sequencingWeaknesses: StrengthWeakness[] =
-                    item.weaknesses && item.weaknesses.length > 0
-                      ? item.weaknesses.map((s) => ({
-                          ...s,
-                          point: translateSeqText(s.point) || s.point,
-                          example: s.example ? translateSeqText(s.example) : s.example,
-                        }))
-                      : item.parentResults
-                        .filter((p) => !p.passed)
-                        .map((parent) => ({
-                          point: translateSeqText(parent.parentLabel || parent.parentRef) || (parent.parentLabel || parent.parentRef),
-                          example: translateSeqText(parent.failedReasons?.join(" ") || "Sequence requirements not met."),
-                        }));
+                    const sequencingStrengths: StrengthWeakness[] =
+                      item.strengths && item.strengths.length > 0
+                        ? item.strengths.map((s) => ({
+                            ...s,
+                            point: cleanSequencingStrengthPoint(
+                              translateSeqText(s.point) || s.point
+                            ),
+                          }))
+                        : parentResultsArr
+                            .filter((p) => p.passed)
+                            .map((parent) => ({
+                              point: cleanSequencingStrengthPoint(
+                                parent.parentLabel || parent.parentRef || ''
+                              ),
+                            }));
 
-                  return (
-                    <div className="space-y-4">
-                      {/* STRENGTHS */}
-                      <div
-                        data-pdf-card
-                        className="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-4 sm:p-5"
-                      >
-                        <div className="mb-3">
-                          <SectionBadge
-                            title={labels.strengths}
-                            count={sequencingStrengths.length}
-                            tone="good"
-                          />
-                        </div>
-                        {sequencingStrengths.length === 0 ? (
-                          <EmptyNote text={labels.noItemsIdentified} />
-                        ) : (
-                          <div className="space-y-2">
-                            {sequencingStrengths.map((it, idx) => (
-                              <div
-                                key={idx}
-                                data-pdf-nobreak
-                                className="rounded-xl bg-white border border-emerald-100/70 px-3 sm:px-4"
-                              >
-                                <ItemRow item={it} tone="good" performedMultipleTimesLabel={labels.performedMultipleTimes} />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                    const rawWeaknessList =
+                      item.weaknesses && item.weaknesses.length > 0
+                        ? item.weaknesses
+                        : [];
 
-                      {/* WEAKNESSES / OPPORTUNITIES */}
-                      <div
-                        data-pdf-card
-                        className="rounded-2xl border border-red-200 bg-red-50/70 border-l-[3px] border-l-red-500 p-4 sm:p-5"
-                      >
-                        <div className="mb-3">
-                          <SectionBadge
-                            title={labels.weaknesses}
-                            count={sequencingWeaknesses.length}
-                            tone="danger"
-                          />
-                        </div>
-                        {sequencingWeaknesses.length === 0 ? (
-                          <EmptyNote text={labels.noItemsIdentified} />
-                        ) : (
-                          <div className="space-y-2">
-                            {sequencingWeaknesses.map((it, idx) => (
-                              <div
-                                key={idx}
-                                data-pdf-nobreak
-                                className="rounded-xl bg-white border border-red-100 px-3 sm:px-4"
-                              >
-                                <ItemRow item={it} tone="danger" performedMultipleTimesLabel={labels.performedMultipleTimes} />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                    const fallbackDefault =
+                      labels.seqExampleOutOfOrderGeneric ||
+                      defaultRubricsLabels.seqExampleOutOfOrderGeneric!;
 
-                      {/* IMPROVEMENT RECOMMENDATIONS */}
-                      {Array.isArray(item.recommendations) &&
-                        item.recommendations.length > 0 ? (
+                    const outOfOrderActions = extractOutOfOrderActions(
+                      rawWeaknessList,
+                      parentResultsArr,
+                      fallbackDefault
+                    );
+
+                    const sequencingWeaknesses: StrengthWeakness[] =
+                      outOfOrderActions.map((actionName) => ({
+                        point: actionName,
+                      }));
+
+                    return (
+                      <div className="space-y-4">
+                        {/* STRENGTHS */}
                         <div
-                          data-pdf-nobreak
-                          className="mt-4 p-6 rounded-xl border border-blue-100 bg-blue-50/50 space-y-4"
+                          data-pdf-card
+                          className="rounded-2xl border border-emerald-100 bg-emerald-50/60 border-l-[3px] border-l-emerald-500 p-4 sm:p-5"
                         >
-                          <h4 className="text-sm font-bold text-gray-900">
-                            {labels.improvementRecommendations}
-                          </h4>
-                          <ul className="space-y-2">
-                            {item.recommendations.map((rec, idx) => (
-                              <li
-                                key={idx}
-                                className="flex items-start gap-2 text-sm text-blue-800/80"
-                              >
-                                <span
-                                  className="flex-shrink-0"
-                                  style={{
-                                    color: "#60a5fa",
-                                    lineHeight: "1.5",
-                                  }}
-                                >
-                                  &#8226;
-                                </span>
-                                <span>{rec === "None identified." ? labels.noneIdentified : (isSeqItem ? translateSeqText(rec) : rec)}</span>
-                              </li>
-                            ))}
-                          </ul>
+                          <div className="mb-3">
+                            <SectionBadge
+                              title={labels.strengths}
+                              count={sequencingStrengths.length}
+                              tone="good"
+                            />
+                          </div>
+                          <div className="pl-3 sm:pl-4 space-y-3">
+                            <p className="text-xs font-semibold text-emerald-800/80 uppercase tracking-wider">
+                              {labels.seqSublabelPrioritizedCorrectly ||
+                                'ITEMS PRIORITIZED CORRECTLY'}
+                            </p>
+                            {sequencingStrengths.length === 0 ? (
+                              <EmptyNote text={labels.noItemsIdentified} />
+                            ) : (
+                              <div className="space-y-2">
+                                {sequencingStrengths.map((it, idx) => (
+                                  <div
+                                    key={idx}
+                                    data-pdf-nobreak
+                                    className="rounded-xl bg-white border border-emerald-100/70 px-3 sm:px-4"
+                                  >
+                                    <ItemRow
+                                      item={it}
+                                      tone="good"
+                                      performedMultipleTimesLabel={
+                                        labels.performedMultipleTimes
+                                      }
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      ) : null}
-                    </div>
-                  );
-                })()
+
+                        {/* WEAKNESSES / OPPORTUNITIES */}
+                        <div
+                          data-pdf-card
+                          className="rounded-2xl border border-red-200 bg-red-50/70 border-l-[3px] border-l-red-500 p-4 sm:p-5"
+                        >
+                          <div className="mb-3">
+                            <SectionBadge
+                              title={labels.weaknesses}
+                              count={sequencingWeaknesses.length}
+                              tone="danger"
+                            />
+                          </div>
+                          <div className="pl-3 sm:pl-4 space-y-3">
+                            <p className="text-xs font-semibold text-red-800/90 uppercase tracking-wider">
+                              {labels.seqSublabelNotPrioritizedCorrectly ||
+                                'ITEMS NOT PRIORITIZED CORRECTLY'}
+                            </p>
+                            {sequencingWeaknesses.length === 0 ? (
+                              <EmptyNote text={labels.noItemsIdentified} />
+                            ) : (
+                              <div className="space-y-2">
+                                {sequencingWeaknesses.map((it, idx) => (
+                                  <div
+                                    key={idx}
+                                    data-pdf-nobreak
+                                    className="rounded-xl bg-white border border-red-100 px-3 sm:px-4"
+                                  >
+                                    <ItemRow
+                                      item={it}
+                                      tone="danger"
+                                      performedMultipleTimesLabel={
+                                        labels.performedMultipleTimes
+                                      }
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* IMPROVEMENT RECOMMENDATIONS */}
+                        {sequencingWeaknesses.length > 0 && (
+                          <div
+                            data-pdf-nobreak
+                            className="mt-4 p-6 rounded-xl border border-l-[3px] border-l-[#db8833] border-gray-100 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.03)] space-y-4"
+                          >
+                            <h4 className="text-sm font-bold text-gray-900">
+                              {labels.improvementRecommendations}
+                            </h4>
+                            <ul className="space-y-2">
+                              {[
+                                labels.seqRecReflectEbp ||
+                                  defaultRubricsLabels.seqRecReflectEbp!,
+                              ].map((rec, idx) => (
+                                <li
+                                  key={idx}
+                                  className="flex items-start gap-2 text-sm text-gray-700"
+                                >
+                                  <span
+                                    className="flex-shrink-0 text-[#db8833]"
+                                    style={{ lineHeight: '1.5' }}
+                                  >
+                                    &#8226;
+                                  </span>
+                                  <span>{rec}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
                 : null}
 
               {/* Team Communication Badge - Only show if configured */}
-              {(item.subCategory?.toLowerCase() === "communication" ||
+              {(item.subCategory?.toLowerCase() === 'communication' ||
                 item.subCategory?.toLowerCase() ===
-                "professional communication" ||
-                item.name?.toLowerCase().includes("communication")) &&
-                (sbarStatus || tcTypeRequirement === "Optional" || tcTypeRequirement === "Distractor" || tcTypeRequirement === "Mandatory") && (() => {
-                  const isSatisfactory = sbarStatus?.toLowerCase() === "satisfactory";
-                  // null = not attempted → yellow NOT DONE (applies to all TC types)
-                  // Satisfactory (any type) → green
-                  // Unsatisfactory (any type) → red
-                  const isNotAttempted = !sbarStatus;
+                  'professional communication' ||
+                item.name?.toLowerCase().includes('communication')) &&
+                (() => {
+                  const isOptionalOrDistractor =
+                    tcTypeRequirement === 'Optional' ||
+                    tcTypeRequirement === 'Distractor';
+                  const isSatisfactory =
+                    sbarStatus?.toLowerCase() === 'satisfactory';
+                  const isNotAttempted = isOptionalOrDistractor && !sbarStatus;
                   const pillBg = isNotAttempted
-                    ? "bg-yellow-100 text-yellow-800"
+                    ? 'bg-yellow-100 text-yellow-800'
                     : isSatisfactory
-                      ? "bg-teal-100 text-teal-700"
-                      : "bg-red-100 text-red-700";
+                      ? 'bg-teal-100 text-teal-700'
+                      : 'bg-red-100 text-red-700';
                   const statusBg = isNotAttempted
-                    ? "bg-yellow-500"
+                    ? 'bg-yellow-500'
                     : isSatisfactory
-                      ? "bg-emerald-600"
-                      : "bg-red-600";
+                      ? 'bg-emerald-600'
+                      : 'bg-red-600';
                   const displayLabel = isNotAttempted
                     ? labels.notDone
                     : isSatisfactory
                       ? labels.satisfactory
                       : labels.unsatisfactory;
                   const pdfColor = isNotAttempted
-                    ? "#854d0e"
+                    ? '#854d0e'
                     : isSatisfactory
-                      ? "#059669"
-                      : "#b91c1c";
+                      ? '#059669'
+                      : '#b91c1c';
                   return (
                     <div className="mb-5">
                       {/* Pill — screen only, hidden in PDF */}
                       <div className="pdf-hide inline-flex items-center overflow-hidden rounded-full">
-                        <div className={`flex items-center gap-2 px-4 py-2 font-semibold text-sm ${pillBg}`}>
+                        <div
+                          className={`flex items-center gap-2 px-4 py-2 font-semibold text-sm ${pillBg}`}
+                        >
                           {isSatisfactory ? (
                             <CheckCircle2 className="w-4 h-4" />
                           ) : (
@@ -1344,7 +1879,9 @@ export default function RubricsSection({
                             {labels.teamCommunication}
                           </span>
                         </div>
-                        <div className={`px-4 py-2 font-bold text-sm text-white ${statusBg}`}>
+                        <div
+                          className={`px-4 py-2 font-bold text-sm text-white ${statusBg}`}
+                        >
                           <span className="uppercase tracking-wider">
                             {displayLabel}
                           </span>
@@ -1355,14 +1892,17 @@ export default function RubricsSection({
                         data-pdfonly
                         aria-hidden="true"
                         style={{
-                          display: "none",
+                          display: 'none',
                           fontWeight: 700,
-                          fontSize: "13px",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
+                          fontSize: '13px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
                         }}
                       >
-                        <span data-pdfcolor="#1d4ed8" style={{ color: "#1d4ed8" }}>
+                        <span
+                          data-pdfcolor="#1d4ed8"
+                          style={{ color: '#1d4ed8' }}
+                        >
                           {labels.teamCommunication}
                         </span>
                         &nbsp;&nbsp;
@@ -1391,59 +1931,106 @@ export default function RubricsSection({
                         tone="good"
                       />
                     </div>
-                    {allStrengths.length === 0 ? (
-                      <EmptyNote text={labels.noItemsIdentified} />
-                    ) : (
-                      <div className="space-y-2">
-                        {allStrengths.map((it, idx) => (
-                          <div
-                            key={idx}
-                            data-pdf-nobreak
-                            className="rounded-xl bg-white border border-emerald-100/70 px-3 sm:px-4"
-                          >
-                            <ItemRow item={it} tone="good" performedMultipleTimesLabel={labels.performedMultipleTimes} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="pl-3 sm:pl-4 space-y-3">
+                      <p className="text-xs font-semibold text-emerald-800/80 uppercase tracking-wider">
+                        {labels.priorityCompletedCorrectly ||
+                          'PRIORITY ITEMS COMPLETED CORRECTLY'}
+                      </p>
+                      {allStrengths.length === 0 ? (
+                        <EmptyNote text={labels.noItemsIdentified} />
+                      ) : (
+                        <div className="space-y-2">
+                          {allStrengths.map((it, idx) => (
+                            <div
+                              key={idx}
+                              data-pdf-nobreak
+                              className="rounded-xl bg-white border border-emerald-100/70 px-3 sm:px-4"
+                            >
+                              <ItemRow
+                                item={it}
+                                tone="good"
+                                performedMultipleTimesLabel={
+                                  labels.performedMultipleTimes
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* WEAKNESSES / OPPORTUNITIES */}
-                  <div
-                    data-pdf-card
-                    className="rounded-2xl border border-red-200 bg-red-50/70 border-l-[3px] border-l-red-500 p-4 sm:p-5"
-                  >
-                    <div className="mb-3">
-                      <SectionBadge
-                        title={labels.weaknesses}
-                        count={allWeaknesses.length}
-                        tone="danger"
-                      />
-                    </div>
-                    {allWeaknesses.length === 0 ? (
-                      <EmptyNote text={labels.noItemsIdentified} />
-                    ) : (
-                      <div className="space-y-2">
-                        {allWeaknesses.map((it, idx) => (
-                          <div
-                            key={idx}
-                            data-pdf-nobreak
-                            className="rounded-xl bg-white border border-red-100 px-3 sm:px-4"
-                          >
-                            <ItemRow item={it} tone="danger" performedMultipleTimesLabel={labels.performedMultipleTimes} />
-                          </div>
-                        ))}
+                  {allWeaknesses.length > 0 && (
+                    <div
+                      data-pdf-card
+                      className="rounded-2xl border border-red-200 bg-red-50/70 border-l-[3px] border-l-red-500 p-4 sm:p-5"
+                    >
+                      <div className="mb-3">
+                        <SectionBadge
+                          title={labels.weaknesses}
+                          count={allWeaknesses.length}
+                          tone="danger"
+                        />
                       </div>
-                    )}
-                  </div>
+                      <div className="pl-3 sm:pl-4 space-y-3">
+                        <p className="text-xs font-semibold text-red-800/90 uppercase tracking-wider">
+                          {labels.priorityCompletedIncorrectly ||
+                            'PRIORITY ITEMS MISSED OR PERFORMED INCORRECTLY'}
+                        </p>
+                        <div className="space-y-2">
+                          {allWeaknesses.map((it, idx) => (
+                            <div
+                              key={idx}
+                              data-pdf-nobreak
+                              className="rounded-xl bg-white border border-red-100 px-3 sm:px-4"
+                            >
+                              <ItemRow
+                                item={it}
+                                tone="danger"
+                                performedMultipleTimesLabel={
+                                  labels.performedMultipleTimes
+                                }
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                  {/* OPTIONAL ACTIONS COMPLETED - Only show for non-Communication rubrics */}
-                  {!(
-                    item.subCategory?.toLowerCase() === "communication" ||
-                    item.subCategory?.toLowerCase() ===
-                    "professional communication" ||
-                    item.name?.toLowerCase().includes("communication")
-                  ) && (
+                  {/* BOX 3 — OTHER NON-PRIORITY ITEMS COMPLETED (Merged Optional & Distractors) */}
+                  {(() => {
+                    const isComm =
+                      item.subCategory?.toLowerCase() === 'communication' ||
+                      item.subCategory?.toLowerCase() ===
+                        'professional communication' ||
+                      item.name?.toLowerCase().includes('communication');
+
+                    if (isComm) {
+                      return null;
+                    }
+
+                    const isMedications =
+                      item.subCategory?.toLowerCase() === 'medications' ||
+                      item.name?.toLowerCase() === 'medications';
+
+                    const mergedNonPriority = [
+                      ...optionalDone.map((d) => ({
+                        action: d,
+                        isDistractor: false,
+                      })),
+                      ...distractorDone.map((d) => ({
+                        action: d,
+                        isDistractor: true,
+                      })),
+                    ];
+
+                    if (mergedNonPriority.length === 0 && !isMedications) {
+                      return null;
+                    }
+
+                    return (
                       <div
                         data-pdf-card
                         className="rounded-2xl border border-amber-200 bg-amber-50/60 border-l-[3px] border-l-amber-500 p-4 sm:p-5"
@@ -1451,126 +2038,154 @@ export default function RubricsSection({
                         <div className="mb-3">
                           <SectionBadge
                             title={
-                              item.subCategory?.toLowerCase() === "medications"
+                              isMedications
                                 ? labels.optionalMedicationsCompleted
-                                : labels.optionalActionsCompleted
+                                : labels.otherNonPriorityCompleted ||
+                                  'Other Non-Priority Items Completed'
                             }
-                            count={optionalDone.length}
+                            count={mergedNonPriority.length}
                             tone="warn"
                           />
                         </div>
-                        {optionalDone.length === 0 ? (
-                          <EmptyNote text={labels.noItems} />
+                        {mergedNonPriority.length === 0 ? (
+                          <p className="text-sm text-gray-400 italic pl-1 py-1">
+                            {labels.noItems || 'No items.'}
+                          </p>
                         ) : (
-                          <div className="space-y-2">
-                            {optionalDone.map((action, idx) => (
+                          <div className="pl-3 sm:pl-4 space-y-2">
+                            {mergedNonPriority.map((entry, idx) => (
                               <div
                                 key={idx}
                                 data-pdf-nobreak
                                 className="rounded-xl bg-white border border-amber-100 px-3 sm:px-4"
                               >
-                                <ActionRow
-                                  action={{
-                                    ...action,
-                                    title: translateDocPoint(
-                                      typeof action.title === "string"
-                                        ? action.title
-                                        : "",
-                                    ) || action.title,
-                                  }}
-                                  tone="warn"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                  {/* DISTRACTOR ACTIONS — for Actions & Interventions and Medications */}
-                  {(item.subCategory?.toLowerCase() === "action" ||
-                    item.subCategory?.toLowerCase() ===
-                    "actions & interventions" ||
-                    item.subCategory?.toLowerCase() === "medications") && (
-                      <div
-                        data-pdf-card
-                        className="rounded-2xl border border-primary-200 bg-primary-50 border-l-[3px] border-l-primary-500 p-4 sm:p-5"
-                      >
-                        <div className="mb-3">
-                          <SectionBadge
-                            title={labels.distractorActionsCompleted}
-                            count={distractorDone.length}
-                            tone="orange"
-                          />
-                        </div>
-                        {distractorDone.length === 0 ? (
-                          <EmptyNote
-                            text={
-                              item.subCategory?.toLowerCase() === "medications"
-                                ? labels.noDistractorMedications
-                                : labels.noDistractorActions
-                            }
-                          />
-                        ) : (
-                          <div className="space-y-2">
-                            {distractorDone.map((action, idx) => (
-                              <div
-                                key={idx}
-                                data-pdf-nobreak
-                                className="rounded-xl bg-white border border-primary-200 px-3 sm:px-4 flex items-start gap-3 py-2.5"
-                              >
                                 <div
-                                  className={`w-6 h-6 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm`}
+                                  data-pdf-nobreak
+                                  className="flex items-start gap-3 py-2.5"
                                 >
-                                  <AlertCircle className="w-3.5 h-3.5 text-white" />
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="text-sm font-medium text-gray-800 leading-relaxed">
-                                    {action.title}
-                                  </p>
+                                  <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-white" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-medium text-gray-800 leading-relaxed">
+                                      {stripActionPhrasing(
+                                        typeof entry.action.title === 'string'
+                                          ? entry.action.title
+                                          : ''
+                                      )}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
                             ))}
                           </div>
                         )}
                       </div>
-                    )}
+                    );
+                  })()}
                 </div>
               ) : null}
 
               {!hasParentValidation &&
-                Array.isArray(item.recommendations) &&
-                item.recommendations.length > 0 ? (
-                <div
-                  data-pdf-nobreak
-                  className="mt-8 p-6 rounded-xl border border-blue-100 bg-blue-50/50 space-y-4"
-                >
-                  <h4 className="text-sm font-bold text-gray-900">
-                    {labels.improvementRecommendations}
-                  </h4>
-                  <ul className="space-y-2">
-                    {item.recommendations.map((rec, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-start gap-2 text-sm text-blue-800/80"
-                      >
-                        <span
-                          className="flex-shrink-0"
-                          style={{ color: "#60a5fa", lineHeight: "1.5" }}
-                        >
-                          &#8226;
-                        </span>
-                        <span>{rec === "None identified." ? labels.noneIdentified : (isSeqItem ? translateSeqText(rec) : rec)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
+                (() => {
+                  const incorrectItems = allWeaknesses.filter(
+                    (it) =>
+                      !isNotPerformed(it.point) && !isNotPerformed(it.example)
+                  );
+                  const notCompletedItems = allWeaknesses.filter(
+                    (it) =>
+                      isNotPerformed(it.point) || isNotPerformed(it.example)
+                  );
+
+                  const recList: string[] = [];
+
+                  const hasNeedsImprovement =
+                    incorrectItems.length > 0 || notCompletedItems.length > 0;
+
+                  if (incorrectItems.length > 0) {
+                    recList.push(
+                      labels.recReviewEvidenceBased ||
+                        'Review the evidence-based rationale and guidelines for clinical interventions performed during patient care.'
+                    );
+                  }
+                  if (notCompletedItems.length > 0) {
+                    recList.push(
+                      labels.recReviewBriefingSbar ||
+                        'Review the pre-simulation scenario briefing, clinical documentation, and SBAR handover to ensure all mandatory assessments, interventions, and safety checks are identified and completed.'
+                    );
+                  }
+
+                  if (hasNeedsImprovement) {
+                    const catKey =
+                      `${item.subCategory ?? ''} ${item.name ?? ''} ${item.id ?? ''}`.toLowerCase();
+                    let reflectText =
+                      labels.recReflect || defaultRubricsLabels.recReflect!;
+                    if (/safety|privacy|infection|ppe/i.test(catKey)) {
+                      reflectText =
+                        labels.recReflectSafety ||
+                        defaultRubricsLabels.recReflectSafety!;
+                    } else if (/documentation|ehr/i.test(catKey)) {
+                      reflectText =
+                        labels.recReflectDocumentation ||
+                        defaultRubricsLabels.recReflectDocumentation!;
+                    } else if (/communication|sbar/i.test(catKey)) {
+                      reflectText =
+                        labels.recReflectCommunication ||
+                        defaultRubricsLabels.recReflectCommunication!;
+                    } else if (/medication/i.test(catKey)) {
+                      reflectText =
+                        labels.recReflectMedication ||
+                        defaultRubricsLabels.recReflectMedication!;
+                    }
+                    recList.push(reflectText);
+                  }
+
+                  // Include any unique custom recommendations from backend item.recommendations
+                  if (Array.isArray(item.recommendations)) {
+                    for (const r of item.recommendations) {
+                      if (!r || r === 'None identified.') continue;
+                      const translated = isSeqItem ? translateSeqText(r) : r;
+                      if (translated && !recList.includes(translated)) {
+                        recList.push(translated);
+                      }
+                    }
+                  }
+
+                  const uniqueRecs = Array.from(new Set(recList));
+
+                  if (uniqueRecs.length === 0) {
+                    return null;
+                  }
+
+                  return (
+                    <div
+                      data-pdf-nobreak
+                      className="mt-6 p-5 sm:p-6 rounded-2xl border border-gray-200/90 border-l-[3px] border-l-[#db8833] bg-white shadow-[0_2px_8px_rgba(15,23,42,0.03)] space-y-3"
+                    >
+                      <h4 className="text-sm sm:text-base font-bold text-gray-900">
+                        {labels.improvementRecommendations}
+                      </h4>
+                      <ul className="space-y-2.5">
+                        {uniqueRecs.map((recText, idx) => (
+                          <li
+                            key={idx}
+                            className="flex items-start gap-2.5 text-sm text-[#374151] leading-relaxed"
+                          >
+                            <span className="text-[#db8833] text-base leading-tight flex-shrink-0">
+                              &#8226;
+                            </span>
+                            <span>{recText}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
 
               {/* Inappropriate Actions (Distractors) - ONLY FOR ADMINS */}
               {isAdmin &&
-                item.subCategory?.toLowerCase() === "action" &&
-                item.actionDetails?.some((d) => d.type === "distractor") && (
+                item.subCategory?.toLowerCase() === 'action' &&
+                item.actionDetails?.some((d) => d.type === 'distractor') && (
                   <div className="mt-8 pt-8 border-t border-gray-100 space-y-6">
                     <div className="space-y-4">
                       <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -1586,7 +2201,7 @@ export default function RubricsSection({
 
                     <div className="space-y-3">
                       {item.actionDetails
-                        .filter((d) => d.type === "distractor")
+                        .filter((d) => d.type === 'distractor')
                         .map((dist, idx) => (
                           <div
                             key={idx}
@@ -1616,11 +2231,11 @@ export default function RubricsSection({
                       </p>
                       <ul className="space-y-2">
                         {[
-                          "Avoid initiating interventions without confirmed clinical need.",
+                          'Avoid initiating interventions without confirmed clinical need.',
                           "Refrain from performing tasks that are not aligned with the scenario's primary priorities.",
-                          "Ensure patient data is reassessed thoroughly before taking action.",
-                          "Maintain focus on primary objectives before addressing secondary or unrelated tasks.",
-                          "Pause and verify clinical reasoning when uncertainty arises.",
+                          'Ensure patient data is reassessed thoroughly before taking action.',
+                          'Maintain focus on primary objectives before addressing secondary or unrelated tasks.',
+                          'Pause and verify clinical reasoning when uncertainty arises.',
                         ].map((rec, i) => (
                           <li
                             key={i}
@@ -1628,7 +2243,7 @@ export default function RubricsSection({
                           >
                             <span
                               className="flex-shrink-0"
-                              style={{ color: "#60a5fa", lineHeight: "1.5" }}
+                              style={{ color: '#60a5fa', lineHeight: '1.5' }}
                             >
                               &#8226;
                             </span>
@@ -1658,7 +2273,7 @@ export default function RubricsSection({
                 )}
             </div>
           );
-        }),
+        })
       )}
     </div>
   );

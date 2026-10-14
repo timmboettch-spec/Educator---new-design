@@ -1,55 +1,88 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './entity/user.entity';
-import { Role } from '../roles/entity/role.entity';
-import { Educator } from '../educators/entity/educator.entity';
+import { Injectable, BadRequestException } from '@nestjs/common';
+
 import { CreateUserDto } from './dto/user.dto';
 import { ServiceResponse } from 'src/common/types';
 import { ErrorTypes } from 'src/common/utils/messages';
 import { UserConstants } from './users.constants';
-import * as bcrypt from 'bcrypt';
 import { FormattedUser } from 'src/common/types';
+import { CommonStatus } from 'src/common/enums/status.enum';
 import { InvitesService } from '../invites/invites.service';
 import { Inject, forwardRef } from '@nestjs/common';
 import { AuthConstants } from 'src/auth/auth.constants';
 import { throwAppError } from '../common/utils/app-error';
-import { AzureBlobService } from 'src/config/azure-blob.config';
+import { AzureBlobService, LoggerService } from 'src/common/services';
 import { ConfigService } from '@nestjs/config';
+import { User, Role, DistrictAdmin } from 'src/database/entities';
+import {
+  DISTRICT_ADMIN_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  ROLE_REPOSITORY,
+  USER_REPOSITORY,
+  USER_ROLE_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  DistrictAdminRepository,
+  EducatorRepository,
+  RoleRepository,
+  UserRepository,
+  UserRoleRepository,
+} from 'src/database/repositories';
+import { DatabaseService } from 'src/database/services/database.service';
+import { RoleSlug, UserTokenType } from 'src/common/constants';
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
   constructor(
-    @InjectRepository(User)
-    private usersRepo: Repository<User>,
+    @Inject(USER_REPOSITORY)
+    private usersRepo: UserRepository,
 
     private readonly configService: ConfigService,
-    @InjectRepository(Role)
-    private roleRepo: Repository<Role>,
+    @Inject(ROLE_REPOSITORY)
+    private roleRepo: RoleRepository,
 
-    @InjectRepository(Educator)
-    private educatorRepo: Repository<Educator>,
+    @Inject(EDUCATOR_REPOSITORY)
+    private educatorRepo: EducatorRepository,
+
+    @Inject(USER_ROLE_REPOSITORY)
+    private readonly userRoleRepo: UserRoleRepository,
+
+    @Inject(DISTRICT_ADMIN_REPOSITORY)
+    private readonly districtAdminRepo: DistrictAdminRepository,
 
     @Inject(forwardRef(() => InvitesService))
     private readonly invitesService: InvitesService,
     private readonly azureBlobService: AzureBlobService,
+    private databaseService: DatabaseService,
+    private readonly logger: LoggerService,
   ) { }
+
+  /**
+   * `fullName`/`profilePicture`/`isLicenseActive`/`subscriptions` no longer live on `User` —
+   * they moved to `DistrictAdmin` (district-admin-plan.md). Every admin `User` is expected to
+   * have a linked District Admin role assignment after the Phase 2 backfill migration.
+   */
+  private async getDistrictAdminForUser(
+    userId: string,
+  ): Promise<{ userRoleId: string; districtAdmin: DistrictAdmin | null } | null> {
+    const userRole = await this.userRoleRepo.findByUserAndRoleSlug(userId, RoleSlug.DISTRICT_ADMIN);
+    if (!userRole) return null;
+    const districtAdmin = await this.districtAdminRepo.findByUserRoleId(userRole.userRoleId);
+    return { userRoleId: userRole.userRoleId, districtAdmin };
+  }
 
   async findByEmail(email: string): Promise<User | null> {
     return await this.usersRepo.findOne({
       where: { email: email.trim().toLowerCase() },
-      relations: ['role'],
     });
   }
 
   async save(user: Partial<User>): Promise<User> {
     if (!user.id) {
-      const newUser = this.usersRepo.create(user);
-      return await this.usersRepo.save(newUser);
+      // const newUser = this.usersRepo.create(user);
+      return await this.usersRepo.create(user);
     } else {
       await this.usersRepo.update(user.id, user);
-      return (await this.usersRepo.findOne({ where: { id: user.id }, relations: ['role'] }))!;
+      return (await this.usersRepo.findOne({ where: { id: user.id } }))!;
     }
   }
 
@@ -59,13 +92,16 @@ export class UsersService {
     if (!user) return null;
 
     Object.assign(user, updateData);
-    return this.usersRepo.save(user);
+    await this.usersRepo.update(user.id, user);
+    return user;
   }
 
   async findBySubscriptionCode(code: string): Promise<User | null> {
-    return await this.usersRepo
-      .createQueryBuilder('user')
-      .where('"user"."subscriptions"::jsonb @> :code::jsonb', {
+    return await this.databaseService.connection
+      .createQueryBuilder(User, 'user')
+      .innerJoin('user.userRoles', 'user_role')
+      .innerJoin('district_admins', 'district_admin', 'district_admin.user_role_id = user_role.user_role_id')
+      .where('district_admin.subscriptions::jsonb @> :code::jsonb', {
         code: JSON.stringify([{ redeem_code: code.toUpperCase() }]),
       })
       .getOne();
@@ -73,19 +109,29 @@ export class UsersService {
 
   async findAll(): Promise<ServiceResponse<FormattedUser[]>> {
     const users = await this.usersRepo.find({
-      relations: ['role'],
+      relations: { userRoles: { role: true, districtAdmin: true } },
       order: { created_at: 'DESC' },
     });
 
-    const formattedUsers: FormattedUser[] = users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      status: user.status,
-      role: user.role ? { id: user.role.id, role_name: user.role.role_name } : null,
-      parent_id: null,
-      school: null,
-    }));
+    const formattedUsers: FormattedUser[] = users.map((user) => {
+      const districtAdmin = user.userRoles?.find((ur) => ur.districtAdmin)?.districtAdmin;
+      // `users.role_id` is no longer mapped — role membership lives only on `user_roles`. The
+      // response keeps a single `role` for backward compatibility, resolved to the account's
+      // first ACTIVE assignment (falling back to its first assignment of any status).
+      const primaryRole =
+        user.userRoles?.find((ur) => ur.status === CommonStatus.ACTIVE && ur.role)?.role ??
+        user.userRoles?.find((ur) => ur.role)?.role ??
+        null;
+      return {
+        id: user.id,
+        email: user.email,
+        fullName: districtAdmin?.fullName ?? '',
+        status: user.status,
+        role: primaryRole ? { id: primaryRole.id, role_name: primaryRole.role_name } : null,
+        parent_id: null,
+        school: null,
+      };
+    });
 
     return {
       success: true,
@@ -97,7 +143,7 @@ export class UsersService {
   async findById(id: string): Promise<ServiceResponse<User>> {
     const user = await this.usersRepo.findOne({
       where: { id },
-      relations: ['role'],
+      relations: ['userRoles', 'userRoles.districtAdmin'],
     });
     if (!user) {
       return {
@@ -108,13 +154,10 @@ export class UsersService {
     }
     const { password, ...userWithoutPassword } = user;
     void password;
-    userWithoutPassword.profile_picture = await this.sanitizeProfilePicture(
-      userWithoutPassword.profile_picture ?? '',
-    );
     return {
       success: true,
       message: UserConstants.MESSAGES.FETCHED,
-      data: userWithoutPassword as User,
+      data: userWithoutPassword,
     };
   }
 
@@ -124,7 +167,7 @@ export class UsersService {
       if (!inviteEntity) {
         throw new BadRequestException('Invalid invite ID');
       }
-      const invite = await this.invitesService.acceptInvite(inviteEntity);
+      const invite = await this.invitesService.markInviteAccepted(inviteEntity);
       if (invite) {
         if (invite.email.toLowerCase() !== userDto.email.toLowerCase()) {
           throw new BadRequestException(AuthConstants.MESSAGES.INVITE_EMAIL_MISMATCH);
@@ -132,33 +175,32 @@ export class UsersService {
       }
     }
 
-    let role: Role | null = null;
+    let role: Role | null;
     if (userDto.role_id) {
       role = await this.roleRepo.findOne({ where: { id: userDto.role_id } });
       if (!role) {
         throwAppError(`Role with ID ${userDto.role_id} not found.`);
       }
     } else {
-      const role_name = userDto.invite_id
-        ? UserConstants.ROLES.EDUCATOR
-        : UserConstants.ROLES.DISTRICT_ADMIN;
+      const slug = userDto.invite_id
+        ? RoleSlug.EDUCATOR
+        : RoleSlug.DISTRICT_ADMIN;
 
-      role = await this.roleRepo.findOne({ where: { role_name } });
+      role = await this.roleRepo.findOne({ where: { slug } });
 
       if (!role) {
-        throwAppError(`${UserConstants.MESSAGES.ROLE_MISSING} [${role_name}]`);
+        throwAppError(`${UserConstants.MESSAGES.ROLE_MISSING} [${role?.['role_name']}]`);
       }
     }
 
-    const user = this.usersRepo.create({
+    return await this.usersRepo.createUserWithRole({
       email: userDto.email,
       password: userDto.password,
-      full_name: userDto.full_name,
       status: userDto.status,
-      role,
+      roleId: role.id,
+      roleSlug: role.slug ?? undefined,
+      fullName: userDto.full_name,
     });
-
-    return await this.usersRepo.save(user);
   }
 
   private async sanitizeProfilePicture(value?: string): Promise<string> {
@@ -168,9 +210,9 @@ export class UsersService {
 
   async updateProfile(
     id: string,
-    body: { full_name?: string; profile_picture_url?: string },
+    body: { fullName?: string; profilePictureUrl?: string },
     file?: Express.Multer.File,
-  ): Promise<ServiceResponse<{ id: string; full_name: string; profile_picture: string | null }>> {
+  ): Promise<ServiceResponse<{ id: string; fullName: string; profilePicture: string | null }>> {
     try {
       const user = await this.usersRepo.findOne({ where: { id } });
       if (!user) {
@@ -182,11 +224,26 @@ export class UsersService {
         };
       }
 
-      if (body.full_name) {
+      const linkedDistrictAdmin = await this.getDistrictAdminForUser(id);
+      if (!linkedDistrictAdmin) {
+        this.logger.warn(`[updateProfile:user] No linked District Admin role for user: ${id}`);
+        return {
+          success: false,
+          message: UserConstants.MESSAGES.NOT_FOUND,
+          type: ErrorTypes.NOT_FOUND,
+        };
+      }
+      const { userRoleId } = linkedDistrictAdmin;
+      const profile: { fullName?: string; profilePicture?: string } = {
+        fullName: linkedDistrictAdmin.districtAdmin?.fullName,
+        profilePicture: linkedDistrictAdmin.districtAdmin?.profilePicture ?? undefined,
+      };
+
+      if (body.fullName) {
         this.logger.log(
-          `[updateProfile:user] Updating full_name: ${user.full_name} → ${body.full_name}`,
+          `[updateProfile:user] Updating fullName: ${profile.fullName} → ${body.fullName}`,
         );
-        user.full_name = body.full_name;
+        profile.fullName = body.fullName;
       }
 
       const isAzureConfigured =
@@ -195,7 +252,7 @@ export class UsersService {
 
       this.logger.log(`[updateProfile] azureBlobService.isConfigured: ${isAzureConfigured}`);
       this.logger.log(`[updateProfile] file provided: ${!!file}`);
-      this.logger.log(`[updateProfile] profile_picture_url: ${body.profile_picture_url ?? 'none'}`);
+      this.logger.log(`[updateProfile] profilePictureUrl: ${body.profilePictureUrl ?? 'none'}`);
 
       if (file) {
         const ext = file.originalname.split('.').pop();
@@ -207,13 +264,13 @@ export class UsersService {
         if (isAzureConfigured) {
           this.logger.log(`[updateProfile:user] Starting Azure Blob upload...`);
           try {
-            user.profile_picture = await this.azureBlobService.uploadFile(
+            profile.profilePicture = await this.azureBlobService.uploadFile(
               file.buffer,
               blobName,
               file.mimetype,
             );
             this.logger.log(
-              `[updateProfile:user] Azure upload SUCCESS - URL: ${user.profile_picture}`,
+              `[updateProfile:user] Azure upload SUCCESS - URL: ${profile.profilePicture}`,
             );
           } catch (uploadError) {
             this.logger.error(
@@ -226,21 +283,21 @@ export class UsersService {
           }
         } else {
           this.logger.warn(`[updateProfile:user] Azure not configured — skipping file upload`);
-          if (body.profile_picture_url?.startsWith('http')) {
+          if (body.profilePictureUrl?.startsWith('http')) {
             this.logger.warn(
-              `[updateProfile:user] Using fallback URL: ${body.profile_picture_url}`,
+              `[updateProfile:user] Using fallback URL: ${body.profilePictureUrl}`,
             );
-            user.profile_picture = body.profile_picture_url;
+            profile.profilePicture = body.profilePictureUrl;
           } else {
             this.logger.warn(
               `[updateProfile:user] No valid fallback URL — profile picture unchanged`,
             );
           }
         }
-      } else if (body.profile_picture_url) {
-        if (body.profile_picture_url.startsWith('blob:')) {
+      } else if (body.profilePictureUrl) {
+        if (body.profilePictureUrl.startsWith('blob:')) {
           this.logger.warn(
-            `[updateProfile:user] Blob URL rejected (client-side URL): ${body.profile_picture_url}`,
+            `[updateProfile:user] Blob URL rejected (client-side URL): ${body.profilePictureUrl}`,
           );
           return {
             success: false,
@@ -248,27 +305,31 @@ export class UsersService {
             type: ErrorTypes.BAD_REQUEST,
           };
         }
-        if (body.profile_picture_url.startsWith('http')) {
+        if (body.profilePictureUrl.startsWith('http')) {
           this.logger.log(
-            `[updateProfile:user] Setting profile_picture from URL: ${body.profile_picture_url}`,
+            `[updateProfile:user] Setting profilePicture from URL: ${body.profilePictureUrl}`,
           );
-          user.profile_picture = body.profile_picture_url;
+          profile.profilePicture = body.profilePictureUrl;
         }
       }
 
       this.logger.log(
-        `[updateProfile:user] Saving user record. profile_picture value: ${user.profile_picture ?? 'null'}`,
+        `[updateProfile:user] Saving district admin record. profile_picture value: ${profile.profilePicture ?? 'null'}`,
       );
-      await this.usersRepo.save(user);
-      const rawPicture = user.profile_picture?.replace(/["'\s]+$/, '').startsWith('http')
-        ? user.profile_picture.replace(/["'\s]+$/, '')
+
+      await this.districtAdminRepo.updateByUserRoleId(userRoleId, {
+        fullName: profile.fullName,
+        profilePicture: profile.profilePicture,
+      });
+      const rawPicture = profile.profilePicture?.replace(/["'\s]+$/, '').startsWith('http')
+        ? profile.profilePicture.replace(/["'\s]+$/, '')
         : null;
-      const profile_picture_user = rawPicture
+      const profilePictureUser = rawPicture
         ? await this.azureBlobService.generateSasUrl(rawPicture)
         : null;
 
       this.logger.log(
-        `[updateProfile:user] SUCCESS - user: ${id}, profile_picture: ${profile_picture_user ? 'set' : 'null'}`,
+        `[updateProfile:user] SUCCESS - user: ${id}, profilePicture: ${profilePictureUser ? 'set' : 'null'}`,
       );
 
       return {
@@ -276,8 +337,8 @@ export class UsersService {
         message: UserConstants.MESSAGES.UPDATED,
         data: {
           id: user.id,
-          full_name: user.full_name,
-          profile_picture: profile_picture_user,
+          fullName: profile.fullName ?? '',
+          profilePicture: profilePictureUser,
         },
       };
     } catch (error) {
@@ -293,63 +354,9 @@ export class UsersService {
     }
   }
 
-  async changePassword(
-    id: string,
-    oldPassword: string,
-    newPassword: string,
-  ): Promise<ServiceResponse<null>> {
-    const user = await this.usersRepo.findOne({ where: { id } });
-    if (user) {
-      const isMatch = await bcrypt.compare(oldPassword, user.password);
-      if (!isMatch)
-        return {
-          success: false,
-          message: 'Old password is incorrect',
-          type: ErrorTypes.BAD_REQUEST,
-        };
-      const hashed = await bcrypt.hash(newPassword, 10);
-      user.password = hashed;
-      await this.usersRepo.save(user);
-      const dualEducator = await this.educatorRepo.findOne({ where: { email: user.email } });
-      if (dualEducator) {
-        dualEducator.password = hashed;
-        await this.educatorRepo.save(dualEducator);
-      }
-      return { success: true, message: 'Password changed successfully', data: null };
-    }
-
-    const educator = await this.educatorRepo.findOne({ where: { id } });
-    if (educator) {
-      const isMatch = await bcrypt.compare(oldPassword, educator.password ?? '');
-      if (!isMatch)
-        return {
-          success: false,
-          message: 'Old password is incorrect',
-          type: ErrorTypes.BAD_REQUEST,
-        };
-      const hashed = await bcrypt.hash(newPassword, 10);
-      educator.password = hashed;
-      await this.educatorRepo.save(educator);
-      // Dual-role sync: mirror the update onto the users table if the same
-      // email is registered as an Administrator there.
-      const dualUser = await this.usersRepo.findOne({ where: { email: educator.email } });
-      if (dualUser) {
-        dualUser.password = hashed;
-        await this.usersRepo.save(dualUser);
-      }
-      return { success: true, message: 'Password changed successfully', data: null };
-    }
-
-    return {
-      success: false,
-      message: UserConstants.MESSAGES.NOT_FOUND,
-      type: ErrorTypes.NOT_FOUND,
-    };
-  }
-
-  async getProfilePicture(userId: string, type?: string): Promise<string | null> {
-    if (type === 'educator') {
-      const educator = await this.educatorRepo.findOne({ where: { id: userId } });
+  async getProfilePicture(userId: string, type?: UserTokenType): Promise<string | null> {
+    if (type === UserTokenType.EDUCATOR) {
+      const educator = await this.educatorRepo.findOne({ where: { userRole: { userId } } });
       if (!educator) {
         return null;
       }
@@ -357,19 +364,25 @@ export class UsersService {
       return picture;
     }
 
-    const user = await this.usersRepo.findOne({ where: { id: userId } });
-    if (!user) {
+    const linkedDistrictAdmin = await this.getDistrictAdminForUser(userId);
+    if (!linkedDistrictAdmin) {
       return null;
     }
-    const picture = this.sanitizeProfilePicture(user.profile_picture ?? '');
+    const picture = this.sanitizeProfilePicture(
+      linkedDistrictAdmin.districtAdmin?.profilePicture ?? '',
+    );
     return picture;
   }
   async removeProfilePhoto(
     id: string,
-    type?: string,
-  ): Promise<ServiceResponse<{ id: string; profile_picture: null }>> {
-    if (type === 'educator') {
-      const educator = await this.educatorRepo.findOne({ where: { id, is_active: true } });
+    type?: UserTokenType,
+  ): Promise<ServiceResponse<{ id: string; profilePicture: null }>> {
+    if (type === UserTokenType.EDUCATOR) {
+      // `id` is the caller's `users.id`, so resolve the educator through its linked `user_roles`
+      // row rather than matching it against `educators.id` — same as `getProfilePicture` above.
+      const educator = await this.educatorRepo.findOne({
+        where: { userRole: { userId: id }, is_active: true },
+      });
       if (!educator) {
         return {
           success: false,
@@ -378,11 +391,11 @@ export class UsersService {
         };
       }
       educator.profile_picture = '';
-      await this.educatorRepo.save(educator);
+      await this.educatorRepo.update(educator.id, educator);
       return {
         success: true,
         message: 'Profile photo removed successfully',
-        data: { id: educator.id, profile_picture: null },
+        data: { id: educator.id, profilePicture: null },
       };
     }
 
@@ -395,13 +408,22 @@ export class UsersService {
       };
     }
 
-    user.profile_picture = null;
-    await this.usersRepo.save(user);
+    const linkedDistrictAdmin = await this.getDistrictAdminForUser(id);
+    if (!linkedDistrictAdmin) {
+      return {
+        success: false,
+        message: UserConstants.MESSAGES.NOT_FOUND,
+        type: ErrorTypes.NOT_FOUND,
+      };
+    }
+    await this.districtAdminRepo.updateByUserRoleId(linkedDistrictAdmin.userRoleId, {
+      profilePicture: null,
+    });
 
     return {
       success: true,
       message: 'Profile photo removed successfully',
-      data: { id: user.id, profile_picture: null },
+      data: { id: user.id, profilePicture: null },
     };
   }
 }

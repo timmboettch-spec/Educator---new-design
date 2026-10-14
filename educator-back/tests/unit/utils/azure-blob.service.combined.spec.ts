@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { AzureBlobService } from '../../../src/config/azure-blob.config';
+import { AzureBlobService, LoggerService } from '../../../src/common/services';
 
 const mockFns = {
   deleteIfExists: jest.fn().mockResolvedValue(undefined),
@@ -39,8 +39,8 @@ jest.mock('@azure/storage-blob', () => ({
 
 const makeConfig = (connectionString?: string, container?: string): { get: jest.Mock } => ({
   get: jest.fn((key: string): string | undefined => {
-    if (key === 'AZURE_STORAGE_CONNECTION_STRING') return connectionString;
-    if (key === 'AZURE_STORAGE_CONTAINER') return container;
+    if (key === 'azureBlob.connectionString') return connectionString;
+    if (key === 'azureBlob.profilePictureContainer') return container ?? 'profile-pictures';
     return undefined;
   }),
 });
@@ -53,6 +53,17 @@ const buildService = async (
     providers: [
       AzureBlobService,
       { provide: ConfigService, useValue: makeConfig(connectionString, container) },
+      {
+        provide: LoggerService,
+        useValue: {
+          log: jest.fn(),
+          error: jest.fn(),
+          warn: jest.fn(),
+          debug: jest.fn(),
+          verbose: jest.fn(),
+          fatal: jest.fn(),
+        },
+      },
     ],
   })
     .setLogger({

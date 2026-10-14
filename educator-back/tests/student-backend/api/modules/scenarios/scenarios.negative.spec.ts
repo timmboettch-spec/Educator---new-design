@@ -6,8 +6,6 @@ import type { TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { ScenariosController } from '../../../../../src/student-backend/modules/scenarios/scenarios.controller';
 import { ScenariosService } from '../../../../../src/student-backend/modules/scenarios/scenarios.service';
-import { ScenarioAuthGuard } from '../../../../../src/student-backend/guards/scenario-auth.guard';
-import { ScenarioAssignmentGuard } from '../../../../../src/student-backend/modules/scenarios/guards/scenario-assignment.guard';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiGet } from '../../common/utils/api.helper';
 import { ENDPOINTS } from '../../common/constants/endpoints';
@@ -28,10 +26,6 @@ describe('Scenarios API — Negative Tests', () => {
       controllers: [ScenariosController],
       providers: [{ provide: ScenariosService, useValue: mockScenariosService }],
     })
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
-      .overrideGuard(ScenarioAssignmentGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
     app = await createTestApp(moduleRef);
@@ -56,13 +50,14 @@ describe('Scenarios API — Negative Tests', () => {
       expect(res.status).toBe(STATUS.NOT_FOUND);
     });
 
-    it('GET /scenarios/unit/:unitId returns 404 when unit does not exist', async () => {
-      mockScenariosService.findByUnit.mockRejectedValue(new NotFoundException('Unit not found'));
-
-      const res = await apiGet(app, ENDPOINTS.SCENARIOS.BY_UNIT('no-such-unit'));
-
-      expect(res.status).toBe(STATUS.NOT_FOUND);
-    });
+    // Disabled — GET /scenarios/unit/:unitId route is commented out in the controller.
+    // it('GET /scenarios/unit/:unitId returns 404 when unit does not exist', async () => {
+    //   mockScenariosService.findByUnit.mockRejectedValue(new NotFoundException('Unit not found'));
+    //
+    //   const res = await apiGet(app, ENDPOINTS.SCENARIOS.BY_UNIT('no-such-unit'));
+    //
+    //   expect(res.status).toBe(STATUS.NOT_FOUND);
+    // });
   });
 
   // ─── 405 – Method Not Allowed ─────────────────────────────────────────────────

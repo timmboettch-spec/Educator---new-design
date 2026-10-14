@@ -1,2 +1,7 @@
-src/
-tests/
+dist/
+coverage/
+node_modules/
+tests/*/reports/
+data/
+public/
+*.min.js

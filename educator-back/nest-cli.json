@@ -6,11 +6,19 @@
     "deleteOutDir": true,
     "assets": [
       {
+        "include": "assets/**/*",
+        "outDir": "dist"
+      },
+      {
         "include": "mock/**/*",
         "outDir": "dist"
       },
       {
         "include": "mail/templates/**/*",
+        "outDir": "dist"
+      },
+      {
+        "include": "common/i18n/**/*",
         "outDir": "dist"
       }
     ]

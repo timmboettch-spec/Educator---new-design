@@ -8,6 +8,8 @@ export const ENDPOINTS = {
     VERIFY_OTP: '/auth/verify-otp',
     RESET_PASSWORD: '/auth/reset-password',
     RESEND_OTP: '/auth/resend-otp',
+    CSRF_TOKEN: '/auth/csrf-token',
+    SELECT_ROLE: '/auth/select-role',
   },
   SCHOOLS: {
     BASE: '/schools',
@@ -24,12 +26,19 @@ export const ENDPOINTS = {
   },
   STUDENTS: {
     BASE: '/students',
+    BULK: '/students/bulk',
+    BULK_UPLOAD: '/students/bulk-upload',
     BY_CLASS: (classId: string) => `/students/class/${classId}`,
     BY_USER: '/students/user',
     BATCH_EMAIL: '/students/batch-email',
     UPDATE_CODE: '/students/update-code',
     EMAIL_REPORT: '/students/email-report',
     BY_ID: (id: string) => `/students/${id}`,
+    REVOKE_CODE: (id: string) => `/students/revoke-code/${id}`,
+    REGENERATE_CODE: (id: string) => `/students/regenerate-code/${id}`,
+    LOGIN: '/students/login',
+    LOOKUP_BY_CODE: (code: string) => `/students/lookup/${code}`,
+    START_ASSESSMENT: (id: string) => `/students/${id}/start-assessment`,
   },
   EDUCATORS: {
     ADMIN: '/educators/admin',
@@ -40,11 +49,12 @@ export const ENDPOINTS = {
     BY_ID: (id: string) => `/invites/${id}`,
   },
   SIMULATION_CATALOG: {
-    DASHBOARD: '/simulation-catalog/dashboard',
-    SCENARIOS: '/simulation-catalog/scenarios',
+    SCENARIOS: '/simulations/educators',
   },
   SIMULATIONS: {
-    BY_UNIT: (unitId: string) => `/simulations/unit/${unitId}`,
+    LIST: '/simulations',
+    PUBLIC: (scenarioId: string) => `/simulations/${scenarioId}/public`,
+    BY_UNIT: (unitId: string) => `/simulations/by-unit/${unitId}`,
   },
   EDUCATOR_SIMULATIONS: {
     LIBRARY: '/educator-simulations/my-library',

@@ -81,7 +81,7 @@ describe('Educators Filter & Search Unit Test', () => {
         <MemoryRouter>
           <Educators />
         </MemoryRouter>
-      </Provider>,
+      </Provider>
     );
 
   test('should render educators list', async () => {

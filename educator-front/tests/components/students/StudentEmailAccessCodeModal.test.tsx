@@ -49,14 +49,17 @@ vi.mock('../../../src/redux/class/StudentEmailAccessRedux', () => ({
     payload,
   })),
 
-  selectEmailAccessCodeLoading: (s: { studentEmailAccess: { loading: boolean } }) =>
-    s.studentEmailAccess.loading,
+  selectEmailAccessCodeLoading: (s: {
+    studentEmailAccess: { loading: boolean };
+  }) => s.studentEmailAccess.loading,
 
-  selectEmailAccessCodeSuccess: (s: { studentEmailAccess: { success: boolean } }) =>
-    s.studentEmailAccess.success,
+  selectEmailAccessCodeSuccess: (s: {
+    studentEmailAccess: { success: boolean };
+  }) => s.studentEmailAccess.success,
 
-  selectEmailAccessCodeError: (s: { studentEmailAccess: { error: string | null } }) =>
-    s.studentEmailAccess.error,
+  selectEmailAccessCodeError: (s: {
+    studentEmailAccess: { error: string | null };
+  }) => s.studentEmailAccess.error,
 }));
 
 vi.mock('../../../src/components/ui/Modal', () => ({
@@ -93,7 +96,12 @@ vi.mock('../../../src/components/ui/Input', () => ({
   }) => (
     <label>
       {label}
-      <input value={value} onChange={onChange} disabled={disabled} placeholder={placeholder} />
+      <input
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        placeholder={placeholder}
+      />
     </label>
   ),
 }));
@@ -183,7 +191,7 @@ describe('StudentEmailAccessCodeModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /Send Via Email/i,
-      }),
+      })
     );
 
     expect(mockDispatch).toHaveBeenCalledWith(
@@ -197,7 +205,7 @@ describe('StudentEmailAccessCodeModal', () => {
           student_id: 'student-row-id',
           email: 'john@example.com',
         },
-      }),
+      })
     );
   });
 
@@ -217,7 +225,7 @@ describe('StudentEmailAccessCodeModal', () => {
     expect(
       screen.getByRole('button', {
         name: /Back/i,
-      }),
+      })
     ).toBeDisabled();
   });
 

@@ -1,4 +1,3 @@
- 
 import {
   MessageSquare,
   Target,
@@ -9,7 +8,7 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-} from "lucide-react";
+} from 'lucide-react';
 
 type StrengthWeakness = {
   point: string;
@@ -78,51 +77,52 @@ export interface CommunicationSectionLabels {
 }
 
 const defaultCommunicationLabels: CommunicationSectionLabels = {
-  teamCommunication: "TEAM COMMUNICATION",
-  satisfactory: "SATISFACTORY",
-  unsatisfactory: "UNSATISFACTORY",
-  notDone: "NOT DONE",
-  strengths: "Strengths",
-  weaknesses: "Weaknesses / Opportunities",
-  criterionNotMet: "Criterion not met:",
-  criteriaEvaluation: "Criteria Evaluation",
-  pass: "PASS",
-  fail: "FAIL",
-  recommendations: "Recommendations",
-  technicalSkillsAssessment: "Technical Skills Assessment",
-  technicalSkillsSubtitle: "Evaluation of clinical and technical competencies",
-  technicalSkillsScore: "Technical Skills Score:",
-  communicationAssessment: "Communication Assessment",
-  communicationSubtitle: "Evaluation of patient interaction and communication skills",
-  softSkillsScore: "Soft Skills Score:",
-  viewSummary: "view summary",
-  exceptional: "Exceptional",
-  meetsExpectation: "Meets Expectation",
-  needsImprovement: "Needs Improvement",
-  meetsExpectations: "MEETS EXPECTATIONS",
-  developing: "DEVELOPING",
-  noItemsIdentified: "No items identified.",
-  weight: "Weight:",
+  teamCommunication: 'TEAM COMMUNICATION',
+  satisfactory: 'SATISFACTORY',
+  unsatisfactory: 'UNSATISFACTORY',
+  notDone: 'NOT DONE',
+  strengths: 'Strengths',
+  weaknesses: 'Weaknesses / Opportunities',
+  criterionNotMet: 'Criterion not met:',
+  criteriaEvaluation: 'Criteria Evaluation',
+  pass: 'PASS',
+  fail: 'FAIL',
+  recommendations: 'Recommendations',
+  technicalSkillsAssessment: 'Technical Skills Assessment',
+  technicalSkillsSubtitle: 'Evaluation of clinical and technical competencies',
+  technicalSkillsScore: 'Technical Skills Score:',
+  communicationAssessment: 'Communication Assessment',
+  communicationSubtitle:
+    'Evaluation of patient interaction and communication skills',
+  softSkillsScore: 'Soft Skills Score:',
+  viewSummary: 'view summary',
+  exceptional: 'Exceptional',
+  meetsExpectation: 'Meets Expectation',
+  needsImprovement: 'Needs Improvement',
+  meetsExpectations: 'MEETS EXPECTATIONS',
+  developing: 'DEVELOPING',
+  noItemsIdentified: 'No items identified.',
+  weight: 'Weight:',
 };
 
 function ListBlock({
   title,
   tone,
   items,
-  noItemsLabel = "No items identified.",
+  noItemsLabel = 'No items identified.',
 }: {
   title: string;
-  tone: "good" | "warn";
+  tone: 'good' | 'warn';
   items: StrengthWeakness[];
   noItemsLabel?: string;
 }) {
-  const titleColor = tone === "good" ? "text-emerald-600" : "text-amber-600";
+  const titleColor = tone === 'good' ? 'text-emerald-600' : 'text-amber-600';
   const itemBg =
-    tone === "good"
-      ? "bg-emerald-50 border-emerald-100"
-      : "bg-amber-50 border-amber-100";
-  const IconCircleBg = tone === "good" ? "bg-emerald-500" : "bg-amber-500";
-  const Icon = tone === "good" ? CheckCircle : AlertCircle;
+    tone === 'good'
+      ? 'bg-emerald-50 border-emerald-100'
+      : 'bg-amber-50 border-amber-100';
+  const IconCircleBg = tone === 'good' ? 'bg-emerald-500' : 'bg-amber-500';
+  const Icon = tone === 'good' ? CheckCircle : AlertCircle;
 
   return (
     <div className="space-y-4">
@@ -178,33 +178,44 @@ function MultiCriteriaCommunicationDisplay({
 }) {
   const score = item.score || 0;
   const weight = item.weight || 20;
-  
+
   const getOverallRating = (score: number) => {
     if (score >= 80) {
-      return { label: labels.meetsExpectations, color: "bg-green-100 text-green-800 border-green-200" };
+      return {
+        label: labels.meetsExpectations,
+        color: 'bg-green-100 text-green-800 border-green-200',
+      };
     }
     if (score >= 60) {
-      return { label: labels.developing, color: "bg-yellow-100 text-yellow-800 border-yellow-200" };
+      return {
+        label: labels.developing,
+        color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      };
     }
-    return { label: labels.needsImprovement.toUpperCase(), color: "bg-red-100 text-red-800 border-red-200" };
+    return {
+      label: labels.needsImprovement.toUpperCase(),
+      color: 'bg-red-100 text-red-800 border-red-200',
+    };
   };
 
   const rating = getOverallRating(score);
-  
+
   // Build criteriaResults from existing criteriaResults OR parse from strengths/weaknesses
   let criteriaResults: CriteriaResult[] = item.criteriaResults || [];
-  
+
   if (criteriaResults.length === 0) {
     // Parse criteria from strengths and weaknesses
     const passedFromStrengths: CriteriaResult[] = (item.strengths || [])
       .filter((s) => s.point.toLowerCase().includes('criterion'))
       .map((s, idx) => ({
         criterionId: `strength_${idx}`,
-        title: s.point.replace(/^Criterion met:\s*/i, '').replace(/^Correctly\s+/i, ''),
+        title: s.point
+          .replace(/^Criterion met:\s*/i, '')
+          .replace(/^Correctly\s+/i, ''),
         passed: true,
         rationale: s.example || s.point,
       }));
-    
+
     const failedFromWeaknesses: CriteriaResult[] = (item.weaknesses || [])
       .filter((w) => w.point.toLowerCase().includes('criterion'))
       .map((w, idx) => ({
@@ -213,10 +224,10 @@ function MultiCriteriaCommunicationDisplay({
         passed: false,
         rationale: w.example || w.point,
       }));
-    
+
     criteriaResults = [...passedFromStrengths, ...failedFromWeaknesses];
   }
-  
+
   const passedCriteria = criteriaResults.filter((c) => c.passed);
   const failedCriteria = criteriaResults.filter((c) => !c.passed);
 
@@ -225,10 +236,16 @@ function MultiCriteriaCommunicationDisplay({
       {/* Header */}
       <div className="p-6 border-b border-gray-200 flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-900">{item.name || labels.teamCommunication}</h3>
-            <p className="text-sm text-gray-500 mt-1">{labels.weight} {weight}%</p>
+          <h3 className="text-lg font-bold text-gray-900">
+            {item.name || labels.teamCommunication}
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {labels.weight} {weight}%
+          </p>
         </div>
-        <div className={`px-4 py-2 rounded-lg border-2 ${rating.color} font-semibold text-sm`}>
+        <div
+          className={`px-4 py-2 rounded-lg border-2 ${rating.color} font-semibold text-sm`}
+        >
           {rating.label}
         </div>
       </div>
@@ -243,38 +260,47 @@ function MultiCriteriaCommunicationDisplay({
       )}
 
       {/* Team Communication Badge */}
-      {(sbarStatus || tcTypeRequirement === "Optional" || tcTypeRequirement === "Distractor" || tcTypeRequirement === "Mandatory") && (() => {
-        const isOptionalOrDistractor =
-          tcTypeRequirement === "Optional" || tcTypeRequirement === "Distractor";
-        const isSatisfactory = sbarStatus?.toLowerCase() === "satisfactory";
-        // null + Optional/Distractor = not attempted → yellow NOT DONE
-        // Satisfactory (any type) → green
-        // Unsatisfactory (any type) → red
-        const isNotAttempted = isOptionalOrDistractor && !sbarStatus;
-        const badgeColor = isNotAttempted
-          ? "bg-yellow-50 border-yellow-400 text-yellow-800"
-          : isSatisfactory
-            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-            : "bg-red-50 border-red-200 text-red-700";
-        const displayLabel = isNotAttempted
-          ? labels.notDone
-          : isSatisfactory
-            ? labels.satisfactory
-            : labels.unsatisfactory;
-        return (
-          <div className="p-6 bg-gray-50 border-b border-gray-200">
-            <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 font-semibold text-sm ${badgeColor}`}>
-              {isSatisfactory ? (
-                <CheckCircle2 className="w-4 h-4" />
-              ) : (
-                <XCircle className="w-4 h-4" />
-              )}
-              <span className="uppercase tracking-wider">{labels.teamCommunication}</span>
-              <span className="uppercase tracking-wider">{displayLabel}</span>
+      {(sbarStatus ||
+        tcTypeRequirement === 'Optional' ||
+        tcTypeRequirement === 'Distractor' ||
+        tcTypeRequirement === 'Mandatory') &&
+        (() => {
+          const isOptionalOrDistractor =
+            tcTypeRequirement === 'Optional' ||
+            tcTypeRequirement === 'Distractor';
+          const isSatisfactory = sbarStatus?.toLowerCase() === 'satisfactory';
+          // null + Optional/Distractor = not attempted → yellow NOT DONE
+          // Satisfactory (any type) → green
+          // Unsatisfactory (any type) → red
+          const isNotAttempted = isOptionalOrDistractor && !sbarStatus;
+          const badgeColor = isNotAttempted
+            ? 'bg-yellow-50 border-yellow-400 text-yellow-800'
+            : isSatisfactory
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : 'bg-red-50 border-red-200 text-red-700';
+          const displayLabel = isNotAttempted
+            ? labels.notDone
+            : isSatisfactory
+              ? labels.satisfactory
+              : labels.unsatisfactory;
+          return (
+            <div className="p-6 bg-gray-50 border-b border-gray-200">
+              <div
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 font-semibold text-sm ${badgeColor}`}
+              >
+                {isSatisfactory ? (
+                  <CheckCircle2 className="w-4 h-4" />
+                ) : (
+                  <XCircle className="w-4 h-4" />
+                )}
+                <span className="uppercase tracking-wider">
+                  {labels.teamCommunication}
+                </span>
+                <span className="uppercase tracking-wider">{displayLabel}</span>
+              </div>
             </div>
-          </div>
-        );
-      })()}
+          );
+        })()}
 
       <div className="p-6 space-y-8">
         {/* Strengths */}
@@ -294,7 +320,9 @@ function MultiCriteriaCommunicationDisplay({
                   <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-medium">{criterion.title}</p>
-                    <p className="text-xs text-gray-600 mt-1">{criterion.rationale}</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {criterion.rationale}
+                    </p>
                   </div>
                 </li>
               ))}
@@ -321,7 +349,9 @@ function MultiCriteriaCommunicationDisplay({
                     <p className="font-medium">
                       {labels.criterionNotMet} {criterion.title}
                     </p>
-                    <p className="text-xs text-gray-600 mt-1">{criterion.rationale}</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      {criterion.rationale}
+                    </p>
                   </div>
                 </li>
               ))}
@@ -344,8 +374,8 @@ function MultiCriteriaCommunicationDisplay({
                   <div
                     className={`flex items-center gap-2 px-3 py-1 rounded-md font-bold text-xs uppercase tracking-wider ${
                       criterion.passed
-                        ? "bg-green-100 text-green-800 border border-green-300"
-                        : "bg-amber-100 text-amber-800 border border-amber-300"
+                        ? 'bg-green-100 text-green-800 border border-green-300'
+                        : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}
                   >
                     {criterion.passed ? (
@@ -418,22 +448,22 @@ export default function CommunicationSection({
 
   const getScoreColor = (score: number) => {
     if (score >= 8) {
-      return "text-emerald-700";
+      return 'text-emerald-700';
     }
     if (score >= 6) {
-      return "text-amber-700";
+      return 'text-amber-700';
     }
-    return "text-rose-700";
+    return 'text-rose-700';
   };
 
   const getScoreBgColor = (score: number) => {
     if (score >= 8) {
-      return "bg-emerald-50 border-emerald-200";
+      return 'bg-emerald-50 border-emerald-200';
     }
     if (score >= 6) {
-      return "bg-amber-50 border-amber-200";
+      return 'bg-amber-50 border-amber-200';
     }
-    return "bg-rose-50 border-rose-200";
+    return 'bg-rose-50 border-rose-200';
   };
 
   const getPerformanceLabel = (score: number) => {
@@ -448,12 +478,12 @@ export default function CommunicationSection({
 
   const getBadgeBgColor = (score: number) => {
     if (score >= 8) {
-      return "bg-emerald-100 border-emerald-200";
+      return 'bg-emerald-100 border-emerald-200';
     }
     if (score >= 6) {
-      return "bg-amber-100 border-amber-200";
+      return 'bg-amber-100 border-amber-200';
     }
-    return "bg-rose-100 border-rose-200";
+    return 'bg-rose-100 border-rose-200';
   };
 
   // Get dynamic soft skills and technical skills data
@@ -469,7 +499,7 @@ export default function CommunicationSection({
 
   technicalSkillsRaw.forEach((item) => {
     const key =
-      item.subCategory || item.name || item.aiCheckId || item.id || "";
+      item.subCategory || item.name || item.aiCheckId || item.id || '';
     // If we already have an item with this subCategory, keep the one with a higher score or non-zero score
     if (technicalSkillItemsMap.has(key)) {
       const existing = technicalSkillItemsMap.get(key);
@@ -506,7 +536,7 @@ export default function CommunicationSection({
                 {labels.technicalSkillsSubtitle}
               </p>
               <p className="text-gray-600 text-xs mt-1">
-                {labels.technicalSkillsScore}{" "}
+                {labels.technicalSkillsScore}{' '}
                 <span className="font-semibold">
                   {Number((technicalSkills.totalScore || 0).toFixed(2))}/
                   {technicalSkills.totalWeight}
@@ -529,7 +559,7 @@ export default function CommunicationSection({
                   <div className="text-right">
                     <div className="text-lg font-bold text-gray-900">
                       {Number(
-                        (item.weightedScore ?? item.score ?? 0).toFixed(2),
+                        (item.weightedScore ?? item.score ?? 0).toFixed(2)
                       )}
                       <span className="text-xs text-gray-500">
                         /{item.weight ?? 10}
@@ -575,7 +605,7 @@ export default function CommunicationSection({
           </p>
           {softSkills && (
             <p className="text-gray-600 text-xs mt-1">
-              {labels.softSkillsScore}{" "}
+              {labels.softSkillsScore}{' '}
               <span className="font-semibold">
                 {Number((softSkills.totalScore || 0).toFixed(2))}/
                 {softSkills.totalWeight}
@@ -589,11 +619,16 @@ export default function CommunicationSection({
       <div className="grid grid-cols-1 gap-6 mb-8">
         {softSkillItems.map((item) => {
           // Check if we should use multi-criteria display
-          const hasCriteriaResults = item.criteriaResults && item.criteriaResults.length > 0;
-          const hasParsableCriteria = 
-            (item.strengths || []).some((s) => s.point.toLowerCase().includes('criterion')) ||
-            (item.weaknesses || []).some((w) => w.point.toLowerCase().includes('criterion'));
-          
+          const hasCriteriaResults =
+            item.criteriaResults && item.criteriaResults.length > 0;
+          const hasParsableCriteria =
+            (item.strengths || []).some((s) =>
+              s.point.toLowerCase().includes('criterion')
+            ) ||
+            (item.weaknesses || []).some((w) =>
+              w.point.toLowerCase().includes('criterion')
+            );
+
           // Use multi-criteria display if criteriaResults exist OR if we can parse criteria from strengths/weaknesses
           if (hasCriteriaResults || hasParsableCriteria) {
             return (
@@ -625,7 +660,7 @@ export default function CommunicationSection({
                       </h3>
                     </div>
                     <p className="text-sm text-gray-600">
-                      {item.summary || "Communication skill"}
+                      {item.summary || 'Communication skill'}
                     </p>
                   </div>
                   <div className={`flex-shrink-0`}>
@@ -635,10 +670,10 @@ export default function CommunicationSection({
                       <span
                         className={`text-sm font-medium ${getScoreColor(item.score || 0)}`}
                       >
-                        {getPerformanceLabel(item.score || 0)}:{" "}
+                        {getPerformanceLabel(item.score || 0)}:{' '}
                         <span className="font-bold">
                           {Number(
-                            (item.weightedScore ?? item.score ?? 0).toFixed(0),
+                            (item.weightedScore ?? item.score ?? 0).toFixed(0)
                           )}
                           %
                         </span>
@@ -648,7 +683,7 @@ export default function CommunicationSection({
                 </div>
                 <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden mb-8">
                   <div
-                    className={`h-full rounded-full ${(item.score || 0) >= 8 ? "bg-emerald-500" : (item.score || 0) >= 6 ? "bg-amber-500" : "bg-rose-500"}`}
+                    className={`h-full rounded-full ${(item.score || 0) >= 8 ? 'bg-emerald-500' : (item.score || 0) >= 6 ? 'bg-amber-500' : 'bg-rose-500'}`}
                     style={{
                       width: `${Math.min(100, Math.max(0, ((item.weightedScore ?? item.score ?? 0) / (item.weight || item.maxScore || 10)) * 100))}%`,
                     }}
@@ -673,7 +708,10 @@ export default function CommunicationSection({
 
                 {Array.isArray(item.recommendations) &&
                   item.recommendations.length > 0 && (
-                    <div data-pdf-nobreak className="mt-8 p-6 rounded-xl border border-blue-100 bg-blue-50/50 space-y-4">
+                    <div
+                      data-pdf-nobreak
+                      className="mt-8 p-6 rounded-xl border border-blue-100 bg-blue-50/50 space-y-4"
+                    >
                       <h4 className="text-sm font-bold text-gray-900">
                         {labels.recommendations}
                       </h4>

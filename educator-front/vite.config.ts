@@ -13,23 +13,6 @@ export default defineConfig({
     },
   },
 
-
-  // LOCAL ADAPTATION (not upstream): this dev server is exposed publicly through a
-  // Cloudflare tunnel which terminates TLS on 443 and forwards to port 6001. Vite 7
-  // rejects unknown Host headers, and HMR must be told the public origin or the
-  // browser tries to open a websocket to the tunnel host on 6001.
-  server: {
-    host: '127.0.0.1',
-    port: 6001,
-    strictPort: true,
-    allowedHosts: ['educatorapp.rwthrive.ai'],
-    hmr: {
-      protocol: 'wss',
-      host: 'educatorapp.rwthrive.ai',
-      clientPort: 443,
-    },
-  },
-
   build: {
     chunkSizeWarningLimit: 700,
     rollupOptions: {
@@ -64,9 +47,7 @@ export default defineConfig({
       json: './tests/unit/reports/test-results.json',
     },
 
-    exclude: [
-  'tests/e2e/**'
-],
+    exclude: ['tests/e2e/**'],
 
     environmentOptions: {
       jsdom: {

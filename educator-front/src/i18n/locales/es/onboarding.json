@@ -1,0 +1,133 @@
+{
+  "tracker": {
+    "header": {
+      "titleInProgress": "Guía de Configuración del Educador",
+      "titleDone": "Ya está todo configurado",
+      "subtitleDone": "Buen trabajo — puedes ocultar esta guía cuando quieras.",
+      "progress": "{{completed}} de {{total}} pasos completados"
+    },
+    "start": {
+      "stoneLabel": "Inicio",
+      "ariaLabel": "Configuración iniciada — cuenta activada",
+      "detailLabel": "INICIO · ACEPTAR INVITACIÓN DE CUENTA",
+      "instructions": [
+        "Acepta tu cuenta de educador mediante la invitación enviada por correo y configura la contraseña de tu cuenta. Este primer paso está completo — has iniciado sesión con una cuenta activada."
+      ]
+    },
+    "finish": {
+      "stoneLabel": "Finalizar",
+      "ariaLabel": "Finalizar",
+      "detailLabel": "FINALIZAR",
+      "instructions": [
+        "Usa la pestaña Panel para obtener una vista general de la actividad y ver los totales de uso.",
+        "Usa la pestaña Gestión de Clases para ver más detalles sobre el desempeño de cada una de tus clases o gestionar las asignaciones de simulaciones.",
+        "Vuelve a las demás pestañas para explorar el catálogo de simulaciones o tu biblioteca de simulaciones cuando quieras."
+      ],
+      "actions": {
+        "goToDashboard": "Ir al Panel",
+        "goToClasses": "Ir a Gestión de Clases",
+        "hideGuide": "Entendido — ocultar esta guía"
+      }
+    },
+    "steps": {
+      "dashboard": {
+        "label": "PASO 1 · IDENTIFICA TUS PRODUCTOS ASOCIADOS",
+        "cta": "Ir al Panel",
+        "instructions": [
+          "Consulta tu Panel. Usa Panel > Mis Productos y Uso > Mis Productos Asociados para identificar los productos que tu administrador te ha asociado (si no aparece ninguno, consulta a tu administrador). Usa esta información para enfocar el contenido al que tienes acceso en el Catálogo de Simulaciones (el siguiente paso)."
+        ]
+      },
+      "catalog": {
+        "label": "PASO 2 · AGREGA SIMULACIONES DEL CATÁLOGO A TU BIBLIOTECA",
+        "cta": "Ir al Catálogo de Simulaciones",
+        "instructions": [
+          "Usa el Catálogo de Simulaciones y filtra el contenido según tus necesidades y enfoque. Hemos proporcionado filtros y vistas rápidas para ayudarte a comenzar.",
+          "Para un inicio rápido en tu primera asignación, visualiza las simulaciones por Paquetes de Simulación y selecciona el ícono de corazón en el paquete que se alinee con tus productos asociados.",
+          "Puedes ver los detalles de una simulación seleccionando cualquiera de las tarjetas de simulación.",
+          "Usar el ícono de corazón o hacer clic en el botón \"Agregar a Mi Biblioteca\" añade simulaciones a tu lista de favoritos, que llenará tu Biblioteca de Simulaciones para que puedas hacer asignaciones."
+        ]
+      },
+      "classes": {
+        "label": "PASO 3 · AGREGA TUS CLASES",
+        "cta": "Ir a Gestión de Clases",
+        "instructions": [
+          "Usa Gestión de Clases para crear una clase (o varias) con fechas de inicio y fin, luego agrega el número de estudiantes que tendrás en la clase.",
+          "Una vez creada la clase, el sistema generará automáticamente los códigos de acceso de los estudiantes y podrás hacer asignaciones de simulaciones.",
+          "Imprime o exporta los códigos de estudiante fácilmente y compártelos con tus alumnos.",
+          "Regresa a la página de Gestión de Clases para revisar los intentos y el desempeño de las simulaciones de los estudiantes, con registros de los informes y transcripciones de cada estudiante."
+        ]
+      },
+      "library": {
+        "label": "PASO 4 · ASIGNA SIMULACIONES EN LOTE",
+        "cta": "Ir a Mi Biblioteca de Simulaciones",
+        "instructions": [
+          "Usa Mi Biblioteca de Simulaciones para gestionar o revisar los detalles de tus simulaciones favoritas, acceder a guías de simulación y documentos de facilitación, y seleccionar y asignar varias simulaciones a varias clases a la vez."
+        ]
+      },
+      "account": {
+        "label": "PASO 5 · CONFIGURA TU CUENTA",
+        "cta": "Ir a Cuenta",
+        "instructions": [
+          "Usa la pestaña Cuenta para ajustar tu nombre o agregar una foto a tu perfil y configurar tus preferencias de notificación."
+        ]
+      }
+    },
+    "stone": {
+      "stepLabel": "Paso <0>{{index}}</0>",
+      "ariaLabel": "Paso {{index}}",
+      "ariaLabelDone": "Paso {{index}} (completado)"
+    },
+    "states": {
+      "loading": "Cargando tu guía de configuración…",
+      "unavailableTitle": "Guía de configuración no disponible",
+      "unavailableBody": "No pudimos cargar tu guía de configuración en este momento.",
+      "retry": "Intentar de nuevo"
+    },
+    "a11y": {
+      "progressLabel": "Progreso de la configuración"
+    }
+  },
+  "adminTracker": {
+    "header": {
+      "titleInProgress": "Guía de Configuración de la Cuenta y la Organización",
+      "titleDone": "Tu organización está configurada",
+      "subtitleDone": "Buen trabajo — puedes ocultar esta guía cuando quieras."
+    },
+    "start": {
+      "ariaLabel": "Configuración iniciada — cuenta creada",
+      "detailLabel": "INICIO · CREAR CUENTA DE ADMINISTRADOR E INGRESAR CÓDIGO DE ACTIVACIÓN",
+      "instructions": "Crea la cuenta de administrador e ingresa el código de activación. Este primer paso está completo — has iniciado sesión con una cuenta activada."
+    },
+    "finish": {
+      "detailLabel": "PASO 5 · FINALIZAR",
+      "instructions": "Usa la pestaña Panel para ver los detalles de uso de forma general. Vuelve a las demás pestañas para agregar o ajustar escuelas o educadores cuando sea necesario.",
+      "actions": {
+        "goToDashboard": "Ir al Panel",
+        "hideGuide": "Entendido — ocultar esta guía"
+      }
+    },
+    "steps": {
+      "lms": {
+        "label": "PASO 1 · CONFIGURA LA INTEGRACIÓN CON EL LMS (si aplica)",
+        "cta": "Configurar la integración con el LMS",
+        "skip": "Omitir, no lo haremos",
+        "instructions": "Completa este paso si tu organización conectará el sistema de Realityworks AI con su LMS. Si aplica, usa la pestaña Integración con LMS y sigue los pasos indicados."
+      },
+      "schools": {
+        "label": "PASO 2 · CREA ESCUELA(S)",
+        "cta": "Ir a Escuelas",
+        "instructions": "Agrega escuela(s) y establece su estado como activo."
+      },
+      "educators": {
+        "label": "PASO 3 · CREA EDUCADOR(ES)",
+        "cta": "Ir a Educadores",
+        "instructions": "Agrega educador(es) e incluye su nombre, correo electrónico, escuela(s) asociada(s), estado activo, productos asociados y asigna puestos (solo si aplica, y solo para simulaciones con avatar)."
+      },
+      "account": {
+        "label": "PASO 4 · CONFIGURA TU CUENTA Y NOTIFICACIONES",
+        "cta": "Ir a Cuenta",
+        "instructions": "Usa la pestaña Cuenta para ajustar tu nombre o agregar una foto a tu perfil y configurar tus preferencias de notificación."
+      }
+    }
+  }
+}

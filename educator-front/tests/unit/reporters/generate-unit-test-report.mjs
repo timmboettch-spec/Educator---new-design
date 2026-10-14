@@ -19,7 +19,7 @@ const inputArg = readArg('--input');
 const reportTitle = readArg('--title', 'Frontend Unit Test Report');
 const reportSubtitle = readArg(
   '--subtitle',
-  'User-friendly summary of every unit test - what it validates and whether it passed or failed.',
+  'User-friendly summary of every unit test - what it validates and whether it passed or failed.'
 );
 
 const REPORTS_DIR = outputDirArg
@@ -41,7 +41,7 @@ if (!fs.existsSync(REPORTS_DIR)) {
 const results = JSON.parse(fs.readFileSync(INPUT, 'utf-8'));
 
 function toTitleCase(str) {
-  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  return str.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function moduleNameFromPath(filePath) {
@@ -72,8 +72,10 @@ function escapeHtml(str) {
 }
 
 function statusBadge(status) {
-  if (status === 'passed') return '<span class="test-badge badge-pass">PASS</span>';
-  if (status === 'failed') return '<span class="test-badge badge-fail">FAIL</span>';
+  if (status === 'passed')
+    return '<span class="test-badge badge-pass">PASS</span>';
+  if (status === 'failed')
+    return '<span class="test-badge badge-fail">FAIL</span>';
   return '<span class="test-badge badge-skip">SKIP</span>';
 }
 
@@ -90,28 +92,33 @@ const endTime = suites.reduce((max, s) => Math.max(max, s.endTime ?? 0), 0);
 const durationMs = endTime > startTime ? endTime - startTime : null;
 const durationLabel = durationMs !== null ? formatDuration(durationMs) : '—';
 
-let totalTests = 0, passed = 0, failed = 0, skipped = 0;
-suites.forEach(suite => {
-  (suite.assertionResults ?? []).forEach(t => {
+let totalTests = 0,
+  passed = 0,
+  failed = 0,
+  skipped = 0;
+suites.forEach((suite) => {
+  (suite.assertionResults ?? []).forEach((t) => {
     totalTests++;
     if (t.status === 'passed') passed++;
     else if (t.status === 'failed') failed++;
     else skipped++;
   });
 });
-const successRate = totalTests > 0 ? Math.round((passed / totalTests) * 100) : 0;
+const successRate =
+  totalTests > 0 ? Math.round((passed / totalTests) * 100) : 0;
 const generated = new Date().toLocaleString();
 
 const moduleMap = new Map();
 
-suites.forEach(suite => {
+suites.forEach((suite) => {
   const filePath = suite.name || suite.testFilePath || '';
   const modName = moduleNameFromPath(filePath);
   const label = fileLabel(filePath);
-  if (!moduleMap.has(modName)) moduleMap.set(modName, { files: new Map(), hasFail: false });
+  if (!moduleMap.has(modName))
+    moduleMap.set(modName, { files: new Map(), hasFail: false });
   const mod = moduleMap.get(modName);
   if (!mod.files.has(label)) mod.files.set(label, []);
-  (suite.assertionResults ?? []).forEach(t => {
+  (suite.assertionResults ?? []).forEach((t) => {
     mod.files.get(label).push(t);
     if (t.status === 'failed') mod.hasFail = true;
   });
@@ -121,8 +128,8 @@ function buildModuleSections() {
   let html = '';
   for (const [modName, mod] of moduleMap) {
     const allTests = [...mod.files.values()].flat();
-    const modPassed = allTests.filter(t => t.status === 'passed').length;
-    const modFailed = allTests.filter(t => t.status === 'failed').length;
+    const modPassed = allTests.filter((t) => t.status === 'passed').length;
+    const modFailed = allTests.filter((t) => t.status === 'failed').length;
     const modTotal = allTests.length;
     const failClass = mod.hasFail ? ' mod-fail' : '';
 
@@ -143,11 +150,18 @@ function buildModuleSections() {
         <div class="file-group">
           <div class="file-title">${escapeHtml(label)} (${tests.length} tests)</div>
           <div class="test-list">`;
-      tests.forEach(t => {
-        const status = t.status === 'passed' ? 'passed' : t.status === 'failed' ? 'failed' : 'skipped';
+      tests.forEach((t) => {
+        const status =
+          t.status === 'passed'
+            ? 'passed'
+            : t.status === 'failed'
+              ? 'failed'
+              : 'skipped';
         const ancestors = (t.ancestorTitles ?? []).join(' › ');
         const desc = ancestors ? escapeHtml(ancestors) : '—';
-        const errorMsg = (t.failureMessages ?? []).map(m => escapeHtml(m.split('\n')[0])).join(' ');
+        const errorMsg = (t.failureMessages ?? [])
+          .map((m) => escapeHtml(m.split('\n')[0]))
+          .join(' ');
         html += `
             <div class="test-card" data-status="${status}">
               <div class="test-item">

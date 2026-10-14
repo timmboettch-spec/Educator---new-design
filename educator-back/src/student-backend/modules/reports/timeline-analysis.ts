@@ -1,4 +1,18 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-explicit-any -- legacy heavy JSON processing; types to be refined in a follow-up pass */
+import {
+  type NormalizedTimelineBlock,
+  type PatientDataBlock,
+  type SequenceViolation,
+  type TimelineActionItem,
+  type TimelineActionLogEntry,
+  type TimelineAnalysisResult,
+  type TimelineBlock,
+  type TimelineCommonActionTrackerLike,
+  type TimelineCompletionSource,
+  type TimelineEvent,
+  type TimelineSummaryByCategory,
+  type TimingDetail,
+} from '../../../common/interfaces/simulation-report.interface';
+
 /**
  * Deterministic timeline analysis based on:
  * - actionsTimeline: student's completed actions with timestamps
@@ -10,32 +24,22 @@
  * Returns which blocks were completed, missed, and timing compliance for each
  */
 export function computeTimelineAnalysis(
-  actionsTimeline: any[],
-  timelineBlocks: any[],
+  actionsTimeline: TimelineActionItem[],
+  timelineBlocks: TimelineBlock[],
   scenarioStartTime?: string,
   formatSecondsToTime?: (seconds: number) => string,
-  summaryByCategory?: any,
-  commonActionTracker?: any,
+  summaryByCategory?: TimelineSummaryByCategory,
+  commonActionTracker?: TimelineActionLogEntry[] | TimelineCommonActionTrackerLike,
   // conversationMessages?: any[],
   sequenceChain?: string[],
-): {
-  completedBlocks: string[];
-  missedBlocks: string[];
-  timingDetails: any[];
-  completionRate: number;
-  timingComplianceRate: number;
-  sequenceComplianceRate: number;
-  sequenceViolations: any[];
-  patientDataBlocks: any[];
-} {
+): TimelineAnalysisResult {
   // Build a sequenceChain position map for fast lookup
   // Fallback: if sequenceChain isn't passed, look for it on any block
   const effectiveSequenceChain: string[] | undefined = Array.isArray(sequenceChain)
     ? sequenceChain
     : Array.isArray(timelineBlocks)
-      ? (timelineBlocks.find(
-          (b: any) => Array.isArray(b?.sequenceChain) && b.sequenceChain.length > 0,
-        )?.sequenceChain as string[] | undefined)
+      ? timelineBlocks.find((b) => Array.isArray(b?.sequenceChain) && b.sequenceChain.length > 0)
+        ?.sequenceChain
       : undefined;
   const chainIndexMap = new Map<string, number>();
   if (Array.isArray(effectiveSequenceChain)) {
@@ -44,7 +48,7 @@ export function computeTimelineAnalysis(
 
   // Normalize blocks. When sequenceChain is present, REPLACE prerequisites/followups
   // entirely with what the chain dictates — stale admin config is discarded.
-  const normalizedTimelineBlocks: any[] = (timelineBlocks || []).map((b) => {
+  const normalizedTimelineBlocks: NormalizedTimelineBlock[] = (timelineBlocks || []).map((b) => {
     const id = String(b.id);
     const chainIdx = chainIndexMap.get(id);
     if (
@@ -66,7 +70,7 @@ export function computeTimelineAnalysis(
     };
   });
 
-  const getElapsedSeconds = (item: any): number | null => {
+  const getElapsedSeconds = (item: TimelineEvent): number | null => {
     if (item.elapsedSeconds !== undefined) {
       return item.elapsedSeconds;
     }
@@ -92,14 +96,14 @@ export function computeTimelineAnalysis(
   // ── Build event pools (sorted chronologically) so each event is consumed once ──
 
   // Actions pool: title -> events sorted by time
-  const actionPool = new Map<string, any[]>();
-  const actionSourceList: any[] =
+  const actionPool = new Map<string, TimelineActionItem[]>();
+  const actionSourceList: TimelineActionItem[] =
     summaryByCategory?.actions && summaryByCategory.actions.length > 0
       ? summaryByCategory.actions
       : Array.isArray(actionsTimeline)
         ? actionsTimeline
         : [];
-  actionSourceList.forEach((action: any) => {
+  actionSourceList.forEach((action) => {
     const title = String(action.title || '')
       .toLowerCase()
       .trim();
@@ -113,8 +117,8 @@ export function computeTimelineAnalysis(
   );
 
   // Orders pool: title -> events sorted by time
-  const orderPool = new Map<string, any[]>();
-  (summaryByCategory?.orders || []).forEach((order: any) => {
+  const orderPool = new Map<string, TimelineEvent[]>();
+  (summaryByCategory?.orders || []).forEach((order) => {
     const title = String(order.title || '')
       .toLowerCase()
       .trim();
@@ -136,7 +140,7 @@ export function computeTimelineAnalysis(
     spo2: ['SpO2', 'oxygen', 'o2'],
   };
   const vitalsData = summaryByCategory?.vitals || {};
-  const vitalPool = new Map<string, any[]>();
+  const vitalPool = new Map<string, TimelineEvent[]>();
   const vitalConsumed = new Map<string, Set<number>>();
   Object.keys(vitalTypeMap).forEach((vitalType) => {
     const searchTerms = vitalTypeMap[vitalType];
@@ -157,7 +161,7 @@ export function computeTimelineAnalysis(
   });
 
   // PPE pool: normalised action log with a consumed-index Set
-  const normalizedActionLog: any[] = Array.isArray(commonActionTracker)
+  const normalizedActionLog: TimelineActionLogEntry[] = Array.isArray(commonActionTracker)
     ? commonActionTracker
     : commonActionTracker?.actionLog || [];
   const ppeConsumed = new Set<number>(); // tracks which log indices have been consumed
@@ -165,8 +169,8 @@ export function computeTimelineAnalysis(
   // ── Main loop ──
   const completedBlocks: string[] = [];
   const missedBlocks: string[] = [];
-  const timingDetails: any[] = [];
-  const patientDataBlocks: any[] = [];
+  const timingDetails: TimingDetail[] = [];
+  const patientDataBlocks: PatientDataBlock[] = [];
   let totalBlocks = 0;
   let totalTimedBlocks = 0;
   let blocksWithCorrectTiming = 0;
@@ -232,7 +236,7 @@ export function computeTimelineAnalysis(
       : blockTitle;
 
     let isCompleted = false;
-    let completionSource = 'action';
+    let completionSource: TimelineCompletionSource = 'action';
     let completionTime: number | null = null;
 
     // ── Actions: consume the earliest unconsumed matching event ──
@@ -279,7 +283,7 @@ export function computeTimelineAnalysis(
     // ── Vital (new format): vital.{actionId}.{vitalKey} ──
     // Find the matching action in summaryByCategory.actions by id, then check its vitals sub-object
     if (!isCompleted && sourceId.startsWith('vital.')) {
-      const parts = block.sourceId.split('.');
+      const parts = block.sourceId!.split('.');
       const vitalKey = parts[parts.length - 1]; // e.g. heartRate, bloodPressure
 
       // Map camelCase vital key to the short keys used in summaryByCategory.actions[].vitals
@@ -297,13 +301,13 @@ export function computeTimelineAnalysis(
 
       // Collect all unconsumed readings across all actions
       const allReadings: Array<{
-        reading: any;
+        reading: TimelineEvent;
         time: number;
         actionIdx: number;
         readingIdx: number;
       }> = [];
       const allActions = summaryByCategory?.actions || [];
-      allActions.forEach((action: any, actionIdx: number) => {
+      allActions.forEach((action, actionIdx) => {
         if (!action.vitals) {
           return;
         }
@@ -314,11 +318,11 @@ export function computeTimelineAnalysis(
         if (!matchedKey) {
           return;
         }
-        const readings: any[] = vitalsObj[matchedKey];
+        const readings: TimelineEvent[] = vitalsObj[matchedKey];
         if (!Array.isArray(readings)) {
           return;
         }
-        readings.forEach((reading: any, readingIdx: number) => {
+        readings.forEach((reading, readingIdx) => {
           const time = getElapsedSeconds(reading);
           if (time !== null) {
             allReadings.push({ reading, time, actionIdx, readingIdx });
@@ -382,7 +386,7 @@ export function computeTimelineAnalysis(
             completionSource = 'summary';
             // Check verbalization: if any conversation/log entry mentions this vital, mark verbalized
             const searchTerms = vitalTypeMap[vitalType] || [vitalType];
-            const verbalized = normalizedActionLog.some((entry: any) => {
+            const verbalized = normalizedActionLog.some((entry) => {
               const txt = String(entry?.text || entry?.message || entry?.label || '').toLowerCase();
               if (!txt) {
                 return false;
@@ -413,15 +417,15 @@ export function computeTimelineAnalysis(
       const prereqIds: string[] = block.prerequisites || [];
       let earliestValidTime = 0;
       prereqIds.forEach((prereqId: string) => {
-        const resolved = timingDetails.find((d: any) => d.blockId === prereqId);
+        const resolved = timingDetails.find((d) => d.blockId === prereqId);
         if (resolved?.completed && resolved.actualTimeSeconds !== undefined) {
-          earliestValidTime = Math.max(earliestValidTime, resolved.actualTimeSeconds);
+          earliestValidTime = Math.max(earliestValidTime, resolved.actualTimeSeconds as number);
         }
       });
 
       // Collect all candidate indices (matching label + not yet consumed)
       const candidateIndices: number[] = [];
-      normalizedActionLog.forEach((_action: any, idx: number) => {
+      normalizedActionLog.forEach((_action, idx) => {
         if (ppeConsumed.has(idx)) {
           return;
         }
@@ -475,7 +479,7 @@ export function computeTimelineAnalysis(
       if (!hasTiming || completionTime === null) {
         // Completion-only block (or completion without timing reference) — no timing evaluation
         blocksWithCorrectTiming++;
-        completedBlocks.push(block.label || block.title);
+        completedBlocks.push((block.label || block.title)!);
         const formatTime = formatSecondsToTime || ((s: number) => `${s}s`);
         timingDetails.push({
           blockLabel: block.label || block.title,
@@ -500,7 +504,7 @@ export function computeTimelineAnalysis(
 
       if (withinTimeWindow) {
         blocksWithCorrectTiming++;
-        completedBlocks.push(block.label || block.title);
+        completedBlocks.push((block.label || block.title)!);
       }
 
       const formatTime = formatSecondsToTime || ((s: number) => `${s}s`);
@@ -527,7 +531,7 @@ export function computeTimelineAnalysis(
         followups: block.followups || [],
       });
     } else {
-      missedBlocks.push(block.label || block.title);
+      missedBlocks.push((block.label || block.title)!);
       timingDetails.push({
         blockLabel: block.label || block.title,
         blockId: block.id,
@@ -541,11 +545,11 @@ export function computeTimelineAnalysis(
   });
 
   // ── Sequence / prerequisite / followup validation ──
-  const sequenceViolations: any[] = [];
+  const sequenceViolations: SequenceViolation[] = [];
   const blockCompletionMap = new Map<string, number>();
   timingDetails.forEach((detail) => {
     if (detail.completed && detail.actualTimeSeconds !== undefined) {
-      blockCompletionMap.set(detail.blockId, detail.actualTimeSeconds);
+      blockCompletionMap.set(detail.blockId, detail.actualTimeSeconds as number);
     }
   });
 
@@ -623,8 +627,8 @@ export function computeTimelineAnalysis(
           !sequenceViolations.find(
             (v) =>
               v.blockId === block.id &&
-              v.prereqId === prereqId &&
-              v.type === 'missing_prerequisite',
+              v.type === 'missing_prerequisite' &&
+              v.prereqId === prereqId,
           )
         ) {
           sequenceViolations.push({
@@ -642,8 +646,8 @@ export function computeTimelineAnalysis(
           !sequenceViolations.find(
             (v) =>
               v.blockId === block.id &&
-              v.prereqId === prereqId &&
-              v.type === 'prerequisite_order_violation',
+              v.type === 'prerequisite_order_violation' &&
+              v.prereqId === prereqId,
           )
         ) {
           sequenceViolations.push({
@@ -669,8 +673,8 @@ export function computeTimelineAnalysis(
           !sequenceViolations.find(
             (v) =>
               v.blockId === block.id &&
-              v.followupId === followupId &&
-              v.type === 'missing_followup',
+              v.type === 'missing_followup' &&
+              v.followupId === followupId,
           )
         ) {
           sequenceViolations.push({
@@ -688,8 +692,8 @@ export function computeTimelineAnalysis(
           !sequenceViolations.find(
             (v) =>
               v.blockId === block.id &&
-              v.followupId === followupId &&
-              v.type === 'followup_order_violation',
+              v.type === 'followup_order_violation' &&
+              v.followupId === followupId,
           )
         ) {
           sequenceViolations.push({
@@ -721,8 +725,8 @@ export function computeTimelineAnalysis(
   const sequenceComplianceRate =
     completedBlocks.length > 0
       ? Math.round(
-          ((completedBlocks.length - sequenceViolations.length) / completedBlocks.length) * 100,
-        )
+        ((completedBlocks.length - sequenceViolations.length) / completedBlocks.length) * 100,
+      )
       : 100;
 
   return {

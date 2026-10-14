@@ -1,23 +1,25 @@
 import { randomUUID } from 'crypto';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { LmsConfigStatus, LmsType } from 'src/common/enums/lms.enum';
-import { LmsSchoolConfig } from 'src/lms/entity/lms-school-config.entity';
+
 import { resolveDefaultLtiEndpoints } from 'src/lms/utils/lms-endpoints.util';
 import { LtiKeyService } from './lti-key.service';
 import { LtiStateService } from './lti-state.service';
+import { extractCanvasReviewTokenFromTargetLinkUri } from './utils/canvas-review-token.util';
+import { LmsSchoolConfig } from 'src/database/entities';
+import { LMS_SCHOOL_CONFIG_REPOSITORY } from 'src/database/tokens';
+import { LmsSchoolConfigRepository } from 'src/database/repositories';
+import { LoggerService } from '../common/services';
 
 @Injectable()
 export class LtiService {
-  private readonly logger = new Logger(LtiService.name);
-
   constructor(
     private readonly keyService: LtiKeyService,
     private readonly stateService: LtiStateService,
-    @InjectRepository(LmsSchoolConfig)
-    private readonly configRepo: Repository<LmsSchoolConfig>,
+    @Inject(LMS_SCHOOL_CONFIG_REPOSITORY)
+    private readonly configRepo: LmsSchoolConfigRepository,
+    private readonly logger: LoggerService,
   ) {}
 
   getToolMetadata(): Record<string, unknown> {
@@ -32,6 +34,15 @@ export class LtiService {
       studentredirectUris: [`${baseUrl}/lti/studentcallback`],
       studentjwksUrl: `${baseUrl}/lti/studentjwks`,
       studenttargetLinkUri: `${baseUrl}/lti/studentlaunch`,
+      // Deep Linking support
+      deepLinkingEnabled: true,
+      deepLinkingMessageType: 'LtiDeepLinkingRequest',
+      deepLinkingResponseType: 'LtiDeepLinkingResponse',
+      deepLinkingAcceptedContentTypes: ['ltiResourceLink'],
+      deepLinkingClaims: [
+        'https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings',
+        'https://purl.imsglobal.org/spec/lti-dl/claim/content_items',
+      ],
     };
   }
 
@@ -65,8 +76,16 @@ export class LtiService {
     const state = randomUUID();
     const nonce = randomUUID();
 
+    // Canvas SpeedGrader submission launches put `rw_review` on target_link_uri;
+    // stash it on state because callback → /launch drops the original query string.
+    const canvasReviewToken = extractCanvasReviewTokenFromTargetLinkUri(
+      params.target_link_uri,
+    );
+
     // Store state/nonce pair for validation in callback
-    this.stateService.createStatePair(state, nonce, 'educator');
+    await this.stateService.createStatePair(state, nonce, 'educator', {
+      canvasReviewToken,
+    });
 
     const search = new URLSearchParams({
       scope: 'openid',
@@ -97,7 +116,7 @@ export class LtiService {
     const nonce = randomUUID();
 
     // Store state/nonce pair for validation in callback
-    this.stateService.createStatePair(state, nonce, 'student');
+    await this.stateService.createStatePair(state, nonce, 'student');
 
     const search = new URLSearchParams({
       scope: 'openid',
@@ -158,20 +177,54 @@ export class LtiService {
         );
       } else {
         this.logger.warn(
-          `[LTI] No active school config found for client_id "${clientId}" — falling back to issuer-based auth endpoint`,
+          `[LTI] No active school config found for client_id "${clientId}" — trying issuer lookup`,
+        );
+      }
+    }
+
+    if (!config && issuer?.trim()) {
+      config = await this.findActiveConfigByIssuer(issuer);
+      if (config) {
+        this.logger.log(
+          `[LTI] Found active school config for issuer "${issuer}" (school: ${config.schoolId}, lmsType: ${config.lmsType})`,
         );
       }
     }
 
     const configuredEndpoint = config?.authEndpoint?.trim();
-    if (configuredEndpoint) {
+
+    const fallbackBase = (
+      config?.lmsBaseUrl?.trim() ||
+      config?.issuer?.trim() ||
+      issuer ||
+      'http://localhost'
+    ).replace(/\/+$/, '');
+    const lmsType = config?.lmsType ?? this.inferLmsTypeFromIssuer(fallbackBase);
+
+    const moodleAuthOnCanvas =
+      lmsType === LmsType.CANVAS && !!configuredEndpoint?.includes('/mod/lti/auth.php');
+    const cloudIssWithLocalBase =
+      lmsType === LmsType.CANVAS &&
+      !!configuredEndpoint &&
+      /canvas\.instructure\.com/i.test(configuredEndpoint) &&
+      /canvas\.docker/i.test(fallbackBase);
+
+    if (configuredEndpoint && !moodleAuthOnCanvas && !cloudIssWithLocalBase) {
       return configuredEndpoint;
     }
 
-    const normalizedIssuer = (issuer ?? 'http://localhost').replace(/\/+$/, '');
-    const lmsType = config?.lmsType ?? LmsType.MOODLE;
-    const fallbackEndpoint = resolveDefaultLtiEndpoints(lmsType, normalizedIssuer).authEndpoint;
-    this.logger.warn(`[LTI] Using fallback auth endpoint: ${fallbackEndpoint}`);
+    const fallbackEndpoint = resolveDefaultLtiEndpoints(lmsType, fallbackBase).authEndpoint;
+    this.logger.warn(
+      `[LTI] Using fallback auth endpoint: ${fallbackEndpoint} (lmsType=${lmsType}, base=${fallbackBase})`,
+    );
     return fallbackEndpoint;
+  }
+
+  private inferLmsTypeFromIssuer(issuer: string): LmsType {
+    const host = issuer.toLowerCase();
+    if (host.includes('canvas') || host.includes('instructure')) {
+      return LmsType.CANVAS;
+    }
+    return LmsType.MOODLE;
   }
 }

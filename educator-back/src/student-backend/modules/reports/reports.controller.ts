@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { type Response } from 'express';
 
-import { ScenarioAuthGuard } from '../../guards/scenario-auth.guard';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+import type { ICurrentUser } from 'src/common/interfaces';
 
 import { CreateReportDto } from './dto/create-report.dto';
 import { SendReportEmailDto } from './dto/send-report-email.dto';
 import { ReportsService } from './reports.service';
+import { RequiredRoles } from 'src/common/decorators/required-roles.decorator';
+import { RoleSlug } from 'src/common/constants';
 
 /**
  * Convert an `Accept-Language` header value ("es", "es-419,es;q=0.9,en;q=0.8",
@@ -26,52 +28,57 @@ function normalizeLanguage(header?: string): 'en' | 'es' {
 
 @ApiTags('Student-backend: Reports')
 @ApiBearerAuth()
-@UseGuards(ScenarioAuthGuard)
 @Controller('reports')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get()
+  @RequiredRoles(RoleSlug.STUDENT)
   @ApiOperation({ summary: 'Get all reports for the current user' })
   @ApiResponse({ status: 200, description: 'Return reports array' })
-  async findAll(@Headers('authorization') auth: string) {
-    const userId = this.extractUserId(auth);
-    return this.reportsService.findAll(userId);
+  async findAll(
+    @CurrentUser() currentUser: ICurrentUser | undefined,
+    @Query('mode') mode?: string,
+  ) {
+    return this.reportsService.findAll(currentUser, mode);
   }
 
   @Get(':id')
+  @RequiredRoles(RoleSlug.STUDENT)
   @ApiOperation({ summary: 'Get report by ID' })
   @ApiResponse({ status: 200, description: 'Return report' })
   @ApiResponse({ status: 404, description: 'Report not found' })
-  async findOne(@Param('id') id: string, @Headers('authorization') auth: string) {
-    const userId = this.extractUserId(auth);
-    return this.reportsService.findOne(id, userId);
+  async findOne(@Param('id') id: string, @CurrentUser() currentUser: ICurrentUser | undefined) {
+    return this.reportsService.findOne(id, currentUser);
   }
 
   @Get('transcript/:transcriptId')
+  @RequiredRoles(RoleSlug.STUDENT)
   @ApiOperation({ summary: 'Get report by transcript ID' })
   @ApiResponse({ status: 200, description: 'Return report' })
   @ApiResponse({ status: 404, description: 'Report not found' })
   async findByTranscriptId(
     @Param('transcriptId') transcriptId: string,
-    @Headers('authorization') auth: string,
+    @CurrentUser() currentUser: ICurrentUser | undefined,
   ) {
-    const userId = this.extractUserId(auth);
-    return this.reportsService.findByTranscriptId(transcriptId, userId);
+    return this.reportsService.findByTranscriptId(transcriptId, currentUser);
   }
 
   @Post(':id/email')
+  @RequiredRoles(RoleSlug.STUDENT)
   @ApiOperation({ summary: 'Send the selected report via email' })
   @ApiResponse({ status: 200, description: 'Report emailed' })
   async emailReport(
     @Param('id') reportId: string,
     @Body() payload: SendReportEmailDto,
+    @CurrentUser() currentUser: ICurrentUser | undefined,
     @Headers('authorization') auth?: string,
   ) {
     const userId = this.extractUserId(auth);
     return this.reportsService.sendReportEmail({
       reportId,
       userId,
+      currentUser,
       recipient: payload.to,
       message: payload.message,
       studentName: payload.studentName,
@@ -81,10 +88,12 @@ export class ReportsController {
   }
 
   @Post('create')
+  @RequiredRoles(RoleSlug.STUDENT)
   @ApiOperation({ summary: 'Create report with AI analysis from transcript' })
   @ApiResponse({ status: 201, description: 'Report created with AI analysis' })
   async createReport(
     @Body() dto: CreateReportDto,
+    @CurrentUser() currentUser: ICurrentUser,
     @Headers('accept-language') acceptLanguage?: string,
   ) {
     // The Accept-Language header tells us which UI locale the student is
@@ -92,69 +101,11 @@ export class ReportsController {
     // recommendations in that language. We keep the DTO shape unchanged
     // so the strict ValidationPipe doesn't reject the request body.
     const language = normalizeLanguage(acceptLanguage);
-    return this.reportsService.createReportWithAI(dto, language);
-  }
-
-  @Get('metrices/download-excel')
-  @ApiOperation({
-    summary: 'Download reports as Excel file with optional date filtering',
-  })
-  @ApiResponse({ status: 200, description: 'Excel file downloaded' })
-  async downloadExcel(@Query('date') date?: string, @Res() res?: Response) {
-    let startDate: string | undefined;
-    let endDate: string | undefined;
-    let dateLabel = 'all-reports';
-
-    if (date) {
-      // Get current time in CST
-      const nowCST = new Date().toLocaleString('en-US', {
-        timeZone: 'America/Chicago',
-      });
-      const cstDate = new Date(nowCST);
-      const targetDate = new Date(cstDate);
-
-      if (date.toLowerCase() === 'today') {
-        targetDate.setHours(0, 0, 0, 0);
-      } else if (date.toLowerCase() === 'yesterday') {
-        targetDate.setDate(cstDate.getDate() - 1);
-        targetDate.setHours(0, 0, 0, 0);
-      } else if (date.toLowerCase() === 'tomorrow') {
-        targetDate.setDate(cstDate.getDate() + 1);
-        targetDate.setHours(0, 0, 0, 0);
-      } else {
-        // Assume it's a date string like '2024-01-15'
-        targetDate.setTime(new Date(date).getTime());
-        targetDate.setHours(0, 0, 0, 0);
-      }
-
-      // Format date label manually to avoid timezone conversion issues
-      const month = String(targetDate.getMonth() + 1).padStart(2, '0');
-      const day = String(targetDate.getDate()).padStart(2, '0');
-      const year = targetDate.getFullYear();
-      dateLabel = `${month}-${day}-${year}`;
-
-      startDate = targetDate.toISOString();
-      const endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      endDate = endOfDay.toISOString();
-    }
-
-    const buffer = await this.reportsService.generateExcelReport(startDate, endDate);
-
-    if (res) {
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename=simulation-reports-${dateLabel}.xlsx`,
-      );
-      res.send(buffer);
-    }
+    return this.reportsService.createReportWithAI(currentUser, dto, language);
   }
 
   @Post('evaluate-communication')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   @ApiOperation({
     summary: 'Evaluate communication transcript using LLM concepts',
   })
@@ -167,6 +118,7 @@ export class ReportsController {
   }
 
   @Post('evaluate-question')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   @ApiOperation({
     summary: 'Evaluate student question response against concept checkpoints',
   })
@@ -182,6 +134,7 @@ export class ReportsController {
   }
 
   @Post('evaluate-site')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   @ApiOperation({
     summary: 'Evaluate medication administration site with clinical synonym support',
   })
@@ -194,6 +147,7 @@ export class ReportsController {
   }
 
   @Post('evaluate-route-site')
+  @RequiredRoles(RoleSlug.STUDENT, RoleSlug.EDUCATOR)
   @ApiOperation({
     summary: 'Evaluate medication route and site with LLM clinical synonym support',
   })

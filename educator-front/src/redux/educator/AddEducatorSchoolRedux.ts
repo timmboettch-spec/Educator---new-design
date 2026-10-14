@@ -11,7 +11,7 @@ export const AddEducatorSchoolRequest = createAsyncThunk<
   try {
     const res = await api.post(
       `${config.UpdateEducatorAPI}/${educatorId}/schools`,
-      { school_id },
+      { school_id }
     );
     return res.data;
   } catch (err: unknown) {

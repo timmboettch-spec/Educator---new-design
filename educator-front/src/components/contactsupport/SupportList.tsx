@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { CircleCheck, ChevronDown, ChevronUp } from "lucide-react";
+import { useState } from 'react';
+import { CircleCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import loginEn from '../../locales/auth/login/en.json';
+import loginEs from '../../locales/auth/login/es.json';
 
 interface SupportListProps {
   header?: string;
@@ -14,6 +16,9 @@ export default function SupportList({
 }: SupportListProps) {
   const [showAll, setShowAll] = useState(false);
   const visibleItems = showAll ? listItem : listItem.slice(0, 5);
+  const language =
+    localStorage.getItem('app_language')?.toLowerCase() === 'es' ? 'es' : 'en';
+  const locale = (language === 'es' ? loginEs : loginEn).contactSupport;
 
   return (
     <div className="bg-white w-full overflow-hidden rounded-xl border border-gray-200">
@@ -42,12 +47,12 @@ export default function SupportList({
         >
           {showAll ? (
             <>
-              Show Less
+              {locale.showLess}
               <ChevronUp className="w-4 h-4" />
             </>
           ) : (
             <>
-              Show all articles ({listItem.length})
+              {locale.showAllArticles} ({listItem.length})
               <ChevronDown className="w-4 h-4" />
             </>
           )}

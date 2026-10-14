@@ -69,7 +69,7 @@ const renderPage = () => {
   return render(
     <MemoryRouter>
       <CustomerSupport />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 };
 
@@ -121,7 +121,7 @@ describe('CustomerSupport Page', () => {
     });
     fireEvent.click(screen.getByTestId('search-btn'));
     expect(
-      screen.getByText(/No results found for "xyznonexistent"/),
+      screen.getByText(/No results found for "xyznonexistent"/)
     ).toBeInTheDocument();
   });
 
@@ -133,7 +133,9 @@ describe('CustomerSupport Page', () => {
     });
     fireEvent.click(screen.getByTestId('search-btn'));
     // Clear and re-search
-    fireEvent.change(screen.getByTestId('search-input'), { target: { value: '' } });
+    fireEvent.change(screen.getByTestId('search-input'), {
+      target: { value: '' },
+    });
     fireEvent.click(screen.getByTestId('search-btn'));
     expect(screen.getByText('Agriculture')).toBeInTheDocument();
   });

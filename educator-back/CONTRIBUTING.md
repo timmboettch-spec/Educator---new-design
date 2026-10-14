@@ -170,11 +170,12 @@ Educator-App-Backend is the REST API for the educator portal. It integrates with
 
 ### Shared Data
 
-This backend reads simulation content and student reports from Azure Blob Storage (`json-data` container) shared with HS-online-AI-app:
+Simulation content lives in Azure Blob Storage (`json-data` container) shared with HS-online-AI-app and is imported into Postgres by the seeders in `src/database/seeders/`:
 
-- `units.json` — Learning units (read via `TutorPatientService`)
-- `scenarios.json` — Patient scenarios (read via `TutorPatientService`)
-- `reports.json` — Student simulation reports (written by HS-online-AI-app, read by this backend)
+- `units.json` — Learning units
+- `scenarios.json` — Patient scenarios
+
+Student simulation reports are stored in the `simulation_reports` table (written via `/students-backend`, read via `SimulationReportRepository`).
 
 ### Database
 

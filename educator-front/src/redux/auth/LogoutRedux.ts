@@ -10,30 +10,32 @@ interface LogoutResponse {
   data: null;
 }
 
-export const LogoutRequest = createAsyncThunk<LogoutResponse, void, { rejectValue: { message: string } }>(
-  'auth/logout',
-  async (_, thunkAPI) => {
-    try {
-      await api.post(config.LogOutAPI, {});
-    } catch (err) {
-      const error = err as {
-        response?: {
-          status: number;
-          data?: {
-            status: string;
-            message?: string;
-          };
+export const LogoutRequest = createAsyncThunk<
+  LogoutResponse,
+  void,
+  { rejectValue: { message: string } }
+>('auth/logout', async (_, thunkAPI) => {
+  try {
+    await api.post(config.LogOutAPI, {});
+  } catch (err) {
+    const error = err as {
+      response?: {
+        status: number;
+        data?: {
+          status: string;
+          message?: string;
         };
-        message?: string;
       };
-      return thunkAPI.rejectWithValue({
-        message: error.response?.data?.message || error.message || 'Logout failed',
-      });
-    }
-    clearAuthData();
-    return { status: 'SUCCESS', message: 'Logged out successfully', data: null };
-  },
-);
+      message?: string;
+    };
+    return thunkAPI.rejectWithValue({
+      message:
+        error.response?.data?.message || error.message || 'Logout failed',
+    });
+  }
+  clearAuthData();
+  return { status: 'SUCCESS', message: 'Logged out successfully', data: null };
+});
 
 const LogoutSlice = createSlice({
   name: 'auth/logout',

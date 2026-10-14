@@ -40,7 +40,9 @@ export const getActiveSimulationCount = async (): Promise<{
 
   // Filter for active and published simulations (exclude draft and archived)
   const activeSimulations = simulations.filter((sim) => {
-    const status = String(sim.status ?? '').toLowerCase().trim();
+    const status = String(sim.status ?? '')
+      .toLowerCase()
+      .trim();
     return status === 'active' || status === 'published';
   });
 
@@ -50,5 +52,3 @@ export const getActiveSimulationCount = async (): Promise<{
     activeSimulations,
   };
 };
-
-

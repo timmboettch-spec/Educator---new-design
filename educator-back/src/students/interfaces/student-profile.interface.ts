@@ -1,6 +1,6 @@
 import { CommonStatus } from 'src/common/enums/status.enum';
 import { BlobScenario } from 'src/common/types';
-import { SimulationReport } from 'src/simulation-reports/entity/simulation-report.entity';
+import type { SimulationReportRow } from 'src/common/interfaces';
 
 export interface StudentSummary {
   id: string | undefined;
@@ -32,10 +32,25 @@ export interface StudentSimulationSummary {
   title: string;
   description: string;
   avatarEnabled: boolean;
+  /**
+   * Which avatar plays the patient, as chosen by the scenario designer, or
+   * null when none is set.
+   *
+   * Returned so the student app streams the avatar the scenario was actually
+   * saved with. Without it the frontend falls back to a hardcoded
+   * scenario->avatar table, and a designer's choice silently has no effect —
+   * they pick one avatar and the student sees another.
+   */
+  avatarId: string | null;
   StartDate: string | null;
   EndDate: string | null;
   DueDate: string | null;
   modes: ('Assessment' | 'Practice')[];
+  /** Whether the student may Forfeit now: in progress, with 1..Max-1 Assessment Attempts used. */
+  canForfeit: boolean;
+  /** Assessment Attempts the student has used on this Simulation. */
+  attemptCount: number;
+  maxAttempts: number;
   estimatedDuration: string | null;
   timeAllotment: string | null;
   learningObjectives?: string[];
@@ -55,7 +70,7 @@ export type StudentSimulationResponse = BlobScenario & StudentSimulationSummary;
 
 export interface StudentProfileResponse {
   simulations: StudentSimulationSummary[];
-  reports: SimulationReport[];
+  reports: SimulationReportRow[];
 }
 
 export interface StudentLoginData {

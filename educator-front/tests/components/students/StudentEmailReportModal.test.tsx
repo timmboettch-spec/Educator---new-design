@@ -49,7 +49,7 @@ describe('StudentEmailReportModal', () => {
         StudentEmailReport: {
           message: 'Report sent successfully',
         },
-      }),
+      })
     );
 
     (selectEmailReportLoading as unknown as Mock).mockReturnValue(false);
@@ -58,8 +58,10 @@ describe('StudentEmailReportModal', () => {
   });
 
   const renderComponent = (
-    overrides?: Partial<Parameters<typeof StudentEmailReportModal>[0]['student']>,
-    includePdfGenerator?: boolean,
+    overrides?: Partial<
+      Parameters<typeof StudentEmailReportModal>[0]['student']
+    >,
+    includePdfGenerator?: boolean
   ) =>
     render(
       <StudentEmailReportModal
@@ -71,8 +73,10 @@ describe('StudentEmailReportModal', () => {
           ...overrides,
         }}
         onClose={mockOnClose}
-        pdfGeneratorFn={includePdfGenerator ? () => 'mock-pdf-base64' : undefined}
-      />,
+        pdfGeneratorFn={
+          includePdfGenerator ? () => 'mock-pdf-base64' : undefined
+        }
+      />
     );
 
   test('renders modal correctly', () => {
@@ -101,7 +105,7 @@ describe('StudentEmailReportModal', () => {
         student_id: '1',
         email: 'test@test.com',
         student_name: 'John',
-      }),
+      })
     );
   });
 
@@ -117,14 +121,16 @@ describe('StudentEmailReportModal', () => {
     expect(sendEmailReportRequest).toHaveBeenCalledWith(
       expect.objectContaining({
         sendPdf: true,
-      }),
+      })
     );
   });
 
   test('shows last sent timestamp when provided', () => {
     renderComponent({ last_sent_date: '2026-05-07 10:30 AM' });
 
-    expect(screen.getByText(/Last Sent 2026-05-07 10:30 AM/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Last Sent 2026-05-07 10:30 AM/i)
+    ).toBeInTheDocument();
   });
 
   test('shows loading state', () => {
@@ -136,7 +142,9 @@ describe('StudentEmailReportModal', () => {
   });
 
   test('shows error toast when error exists', async () => {
-    (selectEmailReportError as unknown as Mock).mockReturnValue('Error occurred');
+    (selectEmailReportError as unknown as Mock).mockReturnValue(
+      'Error occurred'
+    );
 
     renderComponent();
 

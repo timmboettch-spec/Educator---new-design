@@ -7,7 +7,7 @@ export function ExportPDF(
   source: ExportSource,
   filenameBase: string,
   reportData: ReportData,
-  student: boolean,
+  student: boolean
 ): void {
   const doc = new jsPDF();
 
@@ -33,7 +33,9 @@ export function ExportPDF(
   doc.setFontSize(11);
   doc.setTextColor(60, 60, 60);
 
-  doc.text(reportData?.rubricsSummary ?? 'No summary available', 14, 78, { maxWidth: 180 });
+  doc.text(reportData?.rubricsSummary ?? 'No summary available', 14, 78, {
+    maxWidth: 180,
+  });
 
   doc.setFontSize(15);
   doc.setTextColor(234, 88, 12);
@@ -41,7 +43,9 @@ export function ExportPDF(
 
   autoTable(doc, {
     startY: 108,
-    head: student ? [['Scenario', 'Score', 'Status']] : [['Student Name', 'Score', 'Status']],
+    head: student
+      ? [['Scenario', 'Score', 'Status']]
+      : [['Student Name', 'Score', 'Status']],
     body: student
       ? (reportData?.reports?.map((item: ReportItem) => [
           item?.scenario_id ?? '-',

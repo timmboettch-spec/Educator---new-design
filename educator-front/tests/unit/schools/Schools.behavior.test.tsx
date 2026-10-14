@@ -78,7 +78,10 @@ describe('PostStudentRedux – reducer', () => {
 
   it('sets status to succeeded and stores response on fulfilled', () => {
     const store = buildStore();
-    store.dispatch({ type: PostStudentRequest.fulfilled.type, payload: mockResponse });
+    store.dispatch({
+      type: PostStudentRequest.fulfilled.type,
+      payload: mockResponse,
+    });
     const state = store.getState().PostStudent;
     expect(state.status).toBe('succeeded');
     expect(state.response).toEqual(mockResponse);
@@ -97,12 +100,19 @@ describe('PostStudentRedux – reducer', () => {
 
   it('uses fallback error message when payload is undefined', () => {
     const store = buildStore();
-    store.dispatch({ type: PostStudentRequest.rejected.type, payload: undefined });
+    store.dispatch({
+      type: PostStudentRequest.rejected.type,
+      payload: undefined,
+    });
     expect(store.getState().PostStudent.error).toBe('Failed to add student');
   });
 
   it('clearPostStudentState resets to initial state', () => {
-    const store = buildStore({ status: 'succeeded', response: mockResponse, error: null });
+    const store = buildStore({
+      status: 'succeeded',
+      response: mockResponse,
+      error: null,
+    });
     store.dispatch(clearPostStudentState());
     const state = store.getState().PostStudent;
     expect(state.status).toBe('idle');
@@ -121,7 +131,9 @@ describe('PostStudentRedux – thunk', () => {
     apiPostMock.mockResolvedValue({ data: mockResponse });
     const store = buildStore();
 
-    await store.dispatch(PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>);
+    await store.dispatch(
+      PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>
+    );
 
     const state = store.getState().PostStudent;
     expect(state.status).toBe('succeeded');
@@ -132,7 +144,9 @@ describe('PostStudentRedux – thunk', () => {
     apiPostMock.mockResolvedValue({ data: mockResponse });
     const store = buildStore();
 
-    await store.dispatch(PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>);
+    await store.dispatch(
+      PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>
+    );
 
     expect(apiPostMock).toHaveBeenCalledTimes(1);
     expect(apiPostMock).toHaveBeenCalledWith(config.StudentAPI, validPayload);
@@ -144,7 +158,9 @@ describe('PostStudentRedux – thunk', () => {
     });
     const store = buildStore();
 
-    await store.dispatch(PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>);
+    await store.dispatch(
+      PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>
+    );
 
     const state = store.getState().PostStudent;
     expect(state.status).toBe('failed');
@@ -155,17 +171,23 @@ describe('PostStudentRedux – thunk', () => {
     apiPostMock.mockRejectedValue(new Error('Network error'));
     const store = buildStore();
 
-    await store.dispatch(PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>);
+    await store.dispatch(
+      PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>
+    );
 
     expect(store.getState().PostStudent.error).toBe('Failed to add student');
   });
 
   it('rejects with Unauthorized when API returns unauthorized', async () => {
     mockedGetToken.mockReturnValue(null);
-    apiPostMock.mockRejectedValue({ response: { data: { message: 'Unauthorized' } } });
+    apiPostMock.mockRejectedValue({
+      response: { data: { message: 'Unauthorized' } },
+    });
     const store = buildStore();
 
-    await store.dispatch(PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>);
+    await store.dispatch(
+      PostStudentRequest(validPayload) as ReturnType<typeof PostStudentRequest>
+    );
 
     const state = store.getState().PostStudent;
     expect(state.status).toBe('failed');
@@ -177,9 +199,10 @@ describe('PostStudentRedux – thunk', () => {
     const store = buildStore();
 
     await store.dispatch(
-      PostStudentRequest({ class_id: 'cls-1', student_name: 'Bob' }) as ReturnType<
-        typeof PostStudentRequest
-      >,
+      PostStudentRequest({
+        class_id: 'cls-1',
+        student_name: 'Bob',
+      }) as ReturnType<typeof PostStudentRequest>
     );
 
     expect(store.getState().PostStudent.status).toBe('succeeded');
@@ -188,57 +211,79 @@ describe('PostStudentRedux – thunk', () => {
 
 describe('PostStudentRedux – selectors', () => {
   const createMockState = (postStudentState: PostStudentState) =>
-    ({ PostStudent: postStudentState }) as Parameters<typeof selectPostStudentLoading>[0];
+    ({ PostStudent: postStudentState }) as Parameters<
+      typeof selectPostStudentLoading
+    >[0];
 
   it('selectPostStudentLoading returns true when loading', () => {
     expect(
-      selectPostStudentLoading(createMockState({ status: 'loading', response: null, error: null })),
+      selectPostStudentLoading(
+        createMockState({ status: 'loading', response: null, error: null })
+      )
     ).toBe(true);
   });
 
   it('selectPostStudentLoading returns false when not loading', () => {
     expect(
-      selectPostStudentLoading(createMockState({ status: 'idle', response: null, error: null })),
+      selectPostStudentLoading(
+        createMockState({ status: 'idle', response: null, error: null })
+      )
     ).toBe(false);
   });
 
   it('selectPostStudentSuccess returns true when succeeded', () => {
     expect(
       selectPostStudentSuccess(
-        createMockState({ status: 'succeeded', response: mockResponse, error: null }),
-      ),
+        createMockState({
+          status: 'succeeded',
+          response: mockResponse,
+          error: null,
+        })
+      )
     ).toBe(true);
   });
 
   it('selectPostStudentSuccess returns false when not succeeded', () => {
     expect(
-      selectPostStudentSuccess(createMockState({ status: 'failed', response: null, error: 'err' })),
+      selectPostStudentSuccess(
+        createMockState({ status: 'failed', response: null, error: 'err' })
+      )
     ).toBe(false);
   });
 
   it('selectPostStudentError returns error string', () => {
     expect(
-      selectPostStudentError(createMockState({ status: 'failed', response: null, error: 'oops' })),
+      selectPostStudentError(
+        createMockState({ status: 'failed', response: null, error: 'oops' })
+      )
     ).toBe('oops');
   });
 
   it('selectPostStudentError returns null when no error', () => {
     expect(
-      selectPostStudentError(createMockState({ status: 'idle', response: null, error: null })),
+      selectPostStudentError(
+        createMockState({ status: 'idle', response: null, error: null })
+      )
     ).toBeNull();
   });
 
   it('selectPostStudentResponse returns response data', () => {
     expect(
       selectPostStudentResponse(
-        createMockState({ status: 'succeeded', response: mockResponse, error: null }),
-      ),
+        createMockState({
+          status: 'succeeded',
+          response: mockResponse,
+          error: null,
+        })
+      )
     ).toEqual(mockResponse);
   });
 
   it('selectPostStudentResponse returns null initially', () => {
     expect(
-      selectPostStudentResponse(createMockState({ status: 'idle', response: null, error: null })),
+      selectPostStudentResponse(
+        createMockState({ status: 'idle', response: null, error: null })
+      )
     ).toBeNull();
   });
 });

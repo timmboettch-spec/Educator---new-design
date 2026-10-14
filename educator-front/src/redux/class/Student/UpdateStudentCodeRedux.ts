@@ -1,5 +1,9 @@
 ﻿import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../../utils/constants';
 import config from '../../config';
@@ -31,12 +35,11 @@ export const UpdateStudentCodeRequest = createAsyncThunk(
   'student/updateCode',
   async (id: string, thunkAPI) => {
     try {
-      const res = await api.put(`${config.RegenerateCodeApi}/${id}`,
-        {
-          headers: {
-            'ngrok-skip-browser-warning': 'true',
-          },
-        },);
+      const res = await api.put(`${config.RegenerateCodeApi}/${id}`, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
       return res.data;
     } catch (err: unknown) {
       const error = err as {
@@ -49,10 +52,11 @@ export const UpdateStudentCodeRequest = createAsyncThunk(
         };
       };
       return thunkAPI.rejectWithValue({
-        message: error.response?.data?.message || 'Failed to update student code',
+        message:
+          error.response?.data?.message || 'Failed to update student code',
       });
     }
-  },
+  }
 );
 
 const updateStudentCodeSlice = createSlice({
@@ -76,12 +80,13 @@ const updateStudentCodeSlice = createSlice({
         (state, action: PayloadAction<UpdateStudentCodeResponse>) => {
           state.status = SUCCEEDED;
           state.response = action.payload;
-        },
+        }
       )
       .addCase(UpdateStudentCodeRequest.rejected, (state, action) => {
         state.status = FAILED;
         state.error =
-          (action.payload as { message?: string })?.message || 'Failed to update student code';
+          (action.payload as { message?: string })?.message ||
+          'Failed to update student code';
       });
   },
 });
@@ -89,21 +94,25 @@ const updateStudentCodeSlice = createSlice({
 export const { clearUpdateStudentCodeState } = updateStudentCodeSlice.actions;
 export default updateStudentCodeSlice.reducer;
 
-const selectUpdateStudentCodeState = (state: RootState) => state.UpdateStudentCode;
+const selectUpdateStudentCodeState = (state: RootState) =>
+  state.UpdateStudentCode;
 
 export const selectUpdateCodeLoading = createSelector(
   selectUpdateStudentCodeState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );
 
 export const selectUpdateCodeSuccess = createSelector(
   selectUpdateStudentCodeState,
-  (s) => s.status === SUCCEEDED,
+  (s) => s.status === SUCCEEDED
 );
 
-export const selectUpdateCodeError = createSelector(selectUpdateStudentCodeState, (s) => s.error);
+export const selectUpdateCodeError = createSelector(
+  selectUpdateStudentCodeState,
+  (s) => s.error
+);
 
 export const selectUpdateCodeResponse = createSelector(
   selectUpdateStudentCodeState,
-  (s) => s.response,
+  (s) => s.response
 );

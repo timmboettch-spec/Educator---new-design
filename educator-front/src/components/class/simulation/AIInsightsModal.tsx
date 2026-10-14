@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { SimulationItem } from '@/types';
+import { type SimulationItem } from '@/types';
 
 interface Props {
   sim: SimulationItem;
@@ -49,9 +49,9 @@ export default function AIInsightsModal({ onClose }: Props) {
     const focusableSelectors =
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
     const getFocusable = () =>
-      Array.from(modal.querySelectorAll<HTMLElement>(focusableSelectors)).filter(
-        (el) => !el.hasAttribute('disabled'),
-      );
+      Array.from(
+        modal.querySelectorAll<HTMLElement>(focusableSelectors)
+      ).filter((el) => !el.hasAttribute('disabled'));
 
     const els = getFocusable();
     if (els.length) els[0].focus();
@@ -105,11 +105,13 @@ export default function AIInsightsModal({ onClose }: Props) {
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[min(calc(100vh-2rem),calc(100dvh-2rem))]"
       >
         <div className="px-6 sm:px-8 pt-8 pb-4 shrink-0 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-primary-500">AI Generated Insights</h2>
+          <h2 className="text-xl font-bold text-orange-500">
+            AI Generated Insights
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-600 transition-colors p-1"
+            className="text-gray-400 hover:text-gray-600 transition-colors p-1"
             aria-label="Close"
           >
             <svg
@@ -139,41 +141,49 @@ export default function AIInsightsModal({ onClose }: Props) {
                 key={stat.label}
                 className="flex flex-col items-center justify-center border border-gray-200 rounded-xl py-4 px-2 gap-1"
               >
-                <span className="text-primary-500 font-bold text-lg leading-tight">
+                <span className="text-orange-500 font-bold text-lg leading-tight">
                   {stat.value}
                 </span>
-                <span className="text-gray-500 text-xs text-center">{stat.label}</span>
+                <span className="text-gray-400 text-xs text-center">
+                  {stat.label}
+                </span>
               </div>
             ))}
           </div>
 
-          <div className="bg-primary-50 border border-primary-100 rounded-xl px-5 py-4 mb-6">
-            <p className="text-sm font-semibold text-primary-500 mb-3 flex items-center gap-2">
+          <div className="bg-orange-50 border border-orange-100 rounded-xl px-5 py-4 mb-6">
+            <p className="text-sm font-semibold text-orange-500 mb-3 flex items-center gap-2">
               AI Generated Insights
             </p>
             <ul className="space-y-2">
               <li className="text-xs text-gray-700 flex gap-2">
-                <span className="text-primary-400 mt-0.5">•</span>
+                <span className="text-orange-400 mt-0.5">•</span>
                 <span>
-                  Most students struggled with <strong>medication dosage calculations</strong> —
-                  consider adding a review module.
+                  Most students struggled with{' '}
+                  <strong>medication dosage calculations</strong> — consider
+                  adding a review module.
                 </span>
               </li>
               <li className="text-xs text-gray-700 flex gap-2">
-                <span className="text-primary-400 mt-0.5">•</span>
+                <span className="text-orange-400 mt-0.5">•</span>
                 <span>
-                  Top performers: <strong>Alice Johnson, David Park, Emma Wilson</strong> completed
-                  with 95%+ accuracy.
+                  Top performers:{' '}
+                  <strong>Alice Johnson, David Park, Emma Wilson</strong>{' '}
+                  completed with 95%+ accuracy.
                 </span>
               </li>
               <li className="text-xs text-gray-700 flex gap-2">
-                <span className="text-primary-400 mt-0.5">•</span>
-                <span>20% of students did not complete the simulation before the due date.</span>
+                <span className="text-orange-400 mt-0.5">•</span>
+                <span>
+                  20% of students did not complete the simulation before the due
+                  date.
+                </span>
               </li>
               <li className="text-xs text-gray-700 flex gap-2">
-                <span className="text-primary-400 mt-0.5">•</span>
+                <span className="text-orange-400 mt-0.5">•</span>
                 <span>
-                  Average completion time improved by 15% compared to the previous simulation.
+                  Average completion time improved by 15% compared to the
+                  previous simulation.
                 </span>
               </li>
             </ul>
@@ -181,7 +191,9 @@ export default function AIInsightsModal({ onClose }: Props) {
 
           <div className="grid grid-cols-2 gap-6 mb-6">
             <div>
-              <p className="text-xs font-semibold text-gray-600 mb-3">Score Distribution</p>
+              <p className="text-xs font-semibold text-gray-600 mb-3">
+                Score Distribution
+              </p>
               <ResponsiveContainer width="100%" height={160}>
                 <BarChart data={scoreData} barSize={22}>
                   <XAxis
@@ -190,19 +202,34 @@ export default function AIInsightsModal({ onClose }: Props) {
                     axisLine={false}
                     tickLine={false}
                   />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <Bar dataKey="count" fill="#db8833" radius={[3, 3, 0, 0]} />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Bar dataKey="count" fill="#f97316" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div>
-              <p className="text-xs font-semibold text-gray-600 mb-3">Completion Trend</p>
+              <p className="text-xs font-semibold text-gray-600 mb-3">
+                Completion Trend
+              </p>
               <ResponsiveContainer width="100%" height={160}>
                 <LineChart data={trendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <XAxis
+                    dataKey="day"
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
                   <Tooltip contentStyle={{ fontSize: 11 }} />
                   <Line
                     type="monotone"
@@ -228,6 +255,6 @@ export default function AIInsightsModal({ onClose }: Props) {
         </div>
       </div>
     </div>,
-    document.body,
+    document.body
   );
 }

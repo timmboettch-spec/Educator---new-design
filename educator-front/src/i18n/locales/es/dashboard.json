@@ -1,0 +1,296 @@
+{
+  "simulationsCompleted": {
+    "title": "Simulaciones completadas",
+    "axisLabel": "Simulaciones completadas",
+    "tooltip_one": "{{count}} simulación completada",
+    "tooltip_other": "{{count}} simulaciones completadas",
+    "chartAria": "Gráfico de barras de simulaciones completadas para {{selection}}",
+    "loading": "Cargando simulaciones completadas…",
+    "error": "No pudimos cargar las simulaciones completadas en este momento. Inténtalo de nuevo.",
+    "empty": "Aún no hay simulaciones completadas en este período.",
+    "filters": {
+      "schoolLabel": "Escuelas",
+      "schoolPlaceholder": "Todas las escuelas",
+      "schoolNoun_one": "escuela",
+      "schoolNoun_other": "escuelas",
+      "classLabel": "Clases",
+      "classPlaceholder": "Todas las clases",
+      "classNoun_one": "clase",
+      "classNoun_other": "clases",
+      "studentLabel": "Códigos de estudiante",
+      "studentPlaceholder": "Todos los códigos de estudiante",
+      "studentNoun_one": "código de estudiante",
+      "studentNoun_other": "códigos de estudiante",
+      "timeframeLabel": "Período",
+      "loadError": "No pudimos cargar estas opciones. Inténtalo de nuevo."
+    },
+    "timeframes": {
+      "months_one": "Último {{count}} mes",
+      "months_other": "Últimos {{count}} meses",
+      "all": "Todo el tiempo"
+    },
+    "selection": {
+      "allSchools": "Todas las escuelas",
+      "allClasses": "Todas las clases",
+      "allStudents": "Todos los códigos de estudiante",
+      "schools": "Escuelas: {{names}}",
+      "classes": "Clases: {{names}}",
+      "students": "Códigos de estudiante: {{names}}",
+      "more": "{{names}} +{{count}} más"
+    },
+    "export": {
+      "png": "PNG",
+      "pdf": "PDF",
+      "csv": "CSV",
+      "aria": "Exportar gráfico como {{format}}",
+      "fileBase": "simulaciones-completadas",
+      "generated": "Generado el {{date}}",
+      "csvSelection": "Selección",
+      "csvTimeframe": "Período",
+      "csvGenerated": "Generado",
+      "csvMonth": "Mes",
+      "csvCount": "Simulaciones completadas",
+      "csvTotal": "Total"
+    },
+    "overviewTitle": "Resumen gráfico de simulaciones completadas",
+    "subtitle": "{{summary}} · {{total}} en total",
+    "breakdownSubtitle": {
+      "allSchools": "Todas las escuelas",
+      "label": "Nivel del desglose",
+      "school": "· por escuela",
+      "class": "· por clase",
+      "student": "· por estudiante"
+    },
+    "unassignedSchool": "Clases sin escuela",
+    "views": {
+      "label": "Vista del gráfico",
+      "time": "En el tiempo",
+      "school": "Desglose"
+    },
+    "modes": {
+      "label": "Modo del gráfico",
+      "total": "Total",
+      "compare": "Comparar"
+    },
+    "compareTooltip": "{{name}}: {{count}} completadas",
+    "compareLimit": "Selecciona hasta {{count}} {{noun}} para comparar",
+    "compareSummaryRow": "{{month}}: {{values}} (total {{total}})",
+    "summary": {
+      "all": "Todas las clases",
+      "schools_one": "{{count}} escuela",
+      "schools_other": "{{count}} escuelas",
+      "classes_one": "{{count}} clase",
+      "classes_other": "{{count}} clases",
+      "students_one": "{{count}} código de estudiante",
+      "students_other": "{{count}} códigos de estudiante"
+    },
+    "exportTitles": {
+      "time": "Simulaciones completadas",
+      "school": "Simulaciones completadas por escuela",
+      "class": "Simulaciones completadas por clase",
+      "student": "Simulaciones completadas por estudiante"
+    },
+    "fileViews": {
+      "time": "por-mes",
+      "school": "por-escuela",
+      "class": "por-clase",
+      "student": "por-estudiante"
+    },
+    "csvView": "Vista",
+    "summaryHeading": "Simulaciones completadas para {{selection}}:",
+    "breakdownTooltip": {
+      "count_one": "{{count}} completada",
+      "count_other": "{{count}} completadas",
+      "drill_one": "{{count}} completada — haz clic para ver el detalle",
+      "drill_other": "{{count}} completadas — haz clic para ver el detalle"
+    },
+    "drillButton": "{{name}}: {{count}} — ver detalle",
+    "unknownStudent": "Sin código de estudiante",
+    "csvColumns": {
+      "time": "Mes",
+      "school": "Escuela",
+      "class": "Clase",
+      "student": "Código de estudiante"
+    }
+  },
+  "alertsActivity": {
+    "title": "Alertas y resumen de actividad",
+    "alertsLabel": "Alertas"
+  },
+  "activityOverview": {
+    "loading": "Cargando resumen de actividad…",
+    "title": "Resumen de actividad",
+    "tiles": {
+      "activeClasses": "Clases activas",
+      "classesWithUnreadReports": "Clases con reportes no leídos",
+      "classesClosingSoon": "Clases que cierran (14 días)",
+      "studentsInActiveClasses": "Estudiantes en clases activas",
+      "totalUnreadReports": "Total de reportes no leídos",
+      "classesNearAvatarLimit": "Clases con estudiantes cerca del límite de avatar"
+    },
+    "viewClassesAria": "{{label}} — ver clases",
+    "error": "No pudimos cargar tu resumen de actividad en este momento."
+  },
+  "notificationCenter": {
+    "title": "Centro de notificaciones",
+    "unread": "{{count}} sin leer",
+    "settings": "Configuración de notificaciones",
+    "groups": {
+      "all": "Todas",
+      "unread": "Sin leer",
+      "reports": "Reportes de estudiantes",
+      "simulations": "Simulaciones",
+      "classes": "Clases",
+      "seats": "Asientos asignados",
+      "products": "Productos",
+      "general": "General"
+    },
+    "groupFilterLabel": "Filtrar notificaciones por categoría",
+    "markAllRead": "Marcar todo como leído",
+    "clearAll": "Borrar todo",
+    "dateRange": "Rango de fechas",
+    "dateRangeAria": "Filtrar por rango de fechas",
+    "ranges": {
+      "all": "Todas las fechas",
+      "1d": "Último día",
+      "3d": "Últimos 3 días",
+      "1w": "Última semana",
+      "2w": "Últimas 2 semanas",
+      "1m": "Último mes"
+    },
+    "sort": "Ordenar",
+    "sortAria": "Ordenar notificaciones",
+    "newest": "Más recientes primero",
+    "oldest": "Más antiguas primero",
+    "showing": "Mostrando {{count}}",
+    "empty": "Ninguna notificación coincide con estos filtros.",
+    "loading": "Cargando notificaciones…",
+    "error": "No pudimos cargar tus notificaciones.",
+    "retry": "Reintentar",
+    "selectAllShown": "Seleccionar todas las mostradas",
+    "selectAllShownAria": "Seleccionar todas las notificaciones mostradas",
+    "selectOne": "Seleccionar {{title}}",
+    "selected": "{{count}} seleccionadas",
+    "markRead": "Marcar como leída",
+    "markUnread": "Marcar como no leída",
+    "clearSelection": "Borrar selección",
+    "delete": "Eliminar",
+    "statusRead": "Leída",
+    "statusUnread": "No leída",
+    "time": {
+      "justNow": "ahora mismo",
+      "minutes": "hace {{count}} min",
+      "hours": "hace {{count}} h",
+      "days": "hace {{count}} d"
+    },
+    "detail": {
+      "category": "Categoría:",
+      "sent": "Enviada:",
+      "status": "Estado:",
+      "trigger": "Qué la generó",
+      "close": "Cerrar"
+    },
+    "actions": {
+      "reports": "Ver reportes",
+      "simulations": "Ver simulaciones",
+      "classes": "Ver clases",
+      "products": "Ver productos y uso"
+    },
+    "clearConfirm": {
+      "title": "¿Borrar todas las notificaciones?",
+      "message_one": "Esto elimina tu {{count}} notificación. No se puede deshacer.",
+      "message_other": "Esto elimina las {{count}} notificaciones. No se puede deshacer.",
+      "confirm": "Borrar todo",
+      "cancel": "Cancelar",
+      "loading": "Borrando…"
+    },
+    "types": {
+      "STUDENT_REPORT_AVAILABLE": "Reporte de estudiante disponible",
+      "LMS_GRADE_SYNC_FAILED": "Falló la sincronización de calificaciones",
+      "SIMULATION_DUE_DATE_REMINDER": "Recordatorio de fecha límite de simulación",
+      "SIMULATION_START_DATE_REMINDER": "Recordatorio de inicio de simulación",
+      "SIMULATION_END_DATE_REMINDER": "Recordatorio de cierre de simulación",
+      "CLASS_CREATED": "Clase creada",
+      "CLASS_TRANSFERRED": "Clase transferida",
+      "CLASS_START_DATE_REMINDER": "Recordatorio de inicio de clase",
+      "CLASS_END_DATE_REMINDER": "Recordatorio de fin de clase",
+      "TOKENS_ALLOCATED": "Asientos asignados",
+      "EDUCATOR_LOW_SEAT_WARNING": "Aviso de pocos asientos",
+      "PRODUCTS_ASSOCIATED": "Productos asociados",
+      "GENERAL": "General",
+      "EDUCATOR_REGISTERED": "Educador registrado",
+      "SCHOOL_LOW_SEAT_WARNING": "Aviso de pocos puestos en la escuela",
+      "EDUCATOR_SEAT_REQUEST": "Solicitud de puestos",
+      "SCHOOL_STATUS_CHANGED": "Cambio de estado de la escuela",
+      "SCHOOL_REMOVED": "Escuela eliminada",
+      "EMAIL_REPORT": "Informe por correo",
+      "ASSESSMENT_REPORT": "Informe de evaluación",
+      "BATCH_EMAIL": "Correo masivo",
+      "SEND_STUDENT_CODE": "Código de estudiante enviado",
+      "ACCOUNT_REACTIVATED": "Cuenta reactivada",
+      "FORGOT_PASSWORD": "Restablecimiento de contraseña",
+      "INVITE": "Invitación"
+    }
+  },
+  "productsUsage": {
+    "title": "Mis productos y uso",
+    "associated": "Mis productos asociados activos ({{count}})",
+    "associatedSummary": "{{avatar}} avatar · {{workstation}} estación de trabajo",
+    "editions": {
+      "secondary": "Edición de educación secundaria",
+      "postSecondary": "Edición de educación postsecundaria"
+    },
+    "avatarGroup": "Simulaciones con avatar",
+    "workstationGroup": "Simulaciones de estación de trabajo",
+    "requestMoreSeats": "Solicitar más asientos",
+    "noneInGroup": "No hay productos asociados actualmente.",
+    "empty": "Aún no tienes productos asociados.",
+    "expires": "Vence el {{date}}",
+    "remainingSeats": "Asientos asignados restantes:",
+    "associatedProduct": "Producto asociado:",
+    "usage": {
+      "title": "Mi uso",
+      "avatarBreakdown": "Desglose de mi uso de avatar",
+      "remainingSeats": "Asientos restantes:",
+      "totalAvatarSeats": "Mi uso total de asientos de avatar (secundaria y postsecundaria)",
+      "secondaryAvatarSeats": "Mi uso de asientos de simulación con avatar de secundaria",
+      "postSecondaryAvatarSeats": "Mi uso de asientos de simulación con avatar de postsecundaria",
+      "secondaryAvatarHours": "Mis horas de simulación con avatar de secundaria",
+      "postSecondaryAvatarHours": "Mis horas de simulación con avatar de postsecundaria",
+      "workstationBreakdown": "Desglose de mi uso de estaciones de trabajo",
+      "totalWorkstation": "Mi uso total de hardware de estación de trabajo (secundaria y postsecundaria)",
+      "secondaryWorkstationHours": "Mis horas de simulación de estación de trabajo de secundaria",
+      "postSecondaryWorkstationHours": "Mis horas de simulación de estación de trabajo de postsecundaria",
+      "productHours": "Mis horas de simulación de {{name}}",
+      "seats": " asientos",
+      "hours": " h",
+      "placeholderNote": "Las horas de avatar y el uso de hardware son provisionales: aún no se registran por educador."
+    }
+  },
+  "requestSeats": {
+    "productsQuestion": "¿En qué productos necesitas más puestos?",
+    "searchProducts": "Buscar…",
+    "selectAll": "Seleccionar todo",
+    "clearAll": "Borrar todo",
+    "noMatches": "Ningún producto coincide con tu búsqueda.",
+    "perProductTitle": "Puestos solicitados por producto",
+    "seatsPlaceholder": "Puestos a solicitar",
+    "seatsAria": "Puestos a solicitar para {{name}}",
+    "currentlyAvailable": "Disponibles actualmente:",
+    "maxSeats": "Se pueden solicitar como máximo 500 puestos en total.",
+    "breakdownHeading": "Puestos solicitados por producto:",
+    "seat_one": "{{count}} puesto",
+    "seat_other": "{{count}} puestos",
+    "noteMaxWithProducts": "Con los productos seleccionados, tu nota puede tener hasta {{max}} caracteres."
+  },
+  "yourSchools": {
+    "title": "Tus escuelas ({{count}})",
+    "classes_one": "{{count}} clase activa",
+    "classes_other": "{{count}} clases activas",
+    "students_one": "{{count}} estudiante activo",
+    "students_other": "{{count}} estudiantes activos",
+    "loading": "Cargando tus escuelas…",
+    "error": "No pudimos cargar tus clases, así que los totales por escuela no están disponibles ahora.",
+    "unavailable": "Totales no disponibles"
+  }
+}

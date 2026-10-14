@@ -1,5 +1,5 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 // --- Score colour thresholds -----------------------------------------------
 const SCORE_GREEN_MIN = 90; // >= this → green (excellent)
@@ -21,20 +21,20 @@ export function cn(...inputs: ClassValue[]) {
  */
 export function formatDate(date: string | Date | null | undefined): string {
   if (!date) {
-    return "";
+    return '';
   }
-  const d = typeof date === "string" ? new Date(date) : date;
+  const d = typeof date === 'string' ? new Date(date) : date;
   if (isNaN(d.getTime())) {
     // If the string is already a formatted date (MM/DD/YYYY), return it
-    if (typeof date === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(date)) {
+    if (typeof date === 'string' && /^\d{2}\/\d{2}\/\d{4}$/.test(date)) {
       return date;
     }
-    return typeof date === "string" ? date : "";
+    return typeof date === 'string' ? date : '';
   }
-  return d.toLocaleDateString("en-US", {
-    month: "2-digit",
-    day: "2-digit",
-    year: "numeric",
+  return d.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
   });
 }
 
@@ -42,9 +42,9 @@ export function formatDate(date: string | Date | null | undefined): string {
  * Format time to readable string
  */
 export function formatTime(date: string | Date): string {
-  const d = typeof date === "string" ? new Date(date) : date;
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
 }
 
@@ -77,7 +77,7 @@ export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
     return text;
   }
-  return text.substring(0, maxLength) + "...";
+  return text.substring(0, maxLength) + '...';
 }
 
 /**
@@ -85,14 +85,14 @@ export function truncateText(text: string, maxLength: number): string {
  */
 export function getDifficultyColor(difficulty: string): string {
   switch (difficulty.toLowerCase()) {
-    case "easy":
-      return "text-green-600 bg-green-50";
-    case "medium":
-      return "text-yellow-600 bg-yellow-50";
-    case "hard":
-      return "text-red-600 bg-red-50";
+    case 'easy':
+      return 'text-green-600 bg-green-50';
+    case 'medium':
+      return 'text-yellow-600 bg-yellow-50';
+    case 'hard':
+      return 'text-red-600 bg-red-50';
     default:
-      return "text-gray-600 bg-gray-50";
+      return 'text-gray-600 bg-gray-50';
   }
 }
 
@@ -101,15 +101,15 @@ export function getDifficultyColor(difficulty: string): string {
  */
 export function getScoreColor(score: number): string {
   if (score >= SCORE_GREEN_MIN) {
-    return "text-green-600";
+    return 'text-green-600';
   }
   if (score >= SCORE_BLUE_MIN) {
-    return "text-blue-600";
+    return 'text-blue-600';
   }
   if (score >= SCORE_YELLOW_MIN) {
-    return "text-yellow-600";
+    return 'text-yellow-600';
   }
-  return "text-red-600";
+  return 'text-red-600';
 }
 
 /**
@@ -117,7 +117,7 @@ export function getScoreColor(score: number): string {
  */
 export function debounce<T extends (...args: Parameters<T>) => ReturnType<T>>(
   func: T,
-  wait: number,
+  wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
   return function executedFunction(...args: Parameters<T>) {
@@ -149,15 +149,15 @@ export function sleep(ms: number): Promise<void> {
  */
 export const resolveImageSrc = (path: string | undefined): string => {
   const BACKEND_URL = (
-    process.env.NEXT_PUBLIC_IMAGE_BASE_URL || "http://localhost:4000"
-  ).replace(/\/$/, "");
+    process.env.NEXT_PUBLIC_IMAGE_BASE_URL || 'http://localhost:4000'
+  ).replace(/\/$/, '');
   if (!path) {
-    return "";
+    return '';
   }
-  if (path.startsWith("http") || path.startsWith("data:")) {
+  if (path.startsWith('http') || path.startsWith('data:')) {
     return path;
   }
-  if (path.startsWith("/")) {
+  if (path.startsWith('/')) {
     return `${BACKEND_URL}${path}`;
   }
   return `${BACKEND_URL}/${path}`;
@@ -169,35 +169,45 @@ export const resolveImageSrc = (path: string | undefined): string => {
  */
 export function sanitizePdfText(text: unknown): string {
   if (!text) {
-    return "";
+    return '';
   }
-  return String(text)
-    .replace(/[\u2080-\u2089]/g, (c) =>
-      String.fromCharCode(c.charCodeAt(0) - 0x2080 + 48),
-    ) // Subscripts 0-9
-    .replace(/[\u2070-\u2079]/g, (c) =>
-      String.fromCharCode(c.charCodeAt(0) - 0x2070 + 48),
-    ) // Superscripts 0-9 (except 1,2,3 which are different blocks)
-    .replace(/\u00B2/g, "2")
-    .replace(/\u00B3/g, "3")
-    .replace(/\u00B9/g, "1") // Special superscripts
-    .replace(/–|—/g, "-")
-    // eslint-disable-next-line no-control-regex
-    .replace(/[^\u0000-\u00FF]/g, (c) => {
-      const map: Record<string, string> = {
-        "\u2018": "'",
-        "\u2019": "'",
-        "\u201C": '"',
-        "\u201D": '"',
-        "\u2026": "...",
-        "\u00B0": "\u00B0",
-        "\u2022": "* ",
-        "\u00A0": " ", // non-breaking space
-      };
-      return map[c] ?? "";
-    })
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    String(text)
+      .replace(/[\u2080-\u2089]/g, (c) =>
+        String.fromCharCode(c.charCodeAt(0) - 0x2080 + 48)
+      ) // Subscripts 0-9
+      .replace(/[\u2070-\u2079]/g, (c) =>
+        String.fromCharCode(c.charCodeAt(0) - 0x2070 + 48)
+      ) // Superscripts 0-9 (except 1,2,3 which are different blocks)
+      .replace(/\u00B2/g, '2')
+      .replace(/\u00B3/g, '3')
+      .replace(/\u00B9/g, '1') // Special superscripts
+      .replace(/–|—/g, '-')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[^\u0000-\u00FF]/g, (c) => {
+        const map: Record<string, string> = {
+          '\u2018': "'",
+          '\u2019': "'",
+          '\u201C': '"',
+          '\u201D': '"',
+          '\u2026': '...',
+          '\u00B0': '\u00B0',
+          '\u2022': '* ',
+          '\u00A0': ' ', // non-breaking space
+        };
+        return map[c] ?? '';
+      })
+      .replace(/\\r?\\n/g, '\n')
+      // Collapse repeated horizontal whitespace only — intentional line breaks
+      // (\n) from the scenario builder's text areas must survive so jsPDF's
+      // splitTextToSize still wraps within each authored paragraph/line.
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+/g, ' ')
+      .split('\n')
+      .map((line) => line.trim())
+      .join('\n')
+      .trim()
+  );
 }
 
 /**
@@ -207,7 +217,7 @@ export function sanitizePdfText(text: unknown): string {
  */
 export const openBase64InNewTab = async (dataUrl: string): Promise<boolean> => {
   try {
-    if (!dataUrl.startsWith("data:")) {
+    if (!dataUrl.startsWith('data:')) {
       // For absolute URLs (e.g. Azure Blob Storage), open directly.
       // For relative paths (e.g. legacy /uploads/ local files), resolve via
       // the backend base URL so the request hits the backend static-file
@@ -217,12 +227,12 @@ export const openBase64InNewTab = async (dataUrl: string): Promise<boolean> => {
       // origin so the request goes through the Next.js /uploads proxy route
       // rather than hitting the backend directly. This keeps the preflight
       // same-origin and avoids CORS issues.
-      const isRelative = dataUrl.startsWith("/");
+      const isRelative = dataUrl.startsWith('/');
       const resolvedUrl = isRelative
-        ? typeof window !== "undefined"
+        ? typeof window !== 'undefined'
           ? `${window.location.origin}${dataUrl}`
           : dataUrl
-        : dataUrl.startsWith("http://") || dataUrl.startsWith("https://")
+        : dataUrl.startsWith('http://') || dataUrl.startsWith('https://')
           ? dataUrl
           : resolveImageSrc(dataUrl);
 
@@ -232,14 +242,14 @@ export const openBase64InNewTab = async (dataUrl: string): Promise<boolean> => {
       // the file exists, which would cause a false-negative.
       const isSameOrigin =
         isRelative ||
-        (typeof window !== "undefined" &&
+        (typeof window !== 'undefined' &&
           resolvedUrl.startsWith(window.location.origin));
 
       if (isSameOrigin) {
         try {
           const check = await fetch(resolvedUrl, {
-            method: "HEAD",
-            cache: "no-store",
+            method: 'HEAD',
+            cache: 'no-store',
           });
           if (!check.ok) {
             return false;
@@ -249,16 +259,16 @@ export const openBase64InNewTab = async (dataUrl: string): Promise<boolean> => {
         }
       }
 
-      window.open(resolvedUrl, "_blank");
+      window.open(resolvedUrl, '_blank');
       return true;
     }
 
-    const parts = dataUrl.split(";base64,");
+    const parts = dataUrl.split(';base64,');
     if (parts.length !== 2) {
       return false;
     }
 
-    const contentType = parts[0].split(":")[1];
+    const contentType = parts[0].split(':')[1];
     const raw = window.atob(parts[1]);
     const rawLength = raw.length;
     const uInt8Array = new Uint8Array(rawLength);
@@ -269,7 +279,7 @@ export const openBase64InNewTab = async (dataUrl: string): Promise<boolean> => {
 
     const blob = new Blob([uInt8Array], { type: contentType });
     const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
+    window.open(url, '_blank');
 
     // Clean up the URL object after some time to free memory
     setTimeout(() => URL.revokeObjectURL(url), BLOB_URL_REVOKE_DELAY_MS);

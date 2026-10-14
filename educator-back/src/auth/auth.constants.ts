@@ -1,7 +1,6 @@
 export const AuthConstants = {
   SALT_ROUNDS: 10,
   BCRYPT_PREFIX: '$2b$',
-  DEFAULT_JWT_EXPIRES: '1d' as const,
   CODE_CLEAN_REGEX: /[^A-Z0-9]/gi,
   LICENSE_EXPIRY_YEARS: 1,
   MASTER_REDEEM_CODE: 'RWMASTER20250617',
@@ -13,7 +12,6 @@ export const AuthConstants = {
   ROUTES: {
     AUTH: 'auth',
     SIGNUP: 'signup',
-    DUALSIGNUP: 'dual-role-signup',
     LOGIN: 'login',
     CSRF_TOKEN: 'csrf-token',
     REDEEM: 'redeem',
@@ -22,6 +20,11 @@ export const AuthConstants = {
     VERIFY_OTP: 'verify-otp',
     RESEND_OTP: 'resend-otp',
     RESET_PASSWORD: 'reset-password',
+    CHANGE_PASSWORD: 'change-password',
+    /** Combined role-selection/switch endpoint — accepts either a login-purpose or an
+     * access-purpose token (see AuthController.selectRole). */
+    SELECT_ROLE: 'select-role',
+    ME: 'me',
   },
 
   SWAGGER: {
@@ -33,25 +36,16 @@ export const AuthConstants = {
     JWT: 'jwt',
   },
 
-  TOKEN_TYPE: {
-    ADMIN: 'admin',
-    EDUCATOR: 'educator',
-    STUDENT: 'student',
-  },
-
-  JWT_PURPOSE: {
-    OTP_VERIFY: 'otp_verify',
-    RESET_PASSWORD: 'reset_password',
-  },
+  /** Expiry for a `TokenPurposeType.LOGIN` token — deliberately much shorter than a normal access token. */
+  LOGIN_TOKEN_EXPIRES_IN_SECONDS: 120,
 
   VERIFIED_TOKEN_EXPIRES: '15m' as const,
-  FLATFILE_PATH: 'src/mock/flatfile.json',
-  REDEEM_FILE_PATH: 'src/mock/redeem.json',
   TOKEN_EXPIRED_ERROR: 'TokenExpiredError',
   UNEXPECTED_ERROR: 'Unexpected error',
 
   EMAIL: {
     OTP_SUBJECT: 'Password Reset OTP',
+    ACCOUNT_CREATED_SUBJECT: 'Your RealityWorks AI Account Has Been Created',
   },
 
   MESSAGES: {
@@ -84,6 +78,12 @@ export const AuthConstants = {
     DUAL_ROLE_INVALID: 'Please specify a role: admin or educator',
     DUAL_ROLE_NOT_FOUND: 'No account found for the selected role',
     DUAL_ROLE_ROLES_KEY: 'roles',
+    ACCOUNT_NOT_FOUND: 'No account found with this email address',
+    EMAIL_DELIVERY_FAILED_PREFIX: 'Email delivery failed (Azure Communication Services)',
+  },
+
+  LOG: {
+    EMAIL_SEND_FAILED: 'email-send-failed',
   },
 
   VALIDATION: {

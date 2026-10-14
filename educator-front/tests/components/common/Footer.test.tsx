@@ -26,7 +26,7 @@ const renderFooter = (pathname = '/') => {
   return render(
     <MemoryRouter>
       <Footer />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 };
 
@@ -66,7 +66,9 @@ describe('Footer Component', () => {
   test('renders copyright text', () => {
     renderFooter();
     expect(
-      screen.getByText('© Copyright 2026, All Rights Reserved by Realityworks AI'),
+      screen.getByText(
+        '© Copyright 2026, All Rights Reserved by Realityworks AI'
+      )
     ).toBeInTheDocument();
   });
 
@@ -82,7 +84,10 @@ describe('Footer Component', () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     renderFooter();
     fireEvent.click(screen.getByLabelText('Twitter'));
-    expect(openSpy).toHaveBeenCalledWith('https://x.com/RealityworksInc', '_blank');
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://x.com/RealityworksInc',
+      '_blank'
+    );
     openSpy.mockRestore();
   });
 
@@ -92,7 +97,7 @@ describe('Footer Component', () => {
     fireEvent.click(screen.getByLabelText('Facebook'));
     expect(openSpy).toHaveBeenCalledWith(
       'https://www.facebook.com/realityworksinc',
-      '_blank',
+      '_blank'
     );
     openSpy.mockRestore();
   });
@@ -103,7 +108,7 @@ describe('Footer Component', () => {
     fireEvent.click(screen.getByLabelText('Instagram'));
     expect(openSpy).toHaveBeenCalledWith(
       'https://www.instagram.com/realityworksofficial',
-      '_blank',
+      '_blank'
     );
     openSpy.mockRestore();
   });
@@ -114,21 +119,19 @@ describe('Footer Component', () => {
     fireEvent.click(screen.getByLabelText('LinkedIn'));
     expect(openSpy).toHaveBeenCalledWith(
       'https://www.linkedin.com/company/realityworks',
-      '_blank',
+      '_blank'
     );
     openSpy.mockRestore();
   });
 
   test('clicking a nav link on same page scrolls to top instead of navigating', () => {
-    const scrollTo = vi.fn();
-    const mockMain = { scrollTo };
-    vi.spyOn(document, 'querySelector').mockImplementation((sel) => {
-      if (sel === 'main.overflow-y-auto') return mockMain as unknown as Element;
-      return null;
-    });
+    const scrollTo = vi
+      .spyOn(window, 'scrollTo')
+      .mockImplementation(() => undefined);
     renderFooter('/simulation-catalog');
     fireEvent.click(screen.getByText('Simulation Catalog'));
-    expect(mockMain.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    scrollTo.mockRestore();
   });
 
   test('Customer Support link points to correct path', () => {

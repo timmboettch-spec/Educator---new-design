@@ -1,9 +1,15 @@
+import { AiGateway } from 'src/common/interfaces';
+import {
+  createMockSimulationReportRepository,
+  createMockStudentRepository,
+  createMockStudentSimulationProgressRepository,
+} from '../../../unit/common/utils/mock-factory';
+import type { ICurrentUser } from 'src/common/interfaces';
+import { ScenariosService } from 'src/student-backend/modules/scenarios/scenarios.service';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import { ReportsService } from '@/modules/reports/reports.service';
-import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
-import { JsonDataService } from '@/data/json-data.service';
 import { ActionsInterventionsService } from '@/modules/reports/actions-interventions.service';
 import { PpePrivacyService } from '@/modules/reports/ppe-privacy.service';
 import { ClinicalDocumentationService } from '@/modules/reports/clinical-documentation.service';
@@ -11,19 +17,24 @@ import { CommunicationService } from '@/modules/reports/communication.service';
 import { TimelineTimingService } from '@/modules/reports/timeline-timing.service';
 import { SequencingService } from '@/modules/reports/sequencing.service';
 import { LifecycleTelemetryService } from '@/modules/telemetry/lifecycle-telemetry.service';
-import type { Report, Scenario } from '@/data/json-data.service';
+import { MailService } from 'src/mail/mail.service';
+import { MailRetryService } from 'src/mail/mail-retry.service';
+import type { Scenario } from 'src/common/interfaces/student-scenario.interface';
+import { loggerServiceTestProvider } from '../../common/setup/logger.mock';
+import {
+  SIMULATION_V2_REPOSITORY,
+  TRANSCRIPT_REPOSITORY,
+  UNIT_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+
+const reportUser = { userId: 'user-1', type: 'educator' } as ICurrentUser;
 
 // Type for spying on private methods
 type SpyableReportsService = {
   analyzeWithOpenAI: (...args: unknown[]) => Promise<unknown>;
-  readReports: () => unknown[];
-  writeReports: (reports: unknown[]) => void | Promise<void>;
-};
-
-// Type for spying on JsonDataService methods
-type SpyableJsonDataService = {
-  addReportFresh: (report: unknown) => Promise<void>;
-  flushJson: () => Promise<void>;
 };
 
 describe('Reports Integration Tests', () => {
@@ -32,21 +43,44 @@ describe('Reports Integration Tests', () => {
   jest.setTimeout(60000);
 
   let service: ReportsService;
-  let jsonDataService: JsonDataService;
   let communicationService: CommunicationService;
+  let simulationV2Repository: {
+    findByBusinessId: jest.Mock;
+    findByBusinessIdWithChildrenJoined: jest.Mock;
+  };
+  let transcriptRepository: { findByBusinessId: jest.Mock };
 
   beforeEach(async () => {
+    const findByBusinessIdMock = jest.fn();
+    simulationV2Repository = {
+      findByBusinessId: findByBusinessIdMock,
+      findByBusinessIdWithChildrenJoined: findByBusinessIdMock,
+    };
+    transcriptRepository = { findByBusinessId: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
-      imports: [HttpModule, ConfigModule.forRoot()],
+      imports: [ConfigModule.forRoot()],
       providers: [
         ReportsService,
-        JsonDataService,
         ActionsInterventionsService,
         PpePrivacyService,
         ClinicalDocumentationService,
         CommunicationService,
         TimelineTimingService,
         SequencingService,
+        {
+          provide: AiGateway,
+          useValue: {
+            complete: jest.fn(),
+            completeJson: jest.fn(),
+            isConfigured: jest.fn().mockReturnValue(false),
+          },
+        },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
         {
           provide: LifecycleTelemetryService,
           useValue: {
@@ -58,11 +92,32 @@ describe('Reports Integration Tests', () => {
             emitScenarioStopped: jest.fn(),
           },
         },
+        { provide: MailService, useValue: { sendMail: jest.fn().mockResolvedValue(undefined) } },
+        {
+          provide: MailRetryService,
+          useValue: { enqueue: jest.fn().mockResolvedValue(undefined) },
+        },
+        loggerServiceTestProvider,
+        {
+          provide: UNIT_REPOSITORY,
+          useValue: {
+            findByBusinessId: jest.fn(async (id: string) => ({ id, name: 'Unit' })),
+            find: jest.fn(async () => []),
+          },
+        },
+        { provide: SIMULATION_V2_REPOSITORY, useValue: simulationV2Repository },
+        { provide: ScenariosService, useValue: { assertScenarioAssigned: jest.fn() } },
+        { provide: SIMULATION_REPORT_REPOSITORY, useValue: createMockSimulationReportRepository() },
+        {
+          provide: STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+          useValue: createMockStudentSimulationProgressRepository(),
+        },
+        { provide: STUDENT_REPOSITORY, useValue: createMockStudentRepository() },
+        { provide: TRANSCRIPT_REPOSITORY, useValue: transcriptRepository },
       ],
     }).compile();
 
     service = module.get<ReportsService>(ReportsService);
-    jsonDataService = module.get<JsonDataService>(JsonDataService);
     communicationService = module.get<CommunicationService>(CommunicationService);
   });
 
@@ -165,21 +220,8 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      jest.spyOn(jsonDataService, 'getTranscriptById').mockReturnValue(mockTranscript);
-      jest
-        .spyOn(jsonDataService, 'getTranscriptByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockTranscript as never);
-      jest.spyOn(jsonDataService, 'getScenarioById').mockReturnValue(mockScenario);
-      jest
-        .spyOn(jsonDataService, 'getScenarioByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockScenario as never);
-      jest.spyOn(jsonDataService, 'getReportByTranscriptId').mockReturnValue(undefined);
-      jest
-        .spyOn(jsonDataService, 'getReportByTranscriptIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
-      jest
-        .spyOn(jsonDataService, 'addReportFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
+      transcriptRepository.findByBusinessId.mockResolvedValue(mockTranscript);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(mockScenario);
 
       // Mock the AI analysis to avoid actual API calls
       const mockAIResponse = {
@@ -227,12 +269,6 @@ describe('Reports Integration Tests', () => {
         results: [],
       });
 
-      // Mock file operations to avoid actual file writes
-      jest.spyOn(service as unknown as SpyableReportsService, 'readReports').mockReturnValue([]);
-      jest
-        .spyOn(service as unknown as SpyableReportsService, 'writeReports')
-        .mockImplementation(() => {});
-
       // Mock console.log to prevent "Cannot log after tests are done" errors
       const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
 
@@ -249,7 +285,7 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      const result = await service.createReportWithAI(reportDto);
+      const result = await service.createReportWithAI(reportUser, reportDto);
 
       expect(result).toBeDefined();
       expect(result.score).toBeGreaterThanOrEqual(0);
@@ -319,10 +355,7 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      jest.spyOn(jsonDataService, 'getScenarioById').mockReturnValue(mockScenario);
-      jest
-        .spyOn(jsonDataService, 'getScenarioByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockScenario as never);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(mockScenario);
 
       const analysis = service['computeVitalsAnalysisFromSummary'](
         phaseData,
@@ -344,55 +377,7 @@ describe('Reports Integration Tests', () => {
   });
 
   describe('Score Persistence and Retrieval', () => {
-    it('should persist report scores correctly', async () => {
-      const reportData = {
-        userId: 'test-user',
-        studentName: 'Test Student',
-        studentClass: 'Test Class',
-        scenarioId: 'test-scenario',
-        scenarioTitle: 'Test Scenario',
-        transcriptId: 'test-transcript-1',
-        score: 85,
-        scoreJson: {
-          communication: 4,
-          clinicalJudgment: 4,
-          technicalAccuracy: 4,
-          ethicalCompetence: 5,
-          reflection: 4,
-          overallScore: 85,
-        },
-      };
-
-      const storedReports: Report[] = [];
-
-      // Persist via jsonDataService (Azure-backed in app; mocked here for test)
-      jest.spyOn(jsonDataService, 'getReportByTranscriptId').mockReturnValue(undefined);
-      jest.spyOn(jsonDataService, 'generateId').mockReturnValue('report-1');
-      jest.spyOn(jsonDataService, 'addReport').mockImplementation((r: Report) => {
-        storedReports.push(r);
-      });
-      jest
-        .spyOn(jsonDataService as unknown as SpyableJsonDataService, 'addReportFresh')
-        .mockImplementation(async (r: Report) => {
-          storedReports.push(r);
-        });
-      jest
-        .spyOn(jsonDataService as unknown as SpyableJsonDataService, 'flushJson')
-        .mockResolvedValue(undefined as unknown as never);
-
-      const result = await service.createReport(reportData);
-
-      expect(result.id).toBeDefined();
-      expect(result.score).toBe(85);
-      expect(storedReports).toHaveLength(1);
-      expect(storedReports[0].score).toBe(85);
-    });
-
     it('should handle score retrieval with missing data gracefully', async () => {
-      jest
-        .spyOn(jsonDataService, 'getReportByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
-
       await expect(service.findOne('non-existent-id')).rejects.toThrow(
         'Report with ID non-existent-id not found',
       );
@@ -494,28 +479,11 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      jest.spyOn(jsonDataService, 'getScenarioById').mockReturnValue(mockScenario);
-      jest
-        .spyOn(jsonDataService, 'getScenarioByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockScenario as never);
-      jest.spyOn(jsonDataService, 'getTranscriptById').mockReturnValue(mockTranscript);
-      jest
-        .spyOn(jsonDataService, 'getTranscriptByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockTranscript as never);
-      jest.spyOn(jsonDataService, 'getReportByTranscriptId').mockReturnValue(undefined);
-      jest
-        .spyOn(jsonDataService, 'getReportByTranscriptIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
-      jest
-        .spyOn(jsonDataService, 'addReportFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(mockScenario);
+      transcriptRepository.findByBusinessId.mockResolvedValue(mockTranscript);
       jest
         .spyOn(service as unknown as SpyableReportsService, 'analyzeWithOpenAI')
         .mockResolvedValue(mockAIResponse as never);
-      jest.spyOn(service as unknown as SpyableReportsService, 'readReports').mockReturnValue([]);
-      jest
-        .spyOn(service as unknown as SpyableReportsService, 'writeReports')
-        .mockImplementation(() => {});
 
       const reportDto = {
         userId: 'test-user',
@@ -529,7 +497,7 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      const result = await service.createReportWithAI(reportDto);
+      const result = await service.createReportWithAI(reportUser, reportDto);
 
       expect(result.communicationAssessment).toBeDefined();
       expect(
@@ -599,28 +567,11 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      jest.spyOn(jsonDataService, 'getScenarioById').mockReturnValue(mockScenario);
-      jest
-        .spyOn(jsonDataService, 'getScenarioByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockScenario as never);
-      jest.spyOn(jsonDataService, 'getTranscriptById').mockReturnValue(mockTranscript);
-      jest
-        .spyOn(jsonDataService, 'getTranscriptByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockTranscript as never);
-      jest.spyOn(jsonDataService, 'getReportByTranscriptId').mockReturnValue(undefined);
-      jest
-        .spyOn(jsonDataService, 'getReportByTranscriptIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
-      jest
-        .spyOn(jsonDataService, 'addReportFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(mockScenario);
+      transcriptRepository.findByBusinessId.mockResolvedValue(mockTranscript);
       jest
         .spyOn(service as unknown as SpyableReportsService, 'analyzeWithOpenAI')
         .mockResolvedValue(mockAIResponse as never);
-      jest.spyOn(service as unknown as SpyableReportsService, 'readReports').mockReturnValue([]);
-      jest
-        .spyOn(service as unknown as SpyableReportsService, 'writeReports')
-        .mockImplementation(() => {});
 
       const reportDto = {
         userId: 'test-user',
@@ -634,7 +585,7 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      const result = await service.createReportWithAI(reportDto);
+      const result = await service.createReportWithAI(reportUser, reportDto);
 
       // Verify score respects maxScore configuration (80 instead of default 100)
       expect(result.score).toBeLessThanOrEqual(80);
@@ -694,28 +645,11 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      jest.spyOn(jsonDataService, 'getScenarioById').mockReturnValue(mockScenario);
-      jest
-        .spyOn(jsonDataService, 'getScenarioByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockScenario as never);
-      jest.spyOn(jsonDataService, 'getTranscriptById').mockReturnValue(mockTranscript);
-      jest
-        .spyOn(jsonDataService, 'getTranscriptByIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(mockTranscript as never);
-      jest.spyOn(jsonDataService, 'getReportByTranscriptId').mockReturnValue(undefined);
-      jest
-        .spyOn(jsonDataService, 'getReportByTranscriptIdFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
-      jest
-        .spyOn(jsonDataService, 'addReportFresh' as keyof JsonDataService)
-        .mockResolvedValue(undefined as never);
+      simulationV2Repository.findByBusinessId.mockResolvedValue(mockScenario);
+      transcriptRepository.findByBusinessId.mockResolvedValue(mockTranscript);
       jest
         .spyOn(service as unknown as SpyableReportsService, 'analyzeWithOpenAI')
         .mockResolvedValue(mockAIResponse as never);
-      jest.spyOn(service as unknown as SpyableReportsService, 'readReports').mockReturnValue([]);
-      jest
-        .spyOn(service as unknown as SpyableReportsService, 'writeReports')
-        .mockImplementation(() => {});
 
       const reportDto = {
         userId: 'test-user',
@@ -729,7 +663,7 @@ describe('Reports Integration Tests', () => {
         },
       };
 
-      const result = await service.createReportWithAI(reportDto);
+      const result = await service.createReportWithAI(reportUser, reportDto);
 
       // Verify only configured rubric is included
       expect(result.scoreJson).toBeDefined();

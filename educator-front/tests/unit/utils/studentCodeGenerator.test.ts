@@ -10,7 +10,8 @@ import {
 
 // Safe chars: A-Z minus I,L,O  +  2-9  (31 total)
 const SAFE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const CODE_REGEX = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
+const CODE_REGEX =
+  /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{3}-[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{4}$/;
 
 function isValidCode(code: string) {
   return CODE_REGEX.test(code);
@@ -39,12 +40,14 @@ describe('generateUniqueStudentCode', () => {
     // With Uint8Array(4): bytes all=0 → SAFE_CHARS[0]x4 = 'AAAA'
     //                     bytes all=1 → SAFE_CHARS[1]x4 = 'BBBB'
     let callCount = 0;
-    const getRandomValues = vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
-      const val = callCount++ === 0 ? 0 : 1;
-      const buf = array as Uint8Array;
-      for (let i = 0; i < buf.length; i++) buf[i] = val;
-      return array;
-    });
+    const getRandomValues = vi
+      .spyOn(crypto, 'getRandomValues')
+      .mockImplementation((array) => {
+        const val = callCount++ === 0 ? 0 : 1;
+        const buf = array as Uint8Array;
+        for (let i = 0; i < buf.length; i++) buf[i] = val;
+        return array;
+      });
 
     const prefix = getClassPrefix('Nursing');
     const taken = `${prefix}-${SAFE_CHARS[0].repeat(4)}`;
@@ -90,7 +93,11 @@ describe('generateUniqueStudentCodes', () => {
 
   it('does not include any code from the supplied existingCodes set', () => {
     const prefix = getClassPrefix('Test');
-    const existing = new Set([`${prefix}-AAAA`, `${prefix}-BBBB`, `${prefix}-CCCC`]);
+    const existing = new Set([
+      `${prefix}-AAAA`,
+      `${prefix}-BBBB`,
+      `${prefix}-CCCC`,
+    ]);
     const codes = generateUniqueStudentCodes(5, existing, 'Test');
     for (const code of codes) {
       expect(existing.has(code)).toBe(false);
@@ -140,4 +147,3 @@ describe('isValidAccessCode', () => {
     expect(isValidAccessCode('')).toBe(false);
   });
 });
-

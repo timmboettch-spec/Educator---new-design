@@ -1,4 +1,5 @@
 ﻿import { clearLmsLaunchSession, clearLmsLaunchStorage } from './lmsLaunchSync';
+import { refreshRedeemSkipped } from './trialState';
 
 const TOKEN_COOKIE = 'auth_token';
 const CSRF_COOKIE = 'csrfToken';
@@ -10,6 +11,9 @@ const SESSION_COOKIE = 'auth_session_active';
 const SECONDARY_TOKEN_COOKIE = 'auth_token_2';
 const SECONDARY_USER_COOKIE = 'auth_user_2';
 const SECONDARY_CSRF_COOKIE = 'auth_csrf_2';
+/** Survives Canvas/LMS third-party iframe cookie blocking (SameSite=Strict). */
+const ACCESS_TOKEN_STORAGE_KEY = 'accessToken';
+const CSRF_TOKEN_STORAGE_KEY = 'csrfToken';
 
 const setCookie = (name: string, value: string, days?: number): void => {
   let expires = '';
@@ -18,7 +22,13 @@ const setCookie = (name: string, value: string, days?: number): void => {
     d.setTime(d.getTime() + days * 24 * 60 * 60 * 1000);
     expires = `; expires=${d.toUTCString()}`;
   }
-  document.cookie = `${name}=${encodeURIComponent(value)}${expires}; path=/; SameSite=Strict`;
+  // Lax (not Strict): LTI runs inside Canvas iframe; Strict cookies often never
+  // persist there, which drops X-CSRF-Token on later API calls.
+  const secure =
+    typeof window !== 'undefined' && window.location.protocol === 'https:'
+      ? '; Secure'
+      : '';
+  document.cookie = `${name}=${encodeURIComponent(value)}${expires}; path=/; SameSite=Lax${secure}`;
 };
 
 const getCookie = (name: string): string | null => {
@@ -32,7 +42,11 @@ const getCookie = (name: string): string | null => {
 };
 
 const removeCookie = (name: string): void => {
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Strict`;
+  const secure =
+    typeof window !== 'undefined' && window.location.protocol === 'https:'
+      ? '; Secure'
+      : '';
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax${secure}`;
 };
 
 const SLIM_USER_KEYS = [
@@ -47,20 +61,47 @@ const SLIM_USER_KEYS = [
   'total_tokens',
   'is_license_active',
   'profile_picture',
-  'profile_image',
   'status',
+  'ai_seats',
+  'available_roles',
+  'active_role_id',
+  'educator_id',
+  // Canonical role slug, written by normalizeAuthUser. Access control reads this
+  // rather than the display name in `role`.
+  'active_role_slug',
+  // Was previously dropped here, which silently discarded every
+  // markGoogleClassroomDisabledLocally() write — the flag only ever survived
+  // nested under `school`.
+  'google_classroom_enabled',
 ] as const;
 
 const slimUser = (user: object): { base: object; subscriptions: unknown } => {
   const u = user as Record<string, unknown>;
-  const base = Object.fromEntries(SLIM_USER_KEYS.filter((k) => k in u).map((k) => [k, u[k]]));
+  const base = Object.fromEntries(
+    SLIM_USER_KEYS.filter((k) => k in u).map((k) => [k, u[k]])
+  );
   return { base, subscriptions: u['subscriptions'] ?? null };
 };
 
-export const setAuthData = (tokens: { accessToken: string; csrfToken: string }, user: object, rememberMe: boolean): void => {
+export const setAuthData = (
+  tokens: { accessToken: string; csrfToken?: string },
+  user: object,
+  rememberMe: boolean
+): void => {
   const days = rememberMe ? 30 : undefined;
   setCookie(TOKEN_COOKIE, tokens.accessToken, days);
-  setCookie(CSRF_COOKIE, tokens.csrfToken, days);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, tokens.accessToken);
+  }
+  // Not every login response bundles a CSRF token anymore (see
+  // GET /api/auth/csrf-token) — leave the existing one in place rather than
+  // overwriting it with an empty value.
+  if (tokens.csrfToken) {
+    setCookie(CSRF_COOKIE, tokens.csrfToken, days);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CSRF_TOKEN_STORAGE_KEY, tokens.csrfToken);
+    }
+  }
   setCookie(REMEMBER_FLAG, rememberMe ? '1' : '0', 30);
   const { base, subscriptions } = slimUser(user);
   setCookie(USER_COOKIE, JSON.stringify(base), days);
@@ -73,17 +114,25 @@ export const setAuthData = (tokens: { accessToken: string; csrfToken: string }, 
   }
 };
 
-export const getToken = (): string | null => getCookie(TOKEN_COOKIE);
-export const getCsrfToken = (): string | null => {
-  const token = getCookie(CSRF_COOKIE);
-  return token;
-};
+export const getToken = (): string | null =>
+  getCookie(TOKEN_COOKIE) ??
+  (typeof localStorage !== 'undefined'
+    ? localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)
+    : null);
+export const getCsrfToken = (): string | null =>
+  getCookie(CSRF_COOKIE) ??
+  (typeof localStorage !== 'undefined'
+    ? localStorage.getItem(CSRF_TOKEN_STORAGE_KEY)
+    : null);
 export const getStoredUser = (): string | null => getCookie(USER_COOKIE);
 
 export const setCsrfToken = (token: string): void => {
   const rememberMe = getCookie(REMEMBER_FLAG) === '1';
   const days = rememberMe ? 30 : undefined;
   setCookie(CSRF_COOKIE, token, days);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(CSRF_TOKEN_STORAGE_KEY, token);
+  }
 };
 
 export const getParsedUser = (): Record<string, unknown> | null => {
@@ -121,8 +170,10 @@ export const updateStoredUser = (updates: Record<string, unknown>): void => {
 };
 
 export const isRememberMe = (): boolean => getCookie(REMEMBER_FLAG) === '1';
-export const isSessionActive = (): boolean => sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1';
-export const isSessionCookieActive = (): boolean => getCookie(SESSION_COOKIE) === '1';
+export const isSessionActive = (): boolean =>
+  sessionStorage.getItem(SESSION_ACTIVE_KEY) === '1';
+export const isSessionCookieActive = (): boolean =>
+  getCookie(SESSION_COOKIE) === '1';
 export const markTabSessionActive = (): void => {
   sessionStorage.setItem(SESSION_ACTIVE_KEY, '1');
   setCookie(SESSION_COOKIE, '1');
@@ -140,25 +191,32 @@ export const clearAuthData = (): void => {
   removeCookie(SECONDARY_CSRF_COOKIE);
   sessionStorage.removeItem(SESSION_ACTIVE_KEY);
   sessionStorage.removeItem('skipped_redeem');
+  // Keep the subscribable mirror in step with the key it mirrors.
+  refreshRedeemSkipped();
   clearLmsLaunchSession();
   clearLmsLaunchStorage();
   localStorage.removeItem('remembered_email');
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(CSRF_TOKEN_STORAGE_KEY);
 };
 
 export const setSecondaryAuthData = (
   tokens: { accessToken: string; csrfToken?: string },
   user: object,
-  rememberMe: boolean,
+  rememberMe: boolean
 ): void => {
   const days = rememberMe ? 30 : undefined;
   setCookie(SECONDARY_TOKEN_COOKIE, tokens.accessToken, days);
-  if (tokens.csrfToken) setCookie(SECONDARY_CSRF_COOKIE, tokens.csrfToken, days);
+  if (tokens.csrfToken)
+    setCookie(SECONDARY_CSRF_COOKIE, tokens.csrfToken, days);
   const { base } = slimUser(user);
   setCookie(SECONDARY_USER_COOKIE, JSON.stringify(base), days);
 };
 
-export const getSecondaryToken = (): string | null => getCookie(SECONDARY_TOKEN_COOKIE);
-export const getSecondaryCsrfToken = (): string | null => getCookie(SECONDARY_CSRF_COOKIE);
+export const getSecondaryToken = (): string | null =>
+  getCookie(SECONDARY_TOKEN_COOKIE);
+export const getSecondaryCsrfToken = (): string | null =>
+  getCookie(SECONDARY_CSRF_COOKIE);
 
 export const getSecondaryUser = (): Record<string, unknown> | null => {
   const raw = getCookie(SECONDARY_USER_COOKIE);
@@ -180,7 +238,7 @@ export const storeDualRoleData = (
   primaryToken: string,
   primaryUser: unknown,
   secondaryToken?: string,
-  secondaryUser?: unknown,
+  secondaryUser?: unknown
 ) => {
   localStorage.setItem('token', primaryToken);
   localStorage.setItem('user', JSON.stringify(primaryUser));
@@ -199,7 +257,8 @@ export const swapRoles = (): boolean => {
   const secondaryUser = getCookie(SECONDARY_USER_COOKIE);
   const secondaryCsrf = getCookie(SECONDARY_CSRF_COOKIE);
 
-  if (!primaryToken || !primaryUser || !secondaryToken || !secondaryUser) return false;
+  if (!primaryToken || !primaryUser || !secondaryToken || !secondaryUser)
+    return false;
 
   const rememberMe = getCookie(REMEMBER_FLAG) === '1';
   const days = rememberMe ? 30 : undefined;

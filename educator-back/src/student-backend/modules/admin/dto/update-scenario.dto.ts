@@ -8,12 +8,18 @@ import {
   IsObject,
   MaxLength,
   MinLength,
-  IsIn,
+  IsEnum,
+  IsUUID,
 } from 'class-validator';
 
 import { IsValidVitalSigns } from '../../../modules/scenarios/validators/vital-signs.validator';
 
-import type { ActionCategory } from '../../../data/json-data.service';
+import type { ActionCategory } from 'src/common/interfaces/student-scenario.interface';
+import {
+  SimulationStatus,
+  SimulationPatientChartMode,
+  SimulationSequenceGroupsOrderMode,
+} from '../../../../common/constants';
 
 /**
  * Only validates fields that may be updated via PUT/PATCH.
@@ -57,6 +63,12 @@ export class UpdateScenarioDto {
   @IsOptional()
   @IsString()
   avatarId?: string;
+
+  /** Unknown or retired ids are rejected (400) in the service, not here — this only checks shape. */
+  @IsOptional()
+  @ValidateIf((o: { voiceProfileId?: string | null }) => o.voiceProfileId !== null)
+  @IsUUID(undefined, { message: 'voiceProfileId must be a UUID' })
+  voiceProfileId?: string | null;
 
   @IsOptional()
   @IsString()
@@ -102,11 +114,10 @@ export class UpdateScenarioDto {
   disabled?: boolean;
 
   @IsOptional()
-  @IsString()
-  @IsIn(['draft', 'published', 'archived'], {
+  @IsEnum(SimulationStatus, {
     message: "status must be 'draft', 'published', or 'archived'",
   })
-  status?: 'draft' | 'published' | 'archived';
+  status?: SimulationStatus;
 
   @IsOptional()
   @IsString()
@@ -129,7 +140,10 @@ export class UpdateScenarioDto {
     title: string;
     description?: string;
     type?: 'single' | 'ordering' | 'question' | 'vital';
+    prompt?: string;
+    idealResponse?: string;
     items: string[];
+    concepts?: Array<{ id: string; description: string; type: string }>;
     correct: string;
     categoryId?: string;
     typeRequirement?: 'Mandatory' | 'Optional' | 'Distractor';
@@ -524,8 +538,8 @@ export class UpdateScenarioDto {
   }>;
 
   @IsOptional()
-  @IsString()
-  sequenceGroupsOrderMode?: 'strict' | 'flexible';
+  @IsEnum(SimulationSequenceGroupsOrderMode)
+  sequenceGroupsOrderMode?: SimulationSequenceGroupsOrderMode;
 
   @IsOptional()
   @IsObject()
@@ -621,9 +635,8 @@ export class UpdateScenarioDto {
   printablePatientChartPdf?: string;
 
   @IsOptional()
-  @IsString()
-  @IsIn(['HS', 'PS'])
-  patientChartMode?: 'HS' | 'PS';
+  @IsEnum(SimulationPatientChartMode)
+  patientChartMode?: SimulationPatientChartMode;
 
   @IsOptional()
   @IsObject()
@@ -666,4 +679,12 @@ export class UpdateScenarioDto {
     }>;
     completedStepIds?: string[];
   };
+
+  @IsOptional()
+  @IsString()
+  parentScenarioId?: string;
+
+  @IsOptional()
+  @IsString()
+  versionNumber?: string;
 }

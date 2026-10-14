@@ -1,22 +1,31 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
-import { Schools } from '../schools/entity/schools.entity';
-import { Educator } from '../educators/entity/educator.entity';
-import { Class } from '../class/entity/class.entity';
-import { Student } from '../students/entity/students.entity';
-import { ClassSimulation } from '../class-simulations/entity/class-simulation.entity';
-import { CommonStatus } from '../common/enums/status.enum';
+import { Inject, Injectable } from '@nestjs/common';
+import { IsNull } from 'typeorm';
+
+import { Schools, Educator, Class, Student, ClassSimulation } from 'src/database/entities';
+import {
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  SCHOOLS_REPOSITORY,
+  STUDENT_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  ClassRepository,
+  ClassSimulationRepository,
+  EducatorRepository,
+  SchoolsRepository,
+  StudentRepository,
+} from 'src/database/repositories';
 
 @Injectable()
 export class DashboardService {
   constructor(
-    @InjectRepository(Schools) private readonly schoolRepo: Repository<Schools>,
-    @InjectRepository(Educator) private readonly educatorRepo: Repository<Educator>,
-    @InjectRepository(Class) private readonly classRepo: Repository<Class>,
-    @InjectRepository(Student) private readonly studentRepo: Repository<Student>,
-    @InjectRepository(ClassSimulation) private readonly classSimRepo: Repository<ClassSimulation>,
-  ) {}
+    @Inject(SCHOOLS_REPOSITORY) private readonly schoolRepo: SchoolsRepository,
+    @Inject(EDUCATOR_REPOSITORY) private readonly educatorRepo: EducatorRepository,
+    @Inject(CLASS_REPOSITORY) private readonly classRepo: ClassRepository,
+    @Inject(STUDENT_REPOSITORY) private readonly studentRepo: StudentRepository,
+    @Inject(CLASS_SIMULATION_REPOSITORY) private readonly classSimRepo: ClassSimulationRepository,
+  ) { }
 
   async getOverview(adminId: string): Promise<{
     schools: { total: number; data: Schools[] };
@@ -42,47 +51,23 @@ export class DashboardService {
         where: { user_id: { id: adminId }, deleted_at: IsNull() },
         take: PREVIEW_LIMIT,
       }),
-      this.educatorRepo.count({ where: { admin: { id: adminId }, deleted_at: IsNull() } }),
+      this.educatorRepo.count({
+        where: { admin: { userRole: { userId: adminId } }, deleted_at: IsNull() },
+      }),
       this.educatorRepo.find({
-        where: { admin: { id: adminId }, deleted_at: IsNull() },
+        where: { admin: { userRole: { userId: adminId } }, deleted_at: IsNull() },
         take: PREVIEW_LIMIT,
       }),
-      this.studentRepo
-        .createQueryBuilder('s')
-        .innerJoin('s.educator', 'e')
-        .innerJoin('e.admin', 'a')
-        .innerJoin('s.class', 'c')
-        .where('a.id = :adminId', { adminId })
-        .andWhere('s.status = :status', { status: CommonStatus.ACTIVE })
-        .andWhere('c.status = :classStatus', { classStatus: CommonStatus.ACTIVE })
-        .andWhere('s.deleted_at IS NULL')
-        .getCount(),
-      this.studentRepo
-        .createQueryBuilder('s')
-        .innerJoin('s.educator', 'e')
-        .innerJoin('e.admin', 'a')
-        .innerJoin('s.class', 'c')
-        .where('a.id = :adminId', { adminId })
-        .andWhere('s.status = :status', { status: CommonStatus.ACTIVE })
-        .andWhere('c.status = :classStatus', { classStatus: CommonStatus.ACTIVE })
-        .andWhere('s.deleted_at IS NULL')
-        .take(PREVIEW_LIMIT)
-        .getMany(),
+      this.studentRepo.countActiveForAdmin(adminId),
+      this.studentRepo.findActiveForAdmin(adminId, PREVIEW_LIMIT),
       this.classRepo.count({
-        where: { educator: { admin: { id: adminId } }, deleted_at: IsNull() },
+        where: { educator: { admin: { userRole: { userId: adminId } } }, deleted_at: IsNull() },
       }),
       this.classRepo.find({
-        where: { educator: { admin: { id: adminId } }, deleted_at: IsNull() },
+        where: { educator: { admin: { userRole: { userId: adminId } } }, deleted_at: IsNull() },
         take: PREVIEW_LIMIT,
       }),
-      this.classSimRepo
-        .createQueryBuilder('cs')
-        .innerJoin('cs.class', 'c')
-        .innerJoin('c.educator', 'e')
-        .innerJoin('e.admin', 'a')
-        .where('a.id = :adminId', { adminId })
-        .take(PREVIEW_LIMIT)
-        .getMany(),
+      this.classSimRepo.findPreviewForAdmin(adminId, PREVIEW_LIMIT),
     ]);
 
     return {

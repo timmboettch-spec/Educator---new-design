@@ -27,23 +27,32 @@ function ClockIcon({ className }: { className?: string }) {
   );
 }
 
-const TranscriptHeader = memo(function TranscriptHeader({ header }: TranscriptHeaderProps) {
-  const studentCode  = headerField(header, 'studentCode',    'student_code');
-  const className    = headerField(header, 'className',      'class_name');
-  const simName      = headerField(header, 'simulationName', 'simulation_name');
-  const realDate     = headerField(header, 'realDate',       'real_date');
-  const realTime     = headerField(header, 'realTime',       'real_time');
-  const simDate      = headerField(header, 'simulationDate', 'simulation_date');
-  const simTime      = headerField(header, 'simulationTime', 'simulation_time');
+const TranscriptHeader = memo(function TranscriptHeader({
+  header,
+}: TranscriptHeaderProps) {
+  const studentCode = headerField(header, 'studentCode', 'student_code');
+  const className = headerField(header, 'className', 'class_name');
+  const simName = headerField(header, 'simulationName', 'simulation_name');
+  const realDate = headerField(header, 'realDate', 'real_date');
+  const realTime = headerField(header, 'realTime', 'real_time');
+  const simDate = headerField(header, 'simulationDate', 'simulation_date');
+  const simTime = headerField(header, 'simulationTime', 'simulation_time');
 
-  const hasAnyField = studentCode || className || simName || realDate || realTime || simDate || simTime;
+  const hasAnyField =
+    studentCode ||
+    className ||
+    simName ||
+    realDate ||
+    realTime ||
+    simDate ||
+    simTime;
   if (!hasAnyField) return null;
 
   // Info row items (bullet-separated)
   const infoItems: { label: string; value: string }[] = [
     ...(studentCode ? [{ label: 'Student Code', value: studentCode }] : []),
-    ...(className   ? [{ label: 'Class',         value: className   }] : []),
-    ...(simName     ? [{ label: 'Sim',            value: simName     }] : []),
+    ...(className ? [{ label: 'Class', value: className }] : []),
+    ...(simName ? [{ label: 'Sim', value: simName }] : []),
   ];
 
   // Date/time badges
@@ -61,7 +70,6 @@ const TranscriptHeader = memo(function TranscriptHeader({ header }: TranscriptHe
   return (
     <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden mb-6">
       <div className="px-5 py-4 flex flex-col gap-3">
-
         {/* ── Info row ─────────────────────────────────────────────── */}
         {infoItems.length > 0 && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 justify-center">
@@ -98,7 +106,6 @@ const TranscriptHeader = memo(function TranscriptHeader({ header }: TranscriptHe
             ))}
           </div>
         )}
-
       </div>
     </div>
   );

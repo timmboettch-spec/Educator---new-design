@@ -4,6 +4,7 @@ import type { RootState } from '../../store';
 import config from '../config';
 import api from '../api';
 import { isAISimulation } from '../../utils/simulationType';
+import { classSimulationsApi } from '../api/classSimulations/classSimulationsApi';
 
 interface DeleteSimState {
   status: 'idle' | 'loading' | 'success' | 'failed';
@@ -31,11 +32,12 @@ export const DeleteSimulationRequest = createAsyncThunk<
   DeleteSimResponse,
   DeleteSimPayload,
   { rejectValue: string }
->('simulation/delete', async (payload, { rejectWithValue }) => {
+>('simulation/delete', async (payload, { dispatch, rejectWithValue }) => {
   try {
     const { simId, avatarEnabled, startDate } = payload;
     const todayStr = new Date().toISOString().slice(0, 10);
-    const startDateStr = typeof startDate === 'string' ? startDate.slice(0, 10) : '';
+    const startDateStr =
+      typeof startDate === 'string' ? startDate.slice(0, 10) : '';
     const res = await api.delete(`${config.DeleteclassSimsApi}/${simId}`, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
@@ -56,13 +58,15 @@ export const DeleteSimulationRequest = createAsyncThunk<
               'ngrok-skip-browser-warning': 'true',
             },
             withCredentials: true,
-          },
+          }
         );
       } catch (tokenErr) {
         void tokenErr;
       }
     }
 
+    // The assignments table caches this class's list; refetch it.
+    dispatch(classSimulationsApi.util.invalidateTags(['ClassSimulations']));
     return res.data;
   } catch (err: unknown) {
     const error = err as {
@@ -109,5 +113,7 @@ const DeleteSimulationSlice = createSlice({
 
 export const { resetDeleteSimState } = DeleteSimulationSlice.actions;
 export default DeleteSimulationSlice.reducer;
-export const selectDeleteSimStatus = (state: RootState) => state.DeleteClassSim.status;
-export const selectDeleteSimError = (state: RootState) => state.DeleteClassSim.error;
+export const selectDeleteSimStatus = (state: RootState) =>
+  state.DeleteClassSim.status;
+export const selectDeleteSimError = (state: RootState) =>
+  state.DeleteClassSim.error;

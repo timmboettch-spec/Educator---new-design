@@ -28,8 +28,13 @@ vi.mock('../../../src/components/common/Toast', () => ({
 }));
 
 vi.mock('../../../src/components/ui/Modal', () => ({
-  default: ({ isOpen, children }: { isOpen: boolean; children: React.ReactNode }) =>
-    isOpen ? <div data-testid="modal">{children}</div> : null,
+  default: ({
+    isOpen,
+    children,
+  }: {
+    isOpen: boolean;
+    children: React.ReactNode;
+  }) => (isOpen ? <div data-testid="modal">{children}</div> : null),
 }));
 
 vi.mock('../../../src/components/ui/Button', () => ({
@@ -38,7 +43,9 @@ vi.mock('../../../src/components/ui/Button', () => ({
     onClick,
     disabled,
     className,
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => (
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+    children: React.ReactNode;
+  }) => (
     <button onClick={onClick} disabled={disabled} className={className}>
       {children}
     </button>
@@ -77,7 +84,7 @@ describe('RegenerateAccessCodeModal', () => {
     vi.mocked(useAppDispatch).mockReturnValue(mockDispatch);
 
     vi.mocked(useAppSelector).mockImplementation(
-      (_selector: (state: RootState) => unknown) => false,
+      (_selector: (state: RootState) => unknown) => false
     );
 
     mockDispatch.mockReturnValue({ unwrap: mockUnwrap });
@@ -97,7 +104,9 @@ describe('RegenerateAccessCodeModal', () => {
   test('renders Cancel and Regenerate buttons on step 0', () => {
     setup();
     expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /regenerate/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /regenerate/i })
+    ).toBeInTheDocument();
   });
 
   test('does not render when isOpen is false', () => {
@@ -121,7 +130,9 @@ describe('RegenerateAccessCodeModal', () => {
     expect(screen.getByText('1')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
     expect(screen.getByText(/Generate A New Code/i)).toBeInTheDocument();
-    expect(screen.getByText(/lose access to all simulations/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/lose access to all simulations/i)
+    ).toBeInTheDocument();
   });
 
   test('Cancel on step 1 calls onClose', () => {
@@ -138,7 +149,9 @@ describe('RegenerateAccessCodeModal', () => {
     setup();
     goToStep2();
 
-    expect(screen.getByText(/Mark All Existing Associated Records/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Mark All Existing Associated Records/i)
+    ).toBeInTheDocument();
     expect(screen.getByText(/updated and linked/i)).toBeInTheDocument();
   });
 
@@ -171,7 +184,9 @@ describe('RegenerateAccessCodeModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Student code regenerated successfully');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Student code regenerated successfully'
+      );
       expect(mockSuccess).toHaveBeenCalledTimes(1);
       expect(mockClose).toHaveBeenCalledTimes(1);
     });

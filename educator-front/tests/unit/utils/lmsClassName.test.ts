@@ -43,7 +43,7 @@ describe('resolveLmsClassName', () => {
       resolveLmsClassName(detail, {
         courseId: '42',
         courseName: 'LTI Launch Title',
-      }),
+      })
     ).toBe('LTI Launch Title');
   });
 
@@ -57,7 +57,7 @@ describe('resolveLmsClassName', () => {
       resolveLmsClassName(detail, {
         courseId: '99',
         courseName: 'Other Course',
-      }),
+      })
     ).toBe('NRPS Title');
   });
 
@@ -67,7 +67,10 @@ describe('resolveLmsClassName', () => {
       label: 'moodle',
       title: 'RealityworksLTITestbed',
     };
-    const first = resolveLmsClassName(detail, { courseId: '42', courseName: 'RealityworksLTITestbed' });
+    const first = resolveLmsClassName(detail, {
+      courseId: '42',
+      courseName: 'RealityworksLTITestbed',
+    });
     const second = resolveLmsClassName(detail);
     expect(first).toBe('RealityworksLTITestbed');
     expect(second).toBe('RealityworksLTITestbed');
@@ -78,26 +81,39 @@ describe('indexExistingClassesByCourseId', () => {
   it('matches mapped class by lmsCourseId', () => {
     const index = indexExistingClassesByCourseId(
       [{ classId: 'class-1', className: 'moodle', lmsCourseId: '42' }],
-      [],
+      []
     );
-    expect(index.get('42')).toEqual({ classId: 'class-1', className: 'moodle' });
+    expect(index.get('42')).toEqual({
+      classId: 'class-1',
+      className: 'moodle',
+    });
   });
 
   it('falls back to portal class lms_class_reference', () => {
     const index = indexExistingClassesByCourseId(
       [],
-      [{ id: 'class-2', class_name: 'Old Name', lms_class_reference: '99' }],
+      [{ id: 'class-2', class_name: 'Old Name', lms_class_reference: '99' }]
     );
-    expect(index.get('99')).toEqual({ classId: 'class-2', className: 'Old Name' });
+    expect(index.get('99')).toEqual({
+      classId: 'class-2',
+      className: 'Old Name',
+    });
   });
 });
 
 describe('shouldRenameExistingClass', () => {
   it('returns true when names differ case-insensitively', () => {
-    expect(shouldRenameExistingClass('moodle', 'RealityworksLTITestbed')).toBe(true);
+    expect(shouldRenameExistingClass('moodle', 'RealityworksLTITestbed')).toBe(
+      true
+    );
   });
 
   it('returns false when names already match', () => {
-    expect(shouldRenameExistingClass('RealityworksLTITestbed', 'RealityworksLTITestbed')).toBe(false);
+    expect(
+      shouldRenameExistingClass(
+        'RealityworksLTITestbed',
+        'RealityworksLTITestbed'
+      )
+    ).toBe(false);
   });
 });

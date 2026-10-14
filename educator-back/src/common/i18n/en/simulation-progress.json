@@ -1,0 +1,6 @@
+{
+  "ASSESSMENT_ATTEMPT_LIMIT_REACHED": "You have used all of your assessment attempts for this simulation.",
+  "ASSESSMENT_FORFEITED": "This simulation was forfeited, so no further attempts can be recorded.",
+  "SIMULATION_COMPLETED": "This simulation is already completed, so no further attempts can be recorded.",
+  "FORFEIT_NOT_ALLOWED": "This simulation can only be forfeited after at least one assessment attempt and before all attempts are used."
+}

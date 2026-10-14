@@ -1,0 +1,133 @@
+{
+  "tracker": {
+    "header": {
+      "titleInProgress": "Educator Set Up Guide",
+      "titleDone": "You're all set up",
+      "subtitleDone": "Nice work — you can hide this guide anytime.",
+      "progress": "{{completed}} of {{total}} steps complete"
+    },
+    "start": {
+      "stoneLabel": "Start",
+      "ariaLabel": "Setup started — account activated",
+      "detailLabel": "START · ACCEPT ACCOUNT INVITATION",
+      "instructions": [
+        "Accept your educator account via the emailed invitation and set up your account password. This first step is complete — you’re signed in with an activated account."
+      ]
+    },
+    "finish": {
+      "stoneLabel": "Finish",
+      "ariaLabel": "Finish",
+      "detailLabel": "FINISH",
+      "instructions": [
+        "Use the Dashboard tab to get an overview of activity and see usage totals.",
+        "Use the Class Management tab to see more details on each of your classes' performance or manage simulation assignments.",
+        "Revisit the other tabs to browse the simulation catalog or your simulation library anytime."
+      ],
+      "actions": {
+        "goToDashboard": "Go to Dashboard",
+        "goToClasses": "Go to Class Management",
+        "hideGuide": "Got it — hide this guide"
+      }
+    },
+    "steps": {
+      "dashboard": {
+        "label": "STEP 1 · IDENTIFY YOUR ASSOCIATED PRODUCTS",
+        "cta": "Go to Dashboard",
+        "instructions": [
+          "Check out your Dashboard. Use the Dashboard > My Products & Usage > My Associated Products to identify the products your administrator has associated with you (if none listed, ask your administrator). Use this information to then filter down the focus of the content you have access to in the Simulation Catalog (the next step)."
+        ]
+      },
+      "catalog": {
+        "label": "STEP 2 · ADD SIMULATIONS FROM THE CATALOG TO YOUR LIBRARY",
+        "cta": "Go to Simulation Catalog",
+        "instructions": [
+          "Use the Simulation Catalog and filter content to fit your needs and focus. We've provided quick filters and views to help you get started.",
+          "For a jump-start to making your first assignment, view simulations by Sim Packs and select the heart icon on the Sim Pack that aligns with your associated product(s).",
+          "You are welcome to view simulation details by selecting any of the simulation tiles.",
+          "Using the heart icon or clicking the \"Add to My Library\" button adds simulations to your favorites list, which will populate your Simulation Library so you can make simulation assignments."
+        ]
+      },
+      "classes": {
+        "label": "STEP 3 · ADD YOUR CLASSES",
+        "cta": "Go to Class Management",
+        "instructions": [
+          "Use Class Management to create a class (or multiple) with start and end dates, then add the number of students you will have in the class.",
+          "Once the class is created, the system will automatically generate the student access codes, and you will be able to make simulation assignments.",
+          "Print or export student codes with ease and share the codes with your learners.",
+          "Return to the Class Management page to review student simulation attempts and performance, with records of each student's reports and transcripts from simulation attempts."
+        ]
+      },
+      "library": {
+        "label": "STEP 4 · BATCH ASSIGN SIMULATIONS",
+        "cta": "Go to My Simulation Library",
+        "instructions": [
+          "Use My Simulation Library to manage or review the details of your favorite simulations, access simulation guides and facilitation documents, and select and assign multiple simulations to multiple classes at once."
+        ]
+      },
+      "account": {
+        "label": "STEP 5 · CONFIGURE YOUR ACCOUNT",
+        "cta": "Go to Account",
+        "instructions": [
+          "Use the Account tab to adjust your name or add a picture to your account profile and configure your notification preferences."
+        ]
+      }
+    },
+    "stone": {
+      "stepLabel": "Step <0>{{index}}</0>",
+      "ariaLabel": "Step {{index}}",
+      "ariaLabelDone": "Step {{index}} (done)"
+    },
+    "states": {
+      "loading": "Loading your setup guide…",
+      "unavailableTitle": "Setup guide unavailable",
+      "unavailableBody": "We couldn't load your setup guide right now.",
+      "retry": "Try again"
+    },
+    "a11y": {
+      "progressLabel": "Setup progress"
+    }
+  },
+  "adminTracker": {
+    "header": {
+      "titleInProgress": "Account and Organization Set Up Guide",
+      "titleDone": "Your organization is set up",
+      "subtitleDone": "Nice work — you can hide this guide anytime."
+    },
+    "start": {
+      "ariaLabel": "Setup started — account created",
+      "detailLabel": "START · CREATE ADMIN ACCOUNT & ENTER ACTIVATION CODE",
+      "instructions": "Create admin account and enter activation code. This first step is complete — you’re signed in with an activated account."
+    },
+    "finish": {
+      "detailLabel": "STEP 5 · FINISH",
+      "instructions": "Use the Dashboard tab to see usage details at a high level. Revisit the other tabs to add or adjust schools or educators anytime it is necessary.",
+      "actions": {
+        "goToDashboard": "Go to Dashboard",
+        "hideGuide": "Got it — hide this guide"
+      }
+    },
+    "steps": {
+      "lms": {
+        "label": "STEP 1 · CONFIGURE LMS INTEGRATION (if applicable)",
+        "cta": "Set up LMS integration",
+        "skip": "Skip this, we’re not doing it",
+        "instructions": "Complete this step if your organization will be connecting the Realityworks AI system into your LMS. If applicable, use the LMS Integration tab and follow the steps listed."
+      },
+      "schools": {
+        "label": "STEP 2 · CREATE SCHOOL(S)",
+        "cta": "Go to Schools",
+        "instructions": "Add school(s) and set the school status to active."
+      },
+      "educators": {
+        "label": "STEP 3 · CREATE EDUCATOR(S)",
+        "cta": "Go to Educators",
+        "instructions": "Add educator(s) and include their name, email, associated school(s), active status, associated products, and allocate seats (only if applicable, and only for avatar-based simulations)."
+      },
+      "account": {
+        "label": "STEP 4 · CONFIGURE YOUR ACCOUNT & NOTIFICATIONS",
+        "cta": "Go to Account",
+        "instructions": "Use the Account tab to adjust your name or add a picture to your account profile and configure your notification preferences."
+      }
+    }
+  }
+}

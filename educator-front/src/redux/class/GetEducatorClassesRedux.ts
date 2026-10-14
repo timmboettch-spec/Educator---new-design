@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSlice,
+  createSelector,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 import type { RootState } from '../../store';
 import config from '../config';
@@ -35,23 +39,26 @@ export const GetEducatorClassesRequest = createAsyncThunk<
   GetEducatorClassesResponse & { educatorId: string },
   string,
   { rejectValue: string }
->('classTransfer/getEducatorClasses', async (educatorId, { rejectWithValue }) => {
-  try {
-    const res = await api.get<GetEducatorClassesResponse>(
-      `${config.ClassTransferAPI}/educator/${educatorId}/classes`,
-      { headers: { 'ngrok-skip-browser-warning': 'true' } },
-    );
-    return { ...res.data, educatorId };
-  } catch (err: unknown) {
-    if (axios.isAxiosError(err)) {
-      const msg =
-        (err.response?.data as { message?: string })?.message ||
-        'Failed to fetch educator classes';
-      return rejectWithValue(msg);
+>(
+  'classTransfer/getEducatorClasses',
+  async (educatorId, { rejectWithValue }) => {
+    try {
+      const res = await api.get<GetEducatorClassesResponse>(
+        `${config.ClassTransferAPI}/educator/${educatorId}/classes`,
+        { headers: { 'ngrok-skip-browser-warning': 'true' } }
+      );
+      return { ...res.data, educatorId };
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const msg =
+          (err.response?.data as { message?: string })?.message ||
+          'Failed to fetch educator classes';
+        return rejectWithValue(msg);
+      }
+      return rejectWithValue('Failed to fetch educator classes');
     }
-    return rejectWithValue('Failed to fetch educator classes');
   }
-});
+);
 
 // ── Slice ──────────────────────────────────────────────────────────────────
 
@@ -87,12 +94,21 @@ const GetEducatorClassesSlice = createSlice({
 
 export const { clearEducatorClasses } = GetEducatorClassesSlice.actions;
 
-export const selectEducatorClassesForTransfer = (state: RootState) =>
-  (state as RootState & { GetEducatorClassesForTransfer?: GetEducatorClassesState })
-    .GetEducatorClassesForTransfer?.classes ?? [];
+const selectEducatorClassesState = (state: RootState) =>
+  (
+    state as RootState & {
+      GetEducatorClassesForTransfer?: GetEducatorClassesState;
+    }
+  ).GetEducatorClassesForTransfer;
 
-export const selectEducatorClassesStatus = (state: RootState) =>
-  (state as RootState & { GetEducatorClassesForTransfer?: GetEducatorClassesState })
-    .GetEducatorClassesForTransfer?.status ?? 'idle';
+export const selectEducatorClassesForTransfer = createSelector(
+  selectEducatorClassesState,
+  (state) => state?.classes ?? []
+);
+
+export const selectEducatorClassesStatus = createSelector(
+  selectEducatorClassesState,
+  (state) => state?.status ?? 'idle'
+);
 
 export default GetEducatorClassesSlice.reducer;

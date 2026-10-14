@@ -1,4 +1,8 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -32,7 +36,7 @@ export const DeleteSchoolRequest = createAsyncThunk<
     const res = await api.delete(url, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
-      }
+      },
     });
     return res.data;
   } catch (err: unknown) {
@@ -82,6 +86,15 @@ const DeleteSchoolSlice = createSlice({
 export const { resetDeleteSchool } = DeleteSchoolSlice.actions;
 export default DeleteSchoolSlice.reducer;
 const selectState = (state: RootState) => state.DeleteSchool;
-export const selectDeleteSchoolResponse = createSelector(selectState, (state) => state.response);
-export const selectDeleteSchoolStatus = createSelector(selectState, (state) => state.status);
-export const selectDeleteSchoolError = createSelector(selectState, (state) => state.error);
+export const selectDeleteSchoolResponse = createSelector(
+  selectState,
+  (state) => state.response
+);
+export const selectDeleteSchoolStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectDeleteSchoolError = createSelector(
+  selectState,
+  (state) => state.error
+);

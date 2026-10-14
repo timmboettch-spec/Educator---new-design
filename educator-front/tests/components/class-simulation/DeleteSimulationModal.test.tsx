@@ -100,7 +100,7 @@ const renderComponent = ({
         onClose={onClose}
         onDeleted={onDeleted}
       />
-    </Provider>,
+    </Provider>
   );
 
   return {
@@ -125,7 +125,7 @@ describe('DeleteSimulationModal', () => {
     expect(
       screen.getByRole('heading', {
         name: /delete sim assignment/i,
-      }),
+      })
     ).toBeInTheDocument();
   });
 
@@ -138,9 +138,13 @@ describe('DeleteSimulationModal', () => {
   it('renders the warning messages', () => {
     renderComponent();
 
-    expect(screen.getByText(/this action cannot be undone/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/this action cannot be undone/i)
+    ).toBeInTheDocument();
 
-    expect(screen.getByText(/this will remove access to all reports/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/this will remove access to all reports/i)
+    ).toBeInTheDocument();
   });
 
   it('renders Back and Delete Sim Assignment buttons', () => {
@@ -151,7 +155,7 @@ describe('DeleteSimulationModal', () => {
     expect(
       screen.getByRole('button', {
         name: /delete sim assignment/i,
-      }),
+      })
     ).toBeInTheDocument();
   });
 
@@ -182,11 +186,13 @@ describe('DeleteSimulationModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /delete sim assignment/i,
-      }),
+      })
     );
 
     await waitFor(() => {
-      expect(toast.success).toHaveBeenCalledWith('Simulation deleted successfully!');
+      expect(toast.success).toHaveBeenCalledWith(
+        'Simulation deleted successfully!'
+      );
     });
 
     expect(onDeleted).toHaveBeenCalledTimes(1);
@@ -213,7 +219,7 @@ describe('DeleteSimulationModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /delete sim assignment/i,
-      }),
+      })
     );
 
     await waitFor(() => {
@@ -245,7 +251,7 @@ describe('DeleteSimulationModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /delete sim assignment/i,
-      }),
+      })
     );
 
     await waitFor(() => {
@@ -274,11 +280,11 @@ describe('DeleteSimulationModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /delete sim assignment/i,
-      }),
+      })
     );
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Something went wrong while deleting');
+      expect(toast.error).toHaveBeenCalledWith('Something went wrong');
     });
   });
 
@@ -292,11 +298,11 @@ describe('DeleteSimulationModal', () => {
     fireEvent.click(
       screen.getByRole('button', {
         name: /delete sim assignment/i,
-      }),
+      })
     );
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('Something went wrong while deleting');
+      expect(toast.error).toHaveBeenCalledWith('Something went wrong');
     });
 
     expect(toast.success).not.toHaveBeenCalled();

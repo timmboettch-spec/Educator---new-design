@@ -1,9 +1,9 @@
 import { IsArray, IsOptional } from 'class-validator';
 
-import { type Transcript } from '../../../data/json-data.service';
+import { type TranscriptMessage } from '../../../../common/interfaces';
 
 export class UpdateLogDto {
   @IsArray()
   @IsOptional()
-  messages?: Transcript['messages'];
+  messages?: TranscriptMessage[];
 }

@@ -6,31 +6,31 @@
  * in plain English — what it validates, and (on failure) why it failed.
  */
 
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
 /* ------------------------ helpers ------------------------ */
 
-function stripAnsi(str = "") {
+function stripAnsi(str = '') {
   // eslint-disable-next-line no-control-regex
-  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, "");
+  return String(str).replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 }
 
-function escapeHtml(s = "") {
+function escapeHtml(s = '') {
   return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function moduleFromPath(testPath) {
-  const norm = testPath.replace(/\\/g, "/");
+  const norm = testPath.replace(/\\/g, '/');
   const m = norm.match(/\/tests\/(?:api|unit|integration)\/modules\/([^/]+)\//);
   if (m) return m[1];
   const s = norm.match(/\/src\/modules\/([^/]+)\//);
-  return s ? s[1] : "other";
+  return s ? s[1] : 'other';
 }
 
 function fileBase(testPath) {
@@ -38,60 +38,72 @@ function fileBase(testPath) {
 }
 
 function humanizeTitle(title) {
-  if (!title) return "Validates expected behavior.";
+  if (!title) return 'Validates expected behavior.';
   let t = title.trim();
-  t = t.replace(/^should\s+/i, "");
+  t = t.replace(/^should\s+/i, '');
   t = t.charAt(0).toUpperCase() + t.slice(1);
-  if (!/[.!?]$/.test(t)) t += ".";
+  if (!/[.!?]$/.test(t)) t += '.';
   return t;
 }
 
 const STATUS_DESCRIPTIONS = {
-  200: "200 OK — The request succeeded and the API returned the expected data.",
-  201: "201 Created — A new resource was successfully created and returned.",
-  204: "204 No Content — The request succeeded but the API returned no body (e.g. delete).",
-  400: "400 Bad Request — The request payload was invalid, malformed, or missing required fields. The API correctly rejected it.",
-  401: "401 Unauthorized — No valid authentication token was provided. The API correctly blocked unauthenticated access.",
-  403: "403 Forbidden — A valid token was provided but the user does not have permission to perform this action.",
-  404: "404 Not Found — The requested resource does not exist. The API correctly returned not-found.",
-  405: "405 Method Not Allowed — The HTTP method is not supported on this endpoint.",
-  408: "408 Request Timeout — The request took too long. The API correctly returned a timeout error.",
-  409: "409 Conflict — A duplicate or conflicting resource already exists. The API correctly rejected the request.",
-  415: "415 Unsupported Media Type — The request Content-Type header was wrong or missing.",
-  422: "422 Unprocessable Entity — The payload failed business-level validation.",
-  429: "429 Too Many Requests — Rate limiting kicked in as expected.",
-  500: "500 Internal Server Error — A server-side failure occurred.",
-  502: "502 Bad Gateway — An upstream service returned an invalid response.",
-  503: "503 Service Unavailable — A required downstream service is temporarily unavailable.",
-  504: "504 Gateway Timeout — An upstream service timed out.",
+  200: '200 OK — The request succeeded and the API returned the expected data.',
+  201: '201 Created — A new resource was successfully created and returned.',
+  204: '204 No Content — The request succeeded but the API returned no body (e.g. delete).',
+  400: '400 Bad Request — The request payload was invalid, malformed, or missing required fields. The API correctly rejected it.',
+  401: '401 Unauthorized — No valid authentication token was provided. The API correctly blocked unauthenticated access.',
+  403: '403 Forbidden — A valid token was provided but the user does not have permission to perform this action.',
+  404: '404 Not Found — The requested resource does not exist. The API correctly returned not-found.',
+  405: '405 Method Not Allowed — The HTTP method is not supported on this endpoint.',
+  408: '408 Request Timeout — The request took too long. The API correctly returned a timeout error.',
+  409: '409 Conflict — A duplicate or conflicting resource already exists. The API correctly rejected the request.',
+  415: '415 Unsupported Media Type — The request Content-Type header was wrong or missing.',
+  422: '422 Unprocessable Entity — The payload failed business-level validation.',
+  429: '429 Too Many Requests — Rate limiting kicked in as expected.',
+  500: '500 Internal Server Error — A server-side failure occurred.',
+  502: '502 Bad Gateway — An upstream service returned an invalid response.',
+  503: '503 Service Unavailable — A required downstream service is temporarily unavailable.',
+  504: '504 Gateway Timeout — An upstream service timed out.',
 };
 
 function statusDescription(code) {
-  return STATUS_DESCRIPTIONS[Number(code)] || `HTTP ${code} — response matched the expected status code.`;
+  return (
+    STATUS_DESCRIPTIONS[Number(code)] || `HTTP ${code} — response matched the expected status code.`
+  );
 }
 
 function whyPassed(title) {
-  const lower = (title || "").toLowerCase();
+  const lower = (title || '').toLowerCase();
   const statusMatch = lower.match(/\b([1-5]\d{2})\b/);
-  if (statusMatch) return `The API returned the expected status code. ${statusDescription(statusMatch[1])}`;
-  if (/(unauthor|forbidden|token|jwt|auth)/.test(lower)) return "Authentication & authorization rules were enforced correctly.";
-  if (/(create|post|add)/.test(lower)) return "The resource was created successfully. The API returned 201 Created with the correct response structure.";
-  if (/(update|put|patch|edit)/.test(lower)) return "The resource was updated successfully. The API returned 200 OK with the updated data.";
-  if (/(delete|remove)/.test(lower)) return "The resource was deleted successfully. The API responded with the expected status.";
-  if (/(get|list|fetch|read|retrieve)/.test(lower)) return "The API returned 200 OK with the expected data in the correct shape and structure.";
-  if (/(validation|invalid|missing|required|payload|schema)/.test(lower)) return "Input validation worked correctly. The API returned 400 Bad Request as expected.";
-  if (/(conflict|duplicate|already exists)/.test(lower)) return "Duplicate detection worked. The API returned 409 Conflict because the resource already exists.";
-  return "The API behaved as expected and all assertions passed.";
+  if (statusMatch)
+    return `The API returned the expected status code. ${statusDescription(statusMatch[1])}`;
+  if (/(unauthor|forbidden|token|jwt|auth)/.test(lower))
+    return 'Authentication & authorization rules were enforced correctly.';
+  if (/(create|post|add)/.test(lower))
+    return 'The resource was created successfully. The API returned 201 Created with the correct response structure.';
+  if (/(update|put|patch|edit)/.test(lower))
+    return 'The resource was updated successfully. The API returned 200 OK with the updated data.';
+  if (/(delete|remove)/.test(lower))
+    return 'The resource was deleted successfully. The API responded with the expected status.';
+  if (/(get|list|fetch|read|retrieve)/.test(lower))
+    return 'The API returned 200 OK with the expected data in the correct shape and structure.';
+  if (/(validation|invalid|missing|required|payload|schema)/.test(lower))
+    return 'Input validation worked correctly. The API returned 400 Bad Request as expected.';
+  if (/(conflict|duplicate|already exists)/.test(lower))
+    return 'Duplicate detection worked. The API returned 409 Conflict because the resource already exists.';
+  return 'The API behaved as expected and all assertions passed.';
 }
 
 function whyFailed(failureMessages = []) {
-  if (!failureMessages.length) return "The test did not meet the expected outcome.";
-  const raw = stripAnsi(failureMessages.join("\n"));
+  if (!failureMessages.length) return 'The test did not meet the expected outcome.';
+  const raw = stripAnsi(failureMessages.join('\n'));
 
-  const expectMatch = raw.match(/Expected:\s*([\s\S]*?)\nReceived:\s*([\s\S]*?)(?:\n\n|\n\s+at\s|$)/);
+  const expectMatch = raw.match(
+    /Expected:\s*([\s\S]*?)\nReceived:\s*([\s\S]*?)(?:\n\n|\n\s+at\s|$)/,
+  );
   if (expectMatch) {
-    const expected = expectMatch[1].trim().split("\n")[0].slice(0, 200).trim();
-    const received = expectMatch[2].trim().split("\n")[0].slice(0, 200).trim();
+    const expected = expectMatch[1].trim().split('\n')[0].slice(0, 200).trim();
+    const received = expectMatch[2].trim().split('\n')[0].slice(0, 200).trim();
     if (/^\d{3}$/.test(expected) && /^\d{3}$/.test(received)) {
       return (
         `The test expected <strong>${expected}</strong> but the API returned <strong>${received}</strong>.<br>` +
@@ -116,13 +128,15 @@ function whyFailed(failureMessages = []) {
     );
   }
 
-  if (/timeout/i.test(raw)) return "The test exceeded its allowed time. The API did not respond before the timeout limit.";
-  if (/ECONNREFUSED/i.test(raw)) return "Connection refused — a required service was not running when the test executed.";
-  if (/ENOTFOUND/i.test(raw)) return "DNS/host not found — check the base URL configuration.";
+  if (/timeout/i.test(raw))
+    return 'The test exceeded its allowed time. The API did not respond before the timeout limit.';
+  if (/ECONNREFUSED/i.test(raw))
+    return 'Connection refused — a required service was not running when the test executed.';
+  if (/ENOTFOUND/i.test(raw)) return 'DNS/host not found — check the base URL configuration.';
 
-  const firstLine = raw.split("\n").find((l) => l.trim().length > 0 && !/^\s*at\s/.test(l));
+  const firstLine = raw.split('\n').find((l) => l.trim().length > 0 && !/^\s*at\s/.test(l));
   if (firstLine) return escapeHtml(firstLine.trim().slice(0, 400));
-  return "The test did not meet the expected outcome.";
+  return 'The test did not meet the expected outcome.';
 }
 
 /* ------------------------ reporter ------------------------ */
@@ -131,10 +145,12 @@ class FriendlyHtmlReporter {
   constructor(globalConfig, options = {}) {
     this._globalConfig = globalConfig;
     this._options = options;
-    const rawOut = options.outputPath || "<rootDir>/tests/api/reports/html/api-test-report.html";
+    const rawOut = options.outputPath || '<rootDir>/tests/api/reports/html/api-test-report.html';
     this._outputPath = rawOut.replace(/<rootDir>/g, globalConfig.rootDir);
-    this._pageTitle = options.pageTitle || "Backend API Test Report";
-    this._subtitle = options.subtitle || "User-friendly summary of every API test — what it validates and why it passed / failed.";
+    this._pageTitle = options.pageTitle || 'Backend API Test Report';
+    this._subtitle =
+      options.subtitle ||
+      'User-friendly summary of every API test — what it validates and why it passed / failed.';
     this._showTargetUrl = options.showTargetUrl || false;
   }
 
@@ -151,9 +167,12 @@ class FriendlyHtmlReporter {
 
         for (const tc of fileResult.testResults || []) {
           modules[modKey].files[file].push({
-            title: tc.title, fullName: tc.fullName,
-            ancestorTitles: tc.ancestorTitles, status: tc.status,
-            duration: tc.duration || 0, failureMessages: tc.failureMessages || [],
+            title: tc.title,
+            fullName: tc.fullName,
+            ancestorTitles: tc.ancestorTitles,
+            status: tc.status,
+            duration: tc.duration || 0,
+            failureMessages: tc.failureMessages || [],
           });
           totalDurationMs += tc.duration || 0;
         }
@@ -175,39 +194,55 @@ class FriendlyHtmlReporter {
       });
 
       fs.mkdirSync(path.dirname(this._outputPath), { recursive: true });
-      fs.writeFileSync(this._outputPath, html, "utf-8");
+      fs.writeFileSync(this._outputPath, html, 'utf-8');
       console.log(`\n📊 report is created on: ${this._outputPath}\n`);
     } catch (err) {
-      console.error(`\n[FriendlyHtmlReporter] Failed to generate report: ${err.message}\n`, err.stack);
+      console.error(
+        `\n[FriendlyHtmlReporter] Failed to generate report: ${err.message}\n`,
+        err.stack,
+      );
     }
   }
 
   _renderHtml({ summary, modules }) {
     const moduleKeys = Object.keys(modules).sort();
-    const successRate = summary.tests ? Math.round((summary.passed / summary.tests) * 1000) / 10 : 0;
+    const successRate = summary.tests
+      ? Math.round((summary.passed / summary.tests) * 1000) / 10
+      : 0;
     const durationSec = (summary.durationMs / 1000).toFixed(2);
     const generatedAt = new Date().toLocaleString();
 
-    const moduleSections = moduleKeys.map((modKey) => {
-      const fileEntries = Object.entries(modules[modKey].files);
-      let modPassed = 0, modFailed = 0, modSkipped = 0;
-      fileEntries.forEach(([, tests]) => tests.forEach((t) => {
-        if (t.status === "passed") modPassed++;
-        else if (t.status === "failed") modFailed++;
-        else modSkipped++;
-      }));
-      const modTotal = modPassed + modFailed + modSkipped;
-      const modStatus = modFailed > 0 ? "fail" : "pass";
+    const moduleSections = moduleKeys
+      .map((modKey) => {
+        const fileEntries = Object.entries(modules[modKey].files);
+        let modPassed = 0,
+          modFailed = 0,
+          modSkipped = 0;
+        fileEntries.forEach(([, tests]) =>
+          tests.forEach((t) => {
+            if (t.status === 'passed') modPassed++;
+            else if (t.status === 'failed') modFailed++;
+            else modSkipped++;
+          }),
+        );
+        const modTotal = modPassed + modFailed + modSkipped;
+        const modStatus = modFailed > 0 ? 'fail' : 'pass';
 
-      const fileBlocks = fileEntries.map(([file, tests]) => {
-        const rows = tests.map((t) => {
-          const isPass = t.status === "passed";
-          const isFail = t.status === "failed";
-          const badgeCls = isPass ? "pass" : isFail ? "fail" : "skip";
-          const badgeText = isPass ? "PASS" : isFail ? "FAIL" : t.status.toUpperCase();
-          const explanation = isFail ? whyFailed(t.failureMessages) : isPass ? whyPassed(t.title) : "Test was skipped or pending.";
-          const explLabel = isFail ? "Why it failed" : isPass ? "Why it passed" : "Note";
-          return `
+        const fileBlocks = fileEntries
+          .map(([file, tests]) => {
+            const rows = tests
+              .map((t) => {
+                const isPass = t.status === 'passed';
+                const isFail = t.status === 'failed';
+                const badgeCls = isPass ? 'pass' : isFail ? 'fail' : 'skip';
+                const badgeText = isPass ? 'PASS' : isFail ? 'FAIL' : t.status.toUpperCase();
+                const explanation = isFail
+                  ? whyFailed(t.failureMessages)
+                  : isPass
+                    ? whyPassed(t.title)
+                    : 'Test was skipped or pending.';
+                const explLabel = isFail ? 'Why it failed' : isPass ? 'Why it passed' : 'Note';
+                return `
           <div class="test-row ${badgeCls}" data-status="${badgeCls}">
             <div class="test-head">
               <span class="badge ${badgeCls}">${badgeText}</span>
@@ -219,29 +254,32 @@ class FriendlyHtmlReporter {
               <div class="kvp"><span class="k">${explLabel}:</span><span class="v explanation">${explanation}</span></div>
             </div>
           </div>`;
-        }).join("");
-        return `
+              })
+              .join('');
+            return `
         <div class="file-block">
           <div class="file-head">📄 ${escapeHtml(file)} <span class="file-count">(${tests.length} tests)</span></div>
           ${rows}
         </div>`;
-      }).join("");
+          })
+          .join('');
 
-      return `
+        return `
       <section class="module-section ${modStatus}" data-module="${escapeHtml(modKey)}">
         <button class="module-head" onclick="toggleModule(this)">
           <span class="caret">▾</span>
           <span class="module-name">${escapeHtml(modKey.charAt(0).toUpperCase() + modKey.slice(1))}</span>
           <span class="module-stats">
             <span class="chip ok">${modPassed} passed</span>
-            ${modFailed ? `<span class="chip bad">${modFailed} failed</span>` : ""}
-            ${modSkipped ? `<span class="chip warn">${modSkipped} skipped</span>` : ""}
+            ${modFailed ? `<span class="chip bad">${modFailed} failed</span>` : ''}
+            ${modSkipped ? `<span class="chip warn">${modSkipped} skipped</span>` : ''}
             <span class="chip total">${modTotal} total</span>
           </span>
         </button>
         <div class="module-body">${fileBlocks}</div>
       </section>`;
-    }).join("");
+      })
+      .join('');
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -311,7 +349,7 @@ class FriendlyHtmlReporter {
     <div class="subtitle">${escapeHtml(this._subtitle)}</div>
     <div class="meta">
       <div><strong>Framework</strong>Jest + Supertest</div>
-      ${this._showTargetUrl && process.env.BASE_BACKEND_URL ? `<div><strong>Target URL</strong>${escapeHtml(process.env.BASE_BACKEND_URL)}</div>` : ""}
+      ${this._showTargetUrl && process.env.BASE_BACKEND_URL ? `<div><strong>Target URL</strong>${escapeHtml(process.env.BASE_BACKEND_URL)}</div>` : ''}
       <div><strong>Duration</strong>${durationSec} s</div>
       <div><strong>Generated</strong>${escapeHtml(generatedAt)}</div>
     </div>

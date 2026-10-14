@@ -4,6 +4,58 @@ import axios from 'axios';
 
 vi.stubEnv('VITE_API_URL', 'http://mock-api');
 
+/**
+ * Node 25+ may expose a global `localStorage` stub (`{}`) when
+ * `--localstorage-file` is unset. That breaks jsdom Storage APIs used by tests.
+ * Always install a real in-memory Storage implementation for vitest.
+ */
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>();
+  return {
+    get length() {
+      return store.size;
+    },
+    clear() {
+      store.clear();
+    },
+    getItem(key: string) {
+      return store.has(key) ? (store.get(key) as string) : null;
+    },
+    key(index: number) {
+      return [...store.keys()][index] ?? null;
+    },
+    removeItem(key: string) {
+      store.delete(key);
+    },
+    setItem(key: string, value: string) {
+      store.set(key, String(value));
+    },
+  };
+}
+
+Object.defineProperty(globalThis, 'localStorage', {
+  value: createMemoryStorage(),
+  writable: true,
+  configurable: true,
+});
+Object.defineProperty(globalThis, 'sessionStorage', {
+  value: createMemoryStorage(),
+  writable: true,
+  configurable: true,
+});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'localStorage', {
+    value: globalThis.localStorage,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(window, 'sessionStorage', {
+    value: globalThis.sessionStorage,
+    writable: true,
+    configurable: true,
+  });
+}
+
 // Silence all axios requests in tests to prevent unhandled rejections
 // from useEffect API calls when no server is running.
 vi.spyOn(axios, 'get').mockResolvedValue({ data: {} });
@@ -44,12 +96,24 @@ vi.mock('/src/utils/forceLogout', () => ({
 if (typeof DataTransfer === 'undefined') {
   Object.defineProperty(globalThis, 'DataTransfer', {
     value: class DataTransfer {
-    private _data: Record<string, string> = {};
-    setData(type: string, data: string): void { this._data[type] = data; }
-    getData(type: string): string { return this._data[type] ?? ''; }
-    clearData(type?: string): void { if (type !== undefined) { delete this._data[type]; } else { this._data = {}; } }
-    get types(): string[] { return Object.keys(this._data); }
-  },
+      private _data: Record<string, string> = {};
+      setData(type: string, data: string): void {
+        this._data[type] = data;
+      }
+      getData(type: string): string {
+        return this._data[type] ?? '';
+      }
+      clearData(type?: string): void {
+        if (type !== undefined) {
+          delete this._data[type];
+        } else {
+          this._data = {};
+        }
+      }
+      get types(): string[] {
+        return Object.keys(this._data);
+      }
+    },
     writable: true,
     configurable: true,
   });
@@ -59,12 +123,19 @@ if (typeof DataTransfer === 'undefined') {
 if (typeof ClipboardEvent === 'undefined') {
   Object.defineProperty(globalThis, 'ClipboardEvent', {
     value: class ClipboardEvent extends Event {
-    clipboardData: DataTransfer | null;
-    constructor(type: string, options: { clipboardData?: DataTransfer; bubbles?: boolean; cancelable?: boolean } = {}) {
-      super(type, options);
-      this.clipboardData = options.clipboardData ?? null;
-    }
-  },
+      clipboardData: DataTransfer | null;
+      constructor(
+        type: string,
+        options: {
+          clipboardData?: DataTransfer;
+          bubbles?: boolean;
+          cancelable?: boolean;
+        } = {}
+      ) {
+        super(type, options);
+        this.clipboardData = options.clipboardData ?? null;
+      }
+    },
     writable: true,
     configurable: true,
   });
@@ -74,12 +145,35 @@ if (typeof ClipboardEvent === 'undefined') {
 if (typeof DragEvent === 'undefined') {
   Object.defineProperty(globalThis, 'DragEvent', {
     value: class DragEvent extends Event {
-    dataTransfer: DataTransfer | null;
-    constructor(type: string, options: { dataTransfer?: DataTransfer; bubbles?: boolean; cancelable?: boolean } = {}) {
-      super(type, options);
-      this.dataTransfer = options.dataTransfer ?? null;
-    }
-  },
+      dataTransfer: DataTransfer | null;
+      constructor(
+        type: string,
+        options: {
+          dataTransfer?: DataTransfer;
+          bubbles?: boolean;
+          cancelable?: boolean;
+        } = {}
+      ) {
+        super(type, options);
+        this.dataTransfer = options.dataTransfer ?? null;
+      }
+    },
+    writable: true,
+    configurable: true,
+  });
+}
+
+// Polyfill Blob#text for jsdom (browsers have it; used to read blob error bodies)
+if (typeof Blob.prototype.text !== 'function') {
+  Object.defineProperty(Blob.prototype, 'text', {
+    value(this: Blob): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(this);
+      });
+    },
     writable: true,
     configurable: true,
   });

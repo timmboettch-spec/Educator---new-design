@@ -146,13 +146,14 @@ jobs:
         id: lint
         uses: ./.github/actions/lint-ratchet-against-baseline
         with:
-          node-version:    ${{ env.NODE_VERSION }}
+          node-version: ${{ env.NODE_VERSION }}
           install-command: npm ci
           working-directory: .
-          lint-command:       'npx eslint . --format json --output-file eslint-report.json'
-          report-file:        eslint-report.json
-          baseline-file:       .github/lint-baseline.json
-          baseline-key:        frontend
+          lint-command: 'npx eslint . --format json --output-file eslint-report.json'
+          report-file: eslint-report.json
+          baseline-file: .github/lint-baseline.json
+          baseline-key: frontend
+          format-check-command: 'npm run format:check'
 
       - name: Upload lint report
         if: always()
@@ -208,12 +209,12 @@ jobs:
       - name: Run unit test suite
         uses: ./.github/actions/run-test-suite
         with:
-          test-command:    npm run report:unit:generate
-          report-json:     tests/unit/reports/test-results.json
-          report-html:     tests/unit/reports/index.html
-          node-version:    ${{ env.NODE_VERSION }}
+          test-command: npm run report:unit:generate
+          report-json: tests/unit/reports/test-results.json
+          report-html: tests/unit/reports/index.html
+          node-version: ${{ env.NODE_VERSION }}
           artifact-prefix: preview-unit
-          name-prefix:     'unit: '
+          name-prefix: 'unit: '
 
   integration-tests:
     name: Integration Tests
@@ -226,12 +227,12 @@ jobs:
       - name: Run integration test suite
         uses: ./.github/actions/run-test-suite
         with:
-          test-command:    npm run report:integration:generate
-          report-json:     tests/integration/reports/test-results.json
-          report-html:     tests/integration/reports/index.html
-          node-version:    ${{ env.NODE_VERSION }}
+          test-command: npm run report:integration:generate
+          report-json: tests/integration/reports/test-results.json
+          report-html: tests/integration/reports/index.html
+          node-version: ${{ env.NODE_VERSION }}
           artifact-prefix: preview-integration
-          name-prefix:     'integration: '
+          name-prefix: 'integration: '
 
   # ─────────────────────────────────────────────────────────────────────────
   # Build & deploy the preview
@@ -253,8 +254,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     outputs:
-      frontend_url:  ${{ steps.deploy.outputs.url }}
-      backend_url:   ${{ steps.names.outputs.backend_url }}
+      frontend_url: ${{ steps.deploy.outputs.url }}
+      backend_url: ${{ steps.names.outputs.backend_url }}
       backend_source: ${{ steps.names.outputs.backend_source }}
     steps:
       - name: Checkout
@@ -264,8 +265,8 @@ jobs:
         id: names
         env:
           BACKEND_TARGET_INPUT: ${{ github.event.inputs.backend_target }}
-          CUSTOM_BACKEND_URL:   ${{ github.event.inputs.custom_backend_url }}
-          PR_BASE_BRANCH:       ${{ github.event.pull_request.base.ref }}
+          CUSTOM_BACKEND_URL: ${{ github.event.inputs.custom_backend_url }}
+          PR_BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
         run: |
           TARGET="$BACKEND_TARGET_INPUT"
           if [ -z "$TARGET" ]; then
@@ -301,8 +302,8 @@ jobs:
       - name: Azure login (OIDC)
         uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # v2.3.0
         with:
-          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id:        ${{ secrets.AZURE_TENANT_ID }}
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       # Mirrors pxt-crexo's Setup-Script.ps1 -Action evict-old-previews:
@@ -335,8 +336,25 @@ jobs:
         id: deploy
         uses: ./.github/actions/deploy-swa
         with:
-          api-token:              ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
+          api-token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
           deployment-environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.preview_name || '' }}
+
+      # For a `pull_request` run, preview-comment/preview-notify below surface
+      # this. For `workflow_dispatch` there's no PR to comment on and no Teams
+      # card fires (both are gated to `pull_request` only), so the run's own
+      # summary is the only place the URL is ever shown — without this, a
+      # manual dispatch completes with no visible way to find the preview.
+      - name: Write preview URL to job summary
+        if: always() && steps.deploy.outcome == 'success'
+        run: |
+          {
+            echo "## Preview frontend deployed"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **URL** | [${{ steps.deploy.outputs.url }}](${{ steps.deploy.outputs.url }}) |"
+            echo "| **Backend used** | ${{ steps.names.outputs.backend_url }} (${{ steps.names.outputs.backend_source }}) |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────
   # Runs the Playwright smoke suite against the just-deployed preview URL
@@ -376,9 +394,9 @@ jobs:
           }}
         uses: ./.github/actions/run-smoke-suite
         with:
-          base-url:      ${{ needs.deploy-preview.outputs.frontend_url }}
-          api-url:       ${{ needs.deploy-preview.outputs.backend_url }}/api
-          node-version:  ${{ env.NODE_VERSION }}
+          base-url: ${{ needs.deploy-preview.outputs.frontend_url }}
+          api-url: ${{ needs.deploy-preview.outputs.backend_url }}/api
+          node-version: ${{ env.NODE_VERSION }}
           artifact-name: preview-smoke-report-${{ github.event.pull_request.number || github.event.inputs.preview_name }}
 
       - name: Report smoke suite outcome
@@ -386,7 +404,7 @@ jobs:
         env:
           BACKEND_SOURCE: ${{ needs.deploy-preview.outputs.backend_source }}
           BLOCKING_DEFAULT: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING }}
-          BLOCKING_MAIN:    ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
+          BLOCKING_MAIN: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
         run: |
           if [ "$BACKEND_SOURCE" = "prod" ]; then
             BLOCKING="$BLOCKING_MAIN"
@@ -436,9 +454,9 @@ jobs:
           }}
         uses: ./.github/actions/run-regression-suite
         with:
-          base-url:      ${{ needs.deploy-preview.outputs.frontend_url }}
-          api-url:       ${{ needs.deploy-preview.outputs.backend_url }}/api
-          node-version:  ${{ env.NODE_VERSION }}
+          base-url: ${{ needs.deploy-preview.outputs.frontend_url }}
+          api-url: ${{ needs.deploy-preview.outputs.backend_url }}/api
+          node-version: ${{ env.NODE_VERSION }}
           artifact-name: preview-regression-report-${{ github.event.pull_request.number || github.event.inputs.preview_name }}
 
       - name: Report regression suite outcome
@@ -446,7 +464,7 @@ jobs:
         env:
           BACKEND_SOURCE: ${{ needs.deploy-preview.outputs.backend_source }}
           BLOCKING_DEFAULT: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING }}
-          BLOCKING_MAIN:    ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
+          BLOCKING_MAIN: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
         run: |
           if [ "$BACKEND_SOURCE" = "prod" ]; then
             BLOCKING="$BLOCKING_MAIN"
@@ -477,9 +495,9 @@ jobs:
         id: body
         env:
           BLOCKING_DEFAULT: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING }}
-          BLOCKING_MAIN:    ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
+          BLOCKING_MAIN: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
           REGRESSION_BLOCKING_DEFAULT: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING }}
-          REGRESSION_BLOCKING_MAIN:    ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
+          REGRESSION_BLOCKING_MAIN: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
         run: |
           URL="${{ needs.deploy-preview.outputs.frontend_url }}"
           BACKEND="${{ needs.deploy-preview.outputs.backend_url }}"
@@ -535,8 +553,8 @@ jobs:
       - name: Upsert sticky PR comment
         uses: ./.github/actions/pr-sticky-comment
         with:
-          header:       preview-frontend
-          body:         ${{ steps.body.outputs.body }}
+          header: preview-frontend
+          body: ${{ steps.body.outputs.body }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Matches Educator-App-Backend / HS-online-AI-app's preview-notify: the
@@ -558,9 +576,9 @@ jobs:
         id: status
         env:
           BLOCKING_DEFAULT: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING }}
-          BLOCKING_MAIN:    ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
+          BLOCKING_MAIN: ${{ vars.PREVIEW_SMOKE_TEST_BLOCKING_MAIN }}
           REGRESSION_BLOCKING_DEFAULT: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING }}
-          REGRESSION_BLOCKING_MAIN:    ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
+          REGRESSION_BLOCKING_MAIN: ${{ vars.PREVIEW_REGRESSION_TEST_BLOCKING_MAIN }}
         run: |
           DEPLOY="${{ needs.deploy-preview.result }}"
           SMOKE="${{ needs.preview-smoke-test.outputs.smoke_outcome }}"
@@ -691,14 +709,14 @@ jobs:
         continue-on-error: true
         uses: ./.github/actions/teams-notify
         with:
-          webhook-url:    ${{ secrets.TEAMS_PREVIEW_WEBHOOK_URL }}
-          github-login:   ${{ github.actor }}
-          headline:       ${{ steps.status.outputs.title }}
-          style:          ${{ steps.status.outputs.style }}
+          webhook-url: ${{ secrets.TEAMS_PREVIEW_WEBHOOK_URL }}
+          github-login: ${{ github.actor }}
+          headline: ${{ steps.status.outputs.title }}
+          style: ${{ steps.status.outputs.style }}
           mention-suffix: ${{ steps.status.outputs.mention_suffix }}
-          facts-json:     ${{ steps.payload.outputs.facts }}
-          footer:         "⚠️ First request may take ~30s (scales to zero when idle)"
-          actions-json:   ${{ steps.payload.outputs.actions }}
+          facts-json: ${{ steps.payload.outputs.facts }}
+          footer: '⚠️ First request may take ~30s (scales to zero when idle)'
+          actions-json: ${{ steps.payload.outputs.actions }}
 
   # ─────────────────────────────────────────────────────────────────────────
   # Close the preview when the PR closes (merged or not). No explicit
@@ -719,4 +737,4 @@ jobs:
         uses: ./.github/actions/deploy-swa
         with:
           api-token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_DEV }}
-          action:    'close'
+          action: 'close'

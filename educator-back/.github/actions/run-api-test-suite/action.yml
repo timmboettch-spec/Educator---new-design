@@ -1,43 +1,53 @@
-name: "run-api-test-suite"
+name: 'run-api-test-suite'
 description: >-
-  Aggregated API test run: Node setup + npm ci + tests/api/executor/module-executor.js
+  Aggregated API test run: Node setup + npm ci + Jest (tests/api/config/jest.api.json)
   + JSON/HTML artifact upload + pass/fail parsing (via parse-api-test-results).
   Extracted from deploy-backend.yml's test-api job and preview-deploy.yml's
   preview-smoke-test job, which both hand-rolled this same run+upload+parse
   sequence — one against the shared dev backend, one against a live preview's
-  BASE_URL — so the sequence can't drift between the two call sites.
+  BASE_BACKEND_URL — so the sequence can't drift between the two call sites.
 
 inputs:
   base-url:
     description: >-
-      BASE_URL env var for the test run, e.g. https://<preview-fqdn>/api.
-      Empty (the default) leaves BASE_URL unset — tests/api/utils/env.ts
-      falls back to its own default (the shared dev backend).
+      BASE_BACKEND_URL env var for the test run, e.g. https://<preview-fqdn>/api.
+      When empty (the default), tests/api/utils/env.ts and supertest.setup.ts
+      derive the URL from node-env: dev → dev.educatorbe.realityworksai.com,
+      qa → qa.educatorbe.realityworksai.com, main → educatorbe.realityworksai.com.
+      base-url always takes priority over node-env when both are supplied.
     required: false
     default: ''
   node-env:
     description: >-
-      NODE_ENV env var for the test run, e.g. dev/qa/main. Must be set
-      explicitly in CI — with no .env file present, tests/api/utils/env.ts's
-      `process.env.NODE_ENV || 'dev'` falls through to whatever Jest already
-      set NODE_ENV to ("test"), silently resolving to the wrong backend URL
-      when base-url is also empty. Empty (the default) leaves NODE_ENV unset,
-      which is only safe when base-url is provided (it always takes priority
-      over NODE_ENV-derived URLs).
+      NODE_ENV env var for the test run, e.g. dev/qa/main. Used to derive the
+      backend URL when base-url is empty. Must be set explicitly in CI so the
+      correct environment is targeted — Jest sets NODE_ENV to "test" by default,
+      which falls back to the dev backend if node-env is omitted.
     required: false
     default: ''
   node-version:
     description: 'Node.js version to run the suite with.'
     required: false
     default: '22'
+  test-email-domain:
+    description: >-
+      Domain used to build TEST_EMAIL_ADDRESS (as test@<domain>) for the test
+      run — feeds tests/api/utils/env.ts's testEmail() and mail.config.ts's
+      testMailbox. Pass the caller workflow's own single source of truth for
+      this value rather than relying on the default here, so it isn't
+      duplicated across call sites. Previously this was exported as
+      TEST_EMAIL_DOMAIN, a name the app code never reads — see
+      docs/VARIABLES.md's TEST_EMAIL_DOMAIN row for the drift this fixes.
+    required: false
+    default: 'curionn.com'
   results-json:
-    description: 'Path to the module-executor JSON results file.'
+    description: 'Path to the Jest JSON results file.'
     required: false
     default: 'tests/api/reports/.test-results.json'
   results-html:
-    description: 'Path to the module-executor HTML report.'
+    description: 'Path to the Jest HTML report.'
     required: false
-    default: 'tests/api/reports/html/api-test-report.html'
+    default: 'tests/api/reports/html/api-predeployment-report.html'
   artifact-json-name:
     description: 'Artifact name for the uploaded JSON results.'
     required: true
@@ -70,7 +80,7 @@ runs:
   using: composite
   steps:
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
         cache: 'npm'
@@ -82,16 +92,17 @@ runs:
     - name: Run API test suite
       shell: bash
       env:
-        BASE_URL:  ${{ inputs.base-url }}
-        NODE_ENV:  ${{ inputs.node-env }}
+        BASE_BACKEND_URL: ${{ inputs.base-url }}
+        NODE_ENV: ${{ inputs.node-env }}
+        TEST_EMAIL_ADDRESS: test@${{ inputs.test-email-domain }}
       run: |
-        [ -n "${BASE_URL:-}" ] && echo "BASE_URL=$BASE_URL"
+        [ -n "${BASE_BACKEND_URL:-}" ] && echo "BASE_BACKEND_URL=$BASE_BACKEND_URL"
         [ -n "${NODE_ENV:-}" ] && echo "NODE_ENV=$NODE_ENV"
-        node tests/api/executor/module-executor.js
+        npx jest --config tests/api/config/jest.api.json --runInBand --json --outputFile tests/api/reports/.test-results.json --forceExit || true
 
     - name: Upload JSON results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.artifact-json-name }}
         path: ${{ inputs.results-json }}
@@ -100,7 +111,7 @@ runs:
 
     - name: Upload HTML report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: ${{ inputs.artifact-html-name }}
         path: ${{ inputs.results-html }}

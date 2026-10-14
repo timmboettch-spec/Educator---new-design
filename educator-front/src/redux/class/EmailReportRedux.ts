@@ -1,5 +1,9 @@
 ﻿import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import config from '../../redux/config';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
@@ -46,7 +50,7 @@ export const sendEmailReport = createAsyncThunk<
     formData.append('message', payload.message);
     if (payload.to) formData.append('to', payload.to);
     if (payload.class_id) formData.append('class_id', payload.class_id);
-    const res = await api.post(config.StudentEmailReport, formData,{
+    const res = await api.post(config.StudentEmailReport, formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -84,10 +88,13 @@ const emailReportSlice = createSlice({
         state.status = LOADING;
         state.error = null;
       })
-      .addCase(sendEmailReport.fulfilled, (state, action: PayloadAction<EmailReportResponse>) => {
-        state.status = SUCCEEDED;
-        state.response = action.payload;
-      })
+      .addCase(
+        sendEmailReport.fulfilled,
+        (state, action: PayloadAction<EmailReportResponse>) => {
+          state.status = SUCCEEDED;
+          state.response = action.payload;
+        }
+      )
       .addCase(sendEmailReport.rejected, (state, action) => {
         state.status = FAILED;
         state.error = action.payload?.message || 'Failed to send email report';
@@ -102,14 +109,20 @@ const selectEmailReportState = (state: RootState) => state.EmailReport;
 
 export const selectEmailReportLoading = createSelector(
   selectEmailReportState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );
 
 export const selectEmailReportSuccess = createSelector(
   selectEmailReportState,
-  (s) => s.status === SUCCEEDED,
+  (s) => s.status === SUCCEEDED
 );
 
-export const selectEmailReportError = createSelector(selectEmailReportState, (s) => s.error);
+export const selectEmailReportError = createSelector(
+  selectEmailReportState,
+  (s) => s.error
+);
 
-export const selectEmailReportResponse = createSelector(selectEmailReportState, (s) => s.response);
+export const selectEmailReportResponse = createSelector(
+  selectEmailReportState,
+  (s) => s.response
+);

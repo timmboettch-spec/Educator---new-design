@@ -1,4 +1,8 @@
-﻿import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+﻿import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -39,7 +43,7 @@ export const InviteEducatorRequest = createAsyncThunk<
   { rejectValue: { message: string } }
 >('educator/invite', async (data, thunkAPI) => {
   try {
-   const res = await api.post(config.InviteEducatorAPI, data);
+    const res = await api.post(config.InviteEducatorAPI, data);
     return res.data;
   } catch (err: unknown) {
     const error = err as {
@@ -92,8 +96,14 @@ const selectState = (state: RootState) => state.CreateEducator;
 
 export const selectCreateEducatorResponse = createSelector(
   selectState,
-  (state) => state.responseCreateEducator,
+  (state) => state.responseCreateEducator
 );
 
-export const selectCreateEducatorStatus = createSelector(selectState, (state) => state.status);
-export const selectCreateEducatorError = createSelector(selectState, (state) => state.error);
+export const selectCreateEducatorStatus = createSelector(
+  selectState,
+  (state) => state.status
+);
+export const selectCreateEducatorError = createSelector(
+  selectState,
+  (state) => state.error
+);

@@ -1,0 +1,97 @@
+{
+  "actions": {
+    "goToDashboard": "Ir al Panel",
+    "startOver": "Inicio"
+  },
+  "a11y": {
+    "expandSetupGuide": "Expandir guía de configuración",
+    "collapseSetupGuide": "Contraer guía de configuración",
+    "otpCode": "Código de verificación",
+    "otpDigit": "Dígito {{index}} de {{total}}",
+    "showPassword": "Mostrar contraseña",
+    "hidePassword": "Ocultar contraseña"
+  },
+  "multiSelect": {
+    "search": "Buscar…",
+    "clear": "Borrar",
+    "clearSelection": "Borrar {{label}}",
+    "clearAll": "Borrar todo",
+    "loading": "Cargando…",
+    "noResults": "No se encontraron resultados",
+    "selectedCount": "{{count}} {{noun}}",
+    "maxReached": "Puedes seleccionar hasta {{max}}",
+    "moreResults": "Mostrando los primeros resultados. Escribe para buscar más.",
+    "loadFailed": "No se pudieron cargar las opciones.",
+    "retry": "Reintentar",
+    "select": "Seleccionar",
+    "selectAll": "Seleccionar todo",
+    "noData": "No se encontraron datos",
+    "removeItem": "Quitar {{label}}",
+    "clearSelections": "Borrar todas las selecciones"
+  },
+  "filterPanel": {
+    "close": "Cerrar filtros"
+  },
+  "filterChips": {
+    "region": "Filtros activos",
+    "remove": "Quitar filtro {{label}}: {{value}}",
+    "clearAll": "Borrar todo",
+    "clearAllAria": "Borrar todos los filtros"
+  },
+  "header": {
+    "portal": {
+      "admin": "Portal de Administrador",
+      "educator": "Portal del Educador"
+    }
+  },
+  "sidebar": {
+    "primaryNav": "Principal",
+    "studentApp": {
+      "title": "App de estudiantes",
+      "open": "Abrir la app de estudiantes",
+      "copy": "Copiar el enlace de la app de estudiantes",
+      "copyLink": "Copiar enlace",
+      "copied": "¡Copiado!",
+      "copyFailed": "No se pudo copiar el enlace"
+    }
+  },
+  "filterButton": {
+    "open": "Filtros",
+    "openWithCount_one": "Filtros, {{count}} aplicado",
+    "openWithCount_other": "Filtros, {{count}} aplicados"
+  },
+  "simulationFilters": {
+    "caption": "Simplifica tu búsqueda con filtros",
+    "quickFilters": "Filtros rápidos",
+    "browseBy": "Explorar por",
+    "fields": {
+      "learnerLevel": "Nivel del aprendiz",
+      "targetAudience": "Público objetivo",
+      "modality": "Modalidad",
+      "productName": "Producto requerido",
+      "difficulty": "Dificultad",
+      "unit": "Unidad",
+      "duration": "Duración"
+    },
+    "values": {
+      "secondary": "Secundaria",
+      "postSecondary": "Postsecundaria",
+      "avatar": "Avatar",
+      "workstation": "Estación de trabajo",
+      "easy": "Fácil",
+      "medium": "Medio",
+      "hard": "Difícil",
+      "expert": "Experto"
+    },
+    "panel": {
+      "title": "Filtrar simulaciones",
+      "reset": "Restablecer filtro",
+      "apply": "Aplicar filtro",
+      "noneApplied": "No se aplicaron filtros",
+      "selectPlaceholder": "Seleccionar {{field}}",
+      "tooManyValues": "Selecciona hasta {{count}}",
+      "selected_one": "seleccionado",
+      "selected_other": "seleccionados"
+    }
+  }
+}

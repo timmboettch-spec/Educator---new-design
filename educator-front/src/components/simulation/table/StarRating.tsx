@@ -16,7 +16,13 @@ const StarRating: React.FC<StarRatingProps> = ({ rating }) => {
           width="14"
           height="14"
           viewBox="0 0 24 24"
-          fill={i < full ? '#F59E0B' : i === full && hasHalf ? 'url(#half)' : '#E2E8F0'}
+          fill={
+            i < full
+              ? '#F59E0B'
+              : i === full && hasHalf
+                ? 'url(#half)'
+                : '#E2E8F0'
+          }
           stroke="none"
         >
           <defs>

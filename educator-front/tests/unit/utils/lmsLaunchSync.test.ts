@@ -59,7 +59,8 @@ describe('lmsLaunchSync', () => {
   it('runLtiLaunchSyncIfNeeded runs sync once while session is pending', async () => {
     beginLmsLaunchSession();
     const dispatch = vi.fn(() => ({
-      unwrap: () => Promise.resolve({ created: 0, skipped: 1, createdClassNames: [] }),
+      unwrap: () =>
+        Promise.resolve({ created: 0, skipped: 1, createdClassNames: [] }),
     }));
 
     const ran = await runLtiLaunchSyncIfNeeded(dispatch);
@@ -81,7 +82,12 @@ describe('lmsLaunchSync', () => {
     sessionStorage.setItem(LMS_LAUNCH_SYNC_LOCK_KEY, '1');
 
     const dispatch = vi.fn(() => ({
-      unwrap: () => Promise.resolve({ created: 1, skipped: 0, createdClassNames: ['Clinical skills - demo'] }),
+      unwrap: () =>
+        Promise.resolve({
+          created: 1,
+          skipped: 0,
+          createdClassNames: ['Clinical skills - demo'],
+        }),
     }));
     const ran = await runLtiLaunchSyncIfNeeded(dispatch);
 
@@ -113,7 +119,8 @@ describe('lmsLaunchSync', () => {
     beginLmsLaunchSession();
     localStorage.setItem('lti_school_id', 'school-b');
     const dispatch = vi.fn(() => ({
-      unwrap: () => Promise.resolve({ created: 0, skipped: 1, createdClassNames: [] }),
+      unwrap: () =>
+        Promise.resolve({ created: 0, skipped: 1, createdClassNames: [] }),
     }));
 
     await runLtiLaunchSyncIfNeeded(dispatch);
@@ -129,7 +136,9 @@ describe('lmsLaunchSync', () => {
       unwrap: () => Promise.reject(new Error('sync failed')),
     }));
 
-    await expect(runLtiLaunchSyncIfNeeded(dispatch)).rejects.toThrow('sync failed');
+    await expect(runLtiLaunchSyncIfNeeded(dispatch)).rejects.toThrow(
+      'sync failed'
+    );
     expect(isLmsLaunchSyncPending()).toBe(true);
     expect(sessionStorage.getItem(LMS_LAUNCH_SYNC_LOCK_KEY)).toBeNull();
   });

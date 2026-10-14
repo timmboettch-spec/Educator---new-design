@@ -11,6 +11,7 @@ test.describe('Class Creation Smoke', () => {
 
     await login.goto();
     await educatorLogin(page);
-    await classPage.createClassPositive();
+    const className = await classPage.createClassPositive();
+    await classPage.deleteClassByName(className);
   });
 });

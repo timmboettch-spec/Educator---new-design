@@ -1,6 +1,11 @@
+import { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import FilterChips, { type ActiveFilter } from '../../../src/components/simulation/FilterChips';
+import { act } from '@testing-library/react';
+import i18n from '../../../src/i18n';
+import FilterChips, {
+  type ActiveFilter,
+} from '../../../src/components/common/FilterChips';
 
 describe('FilterChips', () => {
   const mockOnRemoveFilter = vi.fn();
@@ -128,7 +133,9 @@ describe('FilterChips', () => {
       />
     );
 
-    expect(screen.getByRole('region', { name: 'Active filters' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', { name: 'Active filters' })
+    ).toBeInTheDocument();
   });
 
   it('removes correct filter when multiple filters exist', () => {
@@ -158,5 +165,83 @@ describe('FilterChips', () => {
     );
 
     expect(screen.getByText('Borrar todo')).toBeInTheDocument();
+  });
+
+  it('translates its labels with the active language', async () => {
+    await act(() => i18n.changeLanguage('es'));
+    try {
+      render(
+        <FilterChips
+          filters={mockFilters.slice(0, 1)}
+          onRemoveFilter={mockOnRemoveFilter}
+          onClearAll={mockOnClearAll}
+        />
+      );
+      expect(
+        screen.getByRole('region', { name: 'Filtros activos' })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', {
+          name: 'Quitar filtro Learner Level: Beginner',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Borrar todos los filtros' })
+      ).toHaveTextContent('Borrar todo');
+    } finally {
+      await act(() => i18n.changeLanguage('en'));
+    }
+  });
+
+  it('moves focus to the neighbouring chip after one is removed', () => {
+    function Harness() {
+      const [filters, setFilters] = useState(mockFilters);
+      return (
+        <FilterChips
+          filters={filters}
+          onRemoveFilter={(key) =>
+            setFilters((prev) => prev.filter((f) => f.key !== key))
+          }
+          onClearAll={() => setFilters([])}
+        />
+      );
+    }
+    render(<Harness />);
+    const first = screen.getByRole('button', {
+      name: 'Remove Learner Level filter: Beginner',
+    });
+    first.focus();
+    fireEvent.click(first);
+    // The next chip takes the removed chip's place, and focus.
+    expect(
+      screen.getByRole('button', { name: 'Remove Difficulty filter: Easy' })
+    ).toHaveFocus();
+  });
+
+  it('moves focus to the previous chip when the last chip in the row is removed', () => {
+    function Harness() {
+      const [filters, setFilters] = useState(mockFilters.slice(0, 2));
+      return (
+        <FilterChips
+          filters={filters}
+          onRemoveFilter={(key) =>
+            setFilters((prev) => prev.filter((f) => f.key !== key))
+          }
+          onClearAll={() => setFilters([])}
+        />
+      );
+    }
+    render(<Harness />);
+    const lastChip = screen.getByRole('button', {
+      name: 'Remove Difficulty filter: Easy',
+    });
+    lastChip.focus();
+    fireEvent.click(lastChip);
+    // The remaining chip is before it, so focus goes to that chip.
+    expect(
+      screen.getByRole('button', {
+        name: 'Remove Learner Level filter: Beginner',
+      })
+    ).toHaveFocus();
   });
 });

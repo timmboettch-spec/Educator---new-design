@@ -1,4 +1,4 @@
-import { Locator, Page, expect } from '@playwright/test';
+import { type Locator, type Page, expect } from '@playwright/test';
 
 type NavigationOptions = Parameters<Page['goto']>[1];
 type LoadStateType = 'load' | 'domcontentloaded' | 'networkidle';
@@ -9,7 +9,9 @@ export class BasePage {
   async navigateTo(url: string, options?: NavigationOptions): Promise<void> {
     // If url is relative (starts with /), construct absolute URL
     if (url.startsWith('/')) {
-      const baseUrl = this.page.url().match(/^https?:\/\/[^/]+/)?.[0] || 'http://localhost:3000';
+      const baseUrl =
+        this.page.url().match(/^https?:\/\/[^/]+/)?.[0] ||
+        'http://localhost:3000';
       url = `${baseUrl}${url}`;
     }
     await this.page.goto(url, options);
@@ -19,18 +21,24 @@ export class BasePage {
     return this.page.locator(selector);
   }
 
-  async click(selector: string | Locator, options?: Parameters<Locator['click']>[0]): Promise<void> {
+  async click(
+    selector: string | Locator,
+    options?: Parameters<Locator['click']>[0]
+  ): Promise<void> {
     // Always use .first() for string selectors to avoid strict mode violations with multiple matches
-    const locator = typeof selector === 'string' ? this.page.locator(selector).first() : selector;
+    const locator =
+      typeof selector === 'string'
+        ? this.page.locator(selector).first()
+        : selector;
     await locator.waitFor({ state: 'visible' });
-    
+
     // Wait for overlay to disappear with multiple attempts
     for (let i = 0; i < 2; i++) {
       await this.waitForOverlayToDisappear();
-      
+
       try {
         // Try to click - if it fails due to overlay, retry
-        await locator.click({ ...options, timeout: 2000 });
+        await locator.click({ ...options, timeout: 10000 });
         return;
       } catch (error) {
         // Check if page is still open
@@ -48,7 +56,8 @@ export class BasePage {
     }
   }
   async setReactDate(selector: string | Locator, date: string) {
-    const locator = typeof selector === 'string' ? this.page.locator(selector) : selector;
+    const locator =
+      typeof selector === 'string' ? this.page.locator(selector) : selector;
     await locator.click();
     await this.page.keyboard.type(date);
   }
@@ -58,13 +67,16 @@ export class BasePage {
     urlOrRegExp: string | RegExp,
     timeout = 3000
   ): Promise<void> {
-    const locator = typeof selector === 'string' ? this.page.locator(selector).first() : selector;
+    const locator =
+      typeof selector === 'string'
+        ? this.page.locator(selector).first()
+        : selector;
     await locator.waitFor({ state: 'visible', timeout });
-    
+
     // Wait for overlay with retries
     for (let i = 0; i < 3; i++) {
       await this.waitForOverlayToDisappear();
-      
+
       try {
         await Promise.all([
           this.page.waitForURL(urlOrRegExp, { timeout }),
@@ -81,14 +93,24 @@ export class BasePage {
     }
   }
 
-  async fill(selector: string | Locator, value: string, options?: Parameters<Locator['fill']>[1]): Promise<void> {
-    const locator = typeof selector === 'string' ? this.page.locator(selector).first() : selector;
+  async fill(
+    selector: string | Locator,
+    value: string,
+    options?: Parameters<Locator['fill']>[1]
+  ): Promise<void> {
+    const locator =
+      typeof selector === 'string'
+        ? this.page.locator(selector).first()
+        : selector;
     await locator.waitFor({ state: 'visible' });
     await locator.fill(value, options);
   }
 
   async fillReadonly(selector: string | Locator, value: string): Promise<void> {
-    const locator = typeof selector === 'string' ? this.page.locator(selector).first() : selector;
+    const locator =
+      typeof selector === 'string'
+        ? this.page.locator(selector).first()
+        : selector;
     await locator.waitFor({ state: 'visible' });
     await locator.evaluate((element, val) => {
       const input = element as HTMLInputElement;
@@ -98,9 +120,15 @@ export class BasePage {
     }, value);
   }
 
-  async waitForVisible(selector: string | Locator, timeout = 30000): Promise<void> {
-    const locator = typeof selector === 'string' ? this.page.locator(selector).first() : selector;
-    
+  async waitForVisible(
+    selector: string | Locator,
+    timeout = 30000
+  ): Promise<void> {
+    const locator =
+      typeof selector === 'string'
+        ? this.page.locator(selector).first()
+        : selector;
+
     // First try to wait for visibility
     try {
       await locator.waitFor({ state: 'visible', timeout });
@@ -116,64 +144,105 @@ export class BasePage {
         throw originalError; // page closed while checking, re-throw original
       }
       if (count === 0) {
-        throw new Error(`Element not found in DOM: ${typeof selector === 'string' ? selector : 'Locator'}`);
+        throw new Error(
+          `Element not found in DOM: ${typeof selector === 'string' ? selector : 'Locator'}`
+        );
       }
       // Element exists but is hidden - wait a bit more for it to appear
       await this.page.waitForTimeout(1000);
       await locator.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {
-        throw new Error(`Element found but remains hidden after waiting: ${typeof selector === 'string' ? selector : 'Locator'}`);
+        throw new Error(
+          `Element found but remains hidden after waiting: ${typeof selector === 'string' ? selector : 'Locator'}`
+        );
       });
     }
   }
 
-  async waitForUrl(urlOrRegExp: string | RegExp, timeout = 30000): Promise<void> {
+  async waitForUrl(
+    urlOrRegExp: string | RegExp,
+    timeout = 30000
+  ): Promise<void> {
     await this.page.waitForURL(urlOrRegExp, { timeout });
   }
 
-  async waitForLoadState(state: LoadStateType = 'load', timeout = 30000): Promise<void> {
+  async waitForLoadState(
+    state: LoadStateType = 'load',
+    timeout = 30000
+  ): Promise<void> {
     await this.page.waitForLoadState(state, { timeout });
   }
-async expectTextVisible(
-  text: string | RegExp,
-  timeout = 30000
-): Promise<void> {
-  // Add additional wait for network requests to settle
-  await this.page.waitForLoadState('networkidle').catch(() => {});
-  
-  // Try getByText first - it's the most reliable
-  await expect(
-    this.page.getByText(text).first()
-  ).toBeVisible({ timeout });
-}
+  async expectTextVisible(
+    text: string | RegExp,
+    timeout = 30000
+  ): Promise<void> {
+    // Add additional wait for network requests to settle
+    await this.page.waitForLoadState('networkidle').catch(() => {});
 
-  async selectDropdownOption(dropdownSelector: string | Locator, optionText: string): Promise<void> {
-    const dropdown = typeof dropdownSelector === 'string' ? this.page.locator(dropdownSelector) : dropdownSelector;
-    await dropdown.click();
-    await this.page.locator(`div[class*="cursor-pointer"]:has-text("${optionText}")`).first().click();
+    // Try getByText first - it's the most reliable
+    await expect(this.page.getByText(text).first()).toBeVisible({ timeout });
   }
 
-  async waitForOverlayToDisappear(timeout = 3000): Promise<void> {
+  /**
+   * Waits for a ListTable (schools, educators) to show its rows. Those lists
+   * load every record and filter in the browser, so a search typed before the
+   * data arrives shows "No data found." for a record that exists. Never
+   * throws: a genuinely empty list just runs out the timeout.
+   */
+  async waitForListRows(timeout = 60000): Promise<void> {
+    await this.page
+      .locator('div.border-b span[title]')
+      .first()
+      .waitFor({ state: 'visible', timeout })
+      .catch(() => {});
+  }
+
+  async selectDropdownOption(
+    dropdownSelector: string | Locator,
+    optionText: string
+  ): Promise<void> {
+    const dropdown =
+      typeof dropdownSelector === 'string'
+        ? this.page.locator(dropdownSelector)
+        : dropdownSelector;
+    await dropdown.click();
+    await this.page
+      .locator(`div[class*="cursor-pointer"]:has-text("${optionText}")`)
+      .first()
+      .click();
+  }
+
+  async waitForOverlayToDisappear(timeout = 5000): Promise<void> {
     try {
-      // Look for modal backdrop overlay - matches divs with fixed positioning and z-50 with semi-transparent/dark background
-      const overlay = this.page.locator('[role="dialog"]');
-      const backdrop = this.page.locator('div.fixed[style*="z"], div[class*="z-50"][class*="fixed"], div[class*="inset-0"][class*="fixed"]');
-      
-      if ((await overlay.count()) > 0) {
-        await overlay.first().waitFor({ state: 'hidden', timeout }).catch(() => {});
+      // Global AppLoader only — never [role="dialog"]; smoke/regression clicks inside modals.
+      const appLoader = this.page.locator(
+        'div.fixed.inset-0.z-50[role="status"]'
+      );
+      if ((await appLoader.count()) === 0) {
+        return;
       }
-      
-      if ((await backdrop.count()) > 0) {
-        await backdrop.first().waitFor({ state: 'hidden', timeout }).catch(() => {});
-      }
-      
-      // Additional wait to ensure DOM settles
-      await this.page.waitForTimeout(300);
+
+      await expect
+        .poll(
+          async () =>
+            appLoader
+              .first()
+              .evaluate((el) => getComputedStyle(el).pointerEvents),
+          { timeout }
+        )
+        .toBe('none')
+        .catch(() => {});
     } catch {
       // Silently continue if overlay waiting fails
     }
   }
 
-  async waitForModalClose(modalSelector: string, timeout = 10000): Promise<void> {
-    await this.page.locator(modalSelector).waitFor({ state: 'hidden', timeout }).catch(() => {});
+  async waitForModalClose(
+    modalSelector: string,
+    timeout = 10000
+  ): Promise<void> {
+    await this.page
+      .locator(modalSelector)
+      .waitFor({ state: 'hidden', timeout })
+      .catch(() => {});
   }
 }

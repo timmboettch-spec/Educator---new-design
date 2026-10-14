@@ -1,0 +1,296 @@
+{
+  "simulationsCompleted": {
+    "title": "Simulations Completed",
+    "axisLabel": "Simulations Completed",
+    "tooltip_one": "{{count}} simulation completed",
+    "tooltip_other": "{{count}} simulations completed",
+    "chartAria": "Bar chart of simulations completed for {{selection}}",
+    "loading": "Loading simulations completed…",
+    "error": "We couldn't load simulations completed right now. Please try again.",
+    "empty": "No simulations completed in this period yet.",
+    "filters": {
+      "schoolLabel": "Schools",
+      "schoolPlaceholder": "All Schools",
+      "schoolNoun_one": "school",
+      "schoolNoun_other": "schools",
+      "classLabel": "Classes",
+      "classPlaceholder": "All Classes",
+      "classNoun_one": "class",
+      "classNoun_other": "classes",
+      "studentLabel": "Student codes",
+      "studentPlaceholder": "All Student Codes",
+      "studentNoun_one": "student code",
+      "studentNoun_other": "student codes",
+      "timeframeLabel": "Timeframe",
+      "loadError": "We couldn't load these options. Please try again."
+    },
+    "timeframes": {
+      "months_one": "Last {{count}} Month",
+      "months_other": "Last {{count}} Months",
+      "all": "All Time"
+    },
+    "selection": {
+      "allSchools": "All schools",
+      "allClasses": "All classes",
+      "allStudents": "All student codes",
+      "schools": "Schools: {{names}}",
+      "classes": "Classes: {{names}}",
+      "students": "Student codes: {{names}}",
+      "more": "{{names}} +{{count}} more"
+    },
+    "export": {
+      "png": "PNG",
+      "pdf": "PDF",
+      "csv": "CSV",
+      "aria": "Export chart as {{format}}",
+      "fileBase": "simulations-completed",
+      "generated": "Generated {{date}}",
+      "csvSelection": "Selection",
+      "csvTimeframe": "Timeframe",
+      "csvGenerated": "Generated",
+      "csvMonth": "Month",
+      "csvCount": "Simulations Completed",
+      "csvTotal": "Total"
+    },
+    "overviewTitle": "Graphical Overview of Simulations Completed",
+    "subtitle": "{{summary}} · {{total}} total",
+    "breakdownSubtitle": {
+      "allSchools": "All Schools",
+      "label": "Breakdown level",
+      "school": "· by school",
+      "class": "· by class",
+      "student": "· by student"
+    },
+    "unassignedSchool": "Classes without a school",
+    "views": {
+      "label": "Chart view",
+      "time": "Over Time",
+      "school": "Breakdown"
+    },
+    "modes": {
+      "label": "Chart mode",
+      "total": "Total",
+      "compare": "Compare"
+    },
+    "compareTooltip": "{{name}}: {{count}} completed",
+    "compareLimit": "Select up to {{count}} {{noun}} to compare",
+    "compareSummaryRow": "{{month}}: {{values}} (total {{total}})",
+    "summary": {
+      "all": "All Classes",
+      "schools_one": "{{count}} school",
+      "schools_other": "{{count}} schools",
+      "classes_one": "{{count}} class",
+      "classes_other": "{{count}} classes",
+      "students_one": "{{count}} student code",
+      "students_other": "{{count}} student codes"
+    },
+    "exportTitles": {
+      "time": "Simulations Completed",
+      "school": "Simulations Completed by School",
+      "class": "Simulations Completed by Class",
+      "student": "Simulations Completed by Student"
+    },
+    "fileViews": {
+      "time": "by-month",
+      "school": "by-school",
+      "class": "by-class",
+      "student": "by-student"
+    },
+    "csvView": "View",
+    "summaryHeading": "Simulations completed for {{selection}}:",
+    "breakdownTooltip": {
+      "count_one": "{{count}} completed",
+      "count_other": "{{count}} completed",
+      "drill_one": "{{count}} completed — click to drill in",
+      "drill_other": "{{count}} completed — click to drill in"
+    },
+    "drillButton": "{{name}}: {{count}} — show details",
+    "unknownStudent": "No student code",
+    "csvColumns": {
+      "time": "Month",
+      "school": "School",
+      "class": "Class",
+      "student": "Student code"
+    }
+  },
+  "alertsActivity": {
+    "title": "Alerts & Activity Overview",
+    "alertsLabel": "Alerts"
+  },
+  "activityOverview": {
+    "loading": "Loading activity overview…",
+    "title": "Activity Overview",
+    "tiles": {
+      "activeClasses": "Active Classes",
+      "classesWithUnreadReports": "Classes with Unread Reports",
+      "classesClosingSoon": "Classes Closing (14 Days)",
+      "studentsInActiveClasses": "Students in Active Classes",
+      "totalUnreadReports": "Total Unread Reports",
+      "classesNearAvatarLimit": "Classes w/ Students Near Avatar Limit"
+    },
+    "viewClassesAria": "{{label}} — view classes",
+    "error": "We couldn't load your activity overview right now."
+  },
+  "notificationCenter": {
+    "title": "Notification Center",
+    "unread": "{{count}} unread",
+    "settings": "Notification settings",
+    "groups": {
+      "all": "All",
+      "unread": "Unread",
+      "reports": "Student reports",
+      "simulations": "Simulations",
+      "classes": "Classes",
+      "seats": "Seats allocated",
+      "products": "Products",
+      "general": "General"
+    },
+    "groupFilterLabel": "Filter notifications by category",
+    "markAllRead": "Mark all read",
+    "clearAll": "Clear all",
+    "dateRange": "Date range",
+    "dateRangeAria": "Filter by date range",
+    "ranges": {
+      "all": "All dates",
+      "1d": "Past 1 day",
+      "3d": "Past 3 days",
+      "1w": "Past 1 week",
+      "2w": "Past 2 weeks",
+      "1m": "Past 1 month"
+    },
+    "sort": "Sort",
+    "sortAria": "Sort notifications",
+    "newest": "Newest first",
+    "oldest": "Oldest first",
+    "showing": "Showing {{count}}",
+    "empty": "No notifications match these filters.",
+    "loading": "Loading notifications…",
+    "error": "We couldn't load your notifications.",
+    "retry": "Retry",
+    "selectAllShown": "Select all shown",
+    "selectAllShownAria": "Select all shown notifications",
+    "selectOne": "Select {{title}}",
+    "selected": "{{count}} selected",
+    "markRead": "Mark read",
+    "markUnread": "Mark unread",
+    "clearSelection": "Clear selection",
+    "delete": "Delete",
+    "statusRead": "Read",
+    "statusUnread": "Unread",
+    "time": {
+      "justNow": "just now",
+      "minutes": "{{count}}m ago",
+      "hours": "{{count}}h ago",
+      "days": "{{count}}d ago"
+    },
+    "detail": {
+      "category": "Category:",
+      "sent": "Sent:",
+      "status": "Status:",
+      "trigger": "What triggered this",
+      "close": "Close"
+    },
+    "actions": {
+      "reports": "View reports",
+      "simulations": "View simulations",
+      "classes": "View classes",
+      "products": "View products & usage"
+    },
+    "clearConfirm": {
+      "title": "Clear all notifications?",
+      "message_one": "This removes your {{count}} notification. It can't be undone.",
+      "message_other": "This removes all {{count}} notifications. It can't be undone.",
+      "confirm": "Clear all",
+      "cancel": "Cancel",
+      "loading": "Clearing…"
+    },
+    "types": {
+      "STUDENT_REPORT_AVAILABLE": "Student report available",
+      "LMS_GRADE_SYNC_FAILED": "LMS grade sync failed",
+      "SIMULATION_DUE_DATE_REMINDER": "Simulation due date reminder",
+      "SIMULATION_START_DATE_REMINDER": "Simulation start date reminder",
+      "SIMULATION_END_DATE_REMINDER": "Simulation end date reminder",
+      "CLASS_CREATED": "Class created",
+      "CLASS_TRANSFERRED": "Class transferred",
+      "CLASS_START_DATE_REMINDER": "Class start date reminder",
+      "CLASS_END_DATE_REMINDER": "Class end date reminder",
+      "TOKENS_ALLOCATED": "Seats allocated",
+      "EDUCATOR_LOW_SEAT_WARNING": "Low seat warning",
+      "PRODUCTS_ASSOCIATED": "Products associated",
+      "GENERAL": "General",
+      "EDUCATOR_REGISTERED": "Educator registered",
+      "SCHOOL_LOW_SEAT_WARNING": "Low school seat warning",
+      "EDUCATOR_SEAT_REQUEST": "Seat request",
+      "SCHOOL_STATUS_CHANGED": "School status changed",
+      "SCHOOL_REMOVED": "School removed",
+      "EMAIL_REPORT": "Email report",
+      "ASSESSMENT_REPORT": "Assessment report",
+      "BATCH_EMAIL": "Batch email",
+      "SEND_STUDENT_CODE": "Student code sent",
+      "ACCOUNT_REACTIVATED": "Account reactivated",
+      "FORGOT_PASSWORD": "Password reset",
+      "INVITE": "Invitation"
+    }
+  },
+  "productsUsage": {
+    "title": "My Products & Usage",
+    "associated": "My Active Associated Products ({{count}})",
+    "associatedSummary": "{{avatar}} avatar · {{workstation}} workstation",
+    "editions": {
+      "secondary": "Secondary Education Edition",
+      "postSecondary": "Post-Secondary Education Edition"
+    },
+    "avatarGroup": "Avatar Simulations",
+    "workstationGroup": "Workstation Simulations",
+    "requestMoreSeats": "Request More Seats",
+    "noneInGroup": "No currently associated products.",
+    "empty": "You have no associated products yet.",
+    "expires": "Expires {{date}}",
+    "remainingSeats": "Remaining allocated seats:",
+    "associatedProduct": "Associated product:",
+    "usage": {
+      "title": "My Usage",
+      "avatarBreakdown": "My Avatar Use Breakdown",
+      "remainingSeats": "Remaining Seats:",
+      "totalAvatarSeats": "My total use of avatar seats (secondary and post-secondary)",
+      "secondaryAvatarSeats": "My use of secondary avatar simulation seats",
+      "postSecondaryAvatarSeats": "My use of post-secondary avatar simulation seats",
+      "secondaryAvatarHours": "My use of secondary avatar simulation hours",
+      "postSecondaryAvatarHours": "My use of post-secondary avatar simulation hours",
+      "workstationBreakdown": "My Workstation Use Breakdown",
+      "totalWorkstation": "My total use of workstation hardware (secondary and post-secondary)",
+      "secondaryWorkstationHours": "My use of secondary workstation simulation hours",
+      "postSecondaryWorkstationHours": "My use of post-secondary workstation simulation hours",
+      "productHours": "My use of {{name}} simulation hours",
+      "seats": " seats",
+      "hours": " hrs",
+      "placeholderNote": "Avatar hours & hardware usage are placeholders — not tracked per educator yet."
+    }
+  },
+  "requestSeats": {
+    "productsQuestion": "Which products do you need more seats on?",
+    "searchProducts": "Search…",
+    "selectAll": "Select all",
+    "clearAll": "Clear all",
+    "noMatches": "No products match your search.",
+    "perProductTitle": "Seats requested per product",
+    "seatsPlaceholder": "Seats to request",
+    "seatsAria": "Seats to request for {{name}}",
+    "currentlyAvailable": "Currently available:",
+    "maxSeats": "Maximum 500 seats can be requested in total.",
+    "breakdownHeading": "Requested seats by product:",
+    "seat_one": "{{count}} seat",
+    "seat_other": "{{count}} seats",
+    "noteMaxWithProducts": "With the selected products, your note can be up to {{max}} characters."
+  },
+  "yourSchools": {
+    "title": "Your Schools ({{count}})",
+    "classes_one": "{{count}} active class",
+    "classes_other": "{{count}} active classes",
+    "students_one": "{{count}} active student",
+    "students_other": "{{count}} active students",
+    "loading": "Loading your schools…",
+    "error": "We couldn't load your classes, so school totals are unavailable right now.",
+    "unavailable": "Totals unavailable"
+  }
+}

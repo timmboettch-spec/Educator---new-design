@@ -1,47 +1,58 @@
+import '@/i18n';
 import { configureStore } from '@reduxjs/toolkit';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 import OtpVerify from '../../../src/pages/auth/OtpVerify/index';
 
-const MOCK_VERIFIED_TOKEN = Math.random().toString(36).slice(2);
+const MOCK_EMAIL = 'user@example.com';
 
-const { mockNavigate, mockDispatch, mockVerifyOTPRequest, mockResendOTPRequest, mockVerifyOTPReset } = vi.hoisted(
-  () => ({
-    mockNavigate: vi.fn(),
-    mockDispatch: vi.fn(),
-    mockVerifyOTPRequest: vi.fn((payload) => ({
-      type: 'auth/VerifyOTP',
-      payload,
-    })),
-    mockResendOTPRequest: vi.fn((payload) => ({
-      type: 'auth/ResendOTP',
-      payload,
-    })),
-    mockVerifyOTPReset: vi.fn(() => ({ type: 'auth/VerifyOTP/reset' })),
-  }),
-);
+const {
+  mockNavigate,
+  mockDispatch,
+  mockVerifyOTPRequest,
+  mockResendOTPRequest,
+  mockVerifyOTPReset,
+} = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
+  mockDispatch: vi.fn(),
+  mockVerifyOTPRequest: vi.fn((payload) => ({
+    type: 'auth/VerifyOTP',
+    payload,
+  })),
+  mockResendOTPRequest: vi.fn((payload) => ({
+    type: 'auth/ResendOTP',
+    payload,
+  })),
+  mockVerifyOTPReset: vi.fn(() => ({ type: 'auth/VerifyOTP/reset' })),
+}));
 
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual =
+    await vi.importActual<typeof import('react-router-dom')>(
+      'react-router-dom'
+    );
 
   return {
     ...actual,
     useNavigate: () => mockNavigate,
     useLocation: () => ({
-      state: { token: 'test-reset-token' },
+      state: { email: MOCK_EMAIL },
     }),
   };
 });
 
-
-
 vi.mock('../../../src/store/hooks', () => ({
   useAppDispatch: () => mockDispatch,
 }));
-
 
 vi.mock('../../../src/redux/auth/VerifyOTPRedux', () => ({
   VerifyOTPRequest: mockVerifyOTPRequest,
@@ -52,30 +63,34 @@ vi.mock('../../../src/redux/auth/VerifyOTPRedux', () => ({
 
 vi.mock('../../../src/redux/auth/ResendOTPRedux', () => ({
   ResendOTPRequest: mockResendOTPRequest,
-  selectResendOTPResponse: (state: unknown) =>
-    (state as { ResendOTP?: { responseResendOTP: { data: { reset_token: string } } } })
-      ?.ResendOTP?.responseResendOTP ?? null,
 }));
-
 
 vi.mock('../../../src/components/common/Toast', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   SESSION_TOAST_KEY: 'app_pending_toast',
-  sonnerToast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
+  sonnerToast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  },
   default: () => null,
 }));
-
 
 const buildStore = (
   storeOverrides: {
     verifyOtpStatus?: string;
     resendOtpStatus?: string;
-  } = {},
+  } = {}
 ) =>
   configureStore({
     reducer: {
-      VerifyOTP: (state = { status: storeOverrides.verifyOtpStatus ?? 'idle' }) => state,
-      ResendOTP: (state = { status: storeOverrides.resendOtpStatus ?? 'idle' }) => state,
+      VerifyOTP: (
+        state = { status: storeOverrides.verifyOtpStatus ?? 'idle' }
+      ) => state,
+      ResendOTP: (
+        state = { status: storeOverrides.resendOtpStatus ?? 'idle' }
+      ) => state,
     },
   });
 
@@ -85,20 +100,17 @@ const renderPage = (storeOverrides = {}) =>
       <MemoryRouter>
         <OtpVerify />
       </MemoryRouter>
-    </Provider>,
-  )
+    </Provider>
+  );
 
 describe('OtpVerify', () => {
   beforeEach(() => {
-    
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     vi.clearAllMocks();
     mockDispatch.mockReturnValue({
       unwrap: () =>
         Promise.resolve({
-          data: {
-            verified_token: MOCK_VERIFIED_TOKEN,
-          },
+          data: {},
           message: 'OTP verified successfully',
         }),
     });
@@ -122,12 +134,16 @@ describe('OtpVerify', () => {
 
     it('renders Verify button', () => {
       renderPage();
-      expect(screen.getByRole('button', { name: /Verify/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Verify/i })
+      ).toBeInTheDocument();
     });
 
     it('renders back to Sign In link', () => {
       renderPage();
-      expect(screen.getByText('Sign In', { selector: 'button' })).toBeInTheDocument();
+      expect(
+        screen.getByText('Sign In', { selector: 'button' })
+      ).toBeInTheDocument();
     });
 
     it('renders resend timer initially', () => {
@@ -141,8 +157,22 @@ describe('OtpVerify', () => {
     });
   });
 
-
   describe('OTP Input', () => {
+    it('labels the code group and each digit for screen readers', () => {
+      renderPage();
+      expect(
+        screen.getByRole('group', { name: 'Verification code' })
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Digit 1 of 6')).toHaveAttribute(
+        'id',
+        'otp-0'
+      );
+      expect(screen.getByLabelText('Digit 6 of 6')).toHaveAttribute(
+        'id',
+        'otp-5'
+      );
+    });
+
     it('accepts only numeric input', () => {
       renderPage();
       const firstInput = document.getElementById('otp-0') as HTMLInputElement;
@@ -174,7 +204,6 @@ describe('OtpVerify', () => {
       fireEvent.change(secondInput, { target: { value: '' } });
 
       fireEvent.keyDown(secondInput, { key: 'Backspace' });
-
     });
 
     it('allows pasting OTP digits', () => {
@@ -186,8 +215,9 @@ describe('OtpVerify', () => {
       });
       pasteEvent.clipboardData?.setData('text/plain', '123456');
 
-      fireEvent.paste(firstInput, { clipboardData: { getData: () => '123456' } });
-
+      fireEvent.paste(firstInput, {
+        clipboardData: { getData: () => '123456' },
+      });
     });
   });
 
@@ -206,7 +236,7 @@ describe('OtpVerify', () => {
         expect(mockDispatch).toHaveBeenCalledWith(
           expect.objectContaining({
             type: 'auth/VerifyOTP',
-          }),
+          })
         );
       });
     });
@@ -214,7 +244,6 @@ describe('OtpVerify', () => {
     it('does not submit OTP when Enter is pressed with incomplete OTP', async () => {
       renderPage();
 
-  
       for (let i = 0; i < 3; i++) {
         const input = document.getElementById(`otp-${i}`) as HTMLInputElement;
         fireEvent.change(input, { target: { value: `${i + 1}` } });
@@ -222,34 +251,28 @@ describe('OtpVerify', () => {
       const thirdInput = document.getElementById('otp-2') as HTMLInputElement;
       fireEvent.keyDown(thirdInput, { key: 'Enter' });
 
-    
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
     it('does not submit OTP when already loading and Enter is pressed', async () => {
       renderPage({ verifyOtpStatus: 'loading' });
 
-     
       for (let i = 0; i < 6; i++) {
         const input = document.getElementById(`otp-${i}`) as HTMLInputElement;
         fireEvent.change(input, { target: { value: `${i + 1}` } });
       }
 
-    
       mockDispatch.mockClear();
 
-  
       const lastInput = document.getElementById('otp-5') as HTMLInputElement;
       fireEvent.keyDown(lastInput, { key: 'Enter' });
 
-     
       expect(mockDispatch).not.toHaveBeenCalled();
     });
 
     it('prevents default behavior when Enter is pressed', () => {
       renderPage();
 
-      
       for (let i = 0; i < 6; i++) {
         const input = document.getElementById(`otp-${i}`) as HTMLInputElement;
         fireEvent.change(input, { target: { value: `${i + 1}` } });
@@ -289,6 +312,23 @@ describe('OtpVerify', () => {
       });
     });
 
+    it('sends the email and otp rather than a reset token', async () => {
+      renderPage();
+      for (let i = 0; i < 6; i++) {
+        const input = document.getElementById(`otp-${i}`) as HTMLInputElement;
+        fireEvent.change(input, { target: { value: `${i + 1}` } });
+      }
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Verify/i }));
+      });
+
+      expect(mockVerifyOTPRequest).toHaveBeenCalledWith({
+        email: MOCK_EMAIL,
+        otp: '123456',
+      });
+    });
+
     it('navigates to reset password on successful verification', async () => {
       renderPage();
 
@@ -301,7 +341,7 @@ describe('OtpVerify', () => {
       mockDispatch.mockReturnValueOnce({
         unwrap: () =>
           Promise.resolve({
-            data: { verified_token: MOCK_VERIFIED_TOKEN },
+            data: {},
             message: 'OTP verified successfully',
           }),
       });
@@ -316,10 +356,11 @@ describe('OtpVerify', () => {
         '/resetpassword',
         expect.objectContaining({
           state: expect.objectContaining({
-            verified_token: MOCK_VERIFIED_TOKEN,
+            email: MOCK_EMAIL,
+            otp: '123456',
           }),
           replace: true,
-        }),
+        })
       );
     });
 
@@ -334,7 +375,7 @@ describe('OtpVerify', () => {
       mockDispatch.mockReturnValueOnce({
         unwrap: () =>
           Promise.resolve({
-            data: { verified_token: MOCK_VERIFIED_TOKEN },
+            data: {},
             message: 'OTP verified successfully',
           }),
       });
@@ -344,7 +385,9 @@ describe('OtpVerify', () => {
       });
 
       // verifyOTP() reset action should have been dispatched to invalidate the OTP
-      expect(mockDispatch).toHaveBeenCalledWith({ type: 'auth/VerifyOTP/reset' });
+      expect(mockDispatch).toHaveBeenCalledWith({
+        type: 'auth/VerifyOTP/reset',
+      });
     });
 
     it('blocks re-verification when status is already succeeded', async () => {
@@ -366,7 +409,7 @@ describe('OtpVerify', () => {
       expect(mockVerifyOTPRequest).not.toHaveBeenCalled();
       // Error toast should be shown
       expect(toast.error).toHaveBeenCalledWith(
-        'OTP has already been used. Please reset a new OTP.',
+        'OTP has already been used. Please reset a new OTP.'
       );
     });
 
@@ -381,7 +424,10 @@ describe('OtpVerify', () => {
       // Simulate a slow response so the ref stays locked
       let resolveFirst!: (v: unknown) => void;
       mockDispatch.mockReturnValue({
-        unwrap: () => new Promise((res) => { resolveFirst = res; }),
+        unwrap: () =>
+          new Promise((res) => {
+            resolveFirst = res;
+          }),
       });
 
       const verifyButton = screen.getByRole('button', { name: /Verify/i });
@@ -394,7 +440,7 @@ describe('OtpVerify', () => {
       // Resolve the first request to clean up
       await act(async () => {
         resolveFirst({
-          data: { verified_token: 'tok' },
+          data: {},
           message: 'OTP verified successfully',
         });
       });
@@ -446,22 +492,88 @@ describe('OtpVerify', () => {
   // ───────────────────────────────────────────────────────────
 
   describe('Navigation', () => {
-    it('Sign In button navigates back to signin page', () => {
+    it('Sign In button navigates back to the login page', () => {
       renderPage();
 
       // Find the Sign In button - it's specifically the one in the back navigation section
       const buttons = screen.getAllByRole('button');
-      const signInButton = buttons.find(btn => btn.textContent?.includes('Sign In'));
+      const signInButton = buttons.find((btn) =>
+        btn.textContent?.includes('Sign In')
+      );
 
       if (signInButton) {
         fireEvent.click(signInButton);
-        expect(mockNavigate).toHaveBeenCalledWith('/signin');
+        expect(mockNavigate).toHaveBeenCalledWith('/login');
       }
     });
+  });
 
-    it('redirects to signin if no token is provided', () => {
+  describe('Resend OTP', () => {
+    const waitOutCooldown = () => {
+      for (let i = 0; i < 300; i += 1) {
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+      }
+    };
+
+    it('offers resend once the cooldown ends', () => {
       renderPage();
-      // Component should navigate on mount if no token
+      waitOutCooldown();
+      expect(
+        screen.getByRole('button', { name: 'Resend OTP' })
+      ).toBeInTheDocument();
+    });
+
+    it('disables resend and shows progress while the request runs', async () => {
+      renderPage();
+      waitOutCooldown();
+      mockDispatch.mockReturnValueOnce({ unwrap: () => new Promise(() => {}) });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Resend OTP' }));
+      });
+
+      const button = screen.getByRole('button', {
+        name: 'Sending a new code…',
+      });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'true');
+      expect(mockResendOTPRequest).toHaveBeenCalledTimes(1);
+    });
+
+    it('restarts the cooldown after a successful resend', async () => {
+      renderPage();
+      waitOutCooldown();
+      mockDispatch.mockReturnValueOnce({
+        unwrap: () => Promise.resolve({ message: 'OTP resent' }),
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Resend OTP' }));
+      });
+
+      expect(screen.getByText(/Resend OTP in/i)).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Resend OTP' })
+      ).not.toBeInTheDocument();
+    });
+
+    it('lets the user retry straight away when the resend fails', async () => {
+      const { toast } = await import('../../../src/components/common/Toast');
+      renderPage();
+      waitOutCooldown();
+      mockDispatch.mockReturnValueOnce({
+        unwrap: () => Promise.reject(new Error('Mail server down')),
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Resend OTP' }));
+      });
+
+      expect(toast.error).toHaveBeenCalled();
+      expect(screen.queryByText(/Resend OTP in/i)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Resend OTP' })).toBeEnabled();
     });
   });
 });

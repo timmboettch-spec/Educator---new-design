@@ -1,5 +1,11 @@
 import type { ScriptableContext } from 'chart.js';
-import { BarElement, CategoryScale, Chart as ChartJS, LinearScale, Tooltip } from 'chart.js';
+import {
+  BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  LinearScale,
+  Tooltip,
+} from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 
 import RightArrow from '../../public/assets/common/right_arrow.svg';
@@ -23,8 +29,18 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
 export default function Dashboard() {
   const metrics = [
-    { title: 'Schools Count', value: '12', sub: 'Total active schools', icon: School },
-    { title: 'Active Licenses', value: '385', sub: 'Licenses currently in use', icon: License },
+    {
+      title: 'Schools Count',
+      value: '12',
+      sub: 'Total active schools',
+      icon: School,
+    },
+    {
+      title: 'Active Licenses',
+      value: '385',
+      sub: 'Licenses currently in use',
+      icon: License,
+    },
     {
       title: 'Available Seats',
       value: '12,500',
@@ -37,7 +53,12 @@ export default function Dashboard() {
       sub: 'Usage trend remains stable',
       icon: TokenUsed,
     },
-    { title: 'Upcoming Renewals', value: '7', sub: 'Licenses due in next 30 days', icon: Renewals },
+    {
+      title: 'Upcoming Renewals',
+      value: '7',
+      sub: 'Licenses due in next 30 days',
+      icon: Renewals,
+    },
   ];
 
   const heatmapData = {
@@ -66,16 +87,18 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="p-8 min-h-screen font-sans text-text-primary bg-background-primary">
+    <div className="p-8 min-h-full font-sans text-text-primary bg-background-primary">
       <h1 className="text-h1 mb-8">District Dashboard</h1>
 
       {/* Hero Banner */}
       <div className="mb-12 grid grid-cols-page-header items-center relative overflow-hidden w-full min-h-[267px] rounded-[12.14px] bg-gradient-dashboard p-10">
         <div className="max-w-xl z-10">
-          <h2 className="text-h1 text-primary-600 leading-tight mb-4">Welcome, District Admin!</h2>
+          <h2 className="text-h1 text-primary-600 leading-tight mb-4">
+            Welcome, District Admin!
+          </h2>
           <p className="text-text-secondary text-lg font-medium mb-8">
-            Get a quick overview of your district's performance and manage your resources
-            efficiently.
+            Get a quick overview of your district's performance and manage your
+            resources efficiently.
           </p>
           <div className="flex flex-wrap gap-4">
             <Button className="bg-primary min-w-[132px] h-[40px] rounded-[10px] px-5 flex items-center justify-center gap-2 border-none text-white">
@@ -92,7 +115,11 @@ export default function Dashboard() {
 
         {/* Right Illustration Area */}
         <div className="hidden lg:flex flex-col items-center justify-center relative z-10 ml-10 text-right">
-          <img src={MathStudent} alt="Math Student" className="w-48 h-48 animate-pulse" />
+          <img
+            src={MathStudent}
+            alt="Math Student"
+            className="w-48 h-48 animate-pulse"
+          />
           <p className="text-xs font-semibold text-primary-700 opacity-50 italic w-48 mt-4">
             Empowering education, one seat at a time.
           </p>
@@ -114,10 +141,16 @@ export default function Dashboard() {
                   <h4 className="text-h4 font-bold">{m.value}</h4>
                 </div>
                 <div className="text-2xl transition-all cursor-default flex items-center justify-center">
-                  <img src={m.icon} alt={m.title} className="w-8 h-8 object-contain" />
+                  <img
+                    src={m.icon}
+                    alt={m.title}
+                    className="w-8 h-8 object-contain"
+                  />
                 </div>
               </div>
-              <p className="text-xs text-text-placeholder font-medium leading-tight">{m.sub}</p>
+              <p className="text-xs text-text-placeholder font-medium leading-tight">
+                {m.sub}
+              </p>
             </div>
           ))}
         </div>
@@ -159,14 +192,18 @@ export default function Dashboard() {
 
         {/* License Lifecycle Progress */}
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col">
-          <h3 className="text-h6 font-semibold mb-1">License Lifecycle Progress</h3>
+          <h3 className="text-h6 font-semibold mb-1">
+            License Lifecycle Progress
+          </h3>
           <p className="text-sm mb-10">Active License (2024-2025)</p>
 
           <div className="mt-auto">
             <div className="w-full h-4 bg-primary-100 rounded-full overflow-hidden mb-4">
               <div className="w-[60%] h-full bg-primary rounded-full transition-all duration-1000"></div>
             </div>
-            <p className="text-body-sm text-text-secondary">145 days remaining</p>
+            <p className="text-body-sm text-text-secondary">
+              145 days remaining
+            </p>
           </div>
         </div>
       </div>
@@ -175,7 +212,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-content gap-8">
         {/* Heatmap */}
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
-          <h3 className="text-h6 font-semibold mb-1">Class Consumption Heatmap</h3>
+          <h3 className="text-h6 font-semibold mb-1">
+            Class Consumption Heatmap
+          </h3>
           <p className="text-xs font-semibold text-text-placeholder mb-8">
             Seat usage across classes
           </p>
@@ -189,11 +228,17 @@ export default function Dashboard() {
 
         {/* Educator Accounts Status */}
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col">
-          <h3 className="text-h6 font-semibold mb-8">Educator Accounts Status</h3>
+          <h3 className="text-h6 font-semibold mb-8">
+            Educator Accounts Status
+          </h3>
           <div className="space-y-6 mb-10">
             <div className="flex justify-between items-center px-2">
               <div className="flex items-center text-text-secondary">
-                <img src={PendingInvites} alt="Pending Invites" className="w-4 h-4 mr-2" />
+                <img
+                  src={PendingInvites}
+                  alt="Pending Invites"
+                  className="w-4 h-4 mr-2"
+                />
                 Pending Invites:
               </div>
               <span className="w-6 h-6 bg-primary-100 text-primary rounded-full flex items-center justify-center text-xs font-bold">
@@ -202,7 +247,11 @@ export default function Dashboard() {
             </div>
             <div className="flex justify-between items-center px-2">
               <div className="flex items-center text-text-secondary">
-                <img src={PendingRequets} alt="Pending Requests" className="w-4 h-4 mr-2" />
+                <img
+                  src={PendingRequets}
+                  alt="Pending Requests"
+                  className="w-4 h-4 mr-2"
+                />
                 Pending Requests:
               </div>
               <span className="w-6 h-6 bg-primary-100 text-primary rounded-full flex items-center justify-center text-xs font-bold">
@@ -211,7 +260,8 @@ export default function Dashboard() {
             </div>
           </div>
           <Button className="mt-auto w-full py-3 font-normal rounded-2xl flex items-center justify-center gap-2 hover:opacity-80 transition-opacity border-none bg-primary/20 text-neutral-800">
-            View All <img src={RightArrow} alt="Right Arrow" className="w-4 h-4" />
+            View All{' '}
+            <img src={RightArrow} alt="Right Arrow" className="w-4 h-4" />
           </Button>
         </div>
 
@@ -233,7 +283,8 @@ export default function Dashboard() {
             </div>
           </div>
           <Button className="mt-auto w-full py-3 font-normal rounded-2xl flex items-center justify-center gap-2 hover:opacity-80 transition-opacity border-none bg-primary/25 text-neutral-800">
-            View Details <img src={RightArrow} alt="Right Arrow" className="w-4 h-4" />
+            View Details{' '}
+            <img src={RightArrow} alt="Right Arrow" className="w-4 h-4" />
           </Button>
         </div>
       </div>

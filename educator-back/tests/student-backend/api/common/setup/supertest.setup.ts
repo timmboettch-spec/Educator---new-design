@@ -2,8 +2,6 @@ import { ValidationPipe } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 
-import { createLoginValidationExceptionFactory } from '../../../../../src/student-backend/modules/auth/login-validation';
-
 /**
  * Boots a NestJS app from a compiled TestingModule.
  * Each API spec compiles its own module with mocked providers,
@@ -16,7 +14,6 @@ export async function createTestApp(moduleRef: TestingModule): Promise<INestAppl
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      exceptionFactory: createLoginValidationExceptionFactory(),
     }),
   );
   await app.init();

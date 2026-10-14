@@ -1,5 +1,9 @@
 ﻿import type { PayloadAction } from '@reduxjs/toolkit';
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import axios from 'axios';
 import config from '../../config';
 import type { RootState } from '../../../store';
@@ -37,7 +41,7 @@ export const DeleteStudentRequest = createAsyncThunk(
         });
       }
     }
-  },
+  }
 );
 
 const deleteStudentSlice = createSlice({
@@ -61,12 +65,13 @@ const deleteStudentSlice = createSlice({
         (state, action: PayloadAction<DeleteStudentResponse>) => {
           state.status = SUCCEEDED;
           state.response = action.payload;
-        },
+        }
       )
       .addCase(DeleteStudentRequest.rejected, (state, action) => {
         state.status = FAILED;
         state.error =
-          (action.payload as { message?: string })?.message || 'Failed to delete student';
+          (action.payload as { message?: string })?.message ||
+          'Failed to delete student';
       });
   },
 });
@@ -78,10 +83,13 @@ const selectDeleteStudentState = (state: RootState) => state.DeleteStudent;
 
 export const selectDeleteStudentLoading = createSelector(
   selectDeleteStudentState,
-  (s) => s.status === LOADING,
+  (s) => s.status === LOADING
 );
 export const selectDeleteStudentSuccess = createSelector(
   selectDeleteStudentState,
-  (s) => s.status === SUCCEEDED,
+  (s) => s.status === SUCCEEDED
 );
-export const selectDeleteStudentError = createSelector(selectDeleteStudentState, (s) => s.error);
+export const selectDeleteStudentError = createSelector(
+  selectDeleteStudentState,
+  (s) => s.error
+);

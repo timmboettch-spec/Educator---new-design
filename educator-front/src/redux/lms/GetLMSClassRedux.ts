@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import type { RootState } from '../../store';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
@@ -57,7 +61,8 @@ export const fetchLMSClasses = createAsyncThunk<
       students: (cls.students ?? []).map((s): MoodleMappedStudent => ({
         ...s,
         name: (s.studentName as string | undefined) ?? s.name ?? undefined,
-        user_id: (s.studentCode as string | undefined) ?? s.user_id ?? undefined,
+        user_id:
+          (s.studentCode as string | undefined) ?? s.user_id ?? undefined,
       })),
     }));
     const total: number = res.data?.data?.total ?? classes.length;
@@ -65,7 +70,8 @@ export const fetchLMSClasses = createAsyncThunk<
   } catch (err) {
     const error = err as { response?: { data?: { message?: string } } };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message ?? 'Failed to fetch Moodle classes',
+      message:
+        error.response?.data?.message ?? 'Failed to fetch Moodle classes',
     });
   }
 });
@@ -92,7 +98,8 @@ const moodleClassSlice = createSlice({
       })
       .addCase(fetchLMSClasses.rejected, (state, action) => {
         state.status = FAILED;
-        state.error = action.payload?.message ?? 'Failed to fetch Moodle classes';
+        state.error =
+          action.payload?.message ?? 'Failed to fetch Moodle classes';
       });
   },
 });
@@ -103,17 +110,17 @@ const selectMoodleClassState = (state: RootState) => state.moodleClasses;
 
 export const selectMoodleClasses = createSelector(
   selectMoodleClassState,
-  (s) => s.data?.classes ?? [],
+  (s) => s.data?.classes ?? []
 );
 
 export const selectMoodleClassStatus = createSelector(
   selectMoodleClassState,
-  (s) => s.status,
+  (s) => s.status
 );
 
 export const selectMoodleClassError = createSelector(
   selectMoodleClassState,
-  (s) => s.error,
+  (s) => s.error
 );
 
 export default moodleClassSlice.reducer;

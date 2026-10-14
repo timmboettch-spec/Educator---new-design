@@ -1,6 +1,6 @@
 /**
  * Unit tests for LTI role-based routing (RWED-1102 / M7)
- * 
+ *
  * Validates that:
  * - Learners are blocked from educator portal
  * - Instructors are blocked from student app
@@ -244,15 +244,11 @@ describe('LTI Role-Based Routing', () => {
       const normalizedRoles = roles.map((r) => r.toLowerCase());
 
       const isLearnerOnly = normalizedRoles.some(
-        (role) =>
-          role.includes('learner') ||
-          role.includes('student'),
+        (role) => role.includes('learner') || role.includes('student'),
       );
 
       const isInstructor = normalizedRoles.some(
-        (role) =>
-          role.includes('instructor') ||
-          role.includes('teacher'),
+        (role) => role.includes('instructor') || role.includes('teacher'),
       );
 
       const shouldBlockEducatorLaunch =

@@ -4,9 +4,10 @@ import config from '../config';
 import api from '../api';
 
 interface ChangePasswordPayload {
-  user_id: string;
-  old_password: string;
-  new_password: string;
+  oldPassword: string;
+  newPassword: string;
+  /** Keeps the full-page loader off (see loaderMiddleware); not sent to the API. */
+  silent?: boolean;
 }
 
 interface ChangePasswordState {
@@ -25,11 +26,17 @@ export const changePasswordRequest = createAsyncThunk<
   { rejectValue: string }
 >('changePassword/changePassword', async (payload, { rejectWithValue }) => {
   try {
-    const res = await api.put(config.ChangePasswordAPI, payload);
+    const { oldPassword, newPassword } = payload;
+    const res = await api.post(config.ChangePasswordAPI, {
+      oldPassword,
+      newPassword,
+    });
     return res.data?.message || 'Password changed successfully';
   } catch (error: unknown) {
     if (axios.isAxiosError(error)) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to change password');
+      return rejectWithValue(
+        error.response?.data?.message || 'Failed to change password'
+      );
     }
     return rejectWithValue('Failed to change password');
   }

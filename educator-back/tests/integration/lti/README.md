@@ -6,10 +6,19 @@ This directory contains integration tests for the LTI 1.3 launch flow.
 
 ### 1. Token Factory Tests (`tests/unit/lti/lti-token.factory.spec.ts`)
 Unit tests for the JWT token helper used by integration tests:
-- Educator and student token generation
+- Educator and student token generation (Moodle defaults)
+- Canvas educator/student token generation (Canvas NRPS URL + deployment_id)
 - Required LTI 1.3 claims validation
 - JWT structure and encoding
 - Custom claim support
+
+### 1b. Canvas mocked launch payloads (`tests/unit/lms/canvas-lti-launch.spec.ts`)
+Sandbox-free Canvas launch claim checks:
+- Educator/student Canvas-shaped id_token fixtures
+- Course extraction via `context.id`
+- NRPS `names_and_roles` URL shape
+- `aud` array + `azp` client id resolution
+- Role routing (Instructor / Learner / TeachingAssistant)
 
 ### 2. HTTP Endpoint Tests (`lti-http-endpoints.integration.spec.ts`)
 Tests the full HTTP flow for LTI endpoints:
@@ -18,6 +27,7 @@ Tests the full HTTP flow for LTI endpoints:
 - `/api/lti/studentcallback` - OIDC callback for student launch
 - `/api/lti/studentlaunch` - Complete student launch flow
 - `/api/lti/session/exchange` - Session code exchange
+- Removed legacy helpers: `POST /api/lti/bootstrap-config` and `/api/lti/debug-launch` return 404 (seed LMS config via Admin LMS Integration UI only)
 
 ### 3. NRPS Roster Sync Tests (`lti-nrps-sync.integration.spec.ts`)
 Tests roster synchronization from LTI 1.3 NRPS endpoints:
@@ -28,6 +38,14 @@ Tests roster synchronization from LTI 1.3 NRPS endpoints:
 - Authentication and API failures
 - Duplicate student handling
 - Course ID extraction from NRPS URLs
+
+### 4. State/Session Redis Tests (`lti-redis-cross-instance.integration.spec.ts`)
+Tests that the launch handoff survives a replica hop (RWAI-3083):
+- State/nonce written on one instance, validated on another
+- Session code created on one instance, exchanged on another
+- One-time use enforced across instances (atomic delete-on-read)
+- Redis TTL expiry (10 min state, 5 min session)
+- Redis unavailable — the launch fails instead of falling back to per-replica memory
 
 ## What's Tested
 
@@ -133,6 +151,7 @@ These tests run automatically on every PR to `dev`:
   - Edge cases (empty, large, duplicate data)
 - Error scenarios (missing tokens, invalid configs, JWT failures)
 - JWT claim structure for both educator and student tokens
+- Cross-replica state/session sharing via Redis (see spec 4 above)
 
 
 ## Implementation Notes

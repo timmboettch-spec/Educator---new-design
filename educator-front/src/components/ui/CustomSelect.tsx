@@ -72,7 +72,8 @@ export default function CustomSelect({
     if (!disabled) {
       const nextOpen = !open;
       setOpen(nextOpen);
-      if (nextOpen) setFocusedIndex(options.findIndex((o) => o.value === value));
+      if (nextOpen)
+        setFocusedIndex(options.findIndex((o) => o.value === value));
       else setFocusedIndex(-1);
     }
   };
@@ -101,8 +102,8 @@ export default function CustomSelect({
           setFocusedIndex(
             Math.max(
               0,
-              options.findIndex((o) => o.value === value),
-            ),
+              options.findIndex((o) => o.value === value)
+            )
           );
         }
         break;
@@ -113,8 +114,8 @@ export default function CustomSelect({
           setFocusedIndex(
             Math.max(
               0,
-              options.findIndex((o) => o.value === value),
-            ),
+              options.findIndex((o) => o.value === value)
+            )
           );
         } else {
           setFocusedIndex((prev) => Math.min(prev + 1, count - 1));
@@ -140,7 +141,8 @@ export default function CustomSelect({
   // Scroll highlighted option into view
   useEffect(() => {
     if (!open || focusedIndex < 0 || !listRef.current) return;
-    const el = listRef.current.children[focusedIndex] as HTMLElement | undefined;
+    const el = listRef.current.children[focusedIndex] as
+      HTMLElement | undefined;
     el?.scrollIntoView({ block: 'nearest' });
   }, [focusedIndex, open]);
 
@@ -156,28 +158,34 @@ export default function CustomSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         className={cn(
-          'h-11 px-4 rounded-xl border-2 bg-white text-sm w-full flex items-center justify-between transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-border',
+          'h-11 px-4 rounded-xl border-2 bg-white text-sm w-full flex items-center justify-between transition-all duration-200 focus:outline-none focus-border',
           !disabled && !open && !error && 'border-gray-300 cursor-pointer',
-          disabled && 'cursor-not-allowed bg-gray-50 text-gray-500 border-gray-200',
-          open && 'border-primary-500 cursor-pointer',
+          disabled &&
+            'cursor-not-allowed bg-gray-50 text-gray-500 border-gray-200',
+          open && 'border-orange-500 cursor-pointer',
           !open && error && 'border-red-400',
-          !open && !disabled && !error && 'focus-visible:border-primary-500',
+          !open && !disabled && !error && 'focus-visible:border-orange-500'
         )}
       >
-        <span className={selectedLabel ? 'text-gray-900' : 'text-gray-500'}>
+        <span className={selectedLabel ? 'text-gray-900' : 'text-gray-400'}>
           {selectedLabel || placeholder}
         </span>
         <svg
           className={cn(
-            'w-4 h-4 text-gray-500 transition-transform duration-200 shrink-0',
-            open && 'rotate-180',
+            'w-4 h-4 text-gray-400 transition-transform duration-200 shrink-0',
+            open && 'rotate-180'
           )}
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
           aria-hidden="true"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
 
@@ -198,10 +206,10 @@ export default function CustomSelect({
               className={cn(
                 'px-4 py-2 text-sm cursor-pointer transition-colors duration-150',
                 idx === focusedIndex
-                  ? 'bg-[#e9e9e9] text-black'
+                  ? 'bg-orange-100 text-orange-700'
                   : opt.value === value
-                    ? 'bg-[#5f6060] text-white font-medium'
-                    : 'text-gray-700 hover:bg-[#e9e9e9] hover:text-black',
+                    ? 'bg-orange-50 text-orange-600 font-medium'
+                    : 'text-gray-700 hover:bg-orange-50 hover:text-orange-600'
               )}
             >
               {opt.label}

@@ -27,12 +27,14 @@ The report is generated to: `tests/e2e/results/reports/html/ui-smoke-test-report
 ## Report Structure
 
 ### Header Section
+
 - Project name and framework info
 - Total execution duration
 - Generation timestamp
 - RealityWorks AI logo
 
 ### Statistics Dashboard
+
 - Test Suites count
 - Total Tests
 - Passed tests (green)
@@ -41,11 +43,13 @@ The report is generated to: `tests/e2e/results/reports/html/ui-smoke-test-report
 - Success rate percentage
 
 ### Search & Filter
+
 - Real-time search box
 - Filter buttons: All, Passed, Failed, Skipped
 - Live results update
 
 ### Test Results
+
 - Organized by module
 - Sub-organized by file
 - Each test shows:
@@ -61,35 +65,43 @@ The reporter is configured in `playwright.config.ts`:
 ```typescript
 reporter: [
   ['list'],
-  ['./tests/e2e/reporters/friendly-html-reporter.cjs', {
-    outputFolder: './tests/e2e/results/reports/html',
-    pageTitle: 'UI Smoke Test Report',
-    projectName: 'Educator App — Frontend E2E',
-  }]
-]
+  [
+    './tests/e2e/reporters/friendly-html-reporter.cjs',
+    {
+      outputFolder: './tests/e2e/results/reports/html',
+      pageTitle: 'UI Smoke Test Report',
+      projectName: 'Educator App — Frontend E2E',
+    },
+  ],
+];
 ```
 
 ## Report Features in Detail
 
 ### Search Functionality
+
 - Searches across test name, file name, and module
 - Case-insensitive
 - Real-time filtering
 - Combines with status filters
 
 ### Filter Options
+
 - **All** - Shows all tests
 - **Passed** - Shows only passing tests
 - **Failed** - Shows only failed tests
 - **Skipped** - Shows only skipped tests
 
 ### Module Organization
+
 Modules are automatically extracted from file paths:
+
 - `tests/e2e/modules/auth/` → Auth Module
 - `tests/e2e/modules/class/` → Class Module
 - `tests/e2e/modules/dashboard/` → Dashboard Module
 
 ### Collapsible Sections
+
 - Click module headers to collapse/expand
 - Useful for navigating large test suites
 - State persists within page session

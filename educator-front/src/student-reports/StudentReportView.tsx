@@ -1,49 +1,56 @@
-
-import { motion } from "framer-motion";
-import { jsPDF } from "jspdf";
+import { motion } from 'framer-motion';
+import { jsPDF } from 'jspdf';
 import {
   ArrowLeft,
+  ArrowRight,
   Download,
-  Mail,
-  Award,
   AlertCircle,
   CheckCircle,
+  ChevronDown,
+  FileText,
+  List,
   Target,
   Trophy,
-  User,
   Zap,
-} from "lucide-react";
-import { useState, useEffect, useMemo, type ComponentProps } from "react";
-
-import { api } from "./studentReportApi";
-import { resolveDisplayClassName } from "./resolveDisplayClassName";
-import { sanitizePdfText } from "../lib/utils";
+} from 'lucide-react';
 import {
-  downloadStudentReportPDF,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  type ComponentProps,
+} from 'react';
+
+import { api } from './studentReportApi';
+import { resolveDisplayClassName } from './resolveDisplayClassName';
+import { sanitizePdfText, cn } from '../lib/utils';
+import { generatePdfFromElement } from '../lib/pdfCapture';
+import {
   type ReportDataForPDF,
   buildStudentReportPDF,
-} from "./generateStudentReportPDF";
+} from './generateStudentReportPDF';
 
-import CommunicationSection from "./communication-section";
-import type { CommunicationSectionLabels } from "./communication-section";
-import RubricsSection from "./rubrics-section";
-import type { RubricsLabels } from "./rubrics-section";
-import loginEn from "../locales/auth/login/en.json";
-import loginEs from "../locales/auth/login/es.json";
+import CommunicationSection from './communication-section';
+import type { CommunicationSectionLabels } from './communication-section';
+import RubricsSection from './rubrics-section';
+import type { RubricsLabels } from './rubrics-section';
+import loginEn from '../locales/auth/login/en.json';
+import loginEs from '../locales/auth/login/es.json';
 
-type SupportedLang = "en" | "es";
+type SupportedLang = 'en' | 'es';
 const getStoredLanguage = (): SupportedLang => {
-  if (typeof window === "undefined") return "en";
-  const saved = localStorage.getItem("app_language")?.toLowerCase();
-  return saved === "es" ? "es" : "en";
+  if (typeof window === 'undefined') return 'en';
+  const saved = localStorage.getItem('app_language')?.toLowerCase();
+  return saved === 'es' ? 'es' : 'en';
 };
 
 type StrengthOrWeakness = string | { point?: string; example?: string };
 
 const swPoint = (s: StrengthOrWeakness): string =>
-  typeof s === "string" ? s : (s?.point ?? "");
+  typeof s === 'string' ? s : (s?.point ?? '');
 const swExample = (s: StrengthOrWeakness): string | undefined =>
-  typeof s === "string" ? undefined : s?.example;
+  typeof s === 'string' ? undefined : s?.example;
 
 interface ActionDetail {
   type?: string;
@@ -114,7 +121,7 @@ interface ReportData {
   key?: string;
   score?: number;
   summary?: string;
-  mode?: "Practice" | "Assessment";
+  mode?: 'Practice' | 'Assessment';
   debriefReflection?: string;
   strengths?: StrengthOrWeakness[];
   improvements?: StrengthOrWeakness[];
@@ -133,7 +140,7 @@ export interface StudentReportViewProps {
   onViewTranscript?: (reportId: string) => void;
   onEmailReport?: () => void;
   onRegisterPdfGenerator?: (fn: (() => string | null) | null) => void;
-  variant?: "student" | "educator";
+  variant?: 'student' | 'educator';
   classNameOverride?: string;
 }
 
@@ -143,41 +150,83 @@ export default function StudentReportView({
   onViewTranscript,
   onEmailReport,
   onRegisterPdfGenerator,
-  variant = "student",
+  variant = 'student',
   classNameOverride,
 }: StudentReportViewProps) {
-
-  const [language, setLanguage] = useState<"en" | "es">(getStoredLanguage);
+  const [language, setLanguage] = useState<'en' | 'es'>(getStoredLanguage);
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "app_language") {
-        setLanguage(e.newValue?.toLowerCase() === "es" ? "es" : "en");
+      if (e.key === 'app_language') {
+        setLanguage(e.newValue?.toLowerCase() === 'es' ? 'es' : 'en');
       }
     };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const locale = language === "es" ? loginEs : loginEn;
+  const locale = language === 'es' ? loginEs : loginEn;
   const rL = locale.studentReport;
-  const commLabels: CommunicationSectionLabels = rL.communication as CommunicationSectionLabels;
+  const commLabels: CommunicationSectionLabels =
+    rL.communication as CommunicationSectionLabels;
   const rubricLabels: RubricsLabels = rL.rubric as RubricsLabels;
 
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [report, setReport] = useState<ReportData | null>(null);
-  const [generatedDate, setGeneratedDate] = useState<string>("");
+  const [generatedDate, setGeneratedDate] = useState<string>('');
   const [scenarioSimulationStartTime, setScenarioSimulationStartTime] =
-    useState<string>("");
+    useState<string>('');
   const [mandatoryMedicationTitles, setMandatoryMedicationTitles] = useState<
     string[]
   >([]);
   const [scenarioRubricConfig, setScenarioRubricConfig] = useState<
     Array<{ id: string; weight: number; subCategory: string }>
   >([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isEmailing, setIsEmailing] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [jumpSections, setJumpSections] = useState<
+    Array<{ id: string; title: string }>
+  >([]);
+  const [isJumpOpen, setIsJumpOpen] = useState(false);
+  const jumpRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (jumpRef.current && !jumpRef.current.contains(event.target as Node)) {
+        setIsJumpOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const refreshJumpSections = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    const elements = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-jump-section]')
+    );
+    const sections = elements
+      .map((el) => ({
+        id: el.id,
+        title: el.getAttribute('data-jump-title') || el.id,
+      }))
+      .filter((s) => Boolean(s.id && s.title));
+    setJumpSections(sections);
+  }, []);
+
+  useEffect(() => {
+    refreshJumpSections();
+    const t1 = setTimeout(refreshJumpSections, 100);
+    const t2 = setTimeout(refreshJumpSections, 400);
+    const t3 = setTimeout(refreshJumpSections, 1000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [report, loading, refreshJumpSections]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [_expandedCategories, setExpandedCategories] = useState<
     Record<string, boolean>
@@ -200,20 +249,14 @@ export default function StudentReportView({
   const [tcTypeRequirement, setTcTypeRequirement] = useState<
     string | undefined
   >(undefined);
-  // Corrected overall score computed on the frontend using the flat-pool
-  // Actions+Medications model. Overrides report.score in the UI so that
-  // both mandatory actions and mandatory medications are counted equally.
-  const [correctedOverallScore, setCorrectedOverallScore] = useState<
-    number | null
-  >(null);
   const displayClassName = useMemo(
     () =>
       resolveDisplayClassName(
         report?.studentClass,
         classNameOverride,
-        report?.studentName,
+        report?.studentName
       ),
-    [report?.studentClass, classNameOverride, report?.studentName],
+    [report?.studentClass, classNameOverride, report?.studentName]
   );
 
   const pdfGenerator = useMemo<(() => string | null) | null>(() => {
@@ -227,8 +270,8 @@ export default function StudentReportView({
           returnDoc: true,
           language,
         });
-        const dataUri = pdf.output("datauristring") as string;
-        return dataUri.replace(/^data:application\/pdf;base64,/, "");
+        const dataUri = pdf.output('datauristring') as string;
+        return dataUri.replace(/^data:application\/pdf;base64,/, '');
       } catch {
         return null;
       }
@@ -249,7 +292,7 @@ export default function StudentReportView({
     }
 
     let retryCount = 0;
-    const maxRetries = variant === "educator" ? 1 : 10;
+    const maxRetries = variant === 'educator' ? 1 : 10;
     const retryDelay = 2000; // 2 seconds between retries
 
     const fetchReport = async () => {
@@ -285,10 +328,10 @@ export default function StudentReportView({
               const titles = orders
                 .filter(
                   (o) =>
-                    o?.category === "Medication" &&
-                    o?.medicationConfig?.gradingConfig?.enabled === true,
+                    o?.category === 'Medication' &&
+                    o?.medicationConfig?.gradingConfig?.enabled === true
                 )
-                .map((o) => (o.title ?? "").trim())
+                .map((o) => (o.title ?? '').trim())
                 .filter((t) => t.length > 0);
               setMandatoryMedicationTitles(titles);
             }
@@ -312,15 +355,24 @@ export default function StudentReportView({
             // simulation session). This prevents the badge from showing when the
             // scenario config has TC enabled but the student never encountered it.
             const tcReq = (
-              scenario as { teamCommunication?: { typeRequirement?: string; isButtonEnabled?: boolean } } | null
+              scenario as {
+                teamCommunication?: {
+                  typeRequirement?: string;
+                  isButtonEnabled?: boolean;
+                };
+              } | null
             )?.teamCommunication?.typeRequirement;
-            const tcEnabled = (
-              scenario as { teamCommunication?: { isButtonEnabled?: boolean } } | null
-            )?.teamCommunication?.isButtonEnabled === true;
-            const tcInReportData = Array.isArray(data.summaryByCategory?.actions) &&
-              (data.summaryByCategory!.actions as Array<{ title?: string }>).some(
-                (a) => a.title === "Team Communication",
-              );
+            const tcEnabled =
+              (
+                scenario as {
+                  teamCommunication?: { isButtonEnabled?: boolean };
+                } | null
+              )?.teamCommunication?.isButtonEnabled === true;
+            const tcInReportData =
+              Array.isArray(data.summaryByCategory?.actions) &&
+              (
+                data.summaryByCategory!.actions as Array<{ title?: string }>
+              ).some((a) => a.title === 'Team Communication');
             if (tcReq && tcEnabled && tcInReportData) {
               setTcTypeRequirement(tcReq);
             }
@@ -338,9 +390,9 @@ export default function StudentReportView({
           setTimeout(fetchReport, retryDelay);
         } else {
           setError(
-            variant === "educator"
-              ? "Unable to load this report. Please try again."
-              : "Failed to load report. If you just finished a simulation, please wait a minute and refresh the page.",
+            variant === 'educator'
+              ? 'Unable to load this report. Please try again.'
+              : 'Failed to load report. If you just finished a simulation, please wait a minute and refresh the page.'
           );
           setLoading(false);
         }
@@ -367,22 +419,22 @@ export default function StudentReportView({
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _getCategoryDisplayName = (category: string): string => {
-    return `[${category || "summary"}]`;
+    return `[${category || 'summary'}]`;
   };
 
   const formatDateTime = (value: unknown) => {
     if (!value) {
-      return "";
+      return '';
     }
-    const dateLocale = language === "es" ? "es-ES" : "en-US";
+    const dateLocale = language === 'es' ? 'es-ES' : 'en-US';
     try {
       const d = new Date(value as string | number | Date);
       if (!isNaN(d.getTime())) {
-        const month = d.toLocaleString(dateLocale, { month: "long" });
+        const month = d.toLocaleString(dateLocale, { month: 'long' });
         const day = d.getDate();
         const year = d.getFullYear();
-        const hours = d.getHours().toString().padStart(2, "0");
-        const minutes = d.getMinutes().toString().padStart(2, "0");
+        const hours = d.getHours().toString().padStart(2, '0');
+        const minutes = d.getMinutes().toString().padStart(2, '0');
         return `${month} ${day}, ${year} ${hours}:${minutes}`;
       }
       // Handle pre-formatted strings like "05/18/2026 18:45" — reformat
@@ -390,14 +442,34 @@ export default function StudentReportView({
       const match = str.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(.+)$/);
       if (match) {
         const monthsEn = [
-          "January", "February", "March", "April", "May", "June",
-          "July", "August", "September", "October", "November", "December",
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
         ];
         const monthsEs = [
-          "enero", "febrero", "marzo", "abril", "mayo", "junio",
-          "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+          'enero',
+          'febrero',
+          'marzo',
+          'abril',
+          'mayo',
+          'junio',
+          'julio',
+          'agosto',
+          'septiembre',
+          'octubre',
+          'noviembre',
+          'diciembre',
         ];
-        const months = language === "es" ? monthsEs : monthsEn;
+        const months = language === 'es' ? monthsEs : monthsEn;
         const monthName = months[parseInt(match[1], 10) - 1] || match[1];
         return `${monthName} ${match[2]}, ${match[3]} ${match[4]}`;
       }
@@ -430,12 +502,14 @@ export default function StudentReportView({
       // Add elapsed time to configured simulation start time
       const simulationTime = new Date(configuredStart.getTime() + elapsedMs);
 
-      const dateLocale = language === "es" ? "es-ES" : "en-US";
-      const month = simulationTime.toLocaleString(dateLocale, { month: "long" });
+      const dateLocale = language === 'es' ? 'es-ES' : 'en-US';
+      const month = simulationTime.toLocaleString(dateLocale, {
+        month: 'long',
+      });
       const day = simulationTime.getDate();
       const year = simulationTime.getFullYear();
-      const hours = simulationTime.getHours().toString().padStart(2, "0");
-      const minutes = simulationTime.getMinutes().toString().padStart(2, "0");
+      const hours = simulationTime.getHours().toString().padStart(2, '0');
+      const minutes = simulationTime.getMinutes().toString().padStart(2, '0');
       return `${month} ${day}, ${year} ${hours}:${minutes}`;
     } catch {
       return formatDateTime(realTimestamp);
@@ -471,7 +545,7 @@ export default function StudentReportView({
     if (Array.isArray(val)) {
       return val;
     }
-    if (val && typeof val === "object") {
+    if (val && typeof val === 'object') {
       const results: unknown[] = [];
       for (const inner of Object.values(val as Record<string, unknown>)) {
         if (Array.isArray(inner)) {
@@ -486,15 +560,15 @@ export default function StudentReportView({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _getScoreColor = (score: number) => {
     if (score >= 90) {
-      return "text-emerald-700";
+      return 'text-emerald-700';
     }
     if (score >= 75) {
-      return "text-blue-700";
+      return 'text-blue-700';
     }
     if (score >= 60) {
-      return "text-amber-700";
+      return 'text-amber-700';
     }
-    return "text-rose-700";
+    return 'text-rose-700';
   };
 
   // Handle back navigation
@@ -510,14 +584,14 @@ export default function StudentReportView({
       <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#db8833] mb-4" />
         <p className="text-gray-600 text-lg">
-          {variant === "educator"
-            ? "Loading student report..."
-            : "Finalizing your Assessment Report..."}
+          {variant === 'educator'
+            ? 'Loading student report...'
+            : 'Finalizing your Assessment Report...'}
         </p>
-        <p className="text-gray-500 text-sm mt-2 font-medium">
-          {variant === "educator"
-            ? "Fetching assessment data for this student."
-            : "This may take a few moments while we sync the data."}
+        <p className="text-gray-400 text-sm mt-2 font-medium">
+          {variant === 'educator'
+            ? 'Fetching assessment data for this student.'
+            : 'This may take a few moments while we sync the data.'}
         </p>
       </div>
     );
@@ -527,16 +601,16 @@ export default function StudentReportView({
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50">
         <div className="bg-white p-8 rounded-lg border border-gray-200 max-w-md text-center shadow-sm">
-          <AlertCircle className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+          <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
             Unable to Load Report
           </h2>
           <p className="text-gray-600 mb-6">
-            {error || "Report not found or access denied."}
+            {error || 'Report not found or access denied.'}
           </p>
           <button
             onClick={handleBack}
-            className="inline-flex items-center gap-2 px-5 py-2.5 border border-[#db8833] text-[#db8833] rounded-lg font-semibold hover:bg-[#E3F2FD] transition-colors"
+            className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[#C23D00] text-[#C23D00] rounded-lg font-semibold hover:bg-[#FFF4EC] transition-colors outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C23D00] focus-visible:ring-offset-2"
           >
             <ArrowLeft className="w-4 h-4" />
             Go Back
@@ -551,7 +625,7 @@ export default function StudentReportView({
   const rubrics = report?.communicationAssessment?.rubrics;
   const hasRubrics =
     !!rubrics?.items && Object.keys(rubrics.items || {}).length > 0;
-  const executiveSummaryText = rubrics?.overallSummary || report?.summary || "";
+  const executiveSummaryText = rubrics?.overallSummary || report?.summary || '';
   const reportData = {
     score,
     summary: executiveSummaryText,
@@ -666,8 +740,8 @@ export default function StudentReportView({
       actions as Array<{ title?: string; details?: string }>
     ).filter(
       (action) =>
-        action.title === "Team Communication" &&
-        action.details?.includes("Result:"),
+        action.title === 'Team Communication' &&
+        action.details?.includes('Result:')
     );
 
     if (sbarEntries.length === 0) {
@@ -684,19 +758,24 @@ export default function StudentReportView({
       })
       .filter(Boolean);
 
-    if (statuses.some((s) => s?.toLowerCase() === "satisfactory")) {
-      return "Satisfactory";
+    if (statuses.some((s) => s?.toLowerCase() === 'satisfactory')) {
+      return 'Satisfactory';
     }
     const last = statuses[statuses.length - 1] ?? null;
     // "Not Attempted" means the student never opened TC — treat as null so
     // Optional/Distractor scenarios correctly show the "NOT DONE" badge
-    if (last?.toLowerCase() === "not" || last?.toLowerCase() === "not attempted") {
+    if (
+      last?.toLowerCase() === 'not' ||
+      last?.toLowerCase() === 'not attempted'
+    ) {
       return null;
     }
     // Handle multi-word "Not Attempted" stored as single token by regex
-    const lastRaw = sbarEntries[sbarEntries.length - 1]?.details ?? "";
-    const fullMatch = lastRaw.match(/Result:\s*(Not Attempted|Satisfactory|Unsatisfactory)/i);
-    if (fullMatch && fullMatch[1].toLowerCase() === "not attempted") {
+    const lastRaw = sbarEntries[sbarEntries.length - 1]?.details ?? '';
+    const fullMatch = lastRaw.match(
+      /Result:\s*(Not Attempted|Satisfactory|Unsatisfactory)/i
+    );
+    if (fullMatch && fullMatch[1].toLowerCase() === 'not attempted') {
       return null;
     }
     return last;
@@ -708,20 +787,71 @@ export default function StudentReportView({
   // derive it from `variant` (rather than hard-coding `false`) so the guarded
   // sections remain wired to a real runtime signal and can be enabled by an
   // admin build without further edits.
-  const isAdminView: boolean = (variant as string) === "admin";
+  const isAdminView: boolean = (variant as string) === 'admin';
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!report) return;
     setIsGeneratingPDF(true);
     try {
-      downloadStudentReportPDF(report as ReportDataForPDF, {
+      const rLAny = rL as Record<string, unknown>;
+      const rubricAny = (rL.rubric || {}) as Record<string, unknown>;
+      const reportIdLabelRaw =
+        typeof rLAny.reportId === 'string'
+          ? rLAny.reportId
+          : typeof rubricAny.reportId === 'string'
+            ? rubricAny.reportId
+            : 'Report ID';
+      const reportIdLabel = reportIdLabelRaw
+        ? reportIdLabelRaw.replace(/:$/, '').trim()
+        : 'Report ID';
+
+      await generatePdfFromElement({
+        elementId: 'report-printable',
+        fileName: `report-${reportId}.pdf`,
         reportId,
-        displayClassName: displayClassName ?? undefined,
-        language,
+        labels: {
+          reportId: reportIdLabel,
+          page: typeof rubricAny.page === 'string' ? rubricAny.page : 'Page',
+          of: typeof rubricAny.of === 'string' ? rubricAny.of : 'of',
+        },
+        onCloneExtra: (clonedEl) => {
+          const hideEls = clonedEl.querySelectorAll<HTMLElement>('.pdf-hide');
+          hideEls.forEach((el) => {
+            el.style.display = 'none';
+          });
+          if (clonedEl.classList.contains('pdf-hide')) {
+            clonedEl.style.display = 'none';
+          }
+
+          const pdfOnlyEls =
+            clonedEl.querySelectorAll<HTMLElement>('[data-pdfonly]');
+          pdfOnlyEls.forEach((el) => {
+            el.style.display = 'inline-block';
+          });
+          if (clonedEl.hasAttribute('data-pdfonly')) {
+            clonedEl.style.display = 'inline-block';
+          }
+
+          const scoreLabels = clonedEl.querySelectorAll<HTMLElement>(
+            '[data-pdf-scorelabel]'
+          );
+          scoreLabels.forEach((el) => {
+            el.style.color = '#5f6060';
+          });
+          const scoreCard = clonedEl.querySelector<HTMLElement>(
+            '#sec-score, [data-pdf-scorecard]'
+          );
+          if (scoreCard) {
+            scoreCard.style.background = '#ffffff';
+            scoreCard.style.backgroundImage = 'none';
+            scoreCard.style.backgroundColor = '#ffffff';
+          }
+        },
       });
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (_error) {
-      alert("An error occurred while generating the PDF. Please try again.");
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to generate report PDF:', err);
+      alert('An error occurred while generating the PDF. Please try again.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -746,19 +876,19 @@ export default function StudentReportView({
 
       // Header
       pdf.setFontSize(FONT_SIZE_TITLE);
-      pdf.setFont("helvetica", "bold");
+      pdf.setFont('helvetica', 'bold');
       pdf.text(
-        report?.mode === "Practice" ? "Practice Report" : "Assessment Report",
+        report?.mode === 'Practice' ? 'Practice Report' : 'Assessment Report',
         20,
-        yPos,
+        yPos
       );
-      pdf.setFont("helvetica", "normal");
+      pdf.setFont('helvetica', 'normal');
       yPos += 15;
 
       const scenarioTitle =
         report?.scenarioTitle ||
-        report?.scenarioId?.replace(/-/g, " ") ||
-        "N/A";
+        report?.scenarioId?.replace(/-/g, ' ') ||
+        'N/A';
 
       const simulationStarted = getSimulationDateTime();
       const simulationSubmitted = getSimulationSubmittedTime();
@@ -766,74 +896,74 @@ export default function StudentReportView({
       // Scenario Info
       pdf.setFontSize(FONT_SIZE_BODY);
       const studentCodeLines = pdf.splitTextToSize(
-        sanitizePdfText(`Student Code: ${report?.userId || "N/A"}`),
-        170,
+        sanitizePdfText(`Student Code: ${report?.userId || 'N/A'}`),
+        170
       ) as string[];
       pdf.text(studentCodeLines, 20, yPos);
       yPos += studentCodeLines.length * 6 + 4;
 
       const classLines = pdf.splitTextToSize(
-        sanitizePdfText(`Class: ${displayClassName || "N/A"}`),
-        170,
+        sanitizePdfText(`Class: ${displayClassName || 'N/A'}`),
+        170
       ) as string[];
       pdf.text(classLines, 20, yPos);
       yPos += classLines.length * 6 + 4;
 
       const scenarioLines = pdf.splitTextToSize(
         sanitizePdfText(`Sim: ${scenarioTitle}`),
-        170,
+        170
       ) as string[];
       pdf.text(scenarioLines, 20, yPos);
       yPos += scenarioLines.length * 6 + 4;
 
       const startedLines = pdf.splitTextToSize(
-        sanitizePdfText(`Simulation Started: ${simulationStarted || "N/A"}`),
-        170,
+        sanitizePdfText(`Simulation Started: ${simulationStarted || 'N/A'}`),
+        170
       ) as string[];
       pdf.text(startedLines, 20, yPos);
       yPos += startedLines.length * 6 + 4;
 
       const submittedLines = pdf.splitTextToSize(
         sanitizePdfText(
-          `Simulation Submitted: ${simulationSubmitted || "N/A"}`,
+          `Simulation Submitted: ${simulationSubmitted || 'N/A'}`
         ),
-        170,
+        170
       ) as string[];
       pdf.text(submittedLines, 20, yPos);
       yPos += submittedLines.length * 6 + 4;
 
       const generatedLines = pdf.splitTextToSize(
         sanitizePdfText(
-          `Report Generated: ${getSimulationReportGeneratedTime() || "N/A"}`,
+          `Report Generated: ${getSimulationReportGeneratedTime() || 'N/A'}`
         ),
-        170,
+        170
       ) as string[];
       pdf.text(generatedLines, 20, yPos);
       yPos += generatedLines.length * 6 + 10;
 
       // Overall Score (Assessment Mode only)
-      if (report?.mode !== "Practice") {
+      if (report?.mode !== 'Practice') {
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
+        pdf.setFont('helvetica', 'bold');
         pdf.text(
           sanitizePdfText(`Overall Performance Score: ${score || 0}%`),
           20,
-          yPos,
+          yPos
         );
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         yPos += 15;
       }
 
       // Executive Summary
       pdf.setFontSize(FONT_SIZE_SECTION);
-      pdf.setFont("helvetica", "bold");
-      pdf.text("Executive Summary:", 20, yPos);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Executive Summary:', 20, yPos);
       yPos += 8;
       pdf.setFontSize(FONT_SIZE_BODY);
-      pdf.setFont("helvetica", "normal");
+      pdf.setFont('helvetica', 'normal');
       const summaryLines = pdf.splitTextToSize(
         sanitizePdfText(reportData.summary),
-        170,
+        170
       ) as string[];
       pdf.text(summaryLines, 20, yPos);
       yPos += summaryLines.length * 5 + 15;
@@ -846,9 +976,9 @@ export default function StudentReportView({
         }
 
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Communication Assessment", 20, yPos);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Communication Assessment', 20, yPos);
+        pdf.setFont('helvetica', 'normal');
         yPos += 10;
 
         // Preserve "first-seen" category ordering (matches RubricsSection)
@@ -858,7 +988,7 @@ export default function StudentReportView({
 
         const grouped = new Map<string, RubricLikeItem[]>();
         for (const item of itemsArray) {
-          const key = item?.subCategory || "Other";
+          const key = item?.subCategory || 'Other';
           if (!grouped.has(key)) {
             grouped.set(key, []);
           }
@@ -866,33 +996,39 @@ export default function StudentReportView({
         }
 
         const pdfCategoryOrder = [
-          "Action",
-          "Actions & Interventions",
-          "Medications",
-          "Expected Actions",
-          "PPE, Privacy, & Safety Actions",
-          "PPE",
-          "Privacy & Safety",
-          "Documentation",
-          "Clinical Documentation",
-          "Communication",
-          "Professional Communication",
-          "Timeline",
-          "Timing",
+          'Action',
+          'Actions & Interventions',
+          'Medications',
+          'Expected Actions',
+          'PPE, Privacy, & Safety Actions',
+          'PPE',
+          'Privacy & Safety',
+          'Documentation',
+          'Clinical Documentation',
+          'Communication',
+          'Professional Communication',
+          'Timeline',
+          'Timing',
         ];
         const sortedGroupEntries = Array.from(grouped.entries()).sort(
           ([a], [b]) => {
             const ai = pdfCategoryOrder.findIndex(
-              (c) => a.toLowerCase() === c.toLowerCase(),
+              (c) => a.toLowerCase() === c.toLowerCase()
             );
             const bi = pdfCategoryOrder.findIndex(
-              (c) => b.toLowerCase() === c.toLowerCase(),
+              (c) => b.toLowerCase() === c.toLowerCase()
             );
-            if (ai !== -1 && bi !== -1) { return ai - bi; }
-            if (ai !== -1) { return -1; }
-            if (bi !== -1) { return 1; }
+            if (ai !== -1 && bi !== -1) {
+              return ai - bi;
+            }
+            if (ai !== -1) {
+              return -1;
+            }
+            if (bi !== -1) {
+              return 1;
+            }
             return 0;
-          },
+          }
         );
 
         for (const [subCategory, items] of sortedGroupEntries) {
@@ -912,44 +1048,42 @@ export default function StudentReportView({
             // Item name (bold) + qualitative rating only (no numerical score)
             const scoreLabel =
               item?.score !== undefined
-                ? `${item.score >= 80 ? "EXCEPTIONAL" : item.score >= 50 ? "MEETS EXPECTATION" : "NEEDS IMPROVEMENT"}`
-                : "";
+                ? `${item.score >= 80 ? 'EXCEPTIONAL' : item.score >= 50 ? 'MEETS EXPECTATION' : 'NEEDS IMPROVEMENT'}`
+                : '';
             const subCategoryNormMap: Record<string, string> = {
-              "action": "Action",
-              "actions & interventions": "Action",
-              "actions and interventions": "Action",
-              "expected actions": "Expected Actions",
-              "medications": "Medications",
-              "medication": "Medications",
-              "ppe": "PPE",
-              "ppe, privacy, & safety actions": "PPE",
-              "privacy & safety": "PPE",
-              "documentation": "Documentation",
-              "clinical documentation": "Documentation",
-              "communication": "Communication",
-              "professional communication": "Communication",
-              "timeline": "Sequencing & Prioritization",
-              "timing": "Sequencing & Prioritization",
-              "sequencing & prioritization": "Sequencing & Prioritization",
+              action: 'Action',
+              'actions & interventions': 'Action',
+              'actions and interventions': 'Action',
+              'expected actions': 'Expected Actions',
+              medications: 'Medications',
+              medication: 'Medications',
+              ppe: 'PPE',
+              'ppe, privacy, & safety actions': 'PPE',
+              'privacy & safety': 'PPE',
+              documentation: 'Documentation',
+              'clinical documentation': 'Documentation',
+              communication: 'Communication',
+              'professional communication': 'Communication',
+              timeline: 'Sequencing & Prioritization',
+              timing: 'Sequencing & Prioritization',
+              'sequencing & prioritization': 'Sequencing & Prioritization',
             };
-            const subCategoryKey = (subCategory ?? "").toLowerCase().trim();
+            const subCategoryKey = (subCategory ?? '').toLowerCase().trim();
             const normalizedLabel =
-              subCategoryNormMap[subCategoryKey] ??
-              item?.name ??
-              subCategory;
+              subCategoryNormMap[subCategoryKey] ?? item?.name ?? subCategory;
             pdf.setFontSize(FONT_SIZE_SUBHEADER);
-            pdf.setFont("helvetica", "bold");
+            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(251, 96, 51);
             pdf.text(sanitizePdfText(normalizedLabel.toUpperCase()), 20, yPos);
             if (scoreLabel) {
               pdf.setFontSize(8);
-              pdf.setFont("helvetica", "normal");
+              pdf.setFont('helvetica', 'normal');
               pdf.setTextColor(0, 0, 0);
               const scoreX = 190 - pdf.getTextWidth(scoreLabel);
               pdf.text(sanitizePdfText(scoreLabel), scoreX, yPos);
             }
             pdf.setTextColor(0, 0, 0);
-            pdf.setFont("helvetica", "normal");
+            pdf.setFont('helvetica', 'normal');
             yPos += 8;
 
             // Weight %
@@ -963,7 +1097,7 @@ export default function StudentReportView({
               pdf.setFontSize(FONT_SIZE_BODY);
               const itemSummaryLines = pdf.splitTextToSize(
                 sanitizePdfText(item.summary),
-                170,
+                170
               ) as string[];
               pdf.text(itemSummaryLines, 20, yPos);
               yPos += itemSummaryLines.length * 5 + 6;
@@ -971,24 +1105,32 @@ export default function StudentReportView({
 
             // Team Communication badge (Communication rubric only)
             const isCommunicationItem =
-              (item?.subCategory ?? "").toLowerCase() === "communication" ||
-              (item?.subCategory ?? "").toLowerCase() === "professional communication" ||
-              (item?.name ?? "").toLowerCase().includes("communication");
+              (item?.subCategory ?? '').toLowerCase() === 'communication' ||
+              (item?.subCategory ?? '').toLowerCase() ===
+                'professional communication' ||
+              (item?.name ?? '').toLowerCase().includes('communication');
             if (isCommunicationItem && sbarStatus) {
-              if (yPos > 265) { pdf.addPage(); yPos = 20; }
+              if (yPos > 265) {
+                pdf.addPage();
+                yPos = 20;
+              }
               pdf.setFontSize(FONT_SIZE_BODY);
-              pdf.setFont("helvetica", "bold");
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(29, 78, 216); // blue
-              pdf.text("TEAM COMMUNICATION", 20, yPos);
-              const labelWidth = pdf.getTextWidth("TEAM COMMUNICATION");
+              pdf.text('TEAM COMMUNICATION', 20, yPos);
+              const labelWidth = pdf.getTextWidth('TEAM COMMUNICATION');
               const sbarColor =
-                sbarStatus.toLowerCase() === "satisfactory"
-                  ? [5, 150, 105] as [number, number, number]   // green
-                  : [185, 28, 28] as [number, number, number];  // red
+                sbarStatus.toLowerCase() === 'satisfactory'
+                  ? ([5, 150, 105] as [number, number, number]) // green
+                  : ([185, 28, 28] as [number, number, number]); // red
               pdf.setTextColor(...sbarColor);
-              pdf.text(sanitizePdfText(sbarStatus.toUpperCase()), 20 + labelWidth + 4, yPos);
+              pdf.text(
+                sanitizePdfText(sbarStatus.toUpperCase()),
+                20 + labelWidth + 4,
+                yPos
+              );
               pdf.setTextColor(0, 0, 0);
-              pdf.setFont("helvetica", "normal");
+              pdf.setFont('helvetica', 'normal');
               yPos += 10;
             }
 
@@ -1010,10 +1152,10 @@ export default function StudentReportView({
                 yPos = 20;
               }
               pdf.setFontSize(FONT_SIZE_BODY);
-              pdf.setFont("helvetica", "bold");
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(0, 128, 0);
-              pdf.text("Strengths:", 20, yPos);
-              pdf.setFont("helvetica", "normal");
+              pdf.text('Strengths:', 20, yPos);
+              pdf.setFont('helvetica', 'normal');
               pdf.setTextColor(0, 0, 0);
               yPos += 6;
               for (const it of strengths) {
@@ -1023,7 +1165,7 @@ export default function StudentReportView({
                 }
                 const ptLines = pdf.splitTextToSize(
                   sanitizePdfText(`• ${swPoint(it)}`),
-                  160,
+                  160
                 ) as string[];
                 pdf.text(ptLines, 25, yPos);
                 yPos += ptLines.length * 5 + 1;
@@ -1049,10 +1191,10 @@ export default function StudentReportView({
                 yPos = 20;
               }
               pdf.setFontSize(FONT_SIZE_BODY);
-              pdf.setFont("helvetica", "bold");
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(200, 80, 0);
-              pdf.text("Weaknesses:", 20, yPos);
-              pdf.setFont("helvetica", "normal");
+              pdf.text('Weaknesses:', 20, yPos);
+              pdf.setFont('helvetica', 'normal');
               pdf.setTextColor(0, 0, 0);
               yPos += 6;
               for (const it of weaknesses) {
@@ -1062,19 +1204,19 @@ export default function StudentReportView({
                 }
                 const ptLines = pdf.splitTextToSize(
                   sanitizePdfText(`• ${swPoint(it)}`),
-                  160,
+                  160
                 ) as string[];
                 pdf.text(ptLines, 25, yPos);
                 yPos += ptLines.length * 5 + 1;
                 const exText = swExample(it);
                 if (exText) {
-                  pdf.setFont("helvetica", "italic");
+                  pdf.setFont('helvetica', 'italic');
                   const exLines = pdf.splitTextToSize(
                     sanitizePdfText(`  "${exText}"`),
-                    155,
+                    155
                   ) as string[];
                   pdf.text(exLines, 30, yPos);
-                  pdf.setFont("helvetica", "normal");
+                  pdf.setFont('helvetica', 'normal');
                   yPos += exLines.length * 4 + 2;
                 }
               }
@@ -1085,41 +1227,60 @@ export default function StudentReportView({
             // For the Medications item, derive optional medications from medicationGradingResults
             // because the raw rubric item doesn't carry actionDetails for optional medications.
             const isMedItem =
-              (item?.subCategory ?? "").toLowerCase() === "medications" ||
-              (item?.name ?? "").toLowerCase() === "medications";
+              (item?.subCategory ?? '').toLowerCase() === 'medications' ||
+              (item?.name ?? '').toLowerCase() === 'medications';
             const optionalDoneFromMeds = isMedItem
               ? medicationGradingResults
                   .filter((r) => r.mandatory === false && r.overallScore >= 100)
-                  .map((r) => ({ title: r.orderTitle || r.medicationName, isCorrect: true }))
+                  .map((r) => ({
+                    title: r.orderTitle || r.medicationName,
+                    isCorrect: true,
+                  }))
               : [];
             const optionalDone = isMedItem
               ? optionalDoneFromMeds
               : (item?.actionDetails ?? []).filter(
-                  (d) => d.isOptional === true && (d.type === "vital" ? ((d.attemptsCount ?? 0) > 0) : (d.isCorrect === true)),
+                  (d) =>
+                    d.isOptional === true &&
+                    (d.type === 'vital'
+                      ? (d.attemptsCount ?? 0) > 0
+                      : d.isCorrect === true)
                 );
             if (optionalDone.length > 0) {
-              if (yPos > 260) { pdf.addPage(); yPos = 20; }
+              if (yPos > 260) {
+                pdf.addPage();
+                yPos = 20;
+              }
               pdf.setFontSize(FONT_SIZE_BODY);
-              pdf.setFont("helvetica", "bold");
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(180, 120, 0);
-              pdf.text(isMedItem ? "Optional Medications Completed:" : "Optional Actions Completed:", 20, yPos);
-              pdf.setFont("helvetica", "normal");
+              pdf.text(
+                isMedItem
+                  ? 'Optional Medications Completed:'
+                  : 'Optional Actions Completed:',
+                20,
+                yPos
+              );
+              pdf.setFont('helvetica', 'normal');
               pdf.setTextColor(0, 0, 0);
               yPos += 6;
               for (const d of optionalDone) {
-                if (yPos > 270) { pdf.addPage(); yPos = 20; }
+                if (yPos > 270) {
+                  pdf.addPage();
+                  yPos = 20;
+                }
                 const optLines = pdf.splitTextToSize(
-                  sanitizePdfText(`• ${d.title || ""}`),
-                  160,
+                  sanitizePdfText(`• ${d.title || ''}`),
+                  160
                 ) as string[];
                 pdf.text(optLines, 25, yPos);
                 yPos += optLines.length * 5 + 1;
                 if (isMedItem) {
-                  pdf.setFont("helvetica", "italic");
+                  pdf.setFont('helvetica', 'italic');
                   pdf.setFontSize(FONT_SIZE_SMALL);
                   pdf.setTextColor(120, 120, 120);
-                  pdf.text("Medication performed correctly", 30, yPos);
-                  pdf.setFont("helvetica", "normal");
+                  pdf.text('Medication performed correctly', 30, yPos);
+                  pdf.setFont('helvetica', 'normal');
                   pdf.setFontSize(FONT_SIZE_BODY);
                   pdf.setTextColor(0, 0, 0);
                   yPos += 5;
@@ -1130,8 +1291,8 @@ export default function StudentReportView({
 
             // Improvement Recommendations (rubric item) — skip for Medications
             const isMedicationsItem =
-              (item?.subCategory ?? "").toLowerCase() === "medications" ||
-              (item?.name ?? "").toLowerCase() === "medications";
+              (item?.subCategory ?? '').toLowerCase() === 'medications' ||
+              (item?.name ?? '').toLowerCase() === 'medications';
             if (
               !isMedicationsItem &&
               Array.isArray(item?.recommendations) &&
@@ -1142,10 +1303,10 @@ export default function StudentReportView({
                 yPos = 20;
               }
               pdf.setFontSize(FONT_SIZE_BODY);
-              pdf.setFont("helvetica", "bold");
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(37, 99, 235);
-              pdf.text("Recommendations:", 20, yPos);
-              pdf.setFont("helvetica", "normal");
+              pdf.text('Recommendations:', 20, yPos);
+              pdf.setFont('helvetica', 'normal');
               pdf.setTextColor(0, 0, 0);
               yPos += 6;
               for (const rec of item.recommendations) {
@@ -1155,7 +1316,7 @@ export default function StudentReportView({
                 }
                 const recLines = pdf.splitTextToSize(
                   sanitizePdfText(`• ${rec}`),
-                  160,
+                  160
                 ) as string[];
                 pdf.text(recLines, 25, yPos);
                 yPos += recLines.length * 5 + 1;
@@ -1166,9 +1327,9 @@ export default function StudentReportView({
             // Inappropriate Actions (Distractors) - ONLY FOR ADMINS
             const distractors =
               isAdminView &&
-              item?.subCategory?.toLowerCase() === "action" &&
+              item?.subCategory?.toLowerCase() === 'action' &&
               Array.isArray(item?.actionDetails) &&
-              item.actionDetails.some((d) => d.type === "distractor");
+              item.actionDetails.some((d) => d.type === 'distractor');
 
             if (distractors) {
               if (yPos > 240) {
@@ -1178,55 +1339,55 @@ export default function StudentReportView({
 
               pdf.setFontSize(FONT_SIZE_SECTION);
               pdf.setTextColor(0, 0, 0);
-              pdf.setFont("helvetica", "bold");
-              pdf.text("Inappropriate Actions", 20, yPos);
+              pdf.setFont('helvetica', 'bold');
+              pdf.text('Inappropriate Actions', 20, yPos);
               yPos += 8;
-              pdf.setFont("helvetica", "normal");
+              pdf.setFont('helvetica', 'normal');
               pdf.setFontSize(FONT_SIZE_BODY);
 
               const distSummary =
-                "During this simulation, one or more actions were performed that are classified as inappropriate or distractor actions within the context of this scenario. These actions were not aligned with the expected clinical pathway or the defined scenario objectives. Although identified as inappropriate, these actions do not impact the overall score or grading for this simulation. This section is provided solely for learning and professional development purposes and is intended to support performance improvement.";
+                'During this simulation, one or more actions were performed that are classified as inappropriate or distractor actions within the context of this scenario. These actions were not aligned with the expected clinical pathway or the defined scenario objectives. Although identified as inappropriate, these actions do not impact the overall score or grading for this simulation. This section is provided solely for learning and professional development purposes and is intended to support performance improvement.';
               const distLines = pdf.splitTextToSize(
                 distSummary,
-                170,
+                170
               ) as string[];
               pdf.text(distLines, 20, yPos);
               yPos += distLines.length * 5 + 5;
 
-              pdf.text("Inappropriate actions may reflect:", 20, yPos);
+              pdf.text('Inappropriate actions may reflect:', 20, yPos);
               yPos += 6;
 
               for (const dist of item.actionDetails!.filter(
-                (d) => d.type === "distractor",
+                (d) => d.type === 'distractor'
               )) {
                 if (yPos > 270) {
                   pdf.addPage();
                   yPos = 20;
                 }
-                pdf.text(sanitizePdfText(`• ${dist?.title || ""}`), 25, yPos);
+                pdf.text(sanitizePdfText(`• ${dist?.title || ''}`), 25, yPos);
                 yPos += 6;
               }
               yPos += 5;
 
               pdf.setFontSize(FONT_SIZE_SUBHEADER);
-              pdf.setFont("helvetica", "bold");
-              pdf.text("Improvement Recommendations", 20, yPos);
+              pdf.setFont('helvetica', 'bold');
+              pdf.text('Improvement Recommendations', 20, yPos);
               yPos += 6;
-              pdf.setFont("helvetica", "normal");
+              pdf.setFont('helvetica', 'normal');
               pdf.setFontSize(FONT_SIZE_BODY);
 
               const recIntro =
-                "The actions listed above were inappropriate within the context of this scenario. These actions should generally be avoided in similar clinical situations unless clearly supported by patient assessment findings. Recommendations for improving future performance:";
+                'The actions listed above were inappropriate within the context of this scenario. These actions should generally be avoided in similar clinical situations unless clearly supported by patient assessment findings. Recommendations for improving future performance:';
               const recLines = pdf.splitTextToSize(recIntro, 170) as string[];
               pdf.text(recLines, 20, yPos);
               yPos += recLines.length * 5 + 5;
 
               [
-                "Avoid initiating interventions without confirmed clinical need.",
+                'Avoid initiating interventions without confirmed clinical need.',
                 "Refrain from performing tasks that are not aligned with the scenario's primary priorities.",
-                "Ensure patient data is reassessed thoroughly before taking action.",
-                "Maintain focus on primary objectives before addressing secondary or unrelated tasks.",
-                "Pause and verify clinical reasoning when uncertainty arises.",
+                'Ensure patient data is reassessed thoroughly before taking action.',
+                'Maintain focus on primary objectives before addressing secondary or unrelated tasks.',
+                'Pause and verify clinical reasoning when uncertainty arises.',
               ].forEach((rec) => {
                 if (yPos > 275) {
                   pdf.addPage();
@@ -1240,24 +1401,24 @@ export default function StudentReportView({
               pdf.setFontSize(FONT_SIZE_SMALL);
               pdf.setTextColor(0, 0, 0);
               pdf.text(
-                "This report is made available for administrative review through the admin side of the application.",
+                'This report is made available for administrative review through the admin side of the application.',
                 20,
-                yPos,
+                yPos
               );
               yPos += 12;
 
               pdf.setFontSize(FONT_SIZE_BODY);
-              pdf.setFont("helvetica", "bold");
-              pdf.text("Disclaimer:", 20, yPos);
+              pdf.setFont('helvetica', 'bold');
+              pdf.text('Disclaimer:', 20, yPos);
               yPos += 5;
-              pdf.setFont("helvetica", "normal");
+              pdf.setFont('helvetica', 'normal');
               pdf.setFontSize(FONT_SIZE_BODY);
 
               const disclaimerText =
-                "This section is intended for educational feedback only. The inappropriate actions identified here do not impact your score for this simulation. They are highlighted to support reflection, strengthen clinical reasoning, and promote safe practice in future patient encounters.";
+                'This section is intended for educational feedback only. The inappropriate actions identified here do not impact your score for this simulation. They are highlighted to support reflection, strengthen clinical reasoning, and promote safe practice in future patient encounters.';
               const disclaimerLines = pdf.splitTextToSize(
                 disclaimerText,
-                170,
+                170
               ) as string[];
               pdf.text(disclaimerLines, 20, yPos);
               yPos += disclaimerLines.length * 5 + 10;
@@ -1275,19 +1436,19 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Technical Skills Assessment:", 20, yPos);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Technical Skills Assessment:', 20, yPos);
         yPos += 8;
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.text("Evaluation of clinical and technical competencies", 20, yPos);
+        pdf.text('Evaluation of clinical and technical competencies', 20, yPos);
         yPos += 5;
         pdf.text(
           `Technical Skills Score: ${Number(
-            (technicalSkills.totalScore || 0).toFixed(2),
-          )}/${technicalSkills.totalWeight || "N/A"}`,
+            (technicalSkills.totalScore || 0).toFixed(2)
+          )}/${technicalSkills.totalWeight || 'N/A'}`,
           20,
-          yPos,
+          yPos
         );
         yPos += 8;
 
@@ -1323,16 +1484,16 @@ export default function StudentReportView({
             yPos = 20;
           }
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           // Numerical scores removed to match in-app display
           pdf.text(sanitizePdfText(`${item.name}`), 20, yPos);
-          pdf.setFont("helvetica", "normal");
+          pdf.setFont('helvetica', 'normal');
           yPos += 6;
           if (item.summary) {
             pdf.setFontSize(FONT_SIZE_BODY);
             const itemSummaryLines = pdf.splitTextToSize(
               sanitizePdfText(item.summary),
-              170,
+              170
             ) as string[];
             pdf.text(itemSummaryLines, 25, yPos);
             yPos += itemSummaryLines.length * 4 + 5;
@@ -1343,8 +1504,8 @@ export default function StudentReportView({
           if (
             hasRubrics &&
             isAdminView &&
-            item.subCategory?.toLowerCase() === "action" &&
-            item.actionDetails?.some((d) => d.type === "distractor")
+            item.subCategory?.toLowerCase() === 'action' &&
+            item.actionDetails?.some((d) => d.type === 'distractor')
           ) {
             if (yPos > 220) {
               pdf.addPage();
@@ -1352,26 +1513,26 @@ export default function StudentReportView({
             }
 
             pdf.setFontSize(FONT_SIZE_SECTION);
-            pdf.setFont("helvetica", "bold");
-            pdf.text("Inappropriate Actions", 20, yPos);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Inappropriate Actions', 20, yPos);
             yPos += 8;
 
             pdf.setFontSize(FONT_SIZE_BODY);
-            pdf.setFont("helvetica", "normal");
+            pdf.setFont('helvetica', 'normal');
             const distSummary =
-              "During this simulation, one or more actions were performed that are classified as inappropriate or distractor actions within the context of this scenario. These actions were not aligned with the expected clinical pathway or the defined scenario objectives. Although identified as inappropriate, these actions do not impact the overall score or grading for this simulation. This section is provided solely for learning and professional development purposes and is intended to support performance improvement.";
+              'During this simulation, one or more actions were performed that are classified as inappropriate or distractor actions within the context of this scenario. These actions were not aligned with the expected clinical pathway or the defined scenario objectives. Although identified as inappropriate, these actions do not impact the overall score or grading for this simulation. This section is provided solely for learning and professional development purposes and is intended to support performance improvement.';
             const summaryLines = pdf.splitTextToSize(
               sanitizePdfText(distSummary),
-              170,
+              170
             ) as string[];
             pdf.text(summaryLines, 20, yPos);
             yPos += summaryLines.length * 5 + 5;
 
-            pdf.text("Inappropriate actions may reflect:", 20, yPos);
+            pdf.text('Inappropriate actions may reflect:', 20, yPos);
             yPos += 6;
 
             item.actionDetails
-              .filter((d) => d.type === "distractor")
+              .filter((d) => d.type === 'distractor')
               .forEach((dist) => {
                 if (yPos > 270) {
                   pdf.addPage();
@@ -1388,27 +1549,27 @@ export default function StudentReportView({
             }
 
             pdf.setFontSize(FONT_SIZE_SUBHEADER);
-            pdf.setFont("helvetica", "bold");
-            pdf.text("Improvement Recommendations", 20, yPos);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Improvement Recommendations', 20, yPos);
             yPos += 6;
 
             pdf.setFontSize(FONT_SIZE_BODY);
-            pdf.setFont("helvetica", "normal");
+            pdf.setFont('helvetica', 'normal');
             const recIntro =
-              "The actions listed above were inappropriate within the context of this scenario. These actions should generally be avoided in similar clinical situations unless clearly supported by patient assessment findings. Recommendations for improving future performance:";
+              'The actions listed above were inappropriate within the context of this scenario. These actions should generally be avoided in similar clinical situations unless clearly supported by patient assessment findings. Recommendations for improving future performance:';
             const recLines = pdf.splitTextToSize(
               sanitizePdfText(recIntro),
-              170,
+              170
             ) as string[];
             pdf.text(recLines, 20, yPos);
             yPos += recLines.length * 5 + 5;
 
             [
-              "Avoid initiating interventions without confirmed clinical need.",
+              'Avoid initiating interventions without confirmed clinical need.',
               "Refrain from performing tasks that are not aligned with the scenario's primary priorities.",
-              "Ensure patient data is reassessed thoroughly before taking action.",
-              "Maintain focus on primary objectives before addressing secondary or unrelated tasks.",
-              "Pause and verify clinical reasoning when uncertainty arises.",
+              'Ensure patient data is reassessed thoroughly before taking action.',
+              'Maintain focus on primary objectives before addressing secondary or unrelated tasks.',
+              'Pause and verify clinical reasoning when uncertainty arises.',
             ].forEach((rec) => {
               if (yPos > 275) {
                 pdf.addPage();
@@ -1425,15 +1586,15 @@ export default function StudentReportView({
             }
 
             pdf.setFontSize(FONT_SIZE_BODY);
-            pdf.setFont("helvetica", "bold");
-            pdf.text("Disclaimer:", 20, yPos);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('Disclaimer:', 20, yPos);
             yPos += 5;
-            pdf.setFont("helvetica", "normal");
+            pdf.setFont('helvetica', 'normal');
             const disclaimerText =
-              "This section is intended for educational feedback only. The inappropriate actions identified here do not impact your score for this simulation. They are highlighted to support reflection, strengthen clinical reasoning, and promote safe practice in future patient encounters.";
+              'This section is intended for educational feedback only. The inappropriate actions identified here do not impact your score for this simulation. They are highlighted to support reflection, strengthen clinical reasoning, and promote safe practice in future patient encounters.';
             const disclaimerLines = pdf.splitTextToSize(
               sanitizePdfText(disclaimerText),
-              170,
+              170
             ) as string[];
             pdf.text(disclaimerLines, 20, yPos);
             yPos += disclaimerLines.length * 5 + 10;
@@ -1449,15 +1610,15 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Communication Assessment:", 20, yPos);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Communication Assessment:', 20, yPos);
         yPos += 8;
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         pdf.setFontSize(FONT_SIZE_BODY);
         pdf.text(
-          "Evaluation of patient interaction and communication skills",
+          'Evaluation of patient interaction and communication skills',
           20,
-          yPos,
+          yPos
         );
         yPos += 8;
 
@@ -1471,25 +1632,25 @@ export default function StudentReportView({
 
           const performanceLabel =
             (item.score || 0) >= 8
-              ? "EXCEPTIONAL"
+              ? 'EXCEPTIONAL'
               : (item.score || 0) >= 6
-                ? "MEETS EXPECTATION"
-                : "NEEDS IMPROVEMENT";
+                ? 'MEETS EXPECTATION'
+                : 'NEEDS IMPROVEMENT';
 
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           // Numerical score removed to match in-app display - only show name
           pdf.text(sanitizePdfText(`${item.name}`), 20, yPos);
           yPos += 6;
           pdf.setFontSize(FONT_SIZE_SMALL);
-          pdf.setFont("helvetica", "normal");
+          pdf.setFont('helvetica', 'normal');
           pdf.text(`Performance: ${performanceLabel}`, 25, yPos);
           yPos += 5;
 
-          const summaryText = item.summary || "Communication skill";
+          const summaryText = item.summary || 'Communication skill';
           const itemSummaryLines = pdf.splitTextToSize(
             sanitizePdfText(summaryText),
-            170,
+            170
           ) as string[];
           pdf.setFontSize(FONT_SIZE_BODY);
           pdf.text(itemSummaryLines, 25, yPos);
@@ -1504,15 +1665,15 @@ export default function StudentReportView({
             yPos = 20;
           }
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(0, 128, 0);
-          pdf.text("STRENGTHS", 20, yPos);
-          pdf.setFont("helvetica", "normal");
+          pdf.text('STRENGTHS', 20, yPos);
+          pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(0, 0, 0);
           yPos += 5;
 
           if (strengths.length === 0) {
-            pdf.text(sanitizePdfText("No items identified."), 25, yPos);
+            pdf.text(sanitizePdfText('No items identified.'), 25, yPos);
             yPos += 5;
           } else {
             for (const it of strengths) {
@@ -1522,7 +1683,7 @@ export default function StudentReportView({
               }
               const ptLines = pdf.splitTextToSize(
                 sanitizePdfText(`• ${swPoint(it)}`),
-                155,
+                155
               ) as string[];
               pdf.text(ptLines, 25, yPos);
               yPos += ptLines.length * 5 + 1;
@@ -1530,7 +1691,7 @@ export default function StudentReportView({
               if (exText) {
                 const exLines = pdf.splitTextToSize(
                   sanitizePdfText(`"${exText}"`),
-                  150,
+                  150
                 ) as string[];
                 pdf.text(exLines, 35, yPos);
                 yPos += exLines.length * 4 + 2;
@@ -1541,7 +1702,7 @@ export default function StudentReportView({
 
           // Weaknesses
           const weaknesses: StrengthOrWeakness[] = Array.isArray(
-            item.weaknesses,
+            item.weaknesses
           )
             ? item.weaknesses
             : [];
@@ -1550,15 +1711,15 @@ export default function StudentReportView({
             yPos = 20;
           }
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(200, 120, 0);
-          pdf.text("WEAKNESSES", 20, yPos);
-          pdf.setFont("helvetica", "normal");
+          pdf.text('WEAKNESSES', 20, yPos);
+          pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(0, 0, 0);
           yPos += 5;
 
           if (weaknesses.length === 0) {
-            pdf.text(sanitizePdfText("No items identified."), 25, yPos);
+            pdf.text(sanitizePdfText('No items identified.'), 25, yPos);
             yPos += 5;
           } else {
             for (const it of weaknesses) {
@@ -1568,7 +1729,7 @@ export default function StudentReportView({
               }
               const ptLines = pdf.splitTextToSize(
                 sanitizePdfText(`• ${swPoint(it)}`),
-                155,
+                155
               ) as string[];
               pdf.text(ptLines, 25, yPos);
               yPos += ptLines.length * 5 + 1;
@@ -1576,7 +1737,7 @@ export default function StudentReportView({
               if (exText) {
                 const exLines = pdf.splitTextToSize(
                   sanitizePdfText(`"${exText}"`),
-                  150,
+                  150
                 ) as string[];
                 pdf.text(exLines, 35, yPos);
                 yPos += exLines.length * 4 + 2;
@@ -1595,10 +1756,10 @@ export default function StudentReportView({
               yPos = 20;
             }
             pdf.setFontSize(FONT_SIZE_BODY);
-            pdf.setFont("helvetica", "bold");
+            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(0, 100, 200);
-            pdf.text("Improvement Recommendations", 20, yPos);
-            pdf.setFont("helvetica", "normal");
+            pdf.text('Improvement Recommendations', 20, yPos);
+            pdf.setFont('helvetica', 'normal');
             pdf.setTextColor(0, 0, 0);
             yPos += 5;
 
@@ -1610,7 +1771,7 @@ export default function StudentReportView({
               }
               const recLines = pdf.splitTextToSize(
                 sanitizePdfText(`• ${rec}`),
-                155,
+                155
               ) as string[];
               pdf.text(recLines, 25, yPos);
               yPos += recLines.length * 5 + 1;
@@ -1628,9 +1789,9 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Technical Skills overview:", 20, yPos);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Technical Skills overview:', 20, yPos);
+        pdf.setFont('helvetica', 'normal');
         yPos += 8;
 
         if (
@@ -1638,27 +1799,28 @@ export default function StudentReportView({
             ?.length ?? 0) > 0
         ) {
           pdf.setFontSize(FONT_SIZE_SUBHEADER);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(0, 128, 0);
-          pdf.text("Strengths:", 20, yPos);
+          pdf.text('Strengths:', 20, yPos);
           yPos += 6;
           pdf.setTextColor(0, 0, 0);
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "normal");
-          (report.communicationAssessment?.technicalSkills?.overallstrengths ?? []).forEach(
-            (strength) => {
-              const strengthText =
-                typeof strength === "string"
-                  ? strength
-                  : `${strength.point || ""}${strength.example ? `: "${strength.example}"` : ""}`;
-              const strengthLines = pdf.splitTextToSize(
-                sanitizePdfText(`• ${strengthText}`),
-                170,
-              ) as string[];
-              pdf.text(strengthLines, 25, yPos);
-              yPos += strengthLines.length * 4 + 2;
-            },
-          );
+          pdf.setFont('helvetica', 'normal');
+          (
+            report.communicationAssessment?.technicalSkills?.overallstrengths ??
+            []
+          ).forEach((strength) => {
+            const strengthText =
+              typeof strength === 'string'
+                ? strength
+                : `${strength.point || ''}${strength.example ? `: "${strength.example}"` : ''}`;
+            const strengthLines = pdf.splitTextToSize(
+              sanitizePdfText(`• ${strengthText}`),
+              170
+            ) as string[];
+            pdf.text(strengthLines, 25, yPos);
+            yPos += strengthLines.length * 4 + 2;
+          });
           yPos += 5;
         }
 
@@ -1667,52 +1829,54 @@ export default function StudentReportView({
             ?.length ?? 0) > 0
         ) {
           pdf.setFontSize(FONT_SIZE_SUBHEADER);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(200, 0, 0);
-          pdf.text("Weaknesses:", 20, yPos);
+          pdf.text('Weaknesses:', 20, yPos);
           yPos += 6;
           pdf.setTextColor(0, 0, 0);
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "normal");
-          (report.communicationAssessment?.technicalSkills?.overallweaknesses ?? []).forEach(
-            (weakness) => {
-              const weaknessText =
-                typeof weakness === "string"
-                  ? weakness
-                  : `${weakness.point || ""}${weakness.example ? `: "${weakness.example}"` : ""}`;
-              const weaknessLines = pdf.splitTextToSize(
-                sanitizePdfText(`• ${weaknessText}`),
-                170,
-              ) as string[];
-              pdf.text(weaknessLines, 25, yPos);
-              yPos += weaknessLines.length * 4 + 2;
-            },
-          );
+          pdf.setFont('helvetica', 'normal');
+          (
+            report.communicationAssessment?.technicalSkills
+              ?.overallweaknesses ?? []
+          ).forEach((weakness) => {
+            const weaknessText =
+              typeof weakness === 'string'
+                ? weakness
+                : `${weakness.point || ''}${weakness.example ? `: "${weakness.example}"` : ''}`;
+            const weaknessLines = pdf.splitTextToSize(
+              sanitizePdfText(`• ${weaknessText}`),
+              170
+            ) as string[];
+            pdf.text(weaknessLines, 25, yPos);
+            yPos += weaknessLines.length * 4 + 2;
+          });
           yPos += 5;
         }
 
         if (
-          (report.communicationAssessment?.technicalSkills?.overallrecommendations
-            ?.length ?? 0) > 0
+          (report.communicationAssessment?.technicalSkills
+            ?.overallrecommendations?.length ?? 0) > 0
         ) {
           pdf.setFontSize(FONT_SIZE_SUBHEADER);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(0, 100, 200);
-          pdf.text("Recommendations:", 20, yPos);
+          pdf.text('Recommendations:', 20, yPos);
           yPos += 6;
           pdf.setTextColor(0, 0, 0);
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "normal");
-          (report.communicationAssessment?.technicalSkills?.overallrecommendations ?? []).forEach(
-            (rec: string) => {
-              const recLines = pdf.splitTextToSize(
-                sanitizePdfText(`• ${rec}`),
-                170,
-              ) as string[];
-              pdf.text(recLines, 25, yPos);
-              yPos += recLines.length * 4 + 2;
-            },
-          );
+          pdf.setFont('helvetica', 'normal');
+          (
+            report.communicationAssessment?.technicalSkills
+              ?.overallrecommendations ?? []
+          ).forEach((rec: string) => {
+            const recLines = pdf.splitTextToSize(
+              sanitizePdfText(`• ${rec}`),
+              170
+            ) as string[];
+            pdf.text(recLines, 25, yPos);
+            yPos += recLines.length * 4 + 2;
+          });
           yPos += 10;
         }
       }
@@ -1723,9 +1887,9 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Soft Skills overview:", 20, yPos);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Soft Skills overview:', 20, yPos);
+        pdf.setFont('helvetica', 'normal');
         yPos += 8;
 
         // Overall strengths, weaknesses, recommendations for soft skills
@@ -1734,27 +1898,27 @@ export default function StudentReportView({
             0) > 0
         ) {
           pdf.setFontSize(FONT_SIZE_SUBHEADER);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(0, 128, 0);
-          pdf.text("Strengths:", 20, yPos);
+          pdf.text('Strengths:', 20, yPos);
           yPos += 6;
           pdf.setTextColor(0, 0, 0);
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "normal");
-          (report.communicationAssessment?.softSkills?.overallstrengths ?? []).forEach(
-            (strength) => {
-              const strengthText =
-                typeof strength === "string"
-                  ? strength
-                  : `${strength.point || ""}${strength.example ? `: "${strength.example}"` : ""}`;
-              const strengthLines = pdf.splitTextToSize(
-                sanitizePdfText(`• ${strengthText}`),
-                170,
-              ) as string[];
-              pdf.text(strengthLines, 25, yPos);
-              yPos += strengthLines.length * 4 + 2;
-            },
-          );
+          pdf.setFont('helvetica', 'normal');
+          (
+            report.communicationAssessment?.softSkills?.overallstrengths ?? []
+          ).forEach((strength) => {
+            const strengthText =
+              typeof strength === 'string'
+                ? strength
+                : `${strength.point || ''}${strength.example ? `: "${strength.example}"` : ''}`;
+            const strengthLines = pdf.splitTextToSize(
+              sanitizePdfText(`• ${strengthText}`),
+              170
+            ) as string[];
+            pdf.text(strengthLines, 25, yPos);
+            yPos += strengthLines.length * 4 + 2;
+          });
           yPos += 5;
         }
 
@@ -1763,27 +1927,27 @@ export default function StudentReportView({
             ?.length ?? 0) > 0
         ) {
           pdf.setFontSize(FONT_SIZE_SUBHEADER);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(200, 0, 0);
-          pdf.text("Weaknesses:", 20, yPos);
+          pdf.text('Weaknesses:', 20, yPos);
           yPos += 6;
           pdf.setTextColor(0, 0, 0);
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "normal");
-          (report.communicationAssessment?.softSkills?.overallweaknesses ?? []).forEach(
-            (weakness) => {
-              const weaknessText =
-                typeof weakness === "string"
-                  ? weakness
-                  : `${weakness.point || ""}${weakness.example ? `: "${weakness.example}"` : ""}`;
-              const weaknessLines = pdf.splitTextToSize(
-                sanitizePdfText(`• ${weaknessText}`),
-                170,
-              ) as string[];
-              pdf.text(weaknessLines, 25, yPos);
-              yPos += weaknessLines.length * 4 + 2;
-            },
-          );
+          pdf.setFont('helvetica', 'normal');
+          (
+            report.communicationAssessment?.softSkills?.overallweaknesses ?? []
+          ).forEach((weakness) => {
+            const weaknessText =
+              typeof weakness === 'string'
+                ? weakness
+                : `${weakness.point || ''}${weakness.example ? `: "${weakness.example}"` : ''}`;
+            const weaknessLines = pdf.splitTextToSize(
+              sanitizePdfText(`• ${weaknessText}`),
+              170
+            ) as string[];
+            pdf.text(weaknessLines, 25, yPos);
+            yPos += weaknessLines.length * 4 + 2;
+          });
           yPos += 5;
         }
 
@@ -1798,19 +1962,19 @@ export default function StudentReportView({
           }
 
           pdf.setFontSize(FONT_SIZE_SUBHEADER);
-          pdf.setFont("helvetica", "bold");
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(0, 100, 200);
-          pdf.text("Recommendations:", 20, yPos);
+          pdf.text('Recommendations:', 20, yPos);
           yPos += 6;
 
           pdf.setFontSize(FONT_SIZE_BODY);
-          pdf.setFont("helvetica", "normal");
+          pdf.setFont('helvetica', 'normal');
           pdf.setTextColor(0, 0, 0);
 
           softSkillRecs.forEach((rec: string) => {
             const lines = pdf.splitTextToSize(
               sanitizePdfText(`• ${rec}`),
-              170,
+              170
             ) as string[];
             const height = lines.length * 4 + 2;
 
@@ -1837,23 +2001,24 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
+        pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0, 128, 0);
-        pdf.text("Overall Strengths:", 20, yPos);
+        pdf.text('Overall Strengths:', 20, yPos);
         yPos += 8;
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         (report.communicationAssessment?.overall?.strengths ?? []).forEach(
           (strength: StrengthOrWeakness) => {
-            const point = typeof strength === "string" ? strength : (strength?.point ?? "");
+            const point =
+              typeof strength === 'string' ? strength : (strength?.point ?? '');
             const strengthLines = pdf.splitTextToSize(
               sanitizePdfText(`• ${point}`),
-              170,
+              170
             ) as string[];
             pdf.text(strengthLines, 25, yPos);
             yPos += strengthLines.length * 4 + 2;
-          },
+          }
         );
         yPos += 10;
       }
@@ -1868,23 +2033,24 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
+        pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(200, 0, 0);
-        pdf.text("Overall Weaknesses:", 20, yPos);
+        pdf.text('Overall Weaknesses:', 20, yPos);
         yPos += 8;
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         (report.communicationAssessment?.overall?.weaknesses ?? []).forEach(
           (weakness: StrengthOrWeakness) => {
-            const point = typeof weakness === "string" ? weakness : (weakness?.point ?? "");
+            const point =
+              typeof weakness === 'string' ? weakness : (weakness?.point ?? '');
             const weaknessLines = pdf.splitTextToSize(
               sanitizePdfText(`• ${point}`),
-              170,
+              170
             ) as string[];
             pdf.text(weaknessLines, 25, yPos);
             yPos += weaknessLines.length * 4 + 2;
-          },
+          }
         );
         yPos += 10;
       }
@@ -1900,23 +2066,23 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
+        pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0, 100, 200);
-        pdf.text("Overall Areas for Improvement:", 20, yPos);
+        pdf.text('Overall Areas for Improvement:', 20, yPos);
         yPos += 8;
         pdf.setTextColor(0, 0, 0);
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.setFont("helvetica", "normal");
-        (report.communicationAssessment?.overall?.recommendations ?? []).forEach(
-          (rec: string) => {
-            const recLines = pdf.splitTextToSize(
-              sanitizePdfText(`• ${rec}`),
-              170,
-            ) as string[];
-            pdf.text(recLines, 25, yPos);
-            yPos += recLines.length * 4 + 2;
-          },
-        );
+        pdf.setFont('helvetica', 'normal');
+        (
+          report.communicationAssessment?.overall?.recommendations ?? []
+        ).forEach((rec: string) => {
+          const recLines = pdf.splitTextToSize(
+            sanitizePdfText(`• ${rec}`),
+            170
+          ) as string[];
+          pdf.text(recLines, 25, yPos);
+          yPos += recLines.length * 4 + 2;
+        });
         yPos += 10;
       }
 
@@ -1927,16 +2093,17 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Key Strengths:", 20, yPos);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Key Strengths:', 20, yPos);
         yPos += 8;
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         (reportData.strengths ?? []).forEach((strength: StrengthOrWeakness) => {
-          const point = typeof strength === "string" ? strength : (strength?.point ?? "");
+          const point =
+            typeof strength === 'string' ? strength : (strength?.point ?? '');
           const strengthLines = pdf.splitTextToSize(
             sanitizePdfText(`• ${point}`),
-            170,
+            170
           ) as string[];
           pdf.text(strengthLines, 25, yPos);
           yPos += strengthLines.length * 4 + 2;
@@ -1951,20 +2118,25 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
-        pdf.text("Areas for Improvement:", 20, yPos);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Areas for Improvement:', 20, yPos);
         yPos += 8;
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.setFont("helvetica", "normal");
-        (reportData.improvements ?? []).forEach((improvement: StrengthOrWeakness) => {
-          const point = typeof improvement === "string" ? improvement : (improvement?.point ?? "");
-          const improvementLines = pdf.splitTextToSize(
-            sanitizePdfText(`• ${point}`),
-            170,
-          ) as string[];
-          pdf.text(improvementLines, 25, yPos);
-          yPos += improvementLines.length * 4 + 2;
-        });
+        pdf.setFont('helvetica', 'normal');
+        (reportData.improvements ?? []).forEach(
+          (improvement: StrengthOrWeakness) => {
+            const point =
+              typeof improvement === 'string'
+                ? improvement
+                : (improvement?.point ?? '');
+            const improvementLines = pdf.splitTextToSize(
+              sanitizePdfText(`• ${point}`),
+              170
+            ) as string[];
+            pdf.text(improvementLines, 25, yPos);
+            yPos += improvementLines.length * 4 + 2;
+          }
+        );
         yPos += 10;
       }
 
@@ -1975,30 +2147,31 @@ export default function StudentReportView({
           yPos = 20;
         }
         pdf.setFontSize(FONT_SIZE_SECTION);
-        pdf.setFont("helvetica", "bold");
+        pdf.setFont('helvetica', 'bold');
         pdf.text(sanitizePdfText(`${rL.debriefReflection}:`), 20, yPos);
         yPos += 8;
         pdf.setFontSize(FONT_SIZE_BODY);
-        pdf.setFont("helvetica", "italic");
+        pdf.setFont('helvetica', 'italic');
         const debriefLines = pdf.splitTextToSize(
           sanitizePdfText(`"${report.debriefReflection}"`),
-          170,
+          170
         ) as string[];
         pdf.text(debriefLines, 20, yPos);
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont('helvetica', 'normal');
         yPos += debriefLines.length * 5 + 15;
       }
 
       const filePrefix =
-        report?.mode === "Practice" ? "practice-report" : "assessment-report";
+        report?.mode === 'Practice' ? 'practice-report' : 'assessment-report';
       pdf.save(`${filePrefix}-${reportId}.pdf`);
       setIsGeneratingPDF(false);
     } catch {
       setIsGeneratingPDF(false);
-      alert("An error occurred while generating the PDF. Please try again.");
+      alert('An error occurred while generating the PDF. Please try again.');
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleEmailReport = async () => {
     if (!report) {
       return;
@@ -2011,76 +2184,151 @@ export default function StudentReportView({
 
     try {
       setIsEmailing(true);
-      alert("Email is not configured for this view.");
+      alert('Email is not configured for this view.');
     } catch {
-      alert("Unable to send the email right now. Please try again.");
+      alert('Unable to send the email right now. Please try again.');
     } finally {
       setIsEmailing(false);
     }
   };
 
   // Get summary categories from report
-  const summaryCategories = report.summaryByCategory || {};
+  const summaryCategories = report?.summaryByCategory || {};
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _categoryEntries = Object.entries(summaryCategories).filter(
-    ([category]) => category !== "demographics",
+    ([category]) => category !== 'demographics'
   );
 
   return (
-    <div className="min-h-screen bg-[#f5f6f8] py-6 sm:py-10">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+    <div className="min-h-screen bg-[#f5f6f8] pb-6 sm:pb-10">
+      {/* Sticky Top Action Bar Container */}
+      <div className="pdf-hide sticky top-0 z-40 bg-[#f5f6f8]/95 backdrop-blur-md border-b border-gray-200/80 shadow-2xs py-3.5 mb-6 transition-all">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 flex flex-wrap items-center justify-between gap-4">
+          <button
+            onClick={handleBack}
+            className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 border border-gray-200/90 shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:bg-gray-50 transition-all cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-gray-600" />
+            {rL.backToReports || 'Back to Reports'}
+          </button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Custom Jump To Dropdown Pill */}
+            <div className="relative" ref={jumpRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  refreshJumpSections();
+                  setIsJumpOpen((prev) => !prev);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-white border border-gray-200/90 px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:bg-gray-50 hover:text-gray-900 transition-all cursor-pointer select-none"
+              >
+                <List className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                <span>{rL.rubric?.jumpTo || 'Jump To'}</span>
+                <ChevronDown
+                  className={cn(
+                    'w-4 h-4 text-gray-400 transition-transform duration-200 flex-shrink-0',
+                    isJumpOpen && 'rotate-180'
+                  )}
+                />
+              </button>
+
+              {isJumpOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-white border border-gray-200/90 shadow-[0_12px_32px_rgba(15,23,42,0.12),0_4px_12px_rgba(15,23,42,0.06)] py-2 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
+                    {rL.rubric?.jumpTo || 'Jump To Section'}
+                  </div>
+                  <div className="max-h-[70vh] overflow-y-auto py-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    {jumpSections.map((sec) => (
+                      <button
+                        key={sec.id}
+                        type="button"
+                        title={sec.title}
+                        onClick={() => {
+                          setIsJumpOpen(false);
+                          const el = document.getElementById(sec.id);
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth' });
+                          }
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs sm:text-sm font-medium text-gray-700 hover:text-[#db8833] hover:bg-[#F3F4F6] transition-all flex items-center justify-between group cursor-pointer"
+                      >
+                        <span className="line-clamp-1 pr-2" title={sec.title}>
+                          {sec.title}
+                        </span>
+                        <ArrowRight className="w-4 h-4 text-[#db8833] opacity-0 group-hover:opacity-100 transition-all duration-150 flex-shrink-0 ml-2 group-hover:translate-x-0.5" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* View Transcript Pill */}
+            <button
+              onClick={() => onViewTranscript?.(reportId)}
+              className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 border border-gray-200/90 shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:bg-gray-50 transition-all cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-gray-600" />
+              <span>{rL.viewTranscript || 'VIEW TRANSCRIPT'}</span>
+            </button>
+
+            {/* PDF Download Pill */}
+            <button
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingPDF}
+              className="pdf-hide inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 border border-gray-200/90 shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:bg-gray-50 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4 text-gray-600" />
+              <span>
+                {isGeneratingPDF
+                  ? rL.rubric?.generating || 'Generating...'
+                  : rL.rubric?.pdf || 'PDF'}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="report-printable" className="max-w-5xl mx-auto px-4 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-transparent p-0"
         >
-          {/* Back Button & Action Buttons */}
-          <div className="pdf-hide mb-5 flex items-center justify-between gap-3">
-            <button
-              onClick={handleBack}
-              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-200 shadow-[0_2px_6px_rgba(15,23,42,0.06)] hover:bg-gray-50 transition-colors w-fit"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {rL.backToReports}
-            </button>
-            <button
-              onClick={() => onViewTranscript?.(reportId)}
-              className="text-[#db8833] font-bold text-xs sm:text-sm tracking-[0.12em] uppercase hover:text-[#ED621F] transition-colors"
-            >
-              {rL.viewTranscript}
-            </button>
-          </div>
-
           {/* Header Card */}
-          <div className="bg-white rounded-[16px] border border-gray-200 px-6 sm:px-10 pt-6 pb-5 mb-6 text-center shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
+          <div
+            data-pdf-card
+            className="bg-white rounded-[16px] border border-gray-200 px-6 sm:px-10 pt-6 pb-5 mb-6 text-center shadow-[0_2px_10px_rgba(15,23,42,0.04)]"
+          >
             <h1 className="text-xl sm:text-[22px] font-bold text-[#db8833] mb-5 tracking-tight">
-              {report?.mode === "Practice"
+              {report?.mode === 'Practice'
                 ? rL.practiceReport
                 : rL.assessmentReport}
             </h1>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
               <div className="bg-[#f3f4f6] rounded-xl px-4 py-4 flex flex-col items-center text-center">
-                <h3 className="font-bold uppercase tracking-[0.08em] text-[11px] text-gray-500 mb-1.5">
+                <h3 className="font-bold uppercase tracking-[0.08em] text-[11px] text-[#5f6060] mb-1.5">
                   {rL.simulationStarted}
                 </h3>
-                <p className="text-gray-900 font-bold text-sm">
+                <p className="text-[#111827] font-bold text-sm">
                   {getSimulationDateTime() || rL.loading}
                 </p>
               </div>
               <div className="bg-[#f3f4f6] rounded-xl px-4 py-4 flex flex-col items-center text-center">
-                <h3 className="font-bold uppercase tracking-[0.08em] text-[11px] text-gray-500 mb-1.5">
+                <h3 className="font-bold uppercase tracking-[0.08em] text-[11px] text-[#5f6060] mb-1.5">
                   {rL.simulationSubmitted}
                 </h3>
-                <p className="text-gray-900 font-bold text-sm">
+                <p className="text-[#111827] font-bold text-sm">
                   {getSimulationSubmittedTime() || rL.loading}
                 </p>
               </div>
               <div className="bg-[#f3f4f6] rounded-xl px-4 py-4 flex flex-col items-center text-center">
-                <h3 className="font-bold uppercase tracking-[0.08em] text-[11px] text-gray-500 mb-1.5">
+                <h3 className="font-bold uppercase tracking-[0.08em] text-[11px] text-[#5f6060] mb-1.5">
                   {rL.reportGenerated}
                 </h3>
-                <p className="text-gray-900 font-bold text-sm">
+                <p className="text-[#111827] font-bold text-sm">
                   {getSimulationReportGeneratedTime() || rL.loading}
                 </p>
               </div>
@@ -2089,313 +2337,224 @@ export default function StudentReportView({
             <div className="flex flex-wrap justify-center items-center gap-x-2 gap-y-1 text-xs sm:text-sm mt-1">
               {/* Student Code */}
               <div className="flex items-center gap-1">
-                <User className="w-[14px] h-[14px] text-gray-500 flex-shrink-0" />
-                <span className="text-gray-700 font-medium">{rL.studentCode}</span>
-                <span className="text-[#db8833] font-semibold">{report?.userId ?? "N/A"}</span>
+                <span className="text-[#db8833] font-medium">
+                  {rL.studentCode}
+                </span>
+                <span className="text-[#5f6060] font-semibold">
+                  {report?.userId ?? 'N/A'}
+                </span>
               </div>
               {/* Class */}
               {displayClassName && (
                 <>
                   <span className="text-gray-300">•</span>
-                  <span className="text-gray-500">
-                    {rL.class}{" "}
-                    <span className="text-gray-700">{displayClassName}</span>
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#db8833] font-medium">
+                      {rL.class}
+                    </span>
+                    <span className="text-[#5f6060] font-semibold">
+                      {displayClassName}
+                    </span>
+                  </div>
                 </>
               )}
               {/* Scenario */}
               <div className="flex items-center gap-1">
                 <span className="text-gray-300 mx-1">•</span>
-                <span className="text-gray-900">
-                  <span className="text-gray-500 font-medium">{rL.sim} </span>
-                    <span className="text-gray-900">
+                <span className="text-[#db8833] font-medium">{rL.sim}</span>
+                <span className="text-[#5f6060] font-semibold">
                   {report?.scenarioTitle ||
-                    report?.scenarioId?.replace(/-/g, " ") ||
-                    "N/A"}
-                    </span>
+                    report?.scenarioId?.replace(/-/g, ' ') ||
+                    'N/A'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Overall Performance Score - Assessment Mode only. Replica of the
-              student app's score card: bold-orange gradient, white inset pill
-              holding a score-tier trophy + the brand-orange number, "out of
-              100" below. */}
-          {report?.mode !== "Practice" &&
-            (() => {
-              const scoreValue: number =
-                correctedOverallScore !== null
-                  ? correctedOverallScore
-                  : (score ?? 0);
-              // Score-tier trophy: gold >=95, silver 86-94, bronze 80-85, none <80.
-              const trophyColor =
-                scoreValue >= 95
-                  ? "#d4af37"
-                  : scoreValue >= 86
-                    ? "#9ca3af"
-                    : scoreValue >= 80
-                      ? "#cd7f32"
-                      : null;
-              return (
-                <div
-                  data-pdf-card
-                  className="rounded-[16px] pt-7 pb-8 px-6 sm:px-10 mb-6 flex flex-col items-center shadow-[0_2px_10px_rgba(219,136,51,0.25)]"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(279.14deg, #F28B20 -2.15%, #ED621F 103.17%)",
-                    backgroundColor: "#db8833",
-                  }}
-                >
-                  <div className="text-[12px] uppercase tracking-[0.14em] font-bold text-white mb-2">
-                    {rL.overallPerformanceScore}
-                  </div>
-                  <div
-                    data-pdf-scorechip
-                    className="inline-flex items-center gap-3 bg-white rounded-2xl px-8 sm:px-12 py-3 shadow-[0_4px_14px_rgba(0,0,0,0.12)]"
-                  >
-                    {trophyColor && (
-                      <Trophy
-                        size={48}
-                        className="flex-shrink-0"
-                        style={{ color: trophyColor, verticalAlign: "middle" }}
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span
-                      className="text-[52px] sm:text-[64px] leading-none font-bold tracking-tight"
-                      style={{ color: "#db8833" }}
+          {/* Overall Performance Score - Assessment Mode only */}
+          {report?.mode !== 'Practice' && (
+            <div
+              id="sec-score"
+              data-jump-section
+              data-jump-title={
+                rL.overallPerformanceScore || 'Overall Performance Score'
+              }
+              data-pdf-card
+              data-pdf-scorecard
+              className="scroll-mt-16 sm:scroll-mt-20 rounded-[20px] pt-7 pb-6 px-6 sm:px-10 mb-6 text-center flex flex-col items-center shadow-[0_4px_16px_rgba(237,98,31,0.2)] bg-[linear-gradient(279.14deg,#F28B20,#ED621F)]"
+            >
+              <div
+                data-pdf-scorelabel
+                className="text-[12px] uppercase tracking-[0.16em] font-bold text-white mb-4"
+              >
+                {rL.overallPerformanceScore}
+              </div>
+
+              {(() => {
+                const finalScore = typeof score === 'number' ? score : 0;
+
+                return (
+                  <>
+                    <div className="bg-white rounded-2xl px-8 py-3.5 inline-flex items-center justify-center gap-3.5 shadow-md mb-3 min-w-[220px] sm:min-w-[280px]">
+                      {finalScore >= 95 ? (
+                        <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-[#d4af37] fill-[#d4af37] flex-shrink-0" />
+                      ) : finalScore >= 86 ? (
+                        <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-[#9ca3af] fill-[#9ca3af] flex-shrink-0" />
+                      ) : finalScore >= 80 ? (
+                        <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-[#cd7f32] fill-[#cd7f32] flex-shrink-0" />
+                      ) : null}
+                      <span className="text-4xl sm:text-5xl font-extrabold text-[#db8833] tracking-tight leading-none">
+                        {finalScore}
+                      </span>
+                    </div>
+
+                    <div
+                      data-pdf-scorelabel
+                      className="text-white font-medium text-xs sm:text-sm"
                     >
-                      {scoreValue}
-                    </span>
-                  </div>
-                  <div className="text-white text-xs font-semibold mt-2 tracking-wide">
-                    out of 100
-                  </div>
-                </div>
-              );
-            })()}
+                      {rL.rubric?.outOf100 || 'out of 100'}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 gap-8">
             {/* Left Column - Summary & Feedback */}
             <div className="lg:col-span-2 space-y-8">
               {/* Executive Summary */}
-              <div className="bg-white rounded-[16px] border border-gray-200 p-6 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-9 h-9 rounded-full bg-[#fff1ea] flex items-center justify-center flex-shrink-0">
-                    <Award className="w-4 h-4 text-[#db8833]" />
-                  </div>
-                  <div>
-                    <h2 className="text-base sm:text-lg font-bold text-[#db8833] leading-tight">
-                      {rL.executiveSummary}
-                    </h2>
-                    <p className="text-gray-500 text-xs">
-                      {rL.executiveSummarySubtitle}
-                    </p>
-                  </div>
-                </div>
-                <div className="pl-4 border-l-[3px] border-[#db8833]">
-                  <p className="text-gray-700 leading-relaxed text-sm">
-                    {reportData.summary}
-                  </p>
-                </div>
-              </div>
+              {(() => {
+                const execScore: number = typeof score === 'number' ? score : 0;
 
-              {/* NEW: Action Scores by Category */}
-              {/* {report?.actionScores && Object.keys(report.actionScores).length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                      <Target className="w-5 h-5 text-[#db8833]" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Action Scoring Breakdown
-                      </h2>
-                      <p className="text-gray-500 text-sm">
-                        Performance by rubric category with weights applied
-                      </p>
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    {Object.entries(report.actionScores).map(([categoryKey, categoryScore]: [string, any]) => (
-                      <div key={categoryKey} className="border border-gray-200 rounded-lg p-5">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <h3 className="font-semibold text-gray-900">{categoryScore.name}</h3>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-2xl font-bold text-[#db8833]">{categoryScore.percentage}%</div>
-                            <p className="text-xs text-gray-600">{categoryScore.x} of {categoryScore.y} mandatory</p>
-                          </div>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-[#db8833] h-2 rounded-full transition-all"
-                            style={{ width: `${categoryScore.percentage}%` }}
-                          ></div>
-                        </div>
+                const getScoreBandInfo = (val: number) => {
+                  if (val > 90) {
+                    return {
+                      label: rL.rubric?.exceptional || 'EXCEPTIONAL',
+                      tier: 'exceptional',
+                    };
+                  }
+                  if (val >= 75) {
+                    return {
+                      label:
+                        rL.rubric?.meetsExpectations || 'MEETS EXPECTATIONS',
+                      tier: 'meets',
+                    };
+                  }
+                  return {
+                    label: rL.rubric?.needsImprovement || 'NEEDS IMPROVEMENT',
+                    tier: 'needs_improvement',
+                  };
+                };
+
+                const band = getScoreBandInfo(execScore);
+                const isPractice = report?.mode === 'Practice';
+                const displayText = isPractice
+                  ? band.label.toUpperCase()
+                  : `${band.label.toUpperCase()} (${Math.round(execScore)}%)`;
+
+                return (
+                  <div
+                    id="exec-summary"
+                    data-pdf-card
+                    data-jump-section
+                    data-jump-title={rL.executiveSummary || 'Executive Summary'}
+                    className="scroll-mt-16 sm:scroll-mt-20 bg-white rounded-[16px] border border-gray-200 p-6 shadow-[0_2px_10px_rgba(15,23,42,0.04)]"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                      <div>
+                        <h2 className="text-base sm:text-lg font-bold text-[#db8833] leading-tight">
+                          {rL.executiveSummary}
+                        </h2>
+                        <p className="text-[#5f6060] text-xs mt-0.5">
+                          {rL.executiveSummarySubtitle}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )} */}
 
-              {/* NEW: Action Summary Statistics */}
-              {/* {report?.actionSummary && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-lg bg-violet-50 flex items-center justify-center">
-                      <BarChart className="w-5 h-5 text-[#db8833]" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900">
-                        Action Summary
-                      </h2>
-                      <p className="text-gray-500 text-sm">
-                        Overview of action performance
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-xs text-gray-600 mb-2">Mandatory Actions</p>
-                      <p className="text-2xl font-bold text-blue-600">
-                        {report.actionSummary.completedMandatory}/{report.actionSummary.totalMandatory}
-                      </p>
-                    </div>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-xs text-gray-600 mb-2">Optional Completed</p>
-                      <p className="text-2xl font-bold text-green-600">
-                        {report.actionSummary.completedOptional}/{report.actionSummary.totalOptional}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )} */}
-
-              {/* NEW: Mandatory Actions */}
-              {/* {report?.mandatoryActions && report.mandatoryActions.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="mb-4">
-                    <h2 className="text-xl font-semibold text-gray-900">Mandatory Actions</h2>
-                    <p className="text-gray-500 text-sm">Required actions for assessment</p>
-                  </div>
-                  <div className="space-y-2">
-                    {report.mandatoryActions.map((action: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{action.title}</h4>
-                          <p className="text-xs text-gray-500">Type: {action.type} • Attempts: {action.attempts}</p>
-                        </div>
-                        {action.isCorrect ? (
-                          <div className="flex items-center gap-2 bg-emerald-50 px-3 py-1.5 rounded-lg">
-                            <CheckCircle className="w-4 h-4 text-emerald-600" />
-                            <span className="text-xs font-semibold text-emerald-600">Pass</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 bg-rose-50 px-3 py-1.5 rounded-lg">
-                            <AlertCircle className="w-4 h-4 text-rose-600" />
-                            <span className="text-xs font-semibold text-rose-600">Fail</span>
-                          </div>
+                      <div className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider">
+                        {band.tier === 'exceptional' && (
+                          <Trophy className="w-4 h-4 text-amber-500 fill-amber-400 flex-shrink-0" />
                         )}
+                        {band.tier === 'meets' && (
+                          <Trophy className="w-4 h-4 text-slate-400 fill-slate-300 flex-shrink-0" />
+                        )}
+                        <span
+                          className={
+                            band.tier === 'exceptional'
+                              ? 'text-[#1d4ed8] font-bold'
+                              : band.tier === 'meets'
+                                ? 'text-emerald-700 font-bold'
+                                : 'text-red-700 font-bold'
+                          }
+                        >
+                          {displayText}
+                        </span>
                       </div>
-                    ))}
+                    </div>
+                    <div className="pl-4 border-l-[3px] border-[#db8833]">
+                      <p className="text-[#374151] leading-relaxed text-sm">
+                        {reportData.summary}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )} */}
-
-              {/* NEW: Optional Actions */}
-              {/* {report?.optionalActions && report.optionalActions.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <div className="mb-4">
-                    <h2 className="text-xl font-semibold text-gray-900">Optional Actions Completed</h2>
-                    <p className="text-gray-500 text-sm">Extra actions for enrichment</p>
-                  </div>
-                  <div className="space-y-2">
-                    {report.optionalActions.filter((a: any) => a.isCorrect).map((action: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-3 border border-green-200 bg-green-50 rounded-lg">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{action.title}</h4>
-                          <p className="text-xs text-gray-600">Type: {action.type} (Optional)</p>
-                        </div>
-                        <div className="flex items-center gap-2 bg-green-100 px-3 py-1.5 rounded-lg">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                          <span className="text-xs font-semibold text-green-600">Done</span>
-                        </div>
-                      </div>
-                    ))}
-                    {report.optionalActions.filter((a: any) => !a.isCorrect).length > 0 && (
-                      <div className="text-sm text-gray-600 p-3 bg-gray-50 rounded-lg">
-                        {report.optionalActions.filter((a: any) => !a.isCorrect).length} optional action(s) not completed
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )} */}
+                );
+              })()}
 
               {/* Communication Assessment */}
               {report.communicationAssessment && (
-                <div data-pdf-card className="bg-white rounded-2xl border border-gray-200/90 p-4 sm:p-6 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
-                  {hasRubrics ? (
-                    <RubricsSection
-                      rubrics={
-                        rubrics as unknown as ComponentProps<
-                          typeof RubricsSection
-                        >["rubrics"]
-                      }
-                      userRole={undefined}
-                      mandatoryActions={report.mandatoryActions as ActionDetail[] | undefined}
-                      optionalActions={report.optionalActions as ActionDetail[] | undefined}
-                      medicationGradingResults={medicationGradingResults}
-                      mandatoryMedicationTitles={mandatoryMedicationTitles}
-                      sbarStatus={sbarStatus}
-                      scenarioRubricConfig={scenarioRubricConfig}
-                      tcTypeRequirement={tcTypeRequirement}
-                      labels={rubricLabels}
-                      language={language as "en" | "es"}
-                      onFlatScoreComputed={(
-                        flatScore,
-                        combinedWeight,
-                        backendActionsWS,
-                        backendMedsWS,
-                      ) => {
-                        // Corrected overall = backend score with A+M contribution
-                        // replaced by the flat-pool score so medications count equally.
-                        const backendAMContribution = backendActionsWS + backendMedsWS;
-                        const correctedAMContribution = Math.round(
-                          (flatScore * combinedWeight) / 100,
-                        );
-                        const raw =
-                          (report.score ?? 0) -
-                          backendAMContribution +
-                          correctedAMContribution;
-                        setCorrectedOverallScore(
-                          Math.min(100, Math.max(0, Math.round(raw))),
-                        );
-                      }}
-                    />
-                  ) : (
-                    <CommunicationSection
-                      communicationAssessment={report.communicationAssessment}
-                      expandedSummaries={expandedSummaries}
-                      toggleSummary={toggleSummary}
-                      softSkills={
-                        softSkills as unknown as ComponentProps<
-                          typeof CommunicationSection
-                        >["softSkills"]
-                      }
-                      technicalSkills={
-                        technicalSkills as unknown as ComponentProps<
-                          typeof CommunicationSection
-                        >["technicalSkills"]
-                      }
-                      sbarStatus={sbarStatus}
-                      tcTypeRequirement={tcTypeRequirement}
-                      labels={commLabels}
-                    />
-                  )}
+                <div id="sec-rubrics" className="scroll-mt-16 sm:scroll-mt-20">
+                  <div
+                    data-pdf-card
+                    className="bg-white rounded-2xl border border-gray-200/90 p-4 sm:p-6 shadow-[0_4px_14px_rgba(15,23,42,0.04)]"
+                  >
+                    {hasRubrics ? (
+                      <RubricsSection
+                        mode={report?.mode}
+                        rubrics={
+                          rubrics as unknown as ComponentProps<
+                            typeof RubricsSection
+                          >['rubrics']
+                        }
+                        userRole={undefined}
+                        mandatoryActions={
+                          report.mandatoryActions as ActionDetail[] | undefined
+                        }
+                        optionalActions={
+                          report.optionalActions as ActionDetail[] | undefined
+                        }
+                        medicationGradingResults={medicationGradingResults}
+                        mandatoryMedicationTitles={mandatoryMedicationTitles}
+                        sbarStatus={sbarStatus}
+                        scenarioRubricConfig={scenarioRubricConfig}
+                        tcTypeRequirement={tcTypeRequirement}
+                        labels={rubricLabels}
+                        language={language as 'en' | 'es'}
+                        onFlatScoreComputed={() => {
+                          // Keep score in Educator App identical to Student App (derived directly from report.score)
+                        }}
+                      />
+                    ) : (
+                      <CommunicationSection
+                        communicationAssessment={report.communicationAssessment}
+                        expandedSummaries={expandedSummaries}
+                        toggleSummary={toggleSummary}
+                        softSkills={
+                          softSkills as unknown as ComponentProps<
+                            typeof CommunicationSection
+                          >['softSkills']
+                        }
+                        technicalSkills={
+                          technicalSkills as unknown as ComponentProps<
+                            typeof CommunicationSection
+                          >['technicalSkills']
+                        }
+                        sbarStatus={sbarStatus}
+                        tcTypeRequirement={tcTypeRequirement}
+                        labels={commLabels}
+                      />
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -2410,13 +2569,13 @@ export default function StudentReportView({
                           report.communicationAssessment?.softSkills
                             .overallstrengths as unknown as ComponentProps<
                             typeof OverallSkillAssessment
-                          >["strengths"]
+                          >['strengths']
                         }
                         weaknesses={
                           report.communicationAssessment?.softSkills
                             .overallweaknesses as unknown as ComponentProps<
                             typeof OverallSkillAssessment
-                          >["weaknesses"]
+                          >['weaknesses']
                         }
                         recommendations={
                           report.communicationAssessment?.softSkills
@@ -2432,13 +2591,13 @@ export default function StudentReportView({
                           report.communicationAssessment?.technicalSkills
                             .overallstrengths as unknown as ComponentProps<
                             typeof OverallSkillAssessment
-                          >["strengths"]
+                          >['strengths']
                         }
                         weaknesses={
                           report.communicationAssessment?.technicalSkills
                             .overallweaknesses as unknown as ComponentProps<
                             typeof OverallSkillAssessment
-                          >["weaknesses"]
+                          >['weaknesses']
                         }
                         recommendations={
                           report.communicationAssessment?.technicalSkills
@@ -2479,7 +2638,7 @@ export default function StudentReportView({
                                 {swPoint(strength)}
                               </span>
                             </div>
-                          ),
+                          )
                         )}
                       </div>
                     </div>
@@ -2518,7 +2677,7 @@ export default function StudentReportView({
                                 {swPoint(weakness)}
                               </span>
                             </div>
-                          ),
+                          )
                         )}
                       </div>
                     </div>
@@ -2557,7 +2716,7 @@ export default function StudentReportView({
                                 {recommendation}
                               </span>
                             </div>
-                          ),
+                          )
                         )}
                       </div>
                     </div>
@@ -2567,17 +2726,23 @@ export default function StudentReportView({
 
               {/* Debrief Reflection */}
               {report.debriefReflection && (
-                <div data-pdf-card className="bg-white rounded-2xl border border-gray-200 p-6 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+                <div
+                  id="debrief-reflection"
+                  data-jump-section
+                  data-jump-title={rL.debriefReflection || 'Debrief Reflection'}
+                  data-pdf-card
+                  className="scroll-mt-16 sm:scroll-mt-20 bg-white rounded-2xl border border-gray-200 p-6 shadow-[0_4px_14px_rgba(15,23,42,0.04)]"
+                >
                   <div className="mb-4">
-                    <h2 className="text-xl font-bold text-gray-900">
+                    <h2 className="text-xl font-bold text-[#db8833]">
                       {rL.debriefReflection}
                     </h2>
-                    <p className="text-gray-500 text-sm">
+                    <p className="text-[#5f6060] text-sm mt-0.5">
                       {rL.debriefSubtitle}
                     </p>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-5 border border-gray-100">
-                    <p className="text-gray-700 leading-relaxed text-[15px] break-words">
+                  <div className="bg-[#f8fafc] rounded-xl p-5 border border-gray-100/90">
+                    <p className="text-[#374151] leading-relaxed text-sm sm:text-[15px] break-words">
                       {report.debriefReflection}
                     </p>
                   </div>
@@ -2586,21 +2751,27 @@ export default function StudentReportView({
             </div>
 
             {/* Right Column - Strengths & Improvements */}
-            <div className="space-y-8">
+            <div
+              id="sec-insights"
+              className="scroll-mt-16 sm:scroll-mt-20 space-y-8"
+            >
               {/* Strengths Card */}
               {(reportData?.strengths?.length ?? 0) > 0 && (
-                <div data-pdf-card className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-[0_4px_14px_rgba(16,185,129,0.08)]">
+                <div
+                  data-pdf-card
+                  className="bg-white rounded-2xl border border-emerald-200 p-6 shadow-[0_4px_14px_rgba(16,185,129,0.08)]"
+                >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center">
                       <CheckCircle className="w-5 h-5 text-emerald-600" />
                     </div>
                     <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                      {rL.keyStrengths}
-                    </h2>
-                    <p className="text-gray-500 text-sm">
-                      {rL.keyStrengthsSubtitle}
-                    </p>
+                      <h2 className="text-xl font-semibold text-gray-900">
+                        {rL.keyStrengths}
+                      </h2>
+                      <p className="text-gray-500 text-sm">
+                        {rL.keyStrengthsSubtitle}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -2628,7 +2799,7 @@ export default function StudentReportView({
                             {swPoint(strength)}
                           </span>
                         </div>
-                      ),
+                      )
                     )}
                   </div>
                 </div>
@@ -2636,18 +2807,21 @@ export default function StudentReportView({
 
               {/* Areas for Improvement Card */}
               {(reportData?.improvements?.length ?? 0) > 0 && (
-                <div data-pdf-card className="bg-white rounded-2xl border border-amber-200 p-6 shadow-[0_4px_14px_rgba(245,158,11,0.1)]">
+                <div
+                  data-pdf-card
+                  className="bg-white rounded-2xl border border-amber-200 p-6 shadow-[0_4px_14px_rgba(245,158,11,0.1)]"
+                >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center">
                       <AlertCircle className="w-5 h-5 text-amber-600" />
                     </div>
                     <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
-                      {rL.areasForImprovement}
-                    </h2>
-                    <p className="text-gray-500 text-sm">
-                      {rL.areasForImprovementSubtitle}
-                    </p>
+                      <h2 className="text-xl font-semibold text-gray-900">
+                        {rL.areasForImprovement}
+                      </h2>
+                      <p className="text-gray-500 text-sm">
+                        {rL.areasForImprovementSubtitle}
+                      </p>
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -2667,7 +2841,7 @@ export default function StudentReportView({
                             {swPoint(improvement)}
                           </span>
                         </div>
-                      ),
+                      )
                     )}
                   </div>
                 </div>
@@ -2680,44 +2854,66 @@ export default function StudentReportView({
               drill into each category's raw summary items without leaving the
               report page. Only renders when the report actually carries
               per-category data (otherwise the block is a no-op). */}
-        
 
           {/* Footer */}
-          <div className="pdf-hide mt-8 bg-white rounded-[16px] border border-gray-200 px-5 sm:px-8 py-4 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-sm text-gray-600">
-                {rL.rubric.reportId}<span className="text-gray-900 ml-1">{reportId}</span>
+          <footer className="pdf-hide mt-8 bg-white rounded-[16px] border border-gray-200 px-5 sm:px-8 py-4 shadow-[0_2px_10px_rgba(15,23,42,0.04)]">
+            <div className="flex flex-row items-center justify-between gap-4">
+              <div className="text-sm font-medium text-gray-600">
+                {rL.rubric?.reportId || 'Report ID:'}{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {reportId}
+                </strong>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleEmailReport}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#db8833] text-white rounded-full font-semibold text-sm hover:bg-[#ED621F] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                  disabled={isEmailing}
-                >
-                  <Mail className="w-4 h-4" />
-                  {isEmailing ? rL.rubric.sending : rL.rubric.emailReport}
-                </button>
-                <button
-                  onClick={handleDownloadPDF}
-                  disabled={isGeneratingPDF}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-200 bg-white text-gray-700 rounded-full font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isGeneratingPDF ? (
-                    <>
-                      <Download className="w-4 h-4" />
-                      {rL.rubric.generating}
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      {rL.rubric.pdf}
-                    </>
-                  )}
-                </button>
-
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } catch {
+                    /* ignore */
+                  }
+                  try {
+                    if (document.documentElement)
+                      document.documentElement.scrollTo({
+                        top: 0,
+                        behavior: 'smooth',
+                      });
+                    if (document.body)
+                      document.body.scrollTo({ top: 0, behavior: 'smooth' });
+                  } catch {
+                    /* ignore */
+                  }
+                  const anchor =
+                    document.getElementById('report-top-anchor') ||
+                    document.getElementById('report-printable');
+                  if (anchor) {
+                    try {
+                      anchor.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      });
+                    } catch {
+                      /* ignore */
+                    }
+                  }
+                  try {
+                    const elements = Array.from(document.querySelectorAll('*'));
+                    for (const el of elements) {
+                      if (el.scrollTop > 0) {
+                        el.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-white border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 shadow-2xs transition-all cursor-pointer select-none"
+              >
+                <span className="text-sm leading-none">↑</span>
+                <span>{rL.rubric?.backToTop || 'Back to top'}</span>
+              </button>
             </div>
-          </div>
+          </footer>
         </motion.div>
       </div>
     </div>

@@ -1,21 +1,22 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { LoggerService } from '../../common/services';
 import { DataSource, EntityManager } from 'typeorm';
-import { LmsType } from 'src/common/enums/lms.enum';
-import { MoodleAdapter } from '../adapters/moodle.adapter';
+import { LmsType, LmsToolType, LmsConfigStatus } from 'src/common/enums/lms.enum';
 import { LmsAdapterFactory } from '../factories/lms-adapter.factory';
-import { LmsClassMapping } from '../entity/lms-class-mapping.entity';
-import { LmsSchoolConfig } from '../entity/lms-school-config.entity';
-import { LmsStudentMapping } from '../entity/lms-student-mapping.entity';
-import { Class } from 'src/class/entity/class.entity';
-import { ClassEducator } from 'src/class/entity/class-educator.entity';
-import { Educator } from 'src/educators/entity/educator.entity';
-import { educatorBelongsToSchool } from 'src/educators/utils/educator-school.util';
-import { Student } from 'src/students/entity/students.entity';
 import { CommonStatus } from 'src/common/enums/status.enum';
-import { LmsConfigStatus } from 'src/common/enums/lms.enum';
 import { LmsRosterService } from './lms-roster.service';
 import { resolveMoodleWsCredentials, mergeMoodleWsConfigFields } from '../utils/moodle-ws.util';
+import {
+  LmsClassMapping,
+  LmsSchoolConfig,
+  LmsStudentMapping,
+  Class,
+  ClassEducator,
+  Educator,
+  Student,
+} from 'src/database/entities';
+import { educatorBelongsToSchool } from 'src/educators/utils/educator-school.util';
 
 function normalizedUserIdSuffix(lmsUserId: string): string {
   const trimmed = String(lmsUserId ?? '').trim();
@@ -62,13 +63,12 @@ function randomClassCode(length = 8): string {
 
 @Injectable()
 export class LmsProvisionService {
-  private readonly logger = new Logger(LmsProvisionService.name);
-
   constructor(
     private readonly dataSource: DataSource,
     private readonly rosterService: LmsRosterService,
     private readonly configService: ConfigService,
     private readonly lmsAdapterFactory: LmsAdapterFactory,
+    private readonly logger: LoggerService,
   ) {}
 
   /**
@@ -126,6 +126,7 @@ export class LmsProvisionService {
     nrpsUrl?: string,
     launchIssuer?: string,
     launchUserId?: string,
+    courseTitle?: string,
   ): void {
     setImmediate(() => {
       void this.doProvision(
@@ -135,6 +136,7 @@ export class LmsProvisionService {
         nrpsUrl,
         launchIssuer,
         launchUserId,
+        courseTitle,
       ).catch((err: Error) => {
         this.logger.error(
           `[LMS Provision] FAILED educator=${educatorId} course=${lmsCourseId}: ${err.message}`,
@@ -151,6 +153,7 @@ export class LmsProvisionService {
     nrpsUrl?: string,
     launchIssuer?: string,
     launchUserId?: string,
+    courseTitle?: string,
   ): Promise<void> {
     await this.doProvision(
       educatorId,
@@ -160,6 +163,80 @@ export class LmsProvisionService {
       launchIssuer,
       launchUserId,
     );
+  }
+
+  /**
+   * Student LTI first-launch helper: when the Canvas/Moodle course is already
+   * mapped but the learner is missing from our DB, sync that course roster
+   * once so auto-login can succeed without waiting for an educator re-sync.
+   *
+   * Intentionally omits launchUserId so the launching learner is not filtered
+   * out of the NRPS learner list (educator provision excludes the instructor).
+   */
+  async syncRosterForMappedCourse(args: {
+    schoolId: string;
+    lmsCourseId: string;
+    nrpsUrl?: string;
+  }): Promise<boolean> {
+    const schoolId = String(args.schoolId ?? '').trim();
+    const lmsCourseId = String(args.lmsCourseId ?? '').trim();
+    if (!schoolId || !lmsCourseId) {
+      return false;
+    }
+
+    try {
+      const classMapping = await this.dataSource.manager.findOne(LmsClassMapping, {
+        where: { schoolId, lmsCourseId },
+      });
+      if (!classMapping) {
+        this.logger.warn(
+          `[LMS Provision] JIT roster sync skipped — no class mapping for course=${lmsCourseId} school=${schoolId}`,
+        );
+        return false;
+      }
+
+      const classData = await this.dataSource.manager.findOne(Class, {
+        where: { id: classMapping.classId },
+        relations: ['educator'],
+      });
+      const educatorId = classData?.educator_id ?? classData?.educator?.id;
+      if (!educatorId) {
+        this.logger.warn(
+          `[LMS Provision] JIT roster sync skipped — no educator for class=${classMapping.classId}`,
+        );
+        return false;
+      }
+
+      const nrpsUrl = String(args.nrpsUrl ?? classMapping.nrpsUrl ?? '').trim() || undefined;
+
+      this.logger.log(
+        `[LMS Provision] JIT roster sync starting course=${lmsCourseId} class=${classMapping.classId}`,
+      );
+      // Upsert-only: do not deactivate learners missing from NRPS on student first-launch
+      // (stale/incomplete roster must not soft-delete existing class students).
+      await this.doProvision(
+        educatorId,
+        lmsCourseId,
+        schoolId,
+        nrpsUrl,
+        undefined,
+        undefined,
+        undefined,
+        {
+          deactivateMissingLearners: false,
+        },
+      );
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error(
+        `[LMS Provision] JIT roster sync failed course=${lmsCourseId}: ${message}${
+          stack ? `\n${stack}` : ''
+        }`,
+      );
+      return false;
+    }
   }
 
   private resolveProvisionSchoolId(educator: Educator, launchSchoolId?: string): string | null {
@@ -183,10 +260,13 @@ export class LmsProvisionService {
     nrpsUrl?: string,
     launchIssuer?: string,
     launchUserId?: string,
+    courseTitle?: string,
+    options?: { deactivateMissingLearners?: boolean },
   ): Promise<void> {
     if (!lmsCourseId) {
       return;
     }
+    const deactivateMissingLearners = options?.deactivateMissingLearners !== false;
     const { educator, classData, classMapping } = await this.dataSource.transaction(
       async (manager) => {
         const educator = await manager.findOne(Educator, {
@@ -208,22 +288,44 @@ export class LmsProvisionService {
           `lms-provision:${schoolId}:${lmsCourseId}`,
         ]);
 
-        const classMapping = await manager.findOne(LmsClassMapping, {
+        let classMapping = await manager.findOne(LmsClassMapping, {
           where: { lmsCourseId: lmsCourseId, schoolId },
         });
 
-        let classData: Class | null = null;
+        let classData: Class | null;
 
         if (!classMapping) {
-          this.logger.warn(
-            `[LMS Provision] No class mapping found for LMS course ${lmsCourseId}. Skipping provisioning.`,
-          );
+          const resolvedNrps = String(nrpsUrl ?? '').trim();
+          if (!resolvedNrps) {
+            this.logger.warn(
+              `[LMS Provision] No class mapping for LMS course ${lmsCourseId} and no NRPS URL. Skipping auto-create.`,
+            );
+            return {
+              educator: null,
+              classData: null,
+              classMapping: null,
+            };
+          }
 
-          return {
-            educator: null,
-            classData: null,
-            classMapping: null,
-          };
+          classData = await this.createClass(
+            manager,
+            educator,
+            String(courseTitle ?? '').trim() || 'LMS Class',
+            schoolId,
+          );
+          classMapping = await manager.save(
+            manager.create(LmsClassMapping, {
+              schoolId,
+              classId: classData.id!,
+              lmsCourseId,
+              lmsContextId: null,
+              nrpsUrl: resolvedNrps,
+            }),
+          );
+          this.logger.log(
+            `[LMS Provision] Auto-created class ${classData.id} + mapping for LMS course ${lmsCourseId}`,
+          );
+          return { educator, classData, classMapping };
         }
 
         const existing = await manager.findOne(Class, {
@@ -289,12 +391,21 @@ export class LmsProvisionService {
     }
 
     const resolvedNrpsUrl = nrpsUrl || classMapping?.nrpsUrl || '';
-    // Get school config to check sharePii setting
+    // Prefer educator-tool school config (Canvas/Moodle) for sharePii + NRPS auth
     let schoolConfig: LmsSchoolConfig | null = null;
     if (schoolId) {
       schoolConfig = await this.dataSource.manager.findOne(LmsSchoolConfig, {
-        where: { schoolId, status: LmsConfigStatus.ACTIVE },
+        where: {
+          schoolId,
+          status: LmsConfigStatus.ACTIVE,
+          toolType: LmsToolType.EDUCATOR,
+        },
       });
+      if (!schoolConfig) {
+        schoolConfig = await this.dataSource.manager.findOne(LmsSchoolConfig, {
+          where: { schoolId, status: LmsConfigStatus.ACTIVE },
+        });
+      }
     }
     const sharePii = schoolConfig?.sharePii ?? false;
 
@@ -331,7 +442,13 @@ export class LmsProvisionService {
     let deactivatedCount = 0;
 
     await this.dataSource.transaction(async (manager) => {
-      deactivatedCount = await this.deactivateNonLearners(manager, classData.id!, lmsStudents);
+      if (deactivateMissingLearners) {
+        deactivatedCount = await this.deactivateNonLearners(manager, classData.id!, lmsStudents);
+      } else {
+        this.logger.log(
+          `[LMS Provision] Skipping deactivateNonLearners for course=${lmsCourseId} class=${classData.id} (student JIT upsert-only)`,
+        );
+      }
 
       for (const u of lmsStudents) {
         if (!u.lmsUserId) continue;
@@ -418,8 +535,11 @@ export class LmsProvisionService {
         newStudentCount++;
       }
 
-      if (newStudentCount > 0) {
-        classData.total_no_of_students = (classData.total_no_of_students ?? 0) + newStudentCount;
+      if (newStudentCount > 0 || deactivatedCount > 0 || reactivatedCount > 0) {
+        const activeCount = await manager.count(Student, {
+          where: { class: { id: classData.id! }, is_active: true },
+        });
+        classData.total_no_of_students = activeCount;
         await manager.save(Class, classData);
       }
     });
@@ -507,14 +627,23 @@ export class LmsProvisionService {
     let schoolConfig: LmsSchoolConfig | null = null;
     if (schoolId?.trim()) {
       schoolConfig = await this.dataSource.manager.findOne(LmsSchoolConfig, {
-        where: { schoolId: schoolId.trim(), status: LmsConfigStatus.ACTIVE },
+        where: {
+          schoolId: schoolId.trim(),
+          status: LmsConfigStatus.ACTIVE,
+          toolType: LmsToolType.EDUCATOR,
+        },
       });
+      if (!schoolConfig) {
+        schoolConfig = await this.dataSource.manager.findOne(LmsSchoolConfig, {
+          where: { schoolId: schoolId.trim(), status: LmsConfigStatus.ACTIVE },
+        });
+      }
     }
 
     const credentials = resolveMoodleWsCredentials(
       mergeMoodleWsConfigFields(classMapping, schoolConfig),
-      this.configService.get<string>('MOODLE_URL', ''),
-      this.configService.get<string>('MOODLE_WS_TOKEN', ''),
+      this.configService.get<string>('lms.moodleUrl', ''),
+      this.configService.get<string>('lms.moodleWsToken', ''),
     );
 
     this.logger.debug(
@@ -556,7 +685,7 @@ export class LmsProvisionService {
         return { learners: students, success: true };
       } catch (err) {
         this.logger.warn(
-          `[LMS Provision] NRPS/WS fetch failed: ${(err as Error).message}. Falling back to Moodle Web Services.`,
+          `[LMS Provision] NRPS/WS fetch failed: ${(err as Error).message}. Falling back to platform Web Services.`,
         );
       }
     }
@@ -569,11 +698,22 @@ export class LmsProvisionService {
     }
 
     try {
-      const wsRoster = await this.getMoodleAdapter().getEnrolledStudents(
-        credentials.moodleUrl,
-        credentials.wsToken,
-        Number(lmsCourseId),
-      );
+      const wsConfig = {
+        ...(schoolConfig ?? {}),
+        lmsBaseUrl: credentials.moodleUrl,
+        lmsApiToken: credentials.wsToken,
+        lmsType: schoolConfig?.lmsType ?? LmsType.MOODLE,
+      } as LmsSchoolConfig;
+
+      const adapter = this.lmsAdapterFactory.tryGetAdapter(wsConfig.lmsType);
+      if (!adapter?.getEnrolledStudentsForCourse) {
+        this.logger.warn(
+          `[LMS Provision] Platform WS roster not supported for ${wsConfig.lmsType}`,
+        );
+        return { learners: [], success: false };
+      }
+
+      const wsRoster = await adapter.getEnrolledStudentsForCourse(wsConfig, Number(lmsCourseId));
 
       const students = wsRoster.students
         .map((u) => ({
@@ -600,10 +740,6 @@ export class LmsProvisionService {
       );
       return { learners: [], success: false };
     }
-  }
-
-  private getMoodleAdapter(): MoodleAdapter {
-    return this.lmsAdapterFactory.getAdapter(LmsType.MOODLE) as MoodleAdapter;
   }
 
   private isInstructorOrAdminRole(roles: string[]): boolean {
@@ -761,11 +897,11 @@ export class LmsProvisionService {
                 }
               }
             } catch {
-              const credentials = resolveMoodleWsCredentials(config);
-              if (credentials) {
+              const adapter = this.lmsAdapterFactory.tryGetAdapter(config.lmsType);
+              if (adapter?.fetchMemberProfilesForCourse) {
                 try {
-                  const wsProfiles = await this.getMoodleAdapter().fetchMemberProfilesFromWs(
-                    credentials,
+                  const wsProfiles = await adapter.fetchMemberProfilesForCourse(
+                    config,
                     row.lms_course_id,
                   );
                   for (const [userId, profile] of wsProfiles.entries()) {
@@ -818,6 +954,7 @@ export class LmsProvisionService {
     manager: EntityManager,
     educator: Educator,
     courseTitle: string,
+    schoolId: string,
   ): Promise<Class> {
     const now = new Date();
     const startDate = now.toISOString().split('T')[0];
@@ -829,6 +966,7 @@ export class LmsProvisionService {
       status: CommonStatus.ACTIVE,
       total_no_of_students: 0,
       educator,
+      school_id: schoolId,
       start_date: startDate,
       end_date: endDate,
       is_active: true,

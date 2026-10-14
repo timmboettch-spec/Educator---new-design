@@ -14,10 +14,10 @@ export function sanitizePdfText(text: unknown): string {
   if (!text) return '';
   return String(text)
     .replace(/[\u2080-\u2089]/g, (c) =>
-      String.fromCharCode(c.charCodeAt(0) - 0x2080 + 48),
+      String.fromCharCode(c.charCodeAt(0) - 0x2080 + 48)
     )
     .replace(/[\u2070-\u2079]/g, (c) =>
-      String.fromCharCode(c.charCodeAt(0) - 0x2070 + 48),
+      String.fromCharCode(c.charCodeAt(0) - 0x2070 + 48)
     )
     .replace(/\u00B2/g, '2')
     .replace(/\u00B3/g, '3')

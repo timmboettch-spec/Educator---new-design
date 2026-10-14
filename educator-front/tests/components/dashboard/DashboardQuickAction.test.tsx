@@ -17,7 +17,7 @@ vi.mock('../../../src/pages/dashboard/educator/index', async () => {
         type: 'button',
         onClick: () => mockNavigate('/classes'),
       },
-      'Manage Classes',
+      'Manage Classes'
     );
   };
 
@@ -31,7 +31,7 @@ vi.mock(
   () => ({
     selectEducatorReports: () => [],
   }),
-  { virtual: true },
+  { virtual: true }
 );
 
 // -----------------------------
@@ -39,9 +39,9 @@ vi.mock(
 // -----------------------------
 
 vi.mock('../../../src/redux/class/GetClassRedux', async () => {
-  const mod = await vi.importActual<typeof import('../../../src/redux/class/GetClassRedux')>(
-    '../../../src/redux/class/GetClassRedux',
-  );
+  const mod = await vi.importActual<
+    typeof import('../../../src/redux/class/GetClassRedux')
+  >('../../../src/redux/class/GetClassRedux');
   return {
     ...mod,
     FetchClassesRequest: vi.fn(
@@ -49,19 +49,20 @@ vi.mock('../../../src/redux/class/GetClassRedux', async () => {
         Promise.resolve({
           type: 'GetClass/fetchClasses/fulfilled',
           payload: { data: { classes: [] }, message: '', status: '' },
-        }),
+        })
     ),
   };
 });
 
 vi.mock('../../../src/redux/class/SimsCompletedreportsRedux', async () => {
-  const mod =
-    await vi.importActual<typeof import('../../../src/redux/class/SimsCompletedreportsRedux')>(
-      '../../../src/redux/class/SimsCompletedreportsRedux',
-    );
+  const mod = await vi.importActual<
+    typeof import('../../../src/redux/class/SimsCompletedreportsRedux')
+  >('../../../src/redux/class/SimsCompletedreportsRedux');
   return {
     ...mod,
-    FetchClassReportCount: vi.fn(() => (_dispatch: unknown) => Promise.resolve({})),
+    FetchClassReportCount: vi.fn(
+      () => (_dispatch: unknown) => Promise.resolve({})
+    ),
   };
 });
 
@@ -70,7 +71,10 @@ vi.mock('../../../src/redux/class/SimsCompletedreportsRedux', async () => {
 // -----------------------------
 
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual =
+    await vi.importActual<typeof import('react-router-dom')>(
+      'react-router-dom'
+    );
 
   return {
     ...actual,
@@ -114,7 +118,7 @@ global.fetch = vi.fn(() =>
   Promise.resolve({
     ok: true,
     json: async () => [],
-  } as Response),
+  } as Response)
 );
 
 // -----------------------------
@@ -133,21 +137,21 @@ const store = configureStore({
         responseClass: null,
         status: 'idle',
         error: null,
-      },
+      }
     ) => state,
     GetSimsList: (
       state = {
         simulationsByClass: {},
         status: 'idle',
         error: null,
-      },
+      }
     ) => state,
     loader: (
       state = {
         isLoading: false,
         isLoggingOut: false,
         apiRequestCount: 0,
-      },
+      }
     ) => state,
   },
 });
@@ -162,7 +166,7 @@ const renderComponent = () => {
       <MemoryRouter>
         <EducatorDashboard />
       </MemoryRouter>
-    </Provider>,
+    </Provider>
   );
 };
 
@@ -200,7 +204,7 @@ describe('DashboardQuickAction', () => {
       expect.anything(),
       expect.objectContaining({
         state: expect.anything(),
-      }),
+      })
     );
   });
 

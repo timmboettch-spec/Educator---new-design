@@ -1,4 +1,5 @@
 import js from '@eslint/js';
+import prettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
@@ -8,13 +9,6 @@ import tseslint from 'typescript-eslint';
 export default [
   {
     ignores: ['node_modules', '.next', 'dist'],
-  },
-
-  {
-    files: ['scripts/**/*.mjs', 'scripts/**/*.js'],
-    languageOptions: {
-      globals: globals.node,
-    },
   },
 
   js.configs.recommended,
@@ -29,7 +23,10 @@ export default [
 
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_' },
+      ],
 
       'simple-import-sort/exports': 'error',
 
@@ -42,4 +39,16 @@ export default [
     },
   },
 
+  {
+    files: ['scripts/**/*.mjs', 'scripts/**/*.js', 'scripts/**/*.cjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      '@typescript-eslint/no-require-imports': 'off',
+      'no-console': 'off',
+    },
+  },
+
+  prettierConfig,
 ];

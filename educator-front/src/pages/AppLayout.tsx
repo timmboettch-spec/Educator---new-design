@@ -1,18 +1,17 @@
 import type { ReactNode } from 'react';
-import { useLocation } from 'react-router-dom';
 
 interface AppLayoutProps {
   children: ReactNode;
   isAuthenticated: boolean;
 }
 
-export default function AppLayout({ children, isAuthenticated }: AppLayoutProps) {
-  const location = useLocation();
+export default function AppLayout({
+  children,
+  isAuthenticated,
+}: AppLayoutProps) {
   return (
     <div
-      className={`min-h-screen ${
-        isAuthenticated && location.pathname !== '/redeem' ? 'bg-white' : ''
-      }`}
+      className="h-full w-full overflow-hidden"
       style={{
         backgroundImage: `
       url('/assets/common/background.png'),

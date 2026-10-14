@@ -1,13 +1,19 @@
 /// <reference types="jest" />
-import { BadRequestException, ConflictException, ForbiddenException, HttpException, NotFoundException, UnauthorizedException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  HttpException,
+  NotFoundException,
+  UnauthorizedException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { AdminModule } from '../../../../../src/student-backend/modules/admin/admin.module';
 import { AdminService } from '../../../../../src/student-backend/modules/admin/admin.service';
-import { JsonDataService } from '../../../../../src/student-backend/data/json-data.service';
-import { ScenarioAuthGuard } from '../../../../../src/student-backend/guards/scenario-auth.guard';
 import { createTestApp, closeTestApp } from '../../common/setup/supertest.setup';
 import { apiGet, apiPost, apiPut, apiDelete } from '../../common/utils/api.helper';
 import { ENDPOINTS } from '../../common/constants/endpoints';
@@ -27,7 +33,6 @@ describe('Admin API — Negative Tests', () => {
     createUnit: jest.fn(),
     updateUnit: jest.fn(),
     deleteUnit: jest.fn(),
-    assignUnitToPermission: jest.fn(),
   };
 
   beforeAll(async () => {
@@ -36,10 +41,6 @@ describe('Admin API — Negative Tests', () => {
     })
       .overrideProvider(AdminService)
       .useValue(mockAdminService)
-      .overrideProvider(JsonDataService)
-      .useValue({})
-      .overrideGuard(ScenarioAuthGuard)
-      .useValue({ canActivate: () => true })
       .compile();
 
     app = await createTestApp(moduleRef);

@@ -18,22 +18,21 @@ export const endpoints = {
     dashboard: '/dashboard/overview',
     school: '/schools',
     schoolget: '/schools/user',
-    schoolgetbyid: '/schools/', 
+    schoolgetbyid: '/schools/',
     schooladmin: '/schools/admin/', // + adminId
     educatorInvite: '/invites/create',
     inviteget: '/invites/',
     educatorget: '/educators/admin',
     classes: '/classes',
     educatorupdate: '/educators',
-    studentcreate:  '/students',
+    studentcreate: '/students',
     batchEmail: '/students/batch-email',
     updatestudentcode: '/students/update-code',
     getstudentbyid: '/students/class/', // + classId
     getstudentuser: '/students/user',
     getemailreport: '/students/email-report',
-    simulationcatalog: '/simulation-catalog/dashboard',
-    simulationscenarios: '/simulation-catalog/scenarios',
-    simulationdetails: '/simulations/unit/', // + unitId
+    simulationscenarios: '/simulations/educators',
+    simulationdetails: '/simulations/by-unit/', // + unitId
     simulationlibrary: '/educator-simulations/my-library',
     simulationlibraryadd: '/educator-simulations/add-to-library',
   },
@@ -78,15 +77,14 @@ export const endpoints = {
     studentdelete: '/students/', // + studentId (DELETE)
     batchEmail: '/students/batch-email',
     updateCode: '/students/update-code',
-    login: '/students/login',              // GET ?student_id=CODE
+    login: '/students/login', // GET ?student_id=CODE
     simulationsByCode: '/students/simulations/', // + studentCode
   },
 
   // Simulation endpoints
   simulation: {
-    catalog: '/simulation-catalog/dashboard',
-    scenarios: '/simulation-catalog/scenarios',
-    details: '/simulations/unit/', // + unitId
+    scenarios: '/simulations/educators',
+    details: '/simulations/by-unit/', // + unitId
     myLibrary: '/educator-simulations/my-library',
     addToLibrary: '/educator-simulations/add-to-library',
   },

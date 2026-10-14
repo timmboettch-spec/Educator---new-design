@@ -10,7 +10,13 @@ vi.mock('lucide-react', () => ({
 
 const shortList = ['Item A', 'Item B', 'Item C'];
 const longList = [
-  'Item 1', 'Item 2', 'Item 3', 'Item 4', 'Item 5', 'Item 6', 'Item 7',
+  'Item 1',
+  'Item 2',
+  'Item 3',
+  'Item 4',
+  'Item 5',
+  'Item 6',
+  'Item 7',
 ];
 
 describe('SupportList Component', () => {
@@ -29,7 +35,13 @@ describe('SupportList Component', () => {
   });
 
   test('renders headerIcon when provided', () => {
-    render(<SupportList header="Agriculture" headerIcon="/agri.svg" listItem={shortList} />);
+    render(
+      <SupportList
+        header="Agriculture"
+        headerIcon="/agri.svg"
+        listItem={shortList}
+      />
+    );
     const img = screen.getByAltText('Agriculture');
     expect(img).toHaveAttribute('src', '/agri.svg');
   });
@@ -51,7 +63,9 @@ describe('SupportList Component', () => {
 
   test('shows "Show all articles" button when list has more than 5 items', () => {
     render(<SupportList listItem={longList} />);
-    expect(screen.getByText(`Show all articles (${longList.length})`)).toBeInTheDocument();
+    expect(
+      screen.getByText(`Show all articles (${longList.length})`)
+    ).toBeInTheDocument();
   });
 
   test('does not show "Show all" button when list has 5 or fewer items', () => {

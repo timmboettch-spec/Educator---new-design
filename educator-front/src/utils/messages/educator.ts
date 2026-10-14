@@ -8,8 +8,8 @@ export const EDUCATOR_VALIDATION = {
   EDUCATOR_STATUS: 'Status must be Active or Inactive',
   TOKENS_REQUIRED: 'Seats are required for an educator to add students',
   TOKENS_MAX_EXCEEDED: 'Only 500 seats can be allocated',
-  TOKENS_LIMIT_EXCEEDED: (limit: number) => `Seats cannot exceed available limit (${limit})`,
-
+  TOKENS_LIMIT_EXCEEDED: (limit: number) =>
+    `Seats cannot exceed available limit (${limit})`,
 };
 
 export const EDUCATOR_FIELDS = {
@@ -63,7 +63,8 @@ export const EDUCATOR_EMPTY_STATES = {
 };
 
 export const EDUCATOR_CONFIRMATIONS = {
-  DELETE: 'Are you sure you want to delete this educator? This action cannot be undone.',
+  DELETE:
+    'Are you sure you want to delete this educator? This action cannot be undone.',
 };
 
 export const EDUCATOR_PAGE = {

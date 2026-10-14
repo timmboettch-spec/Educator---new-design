@@ -1,43 +1,93 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
-import { JwtService } from '@nestjs/jwt';
-import { ConfigService } from '@nestjs/config';
-import { Student } from './entity/students.entity';
+import { BadRequestException, Inject, Injectable, forwardRef } from '@nestjs/common';
+import { Response } from 'express';
+import { TokenService } from 'src/common/services/token.service';
+import { LoggerService } from 'src/common/services';
+
 import {
   CreateStudentDto,
   BulkCreateStudentDto,
   UpdateStudentDto,
   EmailReportDto,
   BatchEmailDto,
+  ListStudentsReqDto,
+  StudentLiteResDto,
+  StudentSummaryResDto,
 } from './dto/students.dto';
-import { Class } from '../class/entity/class.entity';
-import { Educator } from '../educators/entity/educator.entity';
-import { User } from '../users/entity/user.entity';
-import { ClassSimulation } from '../class-simulations/entity/class-simulation.entity';
-import { SimulationReport } from '../simulation-reports/entity/simulation-report.entity';
+
 import { CommonStatus } from 'src/common/enums/status.enum';
-import { BlobScenario, ServiceResponse } from 'src/common/types';
+import { BlobScenario, BulkUploadResult, ServiceResponse, StudentCsvRow } from 'src/common/types';
 import { ErrorTypes, Messages } from 'src/common/utils/messages';
+import { redactCode } from 'src/common/utils/redact.util';
+import {
+  resolveEducatorEmail,
+  resolveEducatorStatus,
+} from 'src/common/utils/educator-identity.util';
 import { StudentConstants } from './students.constants';
+import { ResponseResult } from 'src/common/class/response.class';
+import {
+  ICurrentUser,
+  IPaginationMeta,
+  ReportDetailWithStudentRow,
+  StudentFilters,
+  StudentSortOptions,
+} from 'src/common/interfaces';
+import { SUCCESS_MSG } from 'src/common/messages/success.message';
+import { mapRowToReportFields } from 'src/common/utils/simulation-report.util';
+import { buildPaginationMeta, getPagination } from 'src/common/utils/pagination.util';
+import { handleError } from 'src/common/utils/common.util';
 import { MailService } from '../mail/mail.service';
-import { TutorPatientService } from 'src/common/utils/tutor-patient.service';
+import { AutomationAccessService } from 'src/common/services/automation-access.service';
+import { isAutomationOnlyRecord } from 'src/common/utils/automation-access.util';
 import {
   StudentProfileResponse,
   StudentSimulationSummary,
 } from './interfaces/student-profile.interface';
 import { StudentLoginData } from './interfaces/student-profile.interface';
-import { AuthConstants } from '../auth/auth.constants';
-import { JwtPayload } from 'src/common/strategy/jwt.strategy.entity';
+import {
+  ReportModeType,
+  RoleSlug,
+  SimulationAttemptConstants,
+  SimulationProgressStatus,
+  TokenPurposeType,
+  UserTokenType,
+} from 'src/common/constants';
+import { SIMULATION_PROGRESS_MSG } from 'src/common/messages/simulation-progress.message';
+import { canForfeitSimulation } from 'src/common/utils/simulation-progress.util';
 import { ClassSimulationService } from 'src/class-simulations/class-simulation.service';
+import {
+  Student,
+  Class,
+  Educator,
+  User,
+  SimulationV2,
+  StudentSimulationProgress,
+} from 'src/database/entities';
+import {
+  CLASS_REPOSITORY,
+  CLASS_SIMULATION_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  SIMULATION_REPORT_REPOSITORY,
+  SIMULATION_V2_REPOSITORY,
+  STUDENT_REPOSITORY,
+  STUDENT_SIMULATION_PROGRESS_REPOSITORY,
+  USER_REPOSITORY,
+} from 'src/database/tokens';
+import {
+  ClassRepository,
+  ClassSimulationRepository,
+  EducatorRepository,
+  SimulationReportRepository,
+  SimulationV2Repository,
+  StudentRepository,
+  StudentSimulationProgressRepository,
+  UserRepository,
+} from 'src/database/repositories';
 
 const REPEAT_ALLOWED_STUDENT_CODES = new Set(['85170719']);
 const EMAIL_WORKER_CONCURRENCY = 8;
 
 @Injectable()
 export class StudentsService {
-  private readonly logger = new Logger(StudentsService.name);
-
   private isRepeatAllowedStudent(studentCode?: string | null): boolean {
     return !!studentCode && REPEAT_ALLOWED_STUDENT_CODES.has(studentCode);
   }
@@ -75,39 +125,52 @@ export class StudentsService {
   }
 
   constructor(
-    @InjectRepository(Student)
-    private readonly studentRepo: Repository<Student>,
+    @Inject(STUDENT_REPOSITORY)
+    private readonly studentRepo: StudentRepository,
+    @Inject(CLASS_REPOSITORY)
+    private readonly classRepo: ClassRepository,
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo: UserRepository,
+    @Inject(EDUCATOR_REPOSITORY)
+    private readonly educatorRepo: EducatorRepository,
+    @Inject(CLASS_SIMULATION_REPOSITORY)
+    private readonly classSimulationRepo: ClassSimulationRepository,
+    @Inject(SIMULATION_REPORT_REPOSITORY)
+    private readonly simulationReportRepo: SimulationReportRepository,
+    @Inject(SIMULATION_V2_REPOSITORY)
+    private readonly simulationV2Repository: SimulationV2Repository,
+    @Inject(STUDENT_SIMULATION_PROGRESS_REPOSITORY)
+    private readonly simulationProgressRepo: StudentSimulationProgressRepository,
     private readonly mailerService: MailService,
-    private readonly dataSource: DataSource,
-    private readonly tutorPatientService: TutorPatientService,
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly automationAccess: AutomationAccessService,
+    @Inject(forwardRef(() => ClassSimulationService))
     private readonly classSimulationService: ClassSimulationService,
+    private readonly tokenService: TokenService,
+    private readonly logger: LoggerService,
   ) { }
   async findClassById(id: string): Promise<Class | null> {
-    return this.studentRepo.manager.findOne(Class, {
+    return this.classRepo.findOne({
       where: { id: id, is_active: true },
       relations: ['school'],
     });
   }
 
   async findUserById(id: string): Promise<User | null> {
-    return this.studentRepo.manager.findOne(User, {
+    return this.userRepo.findOne({
       where: { id },
-      relations: ['role'],
     });
   }
 
   async findAnyUserByEmail(email: string): Promise<'user' | 'educator' | null> {
     const normalizedEmail = email.trim().toLowerCase();
 
-    const user = await this.studentRepo.manager.findOne(User, {
+    const user = await this.userRepo.findOne({
       where: { email: normalizedEmail },
     });
     if (user) return 'user';
 
-    const educator = await this.studentRepo.manager.findOne(Educator, {
-      where: { email: normalizedEmail, is_active: true },
+    const educator = await this.educatorRepo.findOne({
+      where: { userRole: { user: { email: normalizedEmail } }, is_active: true },
     });
     if (educator) return 'educator';
 
@@ -115,9 +178,9 @@ export class StudentsService {
   }
 
   async findEducatorById(id: string): Promise<Educator | null> {
-    return this.studentRepo.manager.findOne(Educator, {
+    return this.educatorRepo.findOne({
       where: { id, is_active: true },
-      relations: ['role'],
+      relations: ['userRole', 'userRole.role'],
     });
   }
 
@@ -176,7 +239,7 @@ export class StudentsService {
 
       const studentId = await this.generateUniqueStudentId(classData.class_name ?? '');
 
-      const student = this.studentRepo.create({
+      const saved = await this.studentRepo.create({
         student_id: studentId,
         status: dto.status ?? CommonStatus.ACTIVE,
         score: dto.score,
@@ -196,8 +259,6 @@ export class StudentsService {
               : {}),
       });
 
-      const saved = await this.studentRepo.save(student);
-
       return { success: true, message: Messages.STUDENT_CREATED, data: saved };
     } catch (error) {
       const message =
@@ -211,7 +272,15 @@ export class StudentsService {
     classData: Class,
     educator: Educator,
   ): Promise<ServiceResponse<Student[]>> {
+    const startTime = Date.now();
     try {
+      const className = classData.class_name ?? '';
+      const prefix = this.buildClassPrefix(className);
+
+      this.logger.log(
+        `[bulkCreate] Starting bulk creation of ${dto.count} students for class "${className}" (prefix: ${prefix}, classId: ${classData.id})`,
+      );
+
       if (classData.id && educator.id && dto.count > 0) {
         const alloc = await this.classSimulationService.allocateSeatsForNewStudents(
           classData.id,
@@ -219,34 +288,35 @@ export class StudentsService {
           dto.count,
         );
         if (!alloc.success) {
+          this.logger.warn(`[bulkCreate] Seat allocation failed: ${alloc.message}`);
           return { success: false, message: alloc.message!, type: alloc.type };
         }
       }
 
-      const existing = await this.studentRepo
-        .createQueryBuilder('s')
-        .select('s.student_id', 'student_id')
-        .where(`s.student_id IS NOT NULL AND s.student_id <> ''`)
-        .getRawMany<{ student_id: string }>();
+      const existing = await this.studentRepo.findAllNonEmptyStudentCodes();
+      this.logger.log(
+        `[bulkCreate] Found ${existing.length} existing student codes globally. Generating ${dto.count} unique codes in-memory with global uniqueness check.`,
+      );
 
-      const usedCodes = new Set(existing.map((r) => r.student_id));
-      const students: Student[] = [];
+      const usedCodes = new Set(existing);
+      const students: Partial<Student>[] = [];
 
       for (let i = 0; i < dto.count; i++) {
-        // pass usedCodes so generateUniqueStudentId skips its own DB query each iteration
         const studentId = await this.generateUniqueStudentId(classData.class_name ?? '', usedCodes);
-        usedCodes.add(studentId);
-        students.push(
-          this.studentRepo.create({
-            student_id: studentId,
-            status: CommonStatus.ACTIVE,
-            class: classData,
-            educator,
-          }),
-        );
+        students.push({
+          student_id: studentId,
+          status: CommonStatus.ACTIVE,
+          class: classData,
+          educator,
+        });
       }
 
-      const saved = await this.studentRepo.save(students);
+      const saved = await this.studentRepo.saveMany(students);
+      const durationMs = Date.now() - startTime;
+      this.logger.log(
+        `[bulkCreate] Successfully created ${saved.length} students in ${durationMs}ms (1 code read + 1 batched insert).`,
+      );
+
       return {
         success: true,
         message: `${saved.length} student(s) created successfully`,
@@ -255,6 +325,10 @@ export class StudentsService {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : StudentConstants.VALIDATION.BULK_CREATE_FAILED;
+      this.logger.error(
+        `[bulkCreate] Failed to bulk create students: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
       return { success: false, message, type: ErrorTypes.BAD_REQUEST };
     }
   }
@@ -296,16 +370,7 @@ export class StudentsService {
 
   async findByClass(classId: string): Promise<ServiceResponse<Student[]>> {
     try {
-      const students = await this.studentRepo
-        .createQueryBuilder('s')
-        .leftJoin('s.school', 'school')
-        .leftJoinAndSelect('s.class', 'cls')
-        .leftJoinAndSelect('s.educator', 'educator')
-        .where('s.class_id = :classId', { classId })
-        .andWhere('s.is_active = true')
-        .andWhere('(s.school_id IS NULL OR school.is_active = true)')
-        .orderBy('s.id', 'DESC')
-        .getMany();
+      const students = await this.studentRepo.findActiveByClassWithClassAndEducator(classId);
 
       students.forEach((student) => {
         student.time_remaining = this.formatTimeRemaining(student.time_remaining);
@@ -317,6 +382,99 @@ export class StudentsService {
         error instanceof Error ? error.message : StudentConstants.VALIDATION.FETCH_BY_CLASS_FAILED;
       return { success: false, message, type: ErrorTypes.BAD_REQUEST };
     }
+  }
+
+  async findStudents(
+    currentUser: ICurrentUser,
+    dto: ListStudentsReqDto,
+  ): Promise<ResponseResult<StudentSummaryResDto[] | StudentLiteResDto[], IPaginationMeta>> {
+    try {
+      const { page, pageSize, skip, take } = getPagination({
+        page: dto.page,
+        pageSize: dto.pageSize,
+      });
+      const filters: StudentFilters = {
+        search: dto.search?.trim(),
+        classIds: dto.classIds,
+        schoolIds: dto.schoolIds,
+        isActive: dto.isActive,
+      };
+      const sortDir: 'ASC' | 'DESC' = dto.sortBy
+        ? ((dto.sortDir ?? 'asc').toUpperCase() as 'ASC' | 'DESC')
+        : 'DESC';
+      const sort = { field: dto.sortBy, dir: sortDir };
+      const pagination = { skip, take };
+
+      return dto.lite
+        ? await this.findStudentsLite(currentUser, filters, sort, pagination, page, pageSize)
+        : await this.findStudentsFull(currentUser, filters, sort, pagination, page, pageSize);
+    } catch (error) {
+      return handleError(error);
+    }
+  }
+
+  private async findStudentsLite(
+    currentUser: ICurrentUser,
+    filters: StudentFilters,
+    sort: StudentSortOptions,
+    pagination: { skip: number; take: number },
+    page: number,
+    pageSize: number,
+  ): Promise<ResponseResult<StudentLiteResDto[], IPaginationMeta>> {
+    const { rows, total } = await this.studentRepo.findStudents(
+      currentUser.educatorId as string,
+      { ...filters, lite: true },
+      sort,
+      pagination,
+    );
+    const data: StudentLiteResDto[] = rows.map((row) => ({
+      id: row.id,
+      studentId: row.studentId,
+      name: row.name,
+    }));
+    return new ResponseResult({
+      message: SUCCESS_MSG.COMMON.FETCHED('Students'),
+      data,
+      meta: buildPaginationMeta(total, page, pageSize),
+    });
+  }
+
+  private async findStudentsFull(
+    currentUser: ICurrentUser,
+    filters: StudentFilters,
+    sort: StudentSortOptions,
+    pagination: { skip: number; take: number },
+    page: number,
+    pageSize: number,
+  ): Promise<ResponseResult<StudentSummaryResDto[], IPaginationMeta>> {
+    const { rows, total } = await this.studentRepo.findStudents(
+      currentUser.educatorId as string,
+      { ...filters, lite: false },
+      sort,
+      pagination,
+    );
+    const data: StudentSummaryResDto[] = rows.map((row) => ({
+      id: row.id,
+      studentId: row.studentId,
+      name: row.name,
+      email: row.email,
+      classId: row.classId,
+      schoolId: row.schoolId,
+      status: row.status,
+      isActive: row.isActive,
+      submissionDate: row.submissionDate,
+      simsCompleted: row.simsCompleted,
+      score: row.score,
+      timeSpent: row.timeSpent,
+      timeRemaining: row.timeRemaining,
+      reportsCount: row.reportsCount,
+      codeStatus: row.codeStatus,
+    }));
+    return new ResponseResult({
+      message: SUCCESS_MSG.COMMON.FETCHED('Students'),
+      data,
+      meta: buildPaginationMeta(total, page, pageSize),
+    });
   }
 
   async findOne(id: string): Promise<ServiceResponse<Student>> {
@@ -340,7 +498,11 @@ export class StudentsService {
     }
   }
 
-  async update(student: Student, dto: UpdateStudentDto, userId: string): Promise<ServiceResponse<Student>> {
+  async update(
+    student: Student,
+    dto: UpdateStudentDto,
+    userId: string,
+  ): Promise<ServiceResponse<Student>> {
     try {
       if (!student || !student.id) {
         return { success: false, message: Messages.STUDENT_NOT_FOUND, type: ErrorTypes.NOT_FOUND };
@@ -348,11 +510,9 @@ export class StudentsService {
       const classData = await this.findClassByStudentId(student.id);
 
       if (!classData) {
-        throw new BadRequestException(
-          StudentConstants.VALIDATION.STUDENT_CLASS_MISSING,
-        );
+        throw new BadRequestException(StudentConstants.VALIDATION.STUDENT_CLASS_MISSING);
       }
-      const educator = await this.findEducatorByStudentId(student.id)
+      const educator = await this.findEducatorByStudentId(student.id);
       if (!educator?.id) {
         throw new BadRequestException(StudentConstants.MESSAGES.EDUCATOR_NOT_FOUND);
       }
@@ -368,12 +528,11 @@ export class StudentsService {
 
       Object.assign(student, updateData);
 
-      const updated = await this.studentRepo.save(student);
-
+      await this.studentRepo.update(student.id, student);
       return {
         success: true,
         message: Messages.STUDENT_UPDATED,
-        data: updated,
+        data: student,
       };
     } catch (error) {
       const message =
@@ -410,7 +569,7 @@ export class StudentsService {
       student.is_active = false;
       student.deleted_at = new Date();
       student.status = CommonStatus.INACTIVE;
-      await this.studentRepo.save(student);
+      await this.studentRepo.update(student.id, student);
 
       return { success: true, message: Messages.STUDENT_DELETED, data: null };
     } catch (error) {
@@ -431,8 +590,8 @@ export class StudentsService {
       }
 
       student.student_id = await this.generateUniqueStudentId(student.class.class_name ?? '');
-      const updated = await this.studentRepo.save(student);
-      return { success: true, message: Messages.STUDENT_ID_GENERATED, data: updated };
+      await this.studentRepo.update(student.id as string, student);
+      return { success: true, message: Messages.STUDENT_ID_GENERATED, data: student };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : StudentConstants.VALIDATION.UPDATE_CODE_FAILED;
@@ -443,8 +602,8 @@ export class StudentsService {
   async revokeCode(student: Student): Promise<ServiceResponse<Student>> {
     try {
       student.student_id = '';
-      const updated = await this.studentRepo.save(student);
-      return { success: true, message: Messages.STUDENT_CODE_REVOKED, data: updated };
+      await this.studentRepo.update(student.id as string, student);
+      return { success: true, message: Messages.STUDENT_CODE_REVOKED, data: student };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : StudentConstants.VALIDATION.UPDATE_CODE_FAILED;
@@ -463,8 +622,8 @@ export class StudentsService {
       }
 
       student.student_id = await this.generateUniqueStudentId(student.class.class_name ?? '');
-      const updated = await this.studentRepo.save(student);
-      return { success: true, message: Messages.STUDENT_CODE_REGENERATED, data: updated };
+      await this.studentRepo.update(student.id as string, student);
+      return { success: true, message: Messages.STUDENT_CODE_REGENERATED, data: student };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : StudentConstants.VALIDATION.UPDATE_CODE_FAILED;
@@ -500,17 +659,8 @@ export class StudentsService {
     className: string,
     existingCodes?: Set<string>,
   ): Promise<string> {
-    let usedCodes: Set<string>;
-    if (existingCodes) {
-      usedCodes = existingCodes;
-    } else {
-      const existing = await this.studentRepo
-        .createQueryBuilder('s')
-        .select('s.student_id', 'student_id')
-        .where(`s.student_id IS NOT NULL AND s.student_id <> ''`)
-        .getRawMany<{ student_id: string }>();
-      usedCodes = new Set(existing.map((r) => r.student_id));
-    }
+    const usedCodes =
+      existingCodes ?? new Set(await this.studentRepo.findAllNonEmptyStudentCodes());
     const prefix = this.buildClassPrefix(className);
 
     for (let attempt = 0; attempt < 10_000; attempt++) {
@@ -525,11 +675,132 @@ export class StudentsService {
       }
 
       if (!usedCodes.has(candidate)) {
+        usedCodes.add(candidate);
         return candidate;
+      } else {
+        this.logger.debug(
+          `[generateUniqueStudentId] Candidate collision "${candidate}" on attempt ${attempt + 1}. Retrying...`,
+        );
       }
     }
 
     throw new BadRequestException(StudentConstants.VALIDATION.COLLISION_ERROR);
+  }
+
+  async importFromCsv(
+    fileBuffer: Buffer,
+    classData: Class,
+    educator: Educator,
+  ): Promise<ServiceResponse<BulkUploadResult>> {
+    try {
+      const text = fileBuffer.toString('utf-8');
+      const lines = text.split(/\r?\n/).filter((l) => l.trim());
+
+      if (lines.length < 2) {
+        return {
+          success: false,
+          message: StudentConstants.VALIDATION.CSV_PARSE_FAILED,
+          type: ErrorTypes.BAD_REQUEST,
+        };
+      }
+
+      const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+      const { STUDENT_ID, STUDENT_NAME, EMAIL } = StudentConstants.CSV_HEADERS;
+
+      if (!headers.includes(STUDENT_ID) || !headers.includes(STUDENT_NAME)) {
+        return {
+          success: false,
+          message: StudentConstants.VALIDATION.CSV_PARSE_FAILED,
+          type: ErrorTypes.BAD_REQUEST,
+        };
+      }
+
+      const idIdx = headers.indexOf(STUDENT_ID);
+      const nameIdx = headers.indexOf(STUDENT_NAME);
+      const emailIdx = headers.indexOf(EMAIL);
+      const rows = lines.slice(1);
+      const seenIds = new Set<string>();
+      const result: BulkUploadResult = {
+        total: rows.length,
+        inserted: 0,
+        failedCount: 0,
+        failed: [],
+      };
+
+      const candidates: { row: StudentCsvRow; index: number }[] = [];
+      const errors = new Map<number, string>();
+      const parsedRows = rows.map((line, index) => {
+        const cols = line.split(',').map((c) => c.trim());
+        const studentId = cols[idIdx] ?? '';
+        const studentName = cols[nameIdx] ?? '';
+        const email = emailIdx >= 0 ? (cols[emailIdx] ?? '') || null : null;
+        const row: import('src/common/types').StudentCsvRow = {
+          student_id: studentId,
+          student_name: studentName,
+          email,
+          class_id: classData.id ?? '',
+          user_id: educator.id ?? '',
+        };
+
+        if (!studentId || !studentName) {
+          errors.set(index, StudentConstants.VALIDATION.MISSING_DATA);
+        } else if (seenIds.has(studentId)) {
+          errors.set(index, StudentConstants.VALIDATION.DUPLICATE_ID);
+        } else {
+          seenIds.add(studentId);
+          candidates.push({ row, index });
+        }
+        return row;
+      });
+
+      const existingCodes = new Set(
+        await this.studentRepo.findActiveCodesInClass(
+          classData.id as string,
+          candidates.map(({ row }) => row.student_id),
+        ),
+      );
+      for (const { row, index } of candidates) {
+        if (existingCodes.has(row.student_id)) {
+          errors.set(index, StudentConstants.VALIDATION.STUDENT_EXISTS);
+        }
+      }
+
+      // Every known per-row failure is decided above, so a write error here is a genuine
+      // database problem: saveMany runs in one transaction and the whole request fails.
+      const accepted = candidates.filter(({ index }) => !errors.has(index));
+      if (accepted.length > 0) {
+        await this.studentRepo.saveMany(
+          accepted.map(({ row }) => ({
+            student_id: row.student_id,
+            student_name: row.student_name,
+            email: row.email ?? undefined,
+            status: CommonStatus.ACTIVE,
+            class: classData,
+            educator,
+            ...(classData.school ? { school: classData.school } : {}),
+          })),
+        );
+      }
+      result.inserted = accepted.length;
+
+      parsedRows.forEach((row, index) => {
+        const error = errors.get(index);
+        if (error) {
+          result.failedCount++;
+          result.failed.push({ row, error });
+        }
+      });
+
+      return {
+        success: true,
+        message: `${result.inserted} student(s) imported successfully`,
+        data: result,
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : StudentConstants.VALIDATION.CSV_PARSE_FAILED;
+      return { success: false, message, type: ErrorTypes.BAD_REQUEST };
+    }
   }
 
   async sendBatchEmail(
@@ -651,58 +922,27 @@ export class StudentsService {
         createdAt: string | Date | null;
       };
 
-      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      const normaliseCode = (s?: string | null): string =>
-        s ? s.toUpperCase().replace(/[-_ ]/g, '') : '';
+      const fromRow = (r: ReportDetailWithStudentRow): ResolvedReport => ({
+        studentName: r.studentName,
+        scenarioId: r.scenarioId,
+        reportData: mapRowToReportFields(r) as Record<string, unknown>,
+        createdAt: r.createdAt,
+      });
 
-      const checkBlobOwnership = async (
-        blobRecord: Record<string, unknown>,
-      ): Promise<ServiceResponse<never> | null> => {
-        if (!dto.student_id) return null;
-        const ownerCode = (blobRecord['userId'] ??
-          blobRecord['studentId'] ??
-          blobRecord['student_id'] ??
-          blobRecord['user_id']) as string | undefined;
-        if (!ownerCode) return null;
-        const rows: { student_id: string | null }[] = await this.dataSource.query(
-          `SELECT student_id FROM students WHERE id = $1 LIMIT 1`,
-          [dto.student_id],
-        );
-        if (normaliseCode(rows[0]?.student_id) !== normaliseCode(ownerCode)) {
+      const resolveByReportId = async (
+        reportId: string,
+      ): Promise<ServiceResponse<never> | ResolvedReport | null> => {
+        const row = await this.simulationReportRepo.findDetailRowByIdOrReportId(reportId);
+        if (!row) return null;
+        if (dto.student_id && row.studentId !== dto.student_id) {
           return {
             success: false,
             message: 'Report does not belong to the specified student',
             type: ErrorTypes.FORBIDDEN,
           };
         }
-        return null;
+        return fromRow(row);
       };
-
-      const fromBlob = (r: Record<string, unknown>): ResolvedReport => {
-        const rd = (r['report_data'] ?? r['reportData'] ?? r) as Record<string, unknown>;
-        return {
-          studentName:
-            typeof (r['student_name'] ?? r['studentName'] ?? rd['studentName']) === 'string'
-              ? ((r['student_name'] ?? r['studentName'] ?? rd['studentName']) as string)
-              : null,
-          scenarioId:
-            typeof (r['scenario_id'] ?? r['scenarioId'] ?? r['simulationId']) === 'string'
-              ? ((r['scenario_id'] ?? r['scenarioId'] ?? r['simulationId']) as string)
-              : null,
-          reportData: rd,
-          createdAt:
-            typeof (r['created_at'] ?? r['createdAt'] ?? rd['createdAt']) === 'string'
-              ? ((r['created_at'] ?? r['createdAt'] ?? rd['createdAt']) as string)
-              : null,
-        };
-      };
-
-      const fromDb = (r: SimulationReport): ResolvedReport => ({
-        studentName: r.student_name,
-        scenarioId: r.scenario_id,
-        reportData: (r.report_data ?? {}) as Record<string, unknown>,
-        createdAt: r.created_at,
-      });
 
       let resolvedReport: ResolvedReport | null = null;
 
@@ -725,60 +965,19 @@ export class StudentsService {
         };
       }
 
-      if (!resolvedReport && dto.report_key) {
-        const allBlob = (await this.tutorPatientService.getReports()) as Array<
-          Record<string, unknown>
-        >;
-        const match = allBlob.find((r) => {
-          const rid = (r['id'] ?? r['key'] ?? r['reportId'] ?? r['report_id']) as
-            string | undefined;
-          return rid === dto.report_key;
-        });
-        if (match) {
-          const ownerErr = await checkBlobOwnership(match);
-          if (ownerErr) return ownerErr;
-          resolvedReport = fromBlob(match);
-        }
-      }
-
-      if (!resolvedReport && dto.report_id) {
-        const simRepo = this.dataSource.getRepository(SimulationReport);
-        if (UUID_RE.test(dto.report_id)) {
-          const dbRow = await simRepo.findOne({ where: { id: dto.report_id } });
-          if (dbRow) {
-            if (dto.student_id && dbRow.student_id !== dto.student_id) {
-              return {
-                success: false,
-                message: 'Report does not belong to the specified student',
-                type: ErrorTypes.FORBIDDEN,
-              };
-            }
-            resolvedReport = fromDb(dbRow);
-          }
-        }
-        if (!resolvedReport) {
-          const allBlob = (await this.tutorPatientService.getReports()) as Array<
-            Record<string, unknown>
-          >;
-          const match = allBlob.find((r) => {
-            const rid = (r['id'] ?? r['key'] ?? r['reportId'] ?? r['report_id']) as
-              string | undefined;
-            return rid === dto.report_id;
-          });
-          if (match) {
-            const ownerErr = await checkBlobOwnership(match);
-            if (ownerErr) return ownerErr;
-            resolvedReport = fromBlob(match);
-          }
-        }
+      for (const reportId of [dto.report_key, dto.report_id]) {
+        if (resolvedReport || !reportId) continue;
+        const result = await resolveByReportId(reportId);
+        if (result && 'success' in result) return result;
+        resolvedReport = result;
       }
 
       if (!resolvedReport && dto.student_id && dto.simulation_id) {
-        const simRepo = this.dataSource.getRepository(SimulationReport);
-        const dbRow = await simRepo.findOne({
-          where: { student_id: dto.student_id, scenario_id: dto.simulation_id },
-        });
-        if (dbRow) resolvedReport = fromDb(dbRow);
+        const row = await this.simulationReportRepo.findReportDetailRowByStudentAndScenario(
+          dto.student_id,
+          dto.simulation_id,
+        );
+        if (row) resolvedReport = fromRow(row);
       }
 
       const isAssessment = dto.report_type === 'assessment';
@@ -795,7 +994,7 @@ export class StudentsService {
       if (dto.student_id) {
         const student = await this.studentRepo.findOne({
           where: { id: dto.student_id, class: { id: dto.class_id }, is_active: true },
-          relations: ['class', 'educator'],
+          relations: ['class', 'educator', 'educator.userRole', 'educator.userRole.user'],
         });
         if (!student) {
           return {
@@ -808,7 +1007,7 @@ export class StudentsService {
       } else {
         students = await this.studentRepo.find({
           where: { class: { id: dto.class_id }, is_active: true },
-          relations: ['class', 'educator'],
+          relations: ['class', 'educator', 'educator.userRole', 'educator.userRole.user'],
         });
         if (!students.length) {
           return {
@@ -826,7 +1025,7 @@ export class StudentsService {
       await Promise.all(
         students.map(async (student) => {
           const finalRecipient =
-            student.educator?.email ??
+            (student.educator && resolveEducatorEmail(student.educator)) ??
             dto.email ??
             ((student.class as unknown as Record<string, unknown>)?.['educator_email'] as
               string | undefined) ??
@@ -1139,25 +1338,116 @@ export class StudentsService {
     }
   }
 
+  /** See simulation.service.ts's identical helper for why this mapping is needed. */
+  private toBlobScenario(sim: SimulationV2): BlobScenario {
+    const learningObjective = Array.isArray(sim.learningObjective)
+      ? sim.learningObjective.join('\n')
+      : sim.learningObjective;
+
+    return {
+      ...sim,
+      id: sim.id,
+      unitId: sim.unitId ?? '',
+      learningObjective,
+    } as unknown as BlobScenario;
+  }
+
+  private toSimulationSummary(
+    simulation: BlobScenario,
+    assignment: {
+      start_date?: string | null;
+      end_date?: string | null;
+      due_date?: string | null;
+    } | null,
+    progress?: StudentSimulationProgress,
+  ): StudentSimulationSummary {
+    const sim = simulation as BlobScenario & Record<string, unknown>;
+    const learningObjectives = simulation.learningObjective
+      ? simulation.learningObjective
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      : [];
+
+    return {
+      id: simulation.id,
+      title: simulation.title,
+      description: simulation.description ?? '',
+      avatarEnabled: simulation.avatarEnabled ?? false,
+      avatarId: simulation.avatarId ?? null,
+      StartDate: assignment?.start_date ?? null,
+      EndDate: assignment?.end_date ?? null,
+      DueDate: assignment?.due_date ?? null,
+      modes: ['Assessment', 'Practice'],
+      canForfeit: canForfeitSimulation(progress),
+      attemptCount: progress?.assessmentAttemptsCount ?? 0,
+      maxAttempts: SimulationAttemptConstants.MAX_ASSESSMENT_ATTEMPTS,
+      estimatedDuration: simulation.estimatedDuration ?? null,
+      timeAllotment: simulation.studentBriefing?.timeAllotment ?? null,
+      learningObjectives,
+      keyTopics: sim['topicsAddressed'] ?? simulation.learningObjectiveCard ?? null,
+      briefing: simulation.enableStudentBriefing ? (simulation.studentBriefing ?? null) : null,
+      sbar: simulation.sbar ?? null,
+      requiredEquipment: {
+        additional: sim['additionalEquipment'] ?? null,
+        optional: sim['optionalEquipment'] ?? null,
+        setupNotes: sim['setupNotes'] ?? null,
+      },
+      department: simulation.department ?? null,
+      productName: (simulation.productSetup as { title?: string } | undefined)?.title ?? null,
+    };
+  }
+
   async lookupByCode(studentCode: string): Promise<ServiceResponse<StudentProfileResponse>> {
     try {
-      this.logger.log(`[lookupByCode] Looking up student with code: ${studentCode}`);
+      this.logger.log(`[lookupByCode] Looking up student with code: ${redactCode(studentCode)}`);
 
       const student = await this.studentRepo.findOne({
         where: { student_id: studentCode, is_active: true },
-        relations: ['class'],
+        relations: [
+          'class',
+          'class.educator',
+          'class.educator.userRole',
+          'class.educator.userRole.user',
+          'educator',
+          'educator.userRole',
+          'educator.userRole.user',
+        ],
       });
 
       this.logger.log(
         `[lookupByCode] DB result: ${student ? `found (id=${student.id}, is_active=${student.is_active}, class_id=${student.class?.id ?? 'NULL'})` : 'NOT FOUND'}`,
       );
 
-      if (!student) {
-        this.logger.warn(`[lookupByCode] No student found for code: ${studentCode}`);
+      if (!student || Boolean(student.deleted_at) || student.is_active === false) {
+        this.logger.warn(`[lookupByCode] No student found for code: ${redactCode(studentCode)}`);
         return {
           success: false,
           message: StudentConstants.VALIDATION.STUDENT_NOT_FOUND,
           type: ErrorTypes.NOT_FOUND,
+        };
+      }
+
+      const educator = student.educator ?? student.class?.educator;
+      if (educator && (educator.is_active === false || Boolean(educator.deleted_at))) {
+        this.logger.warn(
+          `[lookupByCode] Educator is deleted/deactivated for code: ${redactCode(studentCode)}`,
+        );
+        return {
+          success: false,
+          message: StudentConstants.VALIDATION.CLASS_INACTIVE,
+          type: ErrorTypes.UNAUTHORIZED,
+        };
+      }
+
+      if (educator && resolveEducatorStatus(educator) === CommonStatus.INACTIVE) {
+        this.logger.warn(
+          `[lookupByCode] Educator is inactive for code: ${redactCode(studentCode)}`,
+        );
+        return {
+          success: false,
+          message: StudentConstants.VALIDATION.EDUCATOR_INACTIVE,
+          type: ErrorTypes.UNAUTHORIZED,
         };
       }
 
@@ -1167,13 +1457,17 @@ export class StudentsService {
 
       if (
         student.class?.is_active === false ||
+        Boolean(student.class?.deleted_at) ||
         student.class?.status === CommonStatus.INACTIVE ||
         student.class?.status === CommonStatus.ARCHIEVED ||
-        student.is_active === false ||
+        student.class?.status === CommonStatus.ARCHIVED ||
         student.status === CommonStatus.INACTIVE ||
-        student.status === CommonStatus.ARCHIEVED
+        student.status === CommonStatus.ARCHIEVED ||
+        student.status === CommonStatus.ARCHIVED
       ) {
-        this.logger.warn(`[lookupByCode] Student or class is inactive for code: ${studentCode}`);
+        this.logger.warn(
+          `[lookupByCode] Student or class is inactive for code: ${redactCode(studentCode)}`,
+        );
         const isDraft =
           student.class?.status === CommonStatus.DRAFT || student.status === CommonStatus.DRAFT;
         const isArchived =
@@ -1187,12 +1481,14 @@ export class StudentsService {
         return {
           success: false,
           message,
-          type: ErrorTypes.BAD_REQUEST,
+          type: ErrorTypes.UNAUTHORIZED,
         };
       }
 
       if (!student.class?.id) {
-        this.logger.warn(`[lookupByCode] Student has no class assigned for code: ${studentCode}`);
+        this.logger.warn(
+          `[lookupByCode] Student has no class assigned for code: ${redactCode(studentCode)}`,
+        );
         return {
           success: false,
           message: StudentConstants.VALIDATION.STUDENT_CLASS_MISSING,
@@ -1200,7 +1496,7 @@ export class StudentsService {
         };
       }
 
-      const classSimulations = await this.studentRepo.manager.find(ClassSimulation, {
+      const classSimulations = await this.classSimulationRepo.find({
         where: { class_id: student.class.id, is_active: true },
       });
 
@@ -1208,16 +1504,29 @@ export class StudentsService {
         `[lookupByCode] classSimulations found: ${classSimulations.length} for class_id: ${student.class.id}`,
       );
 
-      const simulations = (await this.tutorPatientService.getFreshScenarios()) as BlobScenario[];
+      const allSimulationRows = await this.simulationV2Repository.find();
+      const simulations = allSimulationRows.map((s) => this.toBlobScenario(s));
+
+      // The automation-only simulation is filtered out of the list above for
+      // non-tester sessions (incl. this student session) — for the tester's
+      // dedicated automation student codes, add it back so a real
+      // class_simulations assignment/dates (set via Class Management) match.
+      const isAutomationStudent = this.automationAccess.isAutomationStudentCode(studentCode);
+      const automationScenario = isAutomationStudent
+        ? (allSimulationRows.find((s) =>
+          isAutomationOnlyRecord(s as unknown as Record<string, unknown>),
+        ) ?? null)
+        : null;
+      if (automationScenario && !simulations.some((s) => s.id === automationScenario.id)) {
+        simulations.push(this.toBlobScenario(automationScenario));
+      }
 
       if (!simulations || simulations.length === 0) {
         this.logger.warn(
-          `[lookupByCode] No simulations found from blob storage for student code: ${studentCode}`,
+          `[lookupByCode] No simulations found for student code: ${redactCode(studentCode)}`,
         );
       } else {
-        this.logger.debug(
-          `[lookupByCode] Retrieved ${simulations.length} simulations from blob storage`,
-        );
+        this.logger.debug(`[lookupByCode] Retrieved ${simulations.length} simulations`);
         // Log first simulation details to check data completeness
         const firstSim = simulations[0];
         this.logger.debug(
@@ -1233,92 +1542,37 @@ export class StudentsService {
             return [];
           }
 
-          const sim = simulation as BlobScenario & Record<string, unknown>;
-          const learningObjectives = simulation.learningObjective
-            ? simulation.learningObjective
-              .split('\n')
-              .map((s) => s.trim())
-              .filter(Boolean)
-            : [];
-
-          return [
-            {
-              id: simulation.id,
-              title: simulation.title,
-              description: simulation.description ?? '',
-              avatarEnabled: simulation.avatarEnabled ?? false,
-              StartDate: assignment.start_date ?? null,
-              EndDate: assignment.end_date ?? null,
-              DueDate: assignment.due_date ?? null,
-              modes: ['Assessment', 'Practice'],
-              estimatedDuration: simulation.estimatedDuration ?? null,
-              timeAllotment: simulation.studentBriefing?.timeAllotment ?? null,
-              learningObjectives,
-              keyTopics:
-                (sim['topicsAddressed'] as string | undefined) ??
-                simulation.learningObjectiveCard ??
-                null,
-              briefing: simulation.enableStudentBriefing
-                ? (simulation.studentBriefing ?? null)
-                : null,
-              sbar: simulation.sbar ?? null,
-              requiredEquipment: {
-                additional: (sim['additionalEquipment'] as string | undefined) ?? null,
-                optional: (sim['optionalEquipment'] as string | undefined) ?? null,
-                setupNotes: (sim['setupNotes'] as string | undefined) ?? null,
-              },
-              department: simulation.department ?? null,
-              productName:
-                (simulation.productSetup as { title?: string } | undefined)?.title ?? null,
-            },
-          ];
+          return [this.toSimulationSummary(simulation, assignment)];
         },
       );
+
+      // Fallback only if the automation-only simulation has no real
+      // class_simulations row for this class — synthetic always-open window
+      // (today → +1 year) so it still appears rather than being missing.
+      if (automationScenario && !simulationResponses.some((s) => s.id === automationScenario.id)) {
+        const today = new Date();
+        const oneYearOut = new Date(today);
+        oneYearOut.setFullYear(oneYearOut.getFullYear() + 1);
+        const toDateOnly = (d: Date): string => d.toISOString().slice(0, 10);
+
+        simulationResponses.push(
+          this.toSimulationSummary(this.toBlobScenario(automationScenario), {
+            start_date: toDateOnly(today),
+            end_date: toDateOnly(oneYearOut),
+            due_date: toDateOnly(oneYearOut),
+          }),
+        );
+      }
 
       this.logger.log(
         `[lookupByCode] classSimulations found: ${classSimulations.length} for class_id: ${student.class.id}`,
       );
 
-      const dbReports: SimulationReport[] = student.id
-        ? await this.studentRepo.manager.find(SimulationReport, {
-          where: { student_id: student.id },
-        })
-        : [];
-
-      const blobResult = student.student_id
-        ? await this.tutorPatientService.getReportsByStudentIdsFresh([student.student_id])
-        : { matched: await this.tutorPatientService.getReports(), isMatch: false };
-
-      const normalisedBlob = (blobResult.matched as Array<Record<string, unknown>>).map(
-        (r) => ({ ...r, student_id: student.id }) as unknown as SimulationReport,
-      );
-
-      const seen = new Set(dbReports.map((r) => `${r.student_id}__${r.scenario_id}`));
-      const uniqueBlob = normalisedBlob.filter((r) => {
-        const raw = r as unknown as Record<string, unknown>;
-        const sid = (raw['scenario_id'] ?? raw['scenarioId'] ?? '') as string;
-        return !seen.has(`${student.id}__${sid}`);
-      });
-      const reports = [...dbReports, ...uniqueBlob];
-      const assessmentAttemptCounts = new Map<string, number>();
-      for (const report of reports) {
-        const raw = report as unknown as Record<string, unknown>;
-        const scenarioId = (raw['scenario_id'] ?? raw['scenarioId'] ?? '') as string;
-        if (!scenarioId) continue;
-        const reportData = (raw['report_data'] ?? {}) as Record<string, unknown>;
-        const modeRaw = (raw['mode'] ??
-          raw['simulationMode'] ??
-          raw['attemptMode'] ??
-          reportData['mode'] ??
-          reportData['simulationMode'] ??
-          reportData['attemptMode']) as string | undefined;
-
-        if (typeof modeRaw === 'string' && modeRaw.toLowerCase() === 'practice') {
-          continue;
-        }
-
-        assessmentAttemptCounts.set(scenarioId, (assessmentAttemptCounts.get(scenarioId) ?? 0) + 1);
-      }
+      // A student without a Student Code gets no Attempts, so the lookup never scans every report.
+      const reports =
+        student.id && student.student_id
+          ? await this.simulationReportRepo.findAttemptRowsByStudentId(student.id)
+          : [];
 
       return {
         success: true,
@@ -1335,25 +1589,62 @@ export class StudentsService {
     }
   }
 
-  async studentLogin(studentId: string): Promise<ServiceResponse<StudentLoginData>> {
+  async studentLogin(
+    studentId: string,
+    res: Response,
+    ltiLaunchContext?: { simulationId?: string; resourceLinkId?: string; classId?: string },
+  ): Promise<ServiceResponse<StudentLoginData>> {
     try {
-      this.logger.log(`[studentLogin] Login attempt for student_id: ${studentId}`);
+      this.logger.log(`[studentLogin] Login attempt for student_id: ${redactCode(studentId)}`);
 
       const student = await this.studentRepo.findOne({
         where: { student_id: studentId, is_active: true },
-        relations: ['class'],
+        relations: [
+          'class',
+          'class.educator',
+          'class.educator.userRole',
+          'class.educator.userRole.user',
+          'educator',
+          'educator.userRole',
+          'educator.userRole.user',
+        ],
       });
 
       this.logger.log(
         `[studentLogin] DB result: ${student ? `found (id=${student.id}, is_active=${student.is_active}, class_id=${student.class?.id ?? 'NULL'})` : 'NOT FOUND'}`,
       );
 
-      if (!student) {
-        this.logger.warn(`[studentLogin] No student found for student_id: ${studentId}`);
+      if (!student || Boolean(student.deleted_at) || student.is_active === false) {
+        this.logger.warn(
+          `[studentLogin] No student found for student_id: ${redactCode(studentId)}`,
+        );
         return {
           success: false,
           message: StudentConstants.VALIDATION.STUDENT_ID_NOT_FOUND,
           type: ErrorTypes.NOT_FOUND,
+        };
+      }
+
+      const educator = student.educator ?? student.class?.educator;
+      if (educator && (educator.is_active === false || Boolean(educator.deleted_at))) {
+        this.logger.warn(
+          `[studentLogin] Educator is deleted/deactivated for student_id: ${redactCode(studentId)}`,
+        );
+        return {
+          success: false,
+          message: StudentConstants.VALIDATION.CLASS_INACTIVE,
+          type: ErrorTypes.BAD_REQUEST,
+        };
+      }
+
+      if (educator && resolveEducatorStatus(educator) === CommonStatus.INACTIVE) {
+        this.logger.warn(
+          `[studentLogin] Educator is inactive for student_id: ${redactCode(studentId)}`,
+        );
+        return {
+          success: false,
+          message: StudentConstants.VALIDATION.EDUCATOR_INACTIVE,
+          type: ErrorTypes.BAD_REQUEST,
         };
       }
 
@@ -1363,22 +1654,26 @@ export class StudentsService {
 
       if (
         student.class?.is_active === false ||
+        Boolean(student.class?.deleted_at) ||
         student.class?.status === CommonStatus.INACTIVE ||
         student.class?.status === CommonStatus.ARCHIEVED ||
+        student.class?.status === CommonStatus.ARCHIVED ||
         student.class?.status === CommonStatus.DRAFT ||
-        student.is_active === false ||
         student.status === CommonStatus.INACTIVE ||
         student.status === CommonStatus.DRAFT ||
-        student.status === CommonStatus.ARCHIEVED
+        student.status === CommonStatus.ARCHIEVED ||
+        student.status === CommonStatus.ARCHIVED
       ) {
         this.logger.warn(
-          `[studentLogin] Student or class is inactive for student_id: ${studentId}`,
+          `[studentLogin] Student or class is inactive for student_id: ${redactCode(studentId)}`,
         );
         const isDraft =
           student.class?.status === CommonStatus.DRAFT || student.status === CommonStatus.DRAFT;
         const isArchived =
           student.class?.status === CommonStatus.ARCHIEVED ||
-          student.status === CommonStatus.ARCHIEVED;
+          student.class?.status === CommonStatus.ARCHIVED ||
+          student.status === CommonStatus.ARCHIEVED ||
+          student.status === CommonStatus.ARCHIVED;
         const message = isDraft
           ? StudentConstants.VALIDATION.CLASS_DRAFT
           : isArchived
@@ -1391,21 +1686,23 @@ export class StudentsService {
         };
       }
 
-      this.logger.log(`[studentLogin] Login successful for student_id: ${studentId}`);
+      this.logger.log(`[studentLogin] Login successful for student_id: ${redactCode(studentId)}`);
 
-      const expiresIn =
-        this.configService.get<string>('JWT_EXPIRES_IN') ?? AuthConstants.DEFAULT_JWT_EXPIRES;
-
-      const accessToken = this.jwtService.sign(
-        {
-          sub: student.student_id ?? student.id,
-          user_id: student.id,
-          student_id: student.student_id ?? null,
-          type: AuthConstants.TOKEN_TYPE.STUDENT,
-          roles: ['Student'],
-        } as JwtPayload,
-        { expiresIn: expiresIn as '1d' },
-      );
+      const studentTokens = this.tokenService.generateTokens({
+        sub: student.student_id ?? student.id,
+        studentId: student.id,
+        user_id: student.id,
+        student_id: student.student_id ?? null,
+        type: UserTokenType.STUDENT,
+        purpose: TokenPurposeType.ACCESS,
+        roles: [RoleSlug.STUDENT],
+        ltiLaunch: ltiLaunchContext,
+      });
+      const accessToken = studentTokens.access_token;
+      this.tokenService.setAuthCookies(res, {
+        access_token: studentTokens.access_token,
+        expires_in: studentTokens.expires_in,
+      });
 
       return {
         success: true,
@@ -1416,7 +1713,7 @@ export class StudentsService {
           status: student.status,
           class_id: student.class?.id,
           class_name: student.class?.class_name,
-          type: AuthConstants.TOKEN_TYPE.STUDENT,
+          type: UserTokenType.STUDENT,
           access_token: accessToken,
           token_type: 'Bearer',
         },
@@ -1424,7 +1721,9 @@ export class StudentsService {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : StudentConstants.VALIDATION.FETCH_ONE_FAILED;
-      this.logger.error(`[studentLogin] Error for student_id: ${studentId} => ${message}`);
+      this.logger.error(
+        `[studentLogin] Error for student_id: ${redactCode(studentId)} => ${message}`,
+      );
       return { success: false, message, type: ErrorTypes.BAD_REQUEST };
     }
   }
@@ -1432,7 +1731,9 @@ export class StudentsService {
   async getSimulationsByCode(
     studentCode: string,
   ): Promise<ServiceResponse<StudentProfileResponse>> {
-    this.logger.log(`[getSimulationsByCode] Fetching simulations for student code: ${studentCode}`);
+    this.logger.log(
+      `[getSimulationsByCode] Fetching simulations for student code: ${redactCode(studentCode)}`,
+    );
     return this.lookupByCode(studentCode);
   }
 
@@ -1444,25 +1745,16 @@ export class StudentsService {
     try {
       const student = await this.studentRepo.findOne({ where: { id: studentId } });
       const isRepeatAllowedStudent = this.isRepeatAllowedStudent(student?.student_id);
-      const reports = await this.studentRepo.manager.find(SimulationReport, {
-        where: { student_id: studentId, scenario_id: scenarioId },
-      });
-      const assessmentCompleted = reports.some((r) => {
-        const raw = r as unknown as Record<string, unknown>;
-        const data = (raw['report_data'] ?? {}) as Record<string, unknown>;
-        return raw['mode'] === 'Assessment' || data['mode'] === 'Assessment';
-      });
+      const progress = await this.simulationProgressRepo.findByStudentAndScenarioId(
+        studentId,
+        scenarioId,
+      );
 
-      if (assessmentCompleted && !isRepeatAllowedStudent) {
-        const message =
-          mode === 'Practice'
-            ? StudentConstants.VALIDATION.PRACTICE_NOT_ALLOWED
-            : StudentConstants.VALIDATION.ASSESSMENT_ALREADY_COMPLETED;
-        return {
-          success: false,
-          message,
-          type: ErrorTypes.BAD_REQUEST,
-        };
+      if (progress && !isRepeatAllowedStudent) {
+        const rejection = this.resolveStartRejection(progress, mode);
+        if (rejection) {
+          return { success: false, message: rejection, type: ErrorTypes.BAD_REQUEST };
+        }
       }
       return {
         success: true,
@@ -1474,6 +1766,26 @@ export class StudentsService {
         error instanceof Error ? error.message : StudentConstants.VALIDATION.FETCH_ONE_FAILED;
       return { success: false, message, type: ErrorTypes.BAD_REQUEST };
     }
+  }
+
+  /** The i18n key explaining why this launch is refused, or null when the student may start. */
+  private resolveStartRejection(
+    progress: StudentSimulationProgress,
+    mode: 'Assessment' | 'Practice',
+  ): string | null {
+    if (progress.status === SimulationProgressStatus.FORFEITED) {
+      return SIMULATION_PROGRESS_MSG.ASSESSMENT_FORFEITED;
+    }
+    if (progress.status === SimulationProgressStatus.COMPLETED) {
+      return SIMULATION_PROGRESS_MSG.SIMULATION_COMPLETED;
+    }
+    if (
+      mode === String(ReportModeType.ASSESSMENT) &&
+      progress.assessmentAttemptsCount >= SimulationAttemptConstants.MAX_ASSESSMENT_ATTEMPTS
+    ) {
+      return SIMULATION_PROGRESS_MSG.ASSESSMENT_ATTEMPT_LIMIT_REACHED;
+    }
+    return null;
   }
 
   private generateResolvedReportPdf(

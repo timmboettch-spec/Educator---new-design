@@ -1,0 +1,12 @@
+{
+  "noAccess": {
+    "title": "Esta cuenta no puede acceder a la aplicación para educadores",
+    "body": "Tu inicio de sesión funcionó, pero esta cuenta no tiene un rol de Educador o Administrador del Distrito. Si crees que es un error, comunícate con tu administrador.",
+    "signOut": "Iniciar sesión con otra cuenta"
+  },
+  "routeError": {
+    "title": "Algo salió mal en esta página",
+    "body": "El resto de la aplicación sigue funcionando. Intenta de nuevo, o ve a otra página usando el menú.",
+    "retry": "Intentar de nuevo"
+  }
+}

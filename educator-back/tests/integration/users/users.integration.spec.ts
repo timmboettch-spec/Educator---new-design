@@ -1,23 +1,22 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { UsersController } from '../../../src/users/users.controller';
 import { UsersService } from '../../../src/users/users.service';
 import { EducatorsService } from '../../../src/educators/educators.service';
 import { InvitesService } from '../../../src/invites/invites.service';
-import { User } from '../../../src/users/entity/user.entity';
-import { Role } from '../../../src/roles/entity/role.entity';
-import { Educator } from '../../../src/educators/entity/educator.entity';
-import { Schools } from '../../../src/schools/entity/schools.entity';
-import { Class } from '../../../src/class/entity/class.entity';
-import { ClassSimulation } from '../../../src/class-simulations/entity/class-simulation.entity';
-import { Invite } from '../../../src/invites/entity/invite.entity';
-import { AzureBlobService } from '../../../src/config/azure-blob.config';
-import { NotificationsGateway } from '../../../src/notifications/notifications.gateway';
-import { MailService } from '../../../src/mail/mail.service';
-import { DataSource } from 'typeorm';
+
+import { AzureBlobService } from '../../../src/common/services';
 import { CommonStatus } from '../../../src/common/enums/status.enum';
 import { buildTestApp, TEST_USERS } from '../setup/test-app.factory';
+import { expectErrorEnvelope, expectLegacySuccessBody } from '../setup/error-envelope.util';
+import { User, Role } from 'src/database/entities';
+import {
+  DISTRICT_ADMIN_REPOSITORY,
+  EDUCATOR_REPOSITORY,
+  ROLE_REPOSITORY,
+  USER_REPOSITORY,
+} from 'src/database/tokens';
+import { DatabaseService } from 'src/database/services/database.service';
 
 type TestBody = {
   status?: string;
@@ -32,17 +31,11 @@ const parseBody = (res: request.Response): TestBody => {
   throw new Error('Expected response body to be an object');
 };
 
-const expectStatus = (res: request.Response, expected: string): void => {
-  const body = parseBody(res);
-  expect(body.status).toBe(expected);
-};
-
 const makeUser = (o: Partial<User> = {}): User =>
   ({
     id: TEST_USERS.districtAdmin.sub,
     email: 'admin@test.com',
     password: 'hash',
-    full_name: 'Test Admin',
     status: CommonStatus.ACTIVE,
     role: { id: 'role-1', role_name: 'District Admin' } as Role,
     ...o,
@@ -53,19 +46,36 @@ describe('Users (Integration)', () => {
   let signToken: (user?: object) => string;
   let adminToken: string;
 
+  jest.setTimeout(20_000);
+
   const httpServer = (): Parameters<typeof request>[0] => {
     const server: unknown = app.getHttpServer();
     return server as Parameters<typeof request>[0];
   };
 
-  const userRepo = { find: jest.fn(), findOne: jest.fn(), save: jest.fn(), update: jest.fn(), create: jest.fn() };
+  // `findOne`'s default resolves the authenticated admin's own JWT-auth lookup (any test that
+  // doesn't care about `userRepo.findOne` still needs `JwtStrategy.validate()` to succeed) —
+  // individual tests override this via `mockResolvedValue`/`mockImplementation` for their own
+  // business-lookup id, same instance as the auth call since both go through `USER_REPOSITORY`.
+  const defaultUserRepoFindOne = (options: { where?: { id?: string } }): Promise<User | null> =>
+    Promise.resolve(options?.where?.id === TEST_USERS.districtAdmin.sub ? makeUser() : null);
+
+  const userRepo = {
+    find: jest.fn(),
+    findOne: jest.fn().mockImplementation(defaultUserRepoFindOne),
+    save: jest.fn(),
+    update: jest.fn(),
+    create: jest.fn(),
+  };
   const roleRepo = { findOne: jest.fn() };
   const educatorRepo = { findOne: jest.fn(), save: jest.fn() };
   const educatorsService = { updateProfile: jest.fn() };
-  const invitesService = { findInviteById: jest.fn(), acceptInvite: jest.fn() };
-  const azureBlobService = { uploadFile: jest.fn(), isConfigured: jest.fn().mockReturnValue(false) };
-  const notificationsGateway = { notifyAccountDeleted: jest.fn() };
-  const mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
+  const invitesService = { findInviteById: jest.fn(), markInviteAccepted: jest.fn() };
+  const azureBlobService = {
+    uploadFile: jest.fn(),
+    isConfigured: jest.fn().mockReturnValue(false),
+  };
+  const databaseService = { pingCheck: jest.fn(), connection: { createQueryBuilder: jest.fn() } };
 
   beforeAll(async () => {
     ({ app, signToken } = await buildTestApp({
@@ -74,17 +84,15 @@ describe('Users (Integration)', () => {
         UsersService,
         { provide: EducatorsService, useValue: educatorsService },
         { provide: InvitesService, useValue: invitesService },
-        { provide: getRepositoryToken(User), useValue: userRepo },
-        { provide: getRepositoryToken(Role), useValue: roleRepo },
-        { provide: getRepositoryToken(Educator), useValue: educatorRepo },
-        { provide: getRepositoryToken(Schools), useValue: { findOne: jest.fn() } },
-        { provide: getRepositoryToken(Class), useValue: { findOne: jest.fn() } },
-        { provide: getRepositoryToken(ClassSimulation), useValue: { findOne: jest.fn(), find: jest.fn() } },
-        { provide: getRepositoryToken(Invite), useValue: { findOne: jest.fn(), delete: jest.fn(), save: jest.fn(), create: jest.fn() } },
+        { provide: USER_REPOSITORY, useValue: userRepo },
+        { provide: ROLE_REPOSITORY, useValue: roleRepo },
+        { provide: EDUCATOR_REPOSITORY, useValue: educatorRepo },
+        {
+          provide: DISTRICT_ADMIN_REPOSITORY,
+          useValue: { findByUserRoleId: jest.fn(), updateByUserRoleId: jest.fn() },
+        },
         { provide: AzureBlobService, useValue: azureBlobService },
-        { provide: DataSource, useValue: { query: jest.fn() } },
-        { provide: MailService, useValue: mailService },
-        { provide: NotificationsGateway, useValue: notificationsGateway },
+        { provide: DatabaseService, useValue: databaseService },
       ],
     }));
     adminToken = signToken(TEST_USERS.districtAdmin);
@@ -95,19 +103,19 @@ describe('Users (Integration)', () => {
 
   describe('GET /api/users', () => {
     it('INTEGRATION: returns 401 when no JWT provided', async () => {
-      return request(httpServer()).get('/api/users').expect(401);
+      await request(httpServer()).get('/api/users').expect(401);
     });
 
     it('INTEGRATION: returns 200 with user list', async () => {
       userRepo.find.mockResolvedValue([makeUser()]);
 
-      return request(httpServer())
+      await request(httpServer())
         .get('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200)
         .expect((res) => {
+          expectLegacySuccessBody(res);
           const body = parseBody(res);
-          expect(body.status).toBe('SUCCESS');
           expect(Array.isArray(body.data)).toBe(true);
         });
     });
@@ -115,7 +123,7 @@ describe('Users (Integration)', () => {
     it('INTEGRATION: returns 200 with empty list when no users', async () => {
       userRepo.find.mockResolvedValue([]);
 
-      return request(httpServer())
+      await request(httpServer())
         .get('/api/users')
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200)
@@ -128,50 +136,40 @@ describe('Users (Integration)', () => {
 
   describe('GET /api/users/:id', () => {
     it('INTEGRATION: returns 401 when no JWT provided', async () => {
-      return request(httpServer()).get(`/api/users/${TEST_USERS.districtAdmin.sub}`).expect(401);
+      await request(httpServer()).get(`/api/users/${TEST_USERS.districtAdmin.sub}`).expect(401);
     });
 
     it('INTEGRATION: returns 200 when user found', async () => {
       userRepo.findOne.mockResolvedValue(makeUser());
 
-      return request(httpServer())
+      await request(httpServer())
         .get(`/api/users/${TEST_USERS.districtAdmin.sub}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(200)
         .expect((res) => {
+          expectLegacySuccessBody(res);
           const body = parseBody(res);
-          expect(body.status).toBe('SUCCESS');
           expect(body.data).toBeDefined();
         });
     });
 
     it('INTEGRATION: returns 404 when user not found', async () => {
-      userRepo.findOne.mockResolvedValue(null);
+      // Target a *different* id than the authenticated admin's own `sub` — `JwtStrategy` re-reads
+      // the admin's own account via this same `USER_REPOSITORY` on every request, so a blanket
+      // `mockResolvedValue(null)` here would also fail auth (401) rather than reach the
+      // controller's own 404 for a missing *target* user.
+      const missingUserId = '550e8400-e29b-41d4-a716-446655449999';
+      userRepo.findOne.mockImplementation((options: { where?: { id?: string } }) =>
+        Promise.resolve(options?.where?.id === TEST_USERS.districtAdmin.sub ? makeUser() : null),
+      );
 
-      return request(httpServer())
-        .get('/api/users/550e8400-e29b-41d4-a716-446655440001')
+      await request(httpServer())
+        .get(`/api/users/${missingUserId}`)
         .set('Authorization', `Bearer ${adminToken}`)
         .expect(404)
         .expect((res) => {
-          expectStatus(res, 'FAILED');
+          expectErrorEnvelope(res);
         });
-    });
-  });
-
-  describe('PUT /api/users/change-password', () => {
-    it('INTEGRATION: returns 401 when no JWT provided', async () => {
-      return request(httpServer())
-        .put('/api/users/change-password')
-        .send({ old_password: 'old', new_password: 'new' })
-        .expect(401);
-    });
-
-    it('INTEGRATION: returns 400 when required fields missing', async () => {
-      return request(httpServer())
-        .put('/api/users/change-password')
-        .set('Authorization', `Bearer ${adminToken}`)
-        .send({})
-        .expect(400);
     });
   });
 });

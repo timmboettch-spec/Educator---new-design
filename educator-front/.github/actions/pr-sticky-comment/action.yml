@@ -1,4 +1,4 @@
-name: "pr-sticky-comment"
+name: 'pr-sticky-comment'
 description: >-
   Upserts a sticky PR comment. On pull_request-triggered jobs, leave `branch`
   empty and the PR is auto-detected from event context (e.g.
@@ -41,7 +41,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
-        BRANCH:   ${{ inputs.branch }}
+        BRANCH: ${{ inputs.branch }}
       run: |
         NUMBER=$(gh pr list --repo "${{ github.repository }}" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
         echo "number=$NUMBER" >> "$GITHUB_OUTPUT"

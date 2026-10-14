@@ -27,10 +27,11 @@
   },
   "include": [
     "src/**/*.ts",
+    "src/**/*.json",
     "tests/**/*.ts",
     "tests/**/*.js",
     "tests/**/*.mjs",
     "scripts/**/*.js",
     "jest.config.*.ts"
-    ]
+  ]
 }

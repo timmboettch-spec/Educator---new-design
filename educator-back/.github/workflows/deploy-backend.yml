@@ -5,21 +5,25 @@ on:
     branches: [dev, qa, main]
     paths:
       - 'src/**'
+      - 'tests/**'
       - 'Dockerfile'
+      - 'migrate.sh'
+      - 'seed.sh'
       - 'package*.json'
       - 'tsconfig*.json'
       - 'infra/**'
       - '.github/workflows/deploy-backend.yml'
+  # No `paths:` filter here on purpose: Lint (NestJS) and Test gate are
+  # required status checks on dev/qa/main (see repo ruleset). A `paths:`
+  # filter stops this workflow from running at all for PRs that don't touch
+  # those paths (e.g. docs-only changes), which leaves those required checks
+  # stuck at "Expected" forever and blocks the merge. Instead, the `changes`
+  # job below detects whether backend paths changed, and the gated jobs each
+  # report a real (skipped) conclusion when they didn't, which satisfies the
+  # required-status-checks gate.
   pull_request:
     branches: [main, qa, dev]
     types: [opened, synchronize, reopened]
-    paths:
-      - 'src/**'
-      - 'Dockerfile'
-      - 'package*.json'
-      - 'tsconfig*.json'
-      - '.github/workflows/deploy-backend.yml'
-      - '.github/lint-baseline.json'
   workflow_dispatch:
     inputs:
       environment:
@@ -50,8 +54,59 @@ env:
   ACR_NAME: acrall1rwai
   ACR_RG: ARG-all1-rwai      # shared RG — SP only has Contributor on per-env RG, so ACR lookups must be RG-scoped
   SUBSCRIPTION_ID: 215408ae-455d-4213-bcc4-3b4a56228db6
+  # Domain passed to run-api-test-suite's test-email-domain input, which
+  # builds TEST_EMAIL_ADDRESS=test@<domain> for tests/api/utils/env.ts's
+  # testEmail() — Curionn is our verified test domain (real MX, no bounces).
+  # Sourced from the repo-level Actions variable (Settings > Secrets and
+  # variables > Actions > Variables) so every job/action in this workflow
+  # that runs the API test suite shares one place to change it, instead of a
+  # per-job literal. Not a secret — plain domain name, not sensitive — hence
+  # a repo variable rather than Key Vault.
+  TEST_EMAIL_DOMAIN: ${{ vars.TEST_EMAIL_DOMAIN }}
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Detect whether this push/PR actually touches backend-relevant paths. Lets
+  # Lint/Unit/API/Test gate report a real "skipped" conclusion (instead of
+  # never running) for docs-only changes, so they still satisfy the
+  # required-status-checks gate on dev/qa/main.
+  # ─────────────────────────────────────────────────────────────────────────────
+  changes:
+    name: Detect Backend Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      lms:     ${{ steps.filter.outputs.lms }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Filter changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'src/**'
+              - 'tests/**'
+              - 'Dockerfile'
+              - 'package*.json'
+              - 'tsconfig*.json'
+              - '.github/workflows/deploy-backend.yml'
+              - '.github/lint-baseline.json'
+            # LMS-relevant paths only — gates the dev live Moodle/Canvas smoke
+            # (lms-live-smoke job below) so it doesn't run on unrelated pushes.
+            lms:
+              - 'src/lms/**'
+              - 'src/lti/**'
+              - 'src/class/**'
+              - 'src/database/entities/lms-*.ts'
+              - 'src/database/repositories/lms-*.ts'
+              - 'src/common/enums/lms.enum.ts'
+              - 'tests/integration/lms/live-smoke/**'
+              - 'tests/jest-integration-lms-live.json'
+              - '.github/workflows/deploy-backend.yml'
+
   # ─────────────────────────────────────────────────────────────────────────────
   # Lint: ratcheted ESLint — counts compared to .github/lint-baseline.json.
   # If counts exceed the baseline the job fails, blocking the deploy and
@@ -60,7 +115,10 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   lint:
     name: Lint (NestJS)
+    needs: [changes]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       errors:            ${{ steps.lint.outputs.errors }}
       warnings:          ${{ steps.lint.outputs.warnings }}
@@ -69,7 +127,7 @@ jobs:
       verdict:           ${{ steps.lint.outputs.verdict }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Lint ratchet (ESLint vs baseline)
         id: lint
@@ -88,11 +146,30 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: eslint-report
           path: eslint-report.json
           retention-days: 14
+
+      - name: Compute File Service run folder
+        if: always() && github.event_name != 'pull_request'
+        id: fsfolder
+        run: echo "folder=$(date -u +%Y-%m-%d)-run${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive lint report to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: eslint-report.json
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: eslint-report.json
 
   # ─────────────────────────────────────────────────────────────────────────────
   # PR lint comment: post a sticky comment on PRs so devs always see the lint
@@ -100,9 +177,10 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   pr-lint-comment:
     name: PR lint delta comment
-    if: github.event_name == 'pull_request' && !cancelled()
+    if: github.event_name == 'pull_request' && !cancelled() && needs.lint.result == 'success'
     needs: [lint]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read      # required for actions/checkout (needed to resolve ./.github/actions/pr-sticky-comment)
       pull-requests: write
@@ -110,7 +188,7 @@ jobs:
       # Needed so ./.github/actions/pr-sticky-comment (a local composite
       # action) resolves.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build comment body
         id: body
@@ -170,9 +248,10 @@ jobs:
       && (needs.lint.outputs.verdict == 'fail' || needs.lint.outputs.verdict == 'improved')
     needs: [lint]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Prepare Notification Details
         id: prep
@@ -229,7 +308,10 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   test-unit:
     name: Unit Tests
+    needs: [changes]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       total:        ${{ steps.suite.outputs.total }}
       passed:       ${{ steps.suite.outputs.passed }}
@@ -238,7 +320,7 @@ jobs:
       failed_names: ${{ steps.suite.outputs.failed_names }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Chained (not continue-on-error, since the HTML report generator must
       # run even when jest fails) but still exits 0 — TODO: fix upstream test
@@ -256,6 +338,39 @@ jobs:
           report-html: tests/unit/reports/index.html
           artifact-prefix: unit
           name-prefix: 'unit: '
+
+      - name: Compute File Service run folder
+        if: always() && github.event_name != 'pull_request'
+        id: fsfolder
+        run: echo "folder=$(date -u +%Y-%m-%d)-run${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive Unit Test Results to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/unit/reports/test-results.json
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: unit-test-results.json
+
+      - name: Archive Unit HTML Report to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/unit/reports/index.html
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: unit-html-report.html
 
       - name: Parse test summary
         id: summary
@@ -297,7 +412,10 @@ jobs:
   # ─────────────────────────────────────────────────────────────────────────────
   test-api:
     name: API Tests
+    needs: [changes]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       total:        ${{ steps.summary.outputs.total }}
       passed:       ${{ steps.summary.outputs.passed }}
@@ -306,7 +424,7 @@ jobs:
       failed_names: ${{ steps.summary.outputs.failed_names }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Without this, tests/api/utils/env.ts's `process.env.NODE_ENV || 'dev'`
       # falls through to whatever NODE_ENV is already set to on the runner
@@ -330,27 +448,84 @@ jobs:
             esac
           fi
 
+      # dev now scales to zero when idle (resourceMap.dev.minReplicas: 0 in
+      # containerApp-backend.bicep), and this job's default (base-url empty)
+      # sends every request straight at the shared canonical URL for
+      # api_env — including on every PR, which defaults to dev. Without a
+      # warm-up, the first jest request can outrun a cold start (60s
+      # testTimeout vs. an observed 60-150s cold start budget elsewhere in
+      # this workflow), failing the whole suite instead of just being slow.
+      - name: Warm up target backend before running tests
+        env:
+          API_ENV: ${{ steps.api-env.outputs.api_env }}
+        run: |
+          case "$API_ENV" in
+            main) URL="https://educatorbe.realityworksai.com" ;;
+            qa)   URL="https://qa.educatorbe.realityworksai.com" ;;
+            *)    URL="https://dev.educatorbe.realityworksai.com" ;;
+          esac
+          curl --fail --retry 25 --retry-delay 6 --retry-connrefused \
+            "$URL/health"
+
       - name: Run API test suite
         id: summary
         continue-on-error: true  # API tests require a live backend; results are informational
         uses: ./.github/actions/run-api-test-suite
         with:
           node-env:           ${{ steps.api-env.outputs.api_env }}
+          test-email-domain:  ${{ env.TEST_EMAIL_DOMAIN }}
           artifact-json-name: api-test-results
           artifact-html-name: api-html-report
           label: api
+
+      - name: Compute File Service run folder
+        if: always() && github.event_name != 'pull_request'
+        id: fsfolder
+        run: echo "folder=$(date -u +%Y-%m-%d)-run${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive API Test Results to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/api/reports/.test-results.json
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: api-test-results.json
+
+      - name: Archive API HTML Report to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/api/reports/html/api-predeployment-report.html
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: api-html-report.html
   # ─────────────────────────────────────────────────────────────────────────────
-  # Integration Tests: runs on every push and on PRs targeting main or qa.
-  # PR runs act as a merge gate; push runs produce the HTML report attached
-  # as an artifact on every deploy.
+  # Integration Tests: runs on every push and on PRs targeting dev, main, or qa.
+  # PR runs act as a merge gate (enforced via each branch's required status
+  # checks); push runs produce the HTML report attached as an artifact on
+  # every deploy. dev was added here because feature/bugfix branches target
+  # dev per CONTRIBUTING.md's branch model — without it, integration failures
+  # only surfaced after merge instead of blocking it.
   # ─────────────────────────────────────────────────────────────────────────────
   test-integration:
     name: Integration Tests
     if: |
       github.event_name == 'push'
-      || (github.event_name == 'pull_request' && (github.base_ref == 'main' || github.base_ref == 'qa'))
+      || (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main' || github.base_ref == 'qa'))
     needs: [lint]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       total:        ${{ steps.suite.outputs.total }}
       passed:       ${{ steps.suite.outputs.passed }}
@@ -359,7 +534,7 @@ jobs:
       failed_names: ${{ steps.suite.outputs.failed_names }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Unlike test-unit, this is a real gate (set-environment below requires
       # this job to succeed) — the exit code below is jest's real exit code,
@@ -372,7 +547,7 @@ jobs:
           node-version: '22'
           test-command: |
             mkdir -p tests/integration/reports
-            npx jest --config tests/jest-integration.json --ci --json \
+            npx jest --config tests/jest-integration.json --ci --forceExit --json \
               --outputFile=tests/integration/reports/test-results.json
             JEST_EXIT=$?
             node tests/integration/reporters/generate-integration-test-report.mjs
@@ -381,6 +556,39 @@ jobs:
           report-html: tests/integration/reports/index.html
           artifact-prefix: integration
           name-prefix: 'integration: '
+
+      - name: Compute File Service run folder
+        if: always() && github.event_name != 'pull_request'
+        id: fsfolder
+        run: echo "folder=$(date -u +%Y-%m-%d)-run${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive Integration Test Results to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/integration/reports/test-results.json
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: integration-test-results.json
+
+      - name: Archive Integration HTML Report to File Service
+        if: always() && github.event_name != 'pull_request'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/integration/reports/index.html
+          path: realityworks-ai/educator-app-backend/${{ github.ref_name }}/${{ steps.fsfolder.outputs.folder }}
+          filename: integration-html-report.html
 
       - name: Integration test summary
         if: always()
@@ -403,20 +611,21 @@ jobs:
     name: Test report
     needs: [test-unit, test-api]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     if: always()
     permissions:
       checks: write
       pull-requests: write
     steps:
       - name: Download unit test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: unit-test-results
           path: unit
         continue-on-error: true
 
       - name: Download API test results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: api-test-results
           path: api
@@ -464,46 +673,69 @@ jobs:
           write_suite "API"  "api/.test-results.json" "assertions"
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # Test gate: hard-fails the deploy if unit/API test failures exceed zero,
-  # unless STRICT_TEST_GATING is off and the target isn't main (dev/qa can
-  # still deploy with known failures for faster iteration).
+  # Test gate: hard-fails the deploy if unit test failures exceed zero, unless
+  # STRICT_TEST_GATING is off and the target isn't main (dev/qa can still
+  # deploy with known failures for faster iteration).
+  #
+  # API test (test-api) results are deliberately NOT part of this hard gate —
+  # that job targets the shared, already-live canonical URL for the branch's
+  # env (dev/qa/main), not the code this PR/push is about to deploy (see
+  # test-api's own "Warm up target backend" step comment). A pre-existing
+  # incident on that shared environment (e.g. a hung mail send, a bad prior
+  # deploy) would otherwise hard-block every unrelated PR/push, including the
+  # one that fixes the incident — confirmed 2026-09-02 on PR #677, where a
+  # live ACS-mail hang on Dev made test-api blow its own 15-minute job
+  # timeout (job result "cancelled") on every PR touching this repo. The
+  # actual gate for "does the new build work" is staging-smoke-tests below,
+  # which runs after build-and-deploy against that revision's own staging
+  # FQDN — test-api's results are surfaced as a warning only.
   # ─────────────────────────────────────────────────────────────────────────────
   test-gate:
     name: Test gate
     needs: [test-unit, test-api]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     steps:
       # Needed so ./.github/actions/test-gate-evaluate (a local composite
       # action) resolves.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Combine failure counts
         id: combined
         run: |
-          # test-unit/test-api always exit 0 from their own last step (see
-          # that job's "chained, not continue-on-error" comment), so a job
-          # result of anything other than success means it crashed before
+          # test-unit always exits 0 from its own last step (see that job's
+          # "chained, not continue-on-error" comment), so a job result of
+          # anything other than success/skipped means it crashed before
           # emitting outputs.failed (e.g. checkout failure, a runner outage,
           # or a malformed report crashing the summary parse step) — treat
           # that as a hard gate failure instead of letting ${VAR:-0} silently
-          # default a missing/crashed run to "0 failures".
-          if [ "${{ needs.test-unit.result }}" != "success" ]; then
+          # default a missing/crashed run to "0 failures". "skipped" means
+          # the changes job found no backend-relevant diff (e.g. a docs-only
+          # PR) — nothing to gate on, not a failure.
+          if [ "${{ needs.test-unit.result }}" != "success" ] && [ "${{ needs.test-unit.result }}" != "skipped" ]; then
             echo "::error::test-unit job did not complete successfully (result: ${{ needs.test-unit.result }}) — failing test gate."
             exit 1
           fi
-          if [ "${{ needs.test-api.result }}" != "success" ]; then
-            echo "::error::test-api job did not complete successfully (result: ${{ needs.test-api.result }}) — failing test gate."
-            exit 1
+
+          # test-api is informational only (see job header comment above) —
+          # never blocks, but still surfaced so a real regression isn't
+          # silently missed. "skipped" (no backend-relevant diff) isn't
+          # worth a warning.
+          if [ "${{ needs.test-api.result }}" != "success" ] && [ "${{ needs.test-api.result }}" != "skipped" ]; then
+            echo "::warning::test-api job did not complete successfully (result: ${{ needs.test-api.result }}) — this tests the shared live environment, not this change; not blocking the test gate."
+          fi
+          API_FAILED="${{ needs.test-api.outputs.failed }}"
+          if [ "${API_FAILED:-0}" -gt 0 ]; then
+            echo "::warning::$API_FAILED API test failure(s) against the shared environment — not blocking the test gate (see staging-smoke-tests for the actual new-build check)."
           fi
 
           UNIT_FAILED="${{ needs.test-unit.outputs.failed }}"
-          API_FAILED="${{ needs.test-api.outputs.failed }}"
-          TOTAL_FAILED=$(( ${UNIT_FAILED:-0} + ${API_FAILED:-0} ))
+          TOTAL_FAILED="${UNIT_FAILED:-0}"
           echo "Unit failures: ${UNIT_FAILED:-0}"
-          echo "API failures: ${API_FAILED:-0}"
-          echo "Total failures: $TOTAL_FAILED"
+          echo "API failures (informational): ${API_FAILED:-0}"
+          echo "Total failures (gating): $TOTAL_FAILED"
           echo "total_failed=$TOTAL_FAILED" >> "$GITHUB_OUTPUT"
 
       # org-standard action (vendored from orgwide/pipelines/actions) — decides
@@ -519,10 +751,165 @@ jobs:
           always-strict-branches: 'main'
 
   # ─────────────────────────────────────────────────────────────────────────────
+  # LMS live smoke (dev only): real Moodle + Canvas dev test courses, checks
+  # that LTI provision still maps the LMS course to an RW class. Replaces the
+  # former nightly cron workflow — it now runs inside the deploy pipeline, and
+  # only when LMS-relevant paths changed (`changes.lms`), or on a manual
+  # dispatch to dev.
+  #
+  # GATE: a failure blocks build-and-deploy (the dev deploy does not happen).
+  # Set repo variable LMS_SMOKE_GATING=false to downgrade to warning-only if
+  # the external dev LMS instances are down and it's unrelated to the change.
+  # Skipped on PRs, qa and prod (the test courses only exist on dev).
+  # Google Classroom is OAuth, not LTI — not covered here.
+  # ─────────────────────────────────────────────────────────────────────────────
+  lms-live-smoke:
+    name: LMS live smoke (dev — gate)
+    needs: [changes, lint, test-gate]
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.lint.result == 'success'
+      && (needs.test-gate.result == 'success' || needs.test-gate.result == 'skipped')
+      && (
+        (github.event_name == 'push' && github.ref_name == 'dev' && needs.changes.outputs.lms == 'true')
+        || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev' && github.ref_name == 'dev')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      total:        ${{ steps.suite.outputs.total }}
+      passed:       ${{ steps.suite.outputs.passed }}
+      failed:       ${{ steps.suite.outputs.failed }}
+      summary:      ${{ steps.suite.outputs.summary }}
+      failed_names: ${{ steps.suite.outputs.failed_names }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v3
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+
+      # DB creds, the LMS encryption key and the Moodle/Canvas dev test-course
+      # config all live in Key Vault (akvdev1rwai) — see docs/KEY-VAULT-VARS.md.
+      - name: Fetch dev config from Key Vault
+        id: kv
+        run: |
+          KV="akvdev1${{ env.AZ_PREFIX }}"
+          kv_get() { az keyvault secret show --vault-name "$KV" --name "$1" --query value -o tsv; }
+          DB_PASSWORD=$(kv_get edu-db-password)
+          LMS_SECRETS_ENCRYPTION_KEY=$(kv_get edu-lms-secrets-encryption-key)
+          AVATAR_SERVICE_KEY=$(kv_get edu-avatar-service-key)
+          # Register masks BEFORE the values are written anywhere else.
+          echo "::add-mask::$DB_PASSWORD"
+          echo "::add-mask::$LMS_SECRETS_ENCRYPTION_KEY"
+          echo "::add-mask::$AVATAR_SERVICE_KEY"
+          {
+            echo "db-host=$(kv_get edu-db-host)"
+            echo "db-port=$(kv_get edu-db-port)"
+            echo "db-username=$(kv_get edu-db-username)"
+            echo "db-name=$(kv_get edu-db-name)"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "DB_PASSWORD=$DB_PASSWORD"
+            echo "LMS_SECRETS_ENCRYPTION_KEY=$LMS_SECRETS_ENCRYPTION_KEY"
+            echo "AVATAR_SERVICE_KEY=$AVATAR_SERVICE_KEY"
+            echo "MOODLE_DEV_BASE_URL=$(kv_get edu-moodle-dev-base-url)"
+            echo "MOODLE_DEV_TEST_COURSE_ID=$(kv_get edu-moodle-dev-test-course-id)"
+            echo "MOODLE_DEV_NRPS_URL=$(kv_get edu-moodle-dev-nrps-url)"
+            echo "CANVAS_DEV_BASE_URL=$(kv_get edu-canvas-dev-base-url)"
+            echo "CANVAS_DEV_TEST_COURSE_ID=$(kv_get edu-canvas-dev-test-course-id)"
+            echo "CANVAS_DEV_NRPS_URL=$(kv_get edu-canvas-dev-nrps-url)"
+          } >> "$GITHUB_ENV"
+
+      # Dev Postgres only allows Azure-service IPs in — open a rule scoped to
+      # this runner's public IP; closed unconditionally at the end.
+      - name: Open firewall for this runner
+        id: fw
+        run: |
+          PG_SERVER="psql-dev1-${{ env.AZ_PREFIX }}-edu"
+          PG_RG="ARG-dev1-${{ env.AZ_PREFIX }}"
+          RUNNER_IP=$(curl -sf https://api.ipify.org)
+          RULE_NAME="gha-lms-live-smoke-${{ github.run_id }}-${{ github.run_attempt }}"
+          az postgres flexible-server firewall-rule create \
+            --server-name "$PG_SERVER" --resource-group "$PG_RG" \
+            --name "$RULE_NAME" \
+            --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" \
+            --only-show-errors
+          echo "server=$PG_SERVER" >> "$GITHUB_OUTPUT"
+          echo "rg=$PG_RG" >> "$GITHUB_OUTPUT"
+          echo "rule-name=$RULE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Run live LMS smoke
+        id: suite
+        continue-on-error: true
+        uses: ./.github/actions/run-test-suite
+        with:
+          node-version: '22'
+          test-command: |
+            mkdir -p tests/integration/reports
+            npm run test:integration:lms-live -- --ci --forceExit --json \
+              --outputFile=tests/integration/reports/lms-live-test-results.json
+            exit $?
+          report-json: tests/integration/reports/lms-live-test-results.json
+          report-html: ''
+          artifact-prefix: lms-live
+          name-prefix: 'lms-live: '
+        env:
+          DB_HOST: ${{ steps.kv.outputs.db-host }}
+          DB_PORT: ${{ steps.kv.outputs.db-port }}
+          DB_USERNAME: ${{ steps.kv.outputs.db-username }}
+          DB_NAME: ${{ steps.kv.outputs.db-name }}
+          # DB_PASSWORD, LMS_SECRETS_ENCRYPTION_KEY and MOODLE_DEV_*/CANVAS_DEV_*
+          # are already exported to GITHUB_ENV by the KV step above.
+
+      - name: Close firewall for this runner
+        if: always() && steps.fw.outputs.rule-name != ''
+        run: |
+          az postgres flexible-server firewall-rule delete \
+            --server-name "${{ steps.fw.outputs.server }}" \
+            --resource-group "${{ steps.fw.outputs.rg }}" \
+            --name "${{ steps.fw.outputs.rule-name }}" \
+            --yes --only-show-errors || true
+
+      - name: LMS smoke gate
+        run: |
+          if [ "${{ steps.suite.outcome }}" = "success" ]; then
+            echo "LMS live smoke passed."
+            exit 0
+          fi
+          if [ "${{ vars.LMS_SMOKE_GATING }}" = "false" ]; then
+            echo "::warning::LMS live smoke FAILED but LMS_SMOKE_GATING=false — not blocking the dev deploy."
+            exit 0
+          fi
+          echo "::error::LMS live smoke failed — blocking the dev deploy. Set repo variable LMS_SMOKE_GATING=false to make this warning-only."
+          exit 1
+
+      - name: Job summary
+        if: always()
+        env:
+          SUMMARY: ${{ steps.suite.outputs.summary }}
+          FAILED_NAMES: ${{ steps.suite.outputs.failed_names }}
+        run: |
+          {
+            echo "## LMS Live Smoke (dev — gate)"
+            echo ""
+            echo "${SUMMARY:-No results}"
+            if [ -n "$FAILED_NAMES" ]; then
+              echo ""
+              echo "**Failed:** $FAILED_NAMES"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────────
   # Set Environment: resolve target env, RG, and container app name from branch
   # or dispatch input. Only runs on push / workflow_dispatch (not PRs).
-  # `!cancelled()` prevents skip-propagation from test-integration (which is
-  # skipped on workflow_dispatch) from silently blocking this job.
+  # `!cancelled()` prevents skip-propagation from test-integration (skipped
+  # on workflow_dispatch) from silently blocking this job.
   # ─────────────────────────────────────────────────────────────────────────────
   set-environment:
     if: |
@@ -533,6 +920,7 @@ jobs:
       && (needs.test-integration.result == 'success' || needs.test-integration.result == 'skipped')
     needs: [lint, test-unit, test-api, test-gate, test-integration]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     outputs:
       environment:    ${{ steps.vars.outputs.environment }}
       image_tag:      ${{ steps.vars.outputs.image_tag }}
@@ -542,7 +930,7 @@ jobs:
       # Needed so ./.github/actions/resolve-environment-from-branch (a local
       # composite action) resolves.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Guard deploy source branch
         # workflow_dispatch lets any branch be picked from the Actions UI
@@ -606,7 +994,9 @@ jobs:
   #   from the container app and passing it back into the Bicep deploy.
   # • Reconciles the container app (image + env + secrets + probes + cpu/memory)
   #   via `az deployment group create -t infra/app-deploy.bicep`.
-  # • DB migrations run inline at startup (Dockerfile CMD), no separate step.
+  # • Deploys the migrate Container Apps Job (bicep deployApp=false) and runs it
+  #   (TypeORM migrations + seeders) to completion BEFORE the new revision is
+  #   created, separate from container startup.
   #
   # Runs unconditionally on push/dispatch (no approval gate here) — this only
   # builds and deploys to the STAGING revision at 0% traffic, so there's
@@ -619,8 +1009,10 @@ jobs:
       !cancelled()
       && github.event_name != 'pull_request'
       && needs.set-environment.result == 'success'
-    needs: [set-environment]
+      && (needs.lms-live-smoke.result == 'success' || needs.lms-live-smoke.result == 'skipped')
+    needs: [set-environment, lms-live-smoke]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       environment:     ${{ needs.set-environment.outputs.environment }}
       new_revision:    ${{ steps.revision.outputs.new_revision }}
@@ -632,10 +1024,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Azure login (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
@@ -697,6 +1089,45 @@ jobs:
             -o tsv 2>/dev/null || echo "")
           echo "Stable revision before deploy: ${STABLE:-<none>}"
           echo "stable_revision=$STABLE" >> "$GITHUB_OUTPUT"
+      - name: Deploy migrate job only (new image tag, no app revision yet)
+        run: |
+          az deployment group create \
+            --resource-group "${{ needs.set-environment.outputs.resource_group }}" \
+            --name "back-migrate-job-${{ needs.set-environment.outputs.environment }}-${{ github.run_id }}" \
+            --template-file infra/app-deploy.bicep \
+            --parameters environment=${{ needs.set-environment.outputs.environment }} backendImageTag=${{ needs.set-environment.outputs.image_tag }} deployApp=false \
+            --only-show-errors
+      - name: Run migrations + seeders (migrate job — wait for Succeeded)
+        # Runs BEFORE the new revision is created, so the schema is ready when
+        # it boots and a failing migration stops the pipeline with no new
+        # revision and the live one untouched. Migrations must stay
+        # backward-compatible with the live revision's code (expand/contract).
+        run: |
+          ENV="${{ needs.set-environment.outputs.environment }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          JOB="acj-${ENV}1-rwai-edumigrate"
+          EXEC=$(az containerapp job start --name "$JOB" --resource-group "$RG" --query name -o tsv)
+          echo "Started job execution: $EXEC"
+          for i in $(seq 1 90); do
+            STATUS=$(az containerapp job execution show \
+              --name "$JOB" --resource-group "$RG" \
+              --job-execution-name "$EXEC" \
+              --query "properties.status" -o tsv)
+            echo "Attempt $i: $STATUS"
+            case "$STATUS" in
+              Succeeded) exit 0 ;;
+              Failed|Degraded|Stopped)
+                echo "::error::Migrate job ended with status=$STATUS"
+                az containerapp job execution show \
+                  --name "$JOB" --resource-group "$RG" \
+                  --job-execution-name "$EXEC" -o json
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Timed out waiting for migrate job to complete"
+          exit 1
       - name: Reconcile Container App via Bicep (image + env + probes + resources)
         run: |
           ENV="${{ needs.set-environment.outputs.environment }}"
@@ -746,6 +1177,11 @@ jobs:
   # container and confirms it's healthy end-to-end. Failure blocks promote-live
   # on prod (or when STRICT_SMOKE_GATING=true); on dev/qa it's a warning so
   # iteration isn't blocked by a flaky cold start.
+  #
+  # Retry budget is 25 attempts @ 6s (~150s) instead of the previous 10 @ 6s
+  # (~60s) — a genuine cold scale-from-zero (image pull + Nest bootstrap + DB/
+  # Redis connection) can run past 60s under load, which was tripping this
+  # gate on a slow-but-otherwise-healthy revision.
   # ─────────────────────────────────────────────────────────────────────────────
   staging-smoke-tests:
     name: Smoke test (staging — hard gate)
@@ -755,6 +1191,7 @@ jobs:
       && needs.build-and-deploy.result == 'success'
     needs: [set-environment, build-and-deploy]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     outputs:
       blocking:     ${{ steps.gate.outputs.blocking }}
       result:       ${{ steps.smoke.outcome }}
@@ -767,14 +1204,14 @@ jobs:
         id: smoke
         continue-on-error: true
         run: |
-          curl --fail --retry 10 --retry-delay 6 --retry-connrefused \
+          curl --fail --retry 25 --retry-delay 6 --retry-connrefused \
             "${{ needs.build-and-deploy.outputs.staging_fqdn }}/health"
 
       # Needed so ./.github/actions/run-api-test-suite (a local composite
       # action) resolves.
       - name: Checkout
         if: steps.smoke.outcome == 'success'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # WARNING-ONLY — same tests/api module-executor suite preview-deploy.yml
       # runs against previews. Health check above stays the sole blocking
@@ -788,9 +1225,43 @@ jobs:
         with:
           base-url:           ${{ needs.build-and-deploy.outputs.staging_fqdn }}/api
           node-env:           ${{ needs.set-environment.outputs.environment }}
+          test-email-domain:  ${{ env.TEST_EMAIL_DOMAIN }}
           artifact-json-name: staging-api-test-results-${{ needs.set-environment.outputs.environment }}
           artifact-html-name: staging-api-html-report-${{ needs.set-environment.outputs.environment }}
           label:              staging
+
+      - name: Compute File Service run folder
+        if: steps.smoke.outcome == 'success'
+        id: fsfolder
+        run: echo "folder=$(date -u +%Y-%m-%d)-run${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive Staging API Test Results to File Service
+        if: steps.smoke.outcome == 'success'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/api/reports/.test-results.json
+          path: realityworks-ai/educator-app-backend/${{ needs.set-environment.outputs.environment }}/${{ steps.fsfolder.outputs.folder }}
+          filename: staging-api-test-results.json
+
+      - name: Archive Staging API HTML Report to File Service
+        if: steps.smoke.outcome == 'success'
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/api/reports/html/api-predeployment-report.html
+          path: realityworks-ai/educator-app-backend/${{ needs.set-environment.outputs.environment }}/${{ steps.fsfolder.outputs.folder }}
+          filename: staging-api-html-report.html
 
       - name: Smoke gate
         id: gate
@@ -864,6 +1335,7 @@ jobs:
       )
     needs: [set-environment, build-and-deploy, staging-smoke-tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 1440
     environment: prod
     steps:
       - name: Approval recorded
@@ -892,20 +1364,58 @@ jobs:
       )
     needs: [set-environment, build-and-deploy, staging-smoke-tests, await-approval]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Azure login (OIDC)
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ env.SUBSCRIPTION_ID }}
 
+      - name: Resolve current revisions
+        # Re-resolve NEW/STABLE from Azure instead of trusting
+        # needs.build-and-deploy.outputs.{new_revision,stable_revision}.
+        # GitHub Actions silently drops a job OUTPUT ("Skip output '...'
+        # since it may contain secret") whenever its value happens to
+        # contain a substring match of any registered secret — job/step
+        # outputs get persisted in the run's metadata/API, so GitHub
+        # redacts-by-omission rather than risk exposing one. Observed on
+        # the Crexo frontend/backend repos' identical pipeline: the
+        # bg-<sha7> revision-name suffix collided with a secret, so
+        # new_revision arrived empty here and
+        # `traffic set --revision-weight "=100"` failed with
+        # ContainerAppTrafficWeightInvalidRevisionName. Passed via
+        # GITHUB_ENV instead of GITHUB_OUTPUT below — GITHUB_ENV stays
+        # inside the runner process for this job only and isn't subject to
+        # that same output redaction. The concurrency group on this
+        # workflow guarantees no other deploy to this app can be racing
+        # here, so a live re-query is safe and equivalent to what
+        # build-and-deploy already computed.
+        run: |
+          ACA="${{ needs.set-environment.outputs.container_app }}"
+          RG="${{ needs.set-environment.outputs.resource_group }}"
+          NEW=$(az containerapp show -n "$ACA" -g "$RG" \
+            --query "properties.latestRevisionName" -o tsv)
+          STABLE=$(az containerapp revision list \
+            --name "$ACA" --resource-group "$RG" \
+            --query "sort_by([?properties.active && properties.trafficWeight > \`0\` && name != \`${NEW}\`], &properties.createdTime)[-1].name" \
+            -o tsv 2>/dev/null || echo "")
+          echo "New revision:    ${NEW:-<empty>}"
+          echo "Stable revision: ${STABLE:-<none>}"
+          if [ -z "$NEW" ]; then
+            echo "::error::Could not resolve latestRevisionName for $ACA — aborting promotion."
+            exit 1
+          fi
+          echo "CURRENT_NEW=$NEW"       >> "$GITHUB_ENV"
+          echo "CURRENT_STABLE=$STABLE" >> "$GITHUB_ENV"
+
       - name: Flip traffic to new revision
         run: |
-          NEW="${{ needs.build-and-deploy.outputs.new_revision }}"
+          NEW="$CURRENT_NEW"
           ACA="${{ needs.set-environment.outputs.container_app }}"
           RG="${{ needs.set-environment.outputs.resource_group }}"
           echo "Promoting: $NEW → 100%"
@@ -932,8 +1442,8 @@ jobs:
         run: |
           # Only deactivate the ONE revision displaced by this deploy. Any
           # other revisions (manual deploys, etc.) are left alone.
-          STABLE="${{ needs.build-and-deploy.outputs.stable_revision }}"
-          NEW="${{ needs.build-and-deploy.outputs.new_revision }}"
+          STABLE="$CURRENT_STABLE"
+          NEW="$CURRENT_NEW"
           ACA="${{ needs.set-environment.outputs.container_app }}"
           RG="${{ needs.set-environment.outputs.resource_group }}"
 
@@ -955,7 +1465,129 @@ jobs:
             echo ""
             echo "| Revision | Live URL |"
             echo "|----------|----------|"
-            echo "| \`${{ needs.build-and-deploy.outputs.new_revision }}\` | https://${{ needs.build-and-deploy.outputs.fqdn }} |"
+            echo "| \`$CURRENT_NEW\` | https://${{ needs.build-and-deploy.outputs.fqdn }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Post-deployment API tests (live — warning only): the pre-deployment
+  # `test-api` job and `staging-smoke-tests` both validate the new revision
+  # BEFORE it takes traffic. Nothing previously re-ran the suite AFTER
+  # `promote-live` flips 100% of traffic to it, so a regression that only
+  # shows up under the live hostname/custom-domain routing (as opposed to the
+  # revision's own staging FQDN) went undetected until a user hit it.
+  # Warning-only: traffic has already moved by this point, so this job can't
+  # block the deploy — it surfaces failures for fast follow-up/rollback via
+  # rollback.yml instead.
+  #
+  # Uses run-api-smoke-suite (tests/api/config/jest.smoke.config.json →
+  # api-smoke-report.html), NOT run-api-test-suite. That action hardcodes
+  # tests/api/config/jest.api.json (the pre-deployment suite, testMatch
+  # tests/api/modules/**/*.spec.ts), so this job was actually re-running the
+  # pre-deployment tests against the live URL and uploading
+  # api-predeployment-report.html under a "post-deploy" artifact name instead
+  # of the intended smoke report.
+  # ─────────────────────────────────────────────────────────────────────────────
+  post-deployment-tests:
+    name: API tests (post-deployment — live)
+    if: |
+      !cancelled()
+      && github.event_name != 'pull_request'
+      && needs.promote-live.result == 'success'
+    needs: [set-environment, build-and-deploy, promote-live]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      result:       ${{ steps.api-suite.outcome }}
+      total:        ${{ steps.api-suite.outputs.total }}
+      passed:       ${{ steps.api-suite.outputs.passed }}
+      failed:       ${{ steps.api-suite.outputs.failed }}
+      summary:      ${{ steps.api-suite.outputs.summary }}
+      failed_names: ${{ steps.api-suite.outputs.failed_names }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Resolve live base URL
+        id: live-url
+        run: |
+          CUSTOM_DOMAIN="${{ needs.build-and-deploy.outputs.custom_domain }}"
+          FQDN="${{ needs.build-and-deploy.outputs.fqdn }}"
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            BASE_URL="https://${CUSTOM_DOMAIN}/api"
+          else
+            BASE_URL="https://${FQDN}/api"
+          fi
+          echo "Live base URL: $BASE_URL"
+          echo "base_url=$BASE_URL" >> "$GITHUB_OUTPUT"
+
+      # Traffic is already at 100% on this revision by the time this runs, so
+      # give the ingress a moment to settle before hitting it. Bumped from 15s
+      # to 30s — 15s was occasionally too short for ingress + revision
+      # replica warm-up to fully settle after the traffic flip.
+      - name: Wait for live traffic to settle
+        run: sleep 30
+
+      - name: Run API smoke suite against live
+        id: api-suite
+        continue-on-error: true
+        uses: ./.github/actions/run-api-smoke-suite
+        with:
+          base-url:           ${{ steps.live-url.outputs.base_url }}
+          artifact-json-name: post-deploy-api-smoke-results-${{ needs.set-environment.outputs.environment }}
+          artifact-html-name: post-deploy-api-smoke-report-${{ needs.set-environment.outputs.environment }}
+          label:              post-deploy
+
+      - name: Compute File Service run folder
+        if: always()
+        id: fsfolder
+        run: echo "folder=$(date -u +%Y-%m-%d)-run${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive Post-Deployment API Results to File Service
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/api/reports/.smoke-results.json
+          path: realityworks-ai/educator-app-backend/${{ needs.set-environment.outputs.environment }}/${{ steps.fsfolder.outputs.folder }}
+          filename: post-deploy-api-smoke-results.json
+
+      - name: Archive Post-Deployment API HTML Report to File Service
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/fileservice-blob-upload
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.SUBSCRIPTION_ID }}
+          storage-account: stprod1entfiles
+          tier: authenticated
+          file-path: tests/api/reports/html/api-smoke-report.html
+          path: realityworks-ai/educator-app-backend/${{ needs.set-environment.outputs.environment }}/${{ steps.fsfolder.outputs.folder }}
+          filename: post-deploy-api-smoke-report.html
+
+      - name: Post-deployment API test summary
+        if: always()
+        run: |
+          ENV="${{ needs.set-environment.outputs.environment }}"
+          RESULT="${{ steps.api-suite.outcome }}"
+          SUMMARY="${{ steps.api-suite.outputs.summary }}"
+          {
+            echo "## Post-Deployment API Tests (live — $ENV)"
+            echo ""
+            echo "**Live URL:** ${{ steps.live-url.outputs.base_url }}"
+            echo ""
+            if [ "$RESULT" = "success" ]; then
+              echo "✅ **Passed** — $SUMMARY"
+            else
+              echo "❌ **Failed (non-blocking, traffic already live)** — $SUMMARY"
+              echo ""
+              echo "Investigate and, if needed, trigger [rollback.yml](${{ github.server_url }}/${{ github.repository }}/actions/workflows/rollback.yml) for \`$ENV\`."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ─────────────────────────────────────────────────────────────────────────────
@@ -967,11 +1599,12 @@ jobs:
   notify-teams:
     name: Notify Teams
     if: ${{ always() && vars.TEAMS_NOTIFICATIONS_ENABLED == 'true' && github.event_name != 'pull_request' }}
-    needs: [lint, set-environment, build-and-deploy, staging-smoke-tests, promote-live, test-unit, test-api]
+    needs: [lint, set-environment, lms-live-smoke, build-and-deploy, staging-smoke-tests, promote-live, post-deployment-tests, test-unit, test-api]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Determine status, color, and icons
         id: status
@@ -1006,12 +1639,16 @@ jobs:
             esac
           }
           SMOKE="${{ needs.staging-smoke-tests.outputs.result || needs.staging-smoke-tests.result }}"
+          POST_DEPLOY="${{ needs.post-deployment-tests.outputs.result || needs.post-deployment-tests.result }}"
           DEPLOY_ICON=$(icon "$DEPLOY")
           LINT_ICON=$(lint_icon "$LINT_V")
           SMOKE_ICON=$(icon "$SMOKE")
+          POST_DEPLOY_ICON=$(icon "$POST_DEPLOY")
           LINT_FAILED=false
           [ "$LINT_V" = "fail" ] && LINT_FAILED=true
-          if [ "$DEPLOY" = "success" ] && [ "$LINT_FAILED" = "false" ]; then
+          POST_DEPLOY_FAILED=false
+          [ "$POST_DEPLOY" = "failure" ] && POST_DEPLOY_FAILED=true
+          if [ "$DEPLOY" = "success" ] && [ "$LINT_FAILED" = "false" ] && [ "$POST_DEPLOY_FAILED" = "false" ]; then
             OVERALL="success"
             TITLE="Educator Backend deploy succeeded"
             case "$ENV" in
@@ -1023,6 +1660,10 @@ jobs:
             OVERALL="cancelled"
             TITLE="Educator Backend deploy cancelled"
             STYLE="default"
+          elif [ "$DEPLOY" = "success" ] && [ "$POST_DEPLOY_FAILED" = "true" ]; then
+            OVERALL="success"
+            TITLE="Educator Backend deploy succeeded — post-deployment API tests failed"
+            STYLE="attention"
           else
             OVERALL="failed"
             TITLE="Educator Backend deploy failed"
@@ -1035,6 +1676,8 @@ jobs:
             echo "deploy_icon=$DEPLOY_ICON"
             echo "lint_icon=$LINT_ICON"
             echo "smoke_icon=$SMOKE_ICON"
+            echo "post_deploy_icon=$POST_DEPLOY_ICON"
+            echo "post_deploy_failed=$POST_DEPLOY_FAILED"
             echo "environment=$ENV"
           } >> "$GITHUB_OUTPUT"
 
@@ -1053,11 +1696,11 @@ jobs:
           echo "message=$MSG" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Azure Login (OIDC)
         if: ${{ needs.set-environment.outputs.container_app != '' }}
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
@@ -1119,6 +1762,8 @@ jobs:
           SHORT_SHA="${{ steps.commit.outputs.short_sha }}"
           UNIT_SUMMARY="${{ needs.test-unit.outputs.summary || '⏭️ skipped' }}"
           API_SUMMARY="${{ needs.test-api.outputs.summary || '⏭️ skipped' }}"
+          POST_DEPLOY_SUMMARY="${{ needs.post-deployment-tests.outputs.summary || '⏭️ skipped' }}"
+          LMS_SUMMARY="${{ needs.lms-live-smoke.outputs.summary || '⏭️ skipped' }}"
           LINT_ICON="${{ steps.status.outputs.lint_icon }}"
           LINT_E="${{ needs.lint.outputs.errors || '?' }}"
           LINT_W="${{ needs.lint.outputs.warnings || '?' }}"
@@ -1134,6 +1779,8 @@ jobs:
             --arg sha "$SHORT_SHA" \
             --arg unit "$UNIT_SUMMARY" \
             --arg api "$API_SUMMARY" \
+            --arg postDeploy "$POST_DEPLOY_SUMMARY" \
+            --arg lmsSmoke "$LMS_SUMMARY" \
             --arg lint "$LINT_ICON $LINT_E errors / $LINT_W warnings" \
             --arg deploy "$DEPLOY_ICON" \
             --arg smoke "$SMOKE_ICON" \
@@ -1144,7 +1791,9 @@ jobs:
               { "title": "Branch", "value": $branch },
               { "title": "Commit", "value": $sha },
               { "title": "Unit tests", "value": $unit },
-              { "title": "API tests", "value": $api },
+              { "title": "API tests (pre-deploy)", "value": $api },
+              { "title": "API tests (post-deploy, live)", "value": $postDeploy },
+              { "title": "LMS live smoke (dev)", "value": $lmsSmoke },
               { "title": "Lint", "value": $lint },
               { "title": "Deploy", "value": $deploy },
               { "title": "Smoke test", "value": $smoke }
@@ -1161,8 +1810,10 @@ jobs:
           # Combined failing tests
           U_FAILS='${{ needs.test-unit.outputs.failed_names }}'
           A_FAILS='${{ needs.test-api.outputs.failed_names }}'
+          P_FAILS='${{ needs.post-deployment-tests.outputs.failed_names }}'
+          L_FAILS='${{ needs.lms-live-smoke.outputs.failed_names }}'
           COMBINED=""
-          for x in "$U_FAILS" "$A_FAILS"; do
+          for x in "$U_FAILS" "$A_FAILS" "$P_FAILS" "$L_FAILS"; do
             if [ -n "$x" ]; then
               if [ -n "$COMBINED" ]; then COMBINED="$COMBINED; $x"; else COMBINED="$x"; fi
             fi
@@ -1185,14 +1836,16 @@ jobs:
             --arg commit "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}" \
             '[
               { "type": "Action.OpenUrl", "title": "View run", "url": $run },
-              { "type": "Action.OpenUrl", "title": "View commit", "url": $commit }
+              { "type": "Action.OpenUrl", "title": "View commit", "url": $commit },
+              { "type": "Action.OpenUrl", "title": "Browse CI reports (File Service)", "url": "https://artifacts.rwthrive.com/" }
             ]')
 
           if [ -n "$APP_URL" ]; then
             ACTIONS=$(echo "$ACTIONS" | jq --arg url "$APP_URL" '. + [{ "type": "Action.OpenUrl", "title": "Open app", "url": ($url + "/health") }]')
           fi
 
-          if [ "$OVERALL" != "success" ] && [ -n "$PREV_SHA" ]; then
+          POST_DEPLOY_FAILED="${{ steps.status.outputs.post_deploy_failed }}"
+          if { [ "$OVERALL" != "success" ] || [ "$POST_DEPLOY_FAILED" = "true" ]; } && [ -n "$PREV_SHA" ]; then
             ACTIONS=$(echo "$ACTIONS" | jq --arg prevSha "$PREV_SHA" '. + [{ "type": "Action.OpenUrl", "title": ("Run rollback (prev SHA: " + $prevSha + ")"), "url": "https://github.com/${{ github.repository }}/actions/workflows/rollback.yml" }]')
           fi
 
@@ -1209,6 +1862,6 @@ jobs:
           headline:       "${{ steps.status.outputs.title }} — ${{ steps.status.outputs.environment }}"
           style:          ${{ steps.status.outputs.style }}
           subtitle:       ${{ steps.commit.outputs.message }}
-          mention-suffix: ${{ steps.status.outputs.overall != 'success' && ' — please investigate.' || '' }}
+          mention-suffix: ${{ (steps.status.outputs.overall != 'success' || steps.status.outputs.post_deploy_failed == 'true') && ' — please investigate.' || '' }}
           facts-json:     ${{ steps.payload.outputs.facts_json }}
           actions-json:   ${{ steps.payload.outputs.actions_json }}

@@ -1,4 +1,8 @@
-import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
+import {
+  createAsyncThunk,
+  createSelector,
+  createSlice,
+} from '@reduxjs/toolkit';
 import { FAILED, IDLE, LOADING, SUCCEEDED } from '../../utils/constants';
 import config from '../config';
 import type { RootState } from '../../store';
@@ -69,12 +73,16 @@ export const FetchSimulationReports = createAsyncThunk<
     const res = await api.get(config.SimulationReportsAPI, {
       headers: {
         'ngrok-skip-browser-warning': 'true',
-      }});
+      },
+    });
     return res.data;
   } catch (err) {
-    const error = err as { response?: { status?: number; data?: { message?: string } } };
+    const error = err as {
+      response?: { status?: number; data?: { message?: string } };
+    };
     return thunkAPI.rejectWithValue({
-      message: error.response?.data?.message || 'Failed to fetch simulation reports',
+      message:
+        error.response?.data?.message || 'Failed to fetch simulation reports',
     });
   }
 });
@@ -110,6 +118,15 @@ export const { resetSimulationReports } = slice.actions;
 export default slice.reducer;
 
 const selectState = (state: RootState) => state.allSimulationReports;
-export const selectSimulationReports = createSelector(selectState, (s) => s.reports);
-export const selectSimulationReportsStatus = createSelector(selectState, (s) => s.status);
-export const selectSimulationReportsError = createSelector(selectState, (s) => s.error);
+export const selectSimulationReports = createSelector(
+  selectState,
+  (s) => s.reports
+);
+export const selectSimulationReportsStatus = createSelector(
+  selectState,
+  (s) => s.status
+);
+export const selectSimulationReportsError = createSelector(
+  selectState,
+  (s) => s.error
+);
