@@ -12,6 +12,8 @@ export const AiConstants = {
   MAX_RETRIES: 2,
   /** Provider used when `AI_PROVIDER` is not set. */
   DEFAULT_PROVIDER: AiProvider.OpenAi,
+  /** Transcript budget for grading prompts; the self-hosted model's slot is 24k tokens and the prompt repeats student lines. */
+  GRADING_TRANSCRIPT_MAX_CHARS: Number(process.env.GRADING_TRANSCRIPT_MAX_CHARS ?? 14_000),
 };
 
 export enum AiMessageRole {

@@ -14,3 +14,28 @@ export function isSameConceptId(aiId: string | undefined, conceptId: string): bo
   if (!id) return false;
   return id === conceptId || conceptId.endsWith(`_${id}`) || id.endsWith(`_${conceptId}`);
 }
+
+/** Joins transcript lines, keeping the start and end of an over-long transcript so grading still fits the model's context. */
+export function capTranscriptLines(lines: string[], maxChars: number): string {
+  const full = lines.join('\n');
+  if (full.length <= maxChars) return full;
+  const headBudget = Math.floor(maxChars * 0.4);
+  const tailBudget = maxChars - headBudget;
+  const head: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    if (used + line.length + 1 > headBudget) break;
+    head.push(line);
+    used += line.length + 1;
+  }
+  const tail: string[] = [];
+  used = 0;
+  for (let i = lines.length - 1; i >= head.length; i--) {
+    if (used + lines[i].length + 1 > tailBudget) break;
+    tail.unshift(lines[i]);
+    used += lines[i].length + 1;
+  }
+  const omitted = lines.length - head.length - tail.length;
+  const marker = `[... ${omitted} messages omitted from the middle of a very long session ...]`;
+  return [...head, marker, ...tail].join('\n');
+}

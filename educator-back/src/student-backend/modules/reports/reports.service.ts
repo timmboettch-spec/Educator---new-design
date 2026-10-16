@@ -26,6 +26,7 @@ import {
   mapRowToReportListEntry,
   resolveStudentId,
 } from 'src/common/utils/simulation-report.util';
+import { capTranscriptLines } from 'src/common/utils/ai-evaluation.util';
 import { ERROR_MSG } from 'src/common/messages/error.message';
 import { ReportModeType } from 'src/common/constants/simulation-report.constants';
 import { SimulationAttemptConstants, SimulationProgressStatus } from 'src/common/constants';
@@ -42,7 +43,7 @@ import {
   type AiMatchVerdict,
   type AiMedicationRouteSiteVerdict,
 } from '../../../common/interfaces';
-import { AiMessageRole } from '../../../common/constants';
+import { AiConstants, AiMessageRole } from '../../../common/constants';
 import { AiNotConfiguredException } from '../../../common/exceptions/ai.exception';
 import { LoggerService } from '../../../common/services';
 import { MailService } from '../../../mail/mail.service';
@@ -305,7 +306,7 @@ interface EmailRubricItem {
   strengths?: Array<{ point?: string; example?: string } | string>;
   weaknesses?: Array<{ point?: string; example?: string } | string>;
   recommendations?: string[];
-  actionDetails?: Array<{ type?: string; title?: string;[key: string]: unknown }>;
+  actionDetails?: Array<{ type?: string; title?: string; [key: string]: unknown }>;
   [key: string]: unknown;
 }
 
@@ -353,7 +354,7 @@ interface FullReport extends Record<string, unknown> {
       recommendations?: string[];
     };
   };
-  transcript?: { scenario?: { title?: string;[key: string]: unknown };[key: string]: unknown };
+  transcript?: { scenario?: { title?: string; [key: string]: unknown }; [key: string]: unknown };
 }
 
 @Injectable()
@@ -432,9 +433,9 @@ export class ReportsService {
     const studentId = resolveStudentId(currentUser);
     const row = studentId
       ? await this.simulationReportRepository.findDetailRowByTranscriptIdForStudent(
-        studentId,
-        transcriptId,
-      )
+          studentId,
+          transcriptId,
+        )
       : null;
 
     if (!row) {
@@ -576,8 +577,9 @@ export class ReportsService {
           ? `
         <div style="margin-bottom: 24px;">
           <h3 style="color: #1f4e79;">Communication Assessment</h3>
-          ${hasRubrics
-            ? `
+          ${
+            hasRubrics
+              ? `
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px;">
             <h4 style="margin-top: 0; color: #1f4e79;">Rubrics Breakdown</h4>
             ${(() => {
@@ -621,15 +623,15 @@ export class ReportsService {
                 return `
                     <ul style="margin: 0 0 0 18px;">
                       ${items
-                    .map((x) => {
-                      const point = typeof x === 'string' ? x : (x.point ?? '');
-                      const example = typeof x === 'string' ? '' : (x.example ?? '');
-                      return `
+                        .map((x) => {
+                          const point = typeof x === 'string' ? x : (x.point ?? '');
+                          const example = typeof x === 'string' ? '' : (x.example ?? '');
+                          return `
                         <li style="margin-bottom: 6px;">
                           <strong>${point}</strong>${showExamples && example ? `: "${example}"` : ''}
                         </li>`;
-                    })
-                    .join('')}
+                        })
+                        .join('')}
                     </ul>
                   `;
               };
@@ -666,30 +668,32 @@ export class ReportsService {
                     <div style="margin-bottom: 18px;">
                       <h4 style="color: #1f4e79; margin: 0 0 10px 0;">${subCategory}</h4>
                       ${items
-                    .map((item) => {
-                      const score = item?.score;
-                      const strengths = item?.strengths ?? [];
-                      const weaknesses = item?.weaknesses ?? [];
-                      const recommendations = item?.recommendations ?? [];
+                        .map((item) => {
+                          const score = item?.score;
+                          const strengths = item?.strengths ?? [];
+                          const weaknesses = item?.weaknesses ?? [];
+                          const recommendations = item?.recommendations ?? [];
 
-                      const distractors =
-                        Array.isArray(item?.actionDetails) &&
-                        item.actionDetails.filter((d) => d?.type === 'distractor');
+                          const distractors =
+                            Array.isArray(item?.actionDetails) &&
+                            item.actionDetails.filter((d) => d?.type === 'distractor');
 
-                      const subCat = (item?.subCategory ?? '').toLowerCase();
-                      const showDistractors =
-                        (subCat === 'action' || subCat === 'action / clinical interventions') &&
-                        distractors &&
-                        distractors.length > 0;
+                          const subCat = (item?.subCategory ?? '').toLowerCase();
+                          const showDistractors =
+                            (subCat === 'action' || subCat === 'action / clinical interventions') &&
+                            distractors &&
+                            distractors.length > 0;
 
-                      return `
+                          return `
                             <div style="margin-bottom: 15px; padding: 12px; border: 1px solid #d9e2ec; border-radius: 6px; background-color: #ffffff;">
-                              <h5 style="margin: 0 0 6px 0; color:#1f4e79;">${item?.name ?? 'Rubric Item'
-                        }</h5>
-                              ${item?.summary
-                          ? `<p style="margin: 0 0 10px 0; color:#333;">${item.summary}</p>`
-                          : ''
-                        }
+                              <h5 style="margin: 0 0 6px 0; color:#1f4e79;">${
+                                item?.name ?? 'Rubric Item'
+                              }</h5>
+                              ${
+                                item?.summary
+                                  ? `<p style="margin: 0 0 10px 0; color:#333;">${item.summary}</p>`
+                                  : ''
+                              }
                               <p style="margin: 0 0 10px 0; font-size: 13px; color:#555;">
                                 <strong>Score:</strong> ${score ?? '—'}% — ${getPerformanceLabel(score).text}
                               </p>
@@ -706,37 +710,39 @@ export class ReportsService {
                               </p>
                               ${renderStrengthWeakness(weaknesses, true)}
 
-                              ${Array.isArray(recommendations) && recommendations.length > 0
-                          ? `
+                              ${
+                                Array.isArray(recommendations) && recommendations.length > 0
+                                  ? `
                                 <div style="height: 10px;"></div>
                                 <p style="margin: 0 0 6px 0; color: #0984e3; font-weight: bold; font-size: 13px;">
                                   Improvement Recommendations
                                 </p>
                                 ${renderRecommendations(recommendations)}
                               `
-                          : ''
-                        }
+                                  : ''
+                              }
 
-                              ${showDistractors
-                          ? `
+                              ${
+                                showDistractors
+                                  ? `
                                 <div style="height: 14px;"></div>
                                 <h5 style="margin: 0 0 8px 0;">Inappropriate Actions</h5>
                                 <p style="margin: 0 0 10px 0; color:#444; line-height: 1.6;">${distSummary}</p>
                                 <p style="margin: 0 0 8px 0; color:#444;">Inappropriate actions may reflect:</p>
                                 <ul style="margin: 0 0 12px 18px;">
                                   ${distractors
-                            .map(
-                              (d) =>
-                                `<li style="margin-bottom: 6px;">� ${d?.title ?? ''}</li>`,
-                            )
-                            .join('')}
+                                    .map(
+                                      (d) =>
+                                        `<li style="margin-bottom: 6px;">� ${d?.title ?? ''}</li>`,
+                                    )
+                                    .join('')}
                                 </ul>
                                 <div style="padding: 12px; border-radius: 6px; border: 1px solid #d9e2ec; background-color: #f0f7ff;">
                                   <p style="margin: 0 0 10px 0; font-weight: bold;">Improvement Recommendations</p>
                                   <ul style="margin: 0 0 12px 18px;">
                                     ${improvementRecommendations
-                            .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
-                            .join('')}
+                                      .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
+                                      .join('')}
                                   </ul>
                                   <p style="margin: 0; color:#666; font-size: 12px;">This report is made available for administrative review through the admin side of the application.</p>
                                 </div>
@@ -745,12 +751,12 @@ export class ReportsService {
                                   <p style="margin: 0; color:#a00; font-size: 13px; line-height: 1.6;">${disclaimerText}</p>
                                 </div>
                               `
-                          : ''
-                        }
+                                  : ''
+                              }
                             </div>
                           `;
-                    })
-                    .join('')}
+                        })
+                        .join('')}
                     </div>
                   `;
               }
@@ -758,119 +764,41 @@ export class ReportsService {
               return out;
             })()}
           </div>`
-            : `
-          ${ca?.technicalSkills
+              : `
+          ${
+            ca?.technicalSkills
               ? `
           <h4>Technical Skills Assessment</h4>
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px;">
             <p><strong>Total Score:</strong> ${ca.technicalSkills?.totalScore ?? 0}/${ca.technicalSkills?.totalWeight ?? 0}</p>
             ${(() => {
-                const technicalSkillsRaw: EmailRubricItem[] = Object.values(
-                  ca.technicalSkills?.items ?? {},
-                );
-                const technicalSkillItemsMap = new Map<string, EmailRubricItem>();
-                technicalSkillsRaw.forEach((item) => {
-                  const key = (item.subCategory ??
-                    item.name ??
-                    item.aiCheckId ??
-                    item.id ??
-                    '') as string;
-                  if (technicalSkillItemsMap.has(key)) {
-                    const existing = technicalSkillItemsMap.get(key);
-                    if (
-                      !existing ||
-                      (item.score ?? 0) > (existing.score ?? 0) ||
-                      ((item.score ?? 0) === (existing.score ?? 0) &&
-                        item.summary &&
-                        !existing.summary)
-                    ) {
-                      technicalSkillItemsMap.set(key, item);
-                    }
-                  } else {
+              const technicalSkillsRaw: EmailRubricItem[] = Object.values(
+                ca.technicalSkills?.items ?? {},
+              );
+              const technicalSkillItemsMap = new Map<string, EmailRubricItem>();
+              technicalSkillsRaw.forEach((item) => {
+                const key = (item.subCategory ??
+                  item.name ??
+                  item.aiCheckId ??
+                  item.id ??
+                  '') as string;
+                if (technicalSkillItemsMap.has(key)) {
+                  const existing = technicalSkillItemsMap.get(key);
+                  if (
+                    !existing ||
+                    (item.score ?? 0) > (existing.score ?? 0) ||
+                    ((item.score ?? 0) === (existing.score ?? 0) &&
+                      item.summary &&
+                      !existing.summary)
+                  ) {
                     technicalSkillItemsMap.set(key, item);
                   }
-                });
+                } else {
+                  technicalSkillItemsMap.set(key, item);
+                }
+              });
 
-                return Array.from(technicalSkillItemsMap.values())
-                  .map((item) => {
-                    const score = item?.score ?? 0;
-                    const maxScore = item?.maxScore ?? 10;
-                    const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
-                    const performanceData =
-                      percentage > SCORE_EXCEPTIONAL_MIN
-                        ? { text: 'Exceptional', color: '#0066cc' }
-                        : percentage >= SCORE_MEETS_EXPECTATIONS_MIN
-                          ? { text: 'Meets Expectations', color: '#00a651' }
-                          : { text: 'Needs Improvement', color: '#d63031' };
-                    const strengths = Array.isArray(item?.strengths) ? item.strengths : [];
-                    const weaknesses = Array.isArray(item?.weaknesses) ? item.weaknesses : [];
-                    const recommendations = Array.isArray(item?.recommendations)
-                      ? item.recommendations
-                      : [];
-
-                    return `
-                    <div style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #1f4e79;">
-                      <h5 style="margin: 0 0 6px 0; color:#1f4e79;">
-                        ${item?.name ?? 'Technical skill'}
-                      </h5>
-                      <p style="margin: 0 0 10px 0; font-size: 14px;">
-                        <strong style="color: ${performanceData.color};">${performanceData.text}</strong>
-                      </p>
-                      ${item.summary ? `<p style="margin: 0 0 10px 0;">${item.summary}</p>` : ''}
-                      ${strengths.length > 0
-                        ? `
-                        <p style="margin: 0 0 6px 0; color:#0d7377; font-weight: bold; font-size: 13px;">Strengths</p>
-                        <ul style="margin: 0 0 10px 18px;">
-                          ${strengths
-                          .map((x) => {
-                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                            const ex =
-                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                          })
-                          .join('')}
-                        </ul>`
-                        : ''
-                      }
-                      ${weaknesses.length > 0
-                        ? `
-                        <p style="margin: 0 0 6px 0; color:#d63031; font-weight: bold; font-size: 13px;">Weaknesses</p>
-                        <ul style="margin: 0 0 10px 18px;">
-                          ${weaknesses
-                          .map((x) => {
-                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                            const ex =
-                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                          })
-                          .join('')}
-                        </ul>`
-                        : ''
-                      }
-                      ${recommendations.length > 0
-                        ? `
-                        <p style="margin: 0 0 6px 0; color:#0984e3; font-weight: bold; font-size: 13px;">Improvement Recommendations</p>
-                        <ul style="margin: 0 0 0 18px;">
-                          ${recommendations
-                          .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
-                          .join('')}
-                        </ul>`
-                        : ''
-                      }
-                    </div>
-                  `;
-                  })
-                  .join('');
-              })()}
-          </div>`
-              : ''
-            }
-          ${ca?.softSkills
-              ? `
-          <h4>Soft Skills Assessment</h4>
-          <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
-            <p><strong>Total Score:</strong> ${ca.softSkills?.totalScore ?? 0}/${ca.softSkills?.totalWeight ?? 0}</p>
-            ${Object.values(ca.softSkills?.items ?? {})
+              return Array.from(technicalSkillItemsMap.values())
                 .map((item) => {
                   const score = item?.score ?? 0;
                   const maxScore = item?.maxScore ?? 10;
@@ -881,15 +809,98 @@ export class ReportsService {
                       : percentage >= SCORE_MEETS_EXPECTATIONS_MIN
                         ? { text: 'Meets Expectations', color: '#00a651' }
                         : { text: 'Needs Improvement', color: '#d63031' };
-                  const strengths: Array<{ point?: string; example?: string } | string> =
-                    Array.isArray(item?.strengths) ? item.strengths : [];
-                  const weaknesses: Array<{ point?: string; example?: string } | string> =
-                    Array.isArray(item?.weaknesses) ? item.weaknesses : [];
-                  const recommendations: string[] = Array.isArray(item?.recommendations)
+                  const strengths = Array.isArray(item?.strengths) ? item.strengths : [];
+                  const weaknesses = Array.isArray(item?.weaknesses) ? item.weaknesses : [];
+                  const recommendations = Array.isArray(item?.recommendations)
                     ? item.recommendations
                     : [];
 
                   return `
+                    <div style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #1f4e79;">
+                      <h5 style="margin: 0 0 6px 0; color:#1f4e79;">
+                        ${item?.name ?? 'Technical skill'}
+                      </h5>
+                      <p style="margin: 0 0 10px 0; font-size: 14px;">
+                        <strong style="color: ${performanceData.color};">${performanceData.text}</strong>
+                      </p>
+                      ${item.summary ? `<p style="margin: 0 0 10px 0;">${item.summary}</p>` : ''}
+                      ${
+                        strengths.length > 0
+                          ? `
+                        <p style="margin: 0 0 6px 0; color:#0d7377; font-weight: bold; font-size: 13px;">Strengths</p>
+                        <ul style="margin: 0 0 10px 18px;">
+                          ${strengths
+                            .map((x) => {
+                              const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                              const ex =
+                                typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                              return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                            })
+                            .join('')}
+                        </ul>`
+                          : ''
+                      }
+                      ${
+                        weaknesses.length > 0
+                          ? `
+                        <p style="margin: 0 0 6px 0; color:#d63031; font-weight: bold; font-size: 13px;">Weaknesses</p>
+                        <ul style="margin: 0 0 10px 18px;">
+                          ${weaknesses
+                            .map((x) => {
+                              const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                              const ex =
+                                typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                              return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                            })
+                            .join('')}
+                        </ul>`
+                          : ''
+                      }
+                      ${
+                        recommendations.length > 0
+                          ? `
+                        <p style="margin: 0 0 6px 0; color:#0984e3; font-weight: bold; font-size: 13px;">Improvement Recommendations</p>
+                        <ul style="margin: 0 0 0 18px;">
+                          ${recommendations
+                            .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
+                            .join('')}
+                        </ul>`
+                          : ''
+                      }
+                    </div>
+                  `;
+                })
+                .join('');
+            })()}
+          </div>`
+              : ''
+          }
+          ${
+            ca?.softSkills
+              ? `
+          <h4>Soft Skills Assessment</h4>
+          <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
+            <p><strong>Total Score:</strong> ${ca.softSkills?.totalScore ?? 0}/${ca.softSkills?.totalWeight ?? 0}</p>
+            ${Object.values(ca.softSkills?.items ?? {})
+              .map((item) => {
+                const score = item?.score ?? 0;
+                const maxScore = item?.maxScore ?? 10;
+                const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+                const performanceData =
+                  percentage > SCORE_EXCEPTIONAL_MIN
+                    ? { text: 'Exceptional', color: '#0066cc' }
+                    : percentage >= SCORE_MEETS_EXPECTATIONS_MIN
+                      ? { text: 'Meets Expectations', color: '#00a651' }
+                      : { text: 'Needs Improvement', color: '#d63031' };
+                const strengths: Array<{ point?: string; example?: string } | string> =
+                  Array.isArray(item?.strengths) ? item.strengths : [];
+                const weaknesses: Array<{ point?: string; example?: string } | string> =
+                  Array.isArray(item?.weaknesses) ? item.weaknesses : [];
+                const recommendations: string[] = Array.isArray(item?.recommendations)
+                  ? item.recommendations
+                  : [];
+
+                return `
                   <div style="margin-bottom: 15px; padding: 10px; border-left: 3px solid #1f4e79;">
                     <h5 style="margin: 0 0 6px 0; color:#1f4e79;">
                       ${item?.name ?? 'Soft skill'}
@@ -898,53 +909,56 @@ export class ReportsService {
                       <strong style="color: ${performanceData.color};">${performanceData.text}</strong>
                     </p>
                     ${item?.summary ? `<p style="margin: 0 0 10px 0;">${item.summary}</p>` : ''}
-                    ${strengths.length > 0
-                      ? `
+                    ${
+                      strengths.length > 0
+                        ? `
                       <p style="margin: 0 0 6px 0; color:#0d7377; font-weight: bold; font-size: 13px;">Strengths</p>
                       <ul style="margin: 0 0 10px 18px;">
                         ${strengths
-                        .map((x) => {
-                          const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                          const ex =
-                            typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                          return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                        })
-                        .join('')}
+                          .map((x) => {
+                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                            const ex =
+                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                          })
+                          .join('')}
                       </ul>`
-                      : ''
+                        : ''
                     }
-                    ${weaknesses.length > 0
-                      ? `
+                    ${
+                      weaknesses.length > 0
+                        ? `
                       <p style="margin: 0 0 6px 0; color:#d63031; font-weight: bold; font-size: 13px;">Weaknesses</p>
                       <ul style="margin: 0 0 10px 18px;">
                         ${weaknesses
-                        .map((x) => {
-                          const pt = typeof x === 'string' ? x : (x?.point ?? '');
-                          const ex =
-                            typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
-                          return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
-                        })
-                        .join('')}
+                          .map((x) => {
+                            const pt = typeof x === 'string' ? x : (x?.point ?? '');
+                            const ex =
+                              typeof x === 'string' ? '' : x?.example ? `: "${x.example}"` : '';
+                            return `<li style="margin-bottom: 6px;"><strong>${pt}</strong>${ex}</li>`;
+                          })
+                          .join('')}
                       </ul>`
-                      : ''
+                        : ''
                     }
-                    ${recommendations.length > 0
-                      ? `
+                    ${
+                      recommendations.length > 0
+                        ? `
                       <p style="margin: 0 0 6px 0; color:#0984e3; font-weight: bold; font-size: 13px;">Improvement Recommendations</p>
                       <ul style="margin: 0 0 0 18px;">
                         ${recommendations
-                        .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
-                        .join('')}
+                          .map((r) => `<li style="margin-bottom: 6px;">${r}</li>`)
+                          .join('')}
                       </ul>`
-                      : ''
+                        : ''
                     }
                   </div>
                 `;
-                })
-                .join('')}
+              })
+              .join('')}
           </div>`
               : ''
-            }
+          }
         `
           }
         </div>`
@@ -956,34 +970,36 @@ export class ReportsService {
           <h3 style="color: #1f4e79;">Technical Skills Overview</h3>
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
             <p><strong>Total Score:</strong> ${ca.technicalSkills?.totalScore ?? 0}/${ca.technicalSkills?.totalWeight ?? 0}</p>
-            ${ca.technicalSkills?.overallstrengths?.length
-            ? `
+            ${
+              ca.technicalSkills?.overallstrengths?.length
+                ? `
               <h4 style="color: #0d7377; margin: 15px 0 10px 0;">Strengths:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.technicalSkills.overallstrengths
-              .map((s) => {
-                const pt = typeof s === 'string' ? s : (s?.point ?? '');
-                const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
-                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-              })
-              .join('')}
+                  .map((s) => {
+                    const pt = typeof s === 'string' ? s : (s?.point ?? '');
+                    const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
+                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+                  })
+                  .join('')}
               </ul>`
-            : ''
-          }
-            ${ca.technicalSkills?.overallweaknesses?.length
-            ? `
+                : ''
+            }
+            ${
+              ca.technicalSkills?.overallweaknesses?.length
+                ? `
               <h4 style="color: #d63031; margin: 15px 0 10px 0;">Weaknesses:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.technicalSkills.overallweaknesses
-              .map((w) => {
-                const pt = typeof w === 'string' ? w : (w?.point ?? '');
-                const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
-                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-              })
-              .join('')}
+                  .map((w) => {
+                    const pt = typeof w === 'string' ? w : (w?.point ?? '');
+                    const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
+                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+                  })
+                  .join('')}
               </ul>`
-            : ''
-          }
+                : ''
+            }
           </div>
         </div>`
           : '',
@@ -995,34 +1011,36 @@ export class ReportsService {
           <h3 style="color: #1f4e79;">Soft Skills Overview</h3>
           <div style="background-color: #f5f7fa; padding: 16px; border-radius: 6px; margin-bottom: 16px;">
             <p><strong>Total Score:</strong> ${ca.softSkills?.totalScore ?? 0}/${ca.softSkills?.totalWeight ?? 0}</p>
-            ${ca.softSkills?.overallstrengths?.length
-            ? `
+            ${
+              ca.softSkills?.overallstrengths?.length
+                ? `
               <h4 style="color: #0d7377; margin: 15px 0 10px 0;">Strengths:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.softSkills.overallstrengths
-              .map((s) => {
-                const pt = typeof s === 'string' ? s : (s?.point ?? '');
-                const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
-                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-              })
-              .join('')}
+                  .map((s) => {
+                    const pt = typeof s === 'string' ? s : (s?.point ?? '');
+                    const ex = typeof s === 'string' ? '' : s?.example ? `: "${s.example}"` : '';
+                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+                  })
+                  .join('')}
               </ul>`
-            : ''
-          }
-            ${ca.softSkills?.overallweaknesses?.length
-            ? `
+                : ''
+            }
+            ${
+              ca.softSkills?.overallweaknesses?.length
+                ? `
               <h4 style="color: #d63031; margin: 15px 0 10px 0;">Weaknesses:</h4>
               <ul style="margin: 0 0 15px 20px;">
                 ${ca.softSkills.overallweaknesses
-              .map((w) => {
-                const pt = typeof w === 'string' ? w : (w?.point ?? '');
-                const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
-                return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
-              })
-              .join('')}
+                  .map((w) => {
+                    const pt = typeof w === 'string' ? w : (w?.point ?? '');
+                    const ex = typeof w === 'string' ? '' : w?.example ? `: "${w.example}"` : '';
+                    return `<li style="margin-bottom: 5px;"><strong>${pt}</strong>${ex}</li>`;
+                  })
+                  .join('')}
               </ul>`
-            : ''
-          }
+                : ''
+            }
           </div>
         </div>`
           : '',
@@ -1056,23 +1074,25 @@ export class ReportsService {
           : '',
         /* Strengths & Improvements */
         `<div style="margin-bottom: 24px;">
-          ${keyStrengths?.length
-          ? `
+          ${
+            keyStrengths?.length
+              ? `
             <h3 style="color: #1f4e79;">Key Strengths</h3>
             <ul>
               ${keyStrengths.map((s: string) => `<li>${s}</li>`).join('')}
             </ul>`
-          : ''
-        }
+              : ''
+          }
     
-          ${areasForImprovement?.length
-          ? `
+          ${
+            areasForImprovement?.length
+              ? `
             <h3 style="color: #1f4e79;">Areas for Improvement</h3>
             <ul>
               ${areasForImprovement.map((i: string) => `<li>${i}</li>`).join('')}
             </ul>`
-          : ''
-        }
+              : ''
+          }
         </div>`,
         /* Session Details */
         // (report as any).summaryByCategory ? `
@@ -1854,12 +1874,12 @@ Return ONLY JSON with this schema:
         (progress.status !== SimulationProgressStatus.IN_PROGRESS ||
           (isAssessment &&
             progress.assessmentAttemptsCount >=
-            SimulationAttemptConstants.MAX_ASSESSMENT_ATTEMPTS));
+              SimulationAttemptConstants.MAX_ASSESSMENT_ATTEMPTS));
       const mostRecent = isClosed
         ? await this.simulationReportRepository.findLatestAttemptByStudentAndScenario(
-          studentId,
-          dto.scenarioId,
-        )
+            studentId,
+            dto.scenarioId,
+          )
         : null;
       if (mostRecent) {
         this.logger.log(
@@ -1948,12 +1968,13 @@ Return ONLY JSON with this schema:
       };
     });
 
-    const conversationText = enrichedMessages
-      .map(
+    const conversationText = capTranscriptLines(
+      enrichedMessages.map(
         (msg) =>
           `[${msg.elapsedTimeFormatted}] ${String(msg.speaker ?? '')}: ${String(msg.text ?? '')} (elapsedSeconds: ${msg.elapsedSeconds})`,
-      )
-      .join('\n');
+      ),
+      AiConstants.GRADING_TRANSCRIPT_MAX_CHARS,
+    );
 
     // Enrich all student data with timing
     const summaryByCategory = this.enrichTimingData(dto.summaryByCategory, scenarioStart) as
@@ -2141,8 +2162,8 @@ Return ONLY JSON with this schema:
       const actionsArray = (dto.summaryByCategory as Record<string, unknown>)?.['actions'];
       const teamCommActionEntry = Array.isArray(actionsArray)
         ? (actionsArray as Array<{ title?: string }>).find(
-          (item) => item.title === 'Team Communication',
-        )
+            (item) => item.title === 'Team Communication',
+          )
         : null;
 
       this.logger.debug(
@@ -2326,7 +2347,7 @@ Return ONLY JSON with this schema:
         overallScore0to100 = this.clampOverallScore(overallScore0to100);
         this.logger.warn(
           `[createReportWithAI] rubricMax=0 – no rubric items matched scenario.grading.rubric. ` +
-          `Falling back to rubrics.totalScore=${fallbackTotal} / totalWeight=${fallbackWeight} → ${overallScore0to100.toFixed(1)}%`,
+            `Falling back to rubrics.totalScore=${fallbackTotal} / totalWeight=${fallbackWeight} → ${overallScore0to100.toFixed(1)}%`,
         );
       }
 
@@ -2413,7 +2434,7 @@ Return ONLY JSON with this schema:
               `[enrichedActionsArray] Processing ${actionsArray.length} actions, actionsTimeline length: ${Array.isArray(dto.actionsTimeline) ? dto.actionsTimeline.length : 'N/A'}`,
             );
             const enrichedActionsArray = actionsArray.map((actionEntry, index) => {
-              const entry = actionEntry as { title?: string;[key: string]: unknown };
+              const entry = actionEntry as { title?: string; [key: string]: unknown };
 
               this.logger.debug(
                 `[enrichedActionsArray] Processing action index ${index}: title="${String(entry.title)}", existing elapsedTime="${String(entry.elapsedTime)}", existing timestampValue="${String(entry.timestampValue)}"`,
@@ -2909,8 +2930,8 @@ Return ONLY JSON with this schema:
 
     // Extract technical skill configurations
     /* const _learningObjectivesItem = */ technicalSkillItems.find(
-        (item) => item?.subCategory === 'Learning Objectives',
-      );
+      (item) => item?.subCategory === 'Learning Objectives',
+    );
     const patientDataCoverageItem = technicalSkillItems.find(
       (item) => item?.subCategory === 'Patient Data Coverage',
     );
@@ -3130,10 +3151,10 @@ Return ONLY JSON with this schema:
         ? (rawTracker as unknown as Array<{ label: string; timestamp: string; type: string }>)
         : Array.isArray((rawTracker as Record<string, unknown>)?.actionLog)
           ? ((rawTracker as Record<string, unknown>).actionLog as Array<{
-            label: string;
-            timestamp: string;
-            type: string;
-          }>)
+              label: string;
+              timestamp: string;
+              type: string;
+            }>)
           : [];
 
     const ppeAnalysis = this.computePPEScore(
@@ -3159,8 +3180,8 @@ Return ONLY JSON with this schema:
       (commonActionTracker as Record<string, unknown>)?.actionLog,
     )
       ? ((commonActionTracker as Record<string, unknown>).actionLog as Array<
-        Record<string, unknown>
-      >)
+          Record<string, unknown>
+        >)
       : Array.isArray(commonActionTracker)
         ? commonActionTracker
         : [];
@@ -3681,20 +3702,20 @@ ${studentSummaryText}
 DYNAMIC GRADING RUBRIC:
 
 ${rubricItems
-          .map((item) => {
-            const subCatRaw = String(item.subCategory ?? '')
-              .trim()
-              .toLowerCase();
-            if (subCatRaw === 'communication' && Array.isArray(item.communicationCriteria)) {
-              const sanitized = {
-                ...item,
-                communicationCriteria: item.communicationCriteria.filter((c) => c.enabled !== false),
-              };
-              return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(sanitized)}`;
-            }
-            return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(item)}`;
-          })
-          .join('\n\n')}
+  .map((item) => {
+    const subCatRaw = String(item.subCategory ?? '')
+      .trim()
+      .toLowerCase();
+    if (subCatRaw === 'communication' && Array.isArray(item.communicationCriteria)) {
+      const sanitized = {
+        ...item,
+        communicationCriteria: item.communicationCriteria.filter((c) => c.enabled !== false),
+      };
+      return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(sanitized)}`;
+    }
+    return `${item.name ?? item.subCategory ?? 'Rubric'}: ${JSON.stringify(item)}`;
+  })
+  .join('\n\n')}
 
 ASSESSMENT INSTRUCTIONS:
 
@@ -3705,67 +3726,67 @@ GENERAL FEEDBACK RULES FOR ALL RUBRICS:
 - NEVER provide generic recommendations when performance is perfect or near-perfect
 
 ${rubricItems
-          .map((item, index: number) => {
-            const subCat = String(item.subCategory ?? '')
-              .trim()
-              .toLowerCase();
-            if (subCat === 'expected actions') {
-              return `${index + 1}. EXPECTED ACTIONS:\n${expectedActionsInstructions}`;
-            }
-            if (subCat === 'communication') {
-              const commDesc = String(item.description ?? '').trim();
-              const communicationCriteria: CommunicationCriterion[] = item.communicationCriteria ?? [];
-              const enabledCriteria: CommunicationCriterion[] = communicationCriteria.filter(
-                (c) => c.enabled,
-              );
+  .map((item, index: number) => {
+    const subCat = String(item.subCategory ?? '')
+      .trim()
+      .toLowerCase();
+    if (subCat === 'expected actions') {
+      return `${index + 1}. EXPECTED ACTIONS:\n${expectedActionsInstructions}`;
+    }
+    if (subCat === 'communication') {
+      const commDesc = String(item.description ?? '').trim();
+      const communicationCriteria: CommunicationCriterion[] = item.communicationCriteria ?? [];
+      const enabledCriteria: CommunicationCriterion[] = communicationCriteria.filter(
+        (c) => c.enabled,
+      );
 
-              // Check FIRST: if all criteria are disabled, award full marks regardless of student messages
-              if (communicationCriteria.length > 0 && enabledCriteria.length === 0) {
-                this.logger.debug(
-                  '[Communication] All criteria disabled � awarding full marks, skipping AI evaluation.',
-                );
-                return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: All communication criteria are disabled by the instructor.\n- score MUST be 100\n- summary: "Communication evaluation will be determined by system configuration."\n- strengths: []\n- weaknesses: []\n- recommendations: []`;
-              }
+      // Check FIRST: if all criteria are disabled, award full marks regardless of student messages
+      if (communicationCriteria.length > 0 && enabledCriteria.length === 0) {
+        this.logger.debug(
+          '[Communication] All criteria disabled � awarding full marks, skipping AI evaluation.',
+        );
+        return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: All communication criteria are disabled by the instructor.\n- score MUST be 100\n- summary: "Communication evaluation will be determined by system configuration."\n- strengths: []\n- weaknesses: []\n- recommendations: []`;
+      }
 
-              if (studentMessageCount === 0) {
-                // Generate weaknesses based on enabled criteria, or use generic if no criteria configured
-                const weaknessesJson =
-                  enabledCriteria.length > 0
-                    ? enabledCriteria
-                      .map(
-                        (criterion) =>
-                          `{"point": "Criterion not met: ${criterion.title}", "example": "No verbal communication was present in the transcript to demonstrate this criterion."}`,
-                      )
-                      .join(',')
-                    : `{"point": "No communication demonstrated.", "example": "There is no evidence of any verbal communication with the patient in the transcript."}`;
+      if (studentMessageCount === 0) {
+        // Generate weaknesses based on enabled criteria, or use generic if no criteria configured
+        const weaknessesJson =
+          enabledCriteria.length > 0
+            ? enabledCriteria
+                .map(
+                  (criterion) =>
+                    `{"point": "Criterion not met: ${criterion.title}", "example": "No verbal communication was present in the transcript to demonstrate this criterion."}`,
+                )
+                .join(',')
+            : `{"point": "No communication demonstrated.", "example": "There is no evidence of any verbal communication with the patient in the transcript."}`;
 
-                return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: The student transcript contains ZERO student messages.\n- score MUST be 0\n- summary: "No verbal communication with the patient was documented in the conversation transcript."\n- strengths: []\n- weaknesses: [${weaknessesJson}]\n- recommendations: ["Engage verbally with the patient during the simulation."]`;
-              }
+        return `${index + 1}. COMMUNICATION:\n- DETERMINISTIC RESULT: The student transcript contains ZERO student messages.\n- score MUST be 0\n- summary: "No verbal communication with the patient was documented in the conversation transcript."\n- strengths: []\n- weaknesses: [${weaknessesJson}]\n- recommendations: ["Engage verbally with the patient during the simulation."]`;
+      }
 
-              // Multi-criteria evaluation mode
-              if (enabledCriteria.length > 0) {
-                const criteriaInstructions: string = enabledCriteria
-                  .map(
-                    (criterion: CommunicationCriterion, idx: number) => `
+      // Multi-criteria evaluation mode
+      if (enabledCriteria.length > 0) {
+        const criteriaInstructions: string = enabledCriteria
+          .map(
+            (criterion: CommunicationCriterion, idx: number) => `
   Criterion ${idx + 1}: "${criterion.title}"
   Evaluator Prompt: ${criterion.prompt}
   Return: {"passed": true/false, "rationale": "Brief explanation with evidence from transcript"}
 `,
-                  )
-                  .join('\n');
+          )
+          .join('\n');
 
-                const summaryPrompt = item.communicationSummaryPrompt
-                  ? `
+        const summaryPrompt = item.communicationSummaryPrompt
+          ? `
 
 [CRITICAL - SUMMARY GENERATION INSTRUCTIONS]
 ${item.communicationSummaryPrompt}
 
 YOU MUST follow the above instruction when writing the "summary" field in your response. This is a mandatory requirement from the instructor.`
-                  : `
+          : `
 
 Generate a balanced "summary" field that reflects both strengths and weaknesses identified in the criteria evaluation.`;
 
-                return `${index + 1}. COMMUNICATION (Multi-Criteria Evaluation):
+        return `${index + 1}. COMMUNICATION (Multi-Criteria Evaluation):
 [!] STRICT RULE: Evaluate ONLY the STUDENT MESSAGES below. DO NOT use documentation, action notes, summaryByCategory, commonactions, or any other data source.
 
 STUDENT MESSAGES FROM TRANSCRIPT (this is the ONLY source you may use):
@@ -3797,34 +3818,34 @@ OUTPUT FORMAT:
   "weaknesses": [{"point": "Criterion title that failed", "example": "What was missing"}],
   "recommendations": ["Actionable suggestions based on failed criteria"]
 }`;
-              }
+      }
 
-              // Legacy single evaluation mode (fallback when no criteria are configured at all)
-              const summaryPromptLegacy = item.communicationSummaryPrompt
-                ? `
+      // Legacy single evaluation mode (fallback when no criteria are configured at all)
+      const summaryPromptLegacy = item.communicationSummaryPrompt
+        ? `
 
 [CRITICAL - SUMMARY GENERATION INSTRUCTIONS]
 ${item.communicationSummaryPrompt}
 
 YOU MUST follow the above instruction when writing your summary. This is a mandatory requirement from the instructor.`
-                : '';
-              return `${index + 1}. COMMUNICATION:\n[!] STRICT RULE: Evaluate ONLY the STUDENT MESSAGES below. DO NOT use documentation, action notes, summaryByCategory, commonactions, or any other data source.\n\nSTUDENT MESSAGES FROM TRANSCRIPT (this is the ONLY source you may use):\n${studentOnlyTranscript}\n\nADMIN-DEFINED ASSESSMENT LOGIC:\n  ${commDesc || 'Evaluate professional, empathetic, and clear communication with the patient.'}\n\n- Score based ONLY on what the student said in the messages above\n- If a student message exists, score MUST be > 0 and reflect actual quality\n- Provide: strengths (quote from student messages), weaknesses (gaps per admin criteria), recommendations, summary${summaryPromptLegacy}`;
-            }
-            if (subCat === 'documentation') {
-              return `${index + 1}. DOCUMENTATION:\n${documentationInstructions}`;
-            }
-            if (subCat === 'action' || subCat === 'action / clinical interventions') {
-              return `${index + 1}. ACTION:\n${actionInstructions}`;
-            }
-            if (subCat === 'timeline') {
-              return `${index + 1}. TIMELINE:\n${timelineInstructions}`;
-            }
-            if (subCat === 'sequencing & prioritization') {
-              return `${index + 1}. SEQUENCING & PRIORITIZATION:\n${sequencingInstructions}`;
-            }
-            return `${index + 1}. ${subCat.toUpperCase()}:\n- Assess based on transcript and rubric configuration\n- Apply general feedback rules: If score is 100%, recommendations should be "No items identified."\n- Provide: strengths, weaknesses, recommendations, summary`;
-          })
-          .join('\n\n')}
+        : '';
+      return `${index + 1}. COMMUNICATION:\n[!] STRICT RULE: Evaluate ONLY the STUDENT MESSAGES below. DO NOT use documentation, action notes, summaryByCategory, commonactions, or any other data source.\n\nSTUDENT MESSAGES FROM TRANSCRIPT (this is the ONLY source you may use):\n${studentOnlyTranscript}\n\nADMIN-DEFINED ASSESSMENT LOGIC:\n  ${commDesc || 'Evaluate professional, empathetic, and clear communication with the patient.'}\n\n- Score based ONLY on what the student said in the messages above\n- If a student message exists, score MUST be > 0 and reflect actual quality\n- Provide: strengths (quote from student messages), weaknesses (gaps per admin criteria), recommendations, summary${summaryPromptLegacy}`;
+    }
+    if (subCat === 'documentation') {
+      return `${index + 1}. DOCUMENTATION:\n${documentationInstructions}`;
+    }
+    if (subCat === 'action' || subCat === 'action / clinical interventions') {
+      return `${index + 1}. ACTION:\n${actionInstructions}`;
+    }
+    if (subCat === 'timeline') {
+      return `${index + 1}. TIMELINE:\n${timelineInstructions}`;
+    }
+    if (subCat === 'sequencing & prioritization') {
+      return `${index + 1}. SEQUENCING & PRIORITIZATION:\n${sequencingInstructions}`;
+    }
+    return `${index + 1}. ${subCat.toUpperCase()}:\n- Assess based on transcript and rubric configuration\n- Apply general feedback rules: If score is 100%, recommendations should be "No items identified."\n- Provide: strengths, weaknesses, recommendations, summary`;
+  })
+  .join('\n\n')}
 
 
 OUTPUT REQUIREMENTS (STRICT JSON ONLY):
@@ -3938,11 +3959,11 @@ IMPORTANT:
       // Capture AI-generated narrative for the sequencing rubric BEFORE any overrides wipe it
       const seqAINarrative = seqItemRaw
         ? {
-          strengths: (seqItemRaw as Record<string, unknown>).strengths,
-          weaknesses: (seqItemRaw as Record<string, unknown>).weaknesses,
-          summary: (seqItemRaw as Record<string, unknown>).summary,
-          recommendations: (seqItemRaw as Record<string, unknown>).recommendations,
-        }
+            strengths: (seqItemRaw as Record<string, unknown>).strengths,
+            weaknesses: (seqItemRaw as Record<string, unknown>).weaknesses,
+            summary: (seqItemRaw as Record<string, unknown>).summary,
+            recommendations: (seqItemRaw as Record<string, unknown>).recommendations,
+          }
         : null;
       this.logger.debug('Assessment Analysis:', JSON.stringify(comm));
 
@@ -4194,11 +4215,11 @@ IMPORTANT:
 
             item.recommendations = es
               ? [
-                'Interactúe verbalmente con el paciente durante la simulación. Preséntese, pregunte sobre sus inquietudes y demuestre empatía y profesionalismo a lo largo del encuentro.',
-              ]
+                  'Interactúe verbalmente con el paciente durante la simulación. Preséntese, pregunte sobre sus inquietudes y demuestre empatía y profesionalismo a lo largo del encuentro.',
+                ]
               : [
-                'Engage verbally with the patient during the simulation. Introduce yourself, ask about their concerns, and demonstrate empathy and professionalism throughout the encounter.',
-              ];
+                  'Engage verbally with the patient during the simulation. Introduce yourself, ask about their concerns, and demonstrate empathy and professionalism throughout the encounter.',
+                ];
           }
         });
       }
@@ -4493,10 +4514,10 @@ IMPORTANT:
           // Log deterministic override result
           this.logger.debug(
             `[DETERMINISTIC-OVERRIDE] Action/Intervention Score Override: ` +
-            `ItemId: ${id}, SubCategory: ${sub}, ` +
-            `DeterministicPercentage: ${percentage?.toFixed(2) ?? 'N/A'}%, ` +
-            `FinalScore: ${item.score ?? 'N/A'}, ` +
-            `PositiveActions: ${positiveActions}/${totalRequired}`,
+              `ItemId: ${id}, SubCategory: ${sub}, ` +
+              `DeterministicPercentage: ${percentage?.toFixed(2) ?? 'N/A'}%, ` +
+              `FinalScore: ${item.score ?? 'N/A'}, ` +
+              `PositiveActions: ${positiveActions}/${totalRequired}`,
           );
 
           item.actionDetails = [
@@ -6194,10 +6215,10 @@ IMPORTANT:
         rubrics,
         overall: comm.overall ??
           analysisRaw.overall ?? {
-          summary: comm.feedback ?? 'Assessment completed',
-          score: rubrics.totalScore,
-          label: this.getPerformanceCategory(rubrics.totalScore),
-        },
+            summary: comm.feedback ?? 'Assessment completed',
+            score: rubrics.totalScore,
+            label: this.getPerformanceCategory(rubrics.totalScore),
+          },
         communicationAssessment: comm,
       };
 
@@ -6423,8 +6444,12 @@ IMPORTANT:
       const keyWords = [norm(key), norm(itemId), norm(item.name)].filter(Boolean);
       const match =
         candidates.find((ri) => ri.id === key || ri.id === itemId) ??
-        candidates.find((ri) => loose(ri).rubricId && [key, itemId].includes(String(loose(ri).rubricId))) ??
-        candidates.find((ri) => keyWords.includes(norm(ri.name)) || keyWords.includes(norm(ri.subCategory))) ??
+        candidates.find(
+          (ri) => loose(ri).rubricId && [key, itemId].includes(String(loose(ri).rubricId)),
+        ) ??
+        candidates.find(
+          (ri) => keyWords.includes(norm(ri.name)) || keyWords.includes(norm(ri.subCategory)),
+        ) ??
         candidates.find((ri) => {
           const target = `${norm(ri.id)} ${norm(ri.subCategory)} ${norm(ri.name)}`;
           return keyWords.some((w) => w.length >= 3 && target.split(' ').includes(w.split(' ')[0]));
@@ -6552,8 +6577,8 @@ IMPORTANT:
                 : 'unknown';
         this.logger.warn(
           `[SCORE-VALIDATION] Invalid AI-generated rubric score detected and clamped. ` +
-          `Item: ${itemId}, SubCategory: ${itemSubCategory}, ` +
-          `Original Score: ${originalScore}, Clamped Score: ${clampedScore}`,
+            `Item: ${itemId}, SubCategory: ${itemSubCategory}, ` +
+            `Original Score: ${originalScore}, Clamped Score: ${clampedScore}`,
         );
       }
     });
@@ -6568,7 +6593,7 @@ IMPORTANT:
       const clampedScore = Math.min(100, Math.max(0, score));
       this.logger.warn(
         `[SCORE-VALIDATION] Final overall score exceeded bounds and was clamped. ` +
-        `Original Score: ${originalScore.toFixed(2)}%, Clamped Score: ${clampedScore.toFixed(2)}%`,
+          `Original Score: ${originalScore.toFixed(2)}%, Clamped Score: ${clampedScore.toFixed(2)}%`,
       );
       return clampedScore;
     }
@@ -6599,8 +6624,8 @@ IMPORTANT:
           : 'unknown';
       this.logger.warn(
         `[SCORE-VALIDATION] Rubric score exceeded bounds at weighted-calc site and was clamped. ` +
-        `Item: ${itemId}, Name: ${itemName}, SubCategory: ${itemSubCategory}, ` +
-        `Original Score: ${originalScore}, Clamped Score: ${clampedScore}`,
+          `Item: ${itemId}, Name: ${itemName}, SubCategory: ${itemSubCategory}, ` +
+          `Original Score: ${originalScore}, Clamped Score: ${clampedScore}`,
       );
       return clampedScore;
     }
