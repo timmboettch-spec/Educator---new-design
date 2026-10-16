@@ -1,7 +1,8 @@
 {
   "actions": {
     "goToDashboard": "Go to Dashboard",
-    "startOver": "Start"
+    "startOver": "Start",
+    "home": "Home"
   },
   "a11y": {
     "expandSetupGuide": "Expand setup guide",

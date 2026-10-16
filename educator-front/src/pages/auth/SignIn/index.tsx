@@ -4,6 +4,7 @@ import loginImage from '@/assets/redeem/RW AI UI orange gradient -07.jpg';
 import { AuthLanguageSwitcher } from '@/components/auth/AuthLanguageSwitcher';
 import { useAuthLanguage } from '@/hooks/useAuthLanguage';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ConfirmModal from '../../../components/modal/ConfirmationModal';
@@ -60,6 +61,9 @@ export default function SignIn() {
   const [successMessage, setSuccessMessage] = useState('');
   const [rememberMe, setRememberMe] = useState(!!rememberedEmail);
   const isSubmittingRef = useRef(false);
+  const { t } = useTranslation('common');
+  // The box launcher (:7700) is only reachable from the box itself, so the Home link is local-only.
+  const isLocalBox = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
   // Demo prefill (SALES3 launcher): /login#email=...&pw=... fills the form. The fragment is never
   // sent to a server, and it is stripped from the address bar as soon as it has been read.
@@ -391,7 +395,16 @@ export default function SignIn() {
   };
 
   return (
-    <div className="h-screen flex items-center justify-center p-6 overflow-y-auto no-scrollbar">
+    <div className="relative h-screen flex items-center justify-center p-6 overflow-y-auto no-scrollbar">
+      {isLocalBox && (
+        <a
+          href="http://localhost:7700/"
+          className="absolute top-6 right-6 flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:border-primary-500 hover:text-primary-500"
+        >
+          <span aria-hidden="true">&larr;</span>
+          {t('actions.home')}
+        </a>
+      )}
       <div className="flex w-full max-w-[900px] min-h-[420px] overflow-hidden rounded-[35px] bg-white shadow-2xl">
         <div className="flex flex-col justify-center px-10 py-10 w-full lg:w-1/2">
           <div className="mb-6">

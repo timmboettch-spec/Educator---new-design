@@ -1,7 +1,8 @@
 {
   "actions": {
     "goToDashboard": "Ir al Panel",
-    "startOver": "Inicio"
+    "startOver": "Inicio",
+    "home": "Inicio"
   },
   "a11y": {
     "expandSetupGuide": "Expandir guía de configuración",
