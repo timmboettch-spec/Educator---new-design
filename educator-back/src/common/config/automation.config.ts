@@ -8,11 +8,13 @@ export default registerAs('automation', () => ({
   // Student login codes for the tester's dedicated automation student accounts
   // (one per environment) — these always see the automation-only simulation as
   // assigned, since it has no real class assignment row to check against.
+  // Each may be a comma-separated list (a demo box gives several demo classes the scenario).
   studentCodes: [
     process.env.STUDENT_CODE_DEV || 'AUT-JXXD',
     process.env.STUDENT_CODE_QA || 'AUT-DGVQ',
     process.env.STUDENT_CODE_PROD || 'AUT-WUJM',
   ]
+    .flatMap((codes) => codes.split(','))
     .map((code) => code.trim().toUpperCase())
     .filter(Boolean),
 }));
