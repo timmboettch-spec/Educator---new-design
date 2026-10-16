@@ -2611,6 +2611,13 @@ export class SequencingService {
         }
         results.set(req.ref, matched);
       }
+      // A self-hosted model's JSON can omit or mis-key a ref; don't let that erase a question
+      // the student plainly asked — fall back to keyword matching for just those refs.
+      const missing = requirements.filter((r) => (results.get(r.ref) ?? []).length === 0);
+      if (missing.length > 0) {
+        const fallback = this.deterministicQuestionMatching(missing, studentMessages);
+        for (const r of missing) results.set(r.ref, fallback.get(r.ref) ?? []);
+      }
       return results;
     } catch (err) {
       this.logger.warn(`[SEQ_AI] AI failed, using deterministic fallback`, String(err));

@@ -7,3 +7,4 @@ export * from './socket-io-adapter.util';
 export * from './uuid.util';
 export * from './dayjs.utils';
 export * from './simulation.util';
+export * from './ai-evaluation.util';

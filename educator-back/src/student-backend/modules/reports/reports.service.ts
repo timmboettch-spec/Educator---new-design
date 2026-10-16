@@ -3963,6 +3963,11 @@ IMPORTANT:
       const rubrics = comm.rubrics;
       const rubricItemsRecord = rubrics.items;
 
+      // Self-hosted models relabel rubric items (every subCategory "Technical Skill", keys like "ppe"
+      // or the rubric's DB uuid). Every deterministic override below keys on id/subCategory, so put
+      // the identity back from the scenario config before anything reads it.
+      this.restoreRubricIdentityFromConfig(rubricItemsRecord, rubricItems);
+
       // Ensure all configured rubrics exist by checking their specific IDs
       rubricItems.forEach((ri) => {
         const id = String(ri.id ?? ri.aiMapping?.aiCheckId ?? '');
@@ -4041,6 +4046,19 @@ IMPORTANT:
           (c) => c.enabled,
         ).length;
         recomputeCommunicationScore(item, enabledCount, this.logger);
+
+        // Self-hosted models often drop criteriaResults from the large unified JSON; grading each
+        // criterion on its own is small enough for them to answer reliably, and far cheaper than a retry.
+        if (item.score === null && enabledCount > 0) {
+          const focused = await this.evaluateCommunicationCriteriaFocused(
+            (scenarioCommRubric?.communicationCriteria ?? []).filter((c) => c.enabled),
+            conversationText,
+          );
+          if (focused) {
+            item.criteriaResults = focused;
+            recomputeCommunicationScore(item, enabledCount, this.logger);
+          }
+        }
 
         // Empty/missing criteriaResults with enabled criteria configured means the AI
         // truncated its response (seen on slow connections/Chromebooks) rather than
@@ -6381,6 +6399,91 @@ IMPORTANT:
       temperature: UNIFIED_REPORT_AI_TEMPERATURE,
       maxTokens: UNIFIED_REPORT_AI_MAX_TOKENS,
     });
+  }
+
+  /**
+   * Re-keys AI rubric items to their scenario config entry (by id, DB rubric id, name, then a
+   * distinctive keyword such as "ppe" or "sequencing") and restores id + subCategory from config.
+   */
+  private restoreRubricIdentityFromConfig(
+    record: Record<string, RubricItemRecord>,
+    rubricItems: ScenarioRubricItem[],
+  ): void {
+    const norm = (s: string | null | undefined): string =>
+      (s ?? '')
+        .toLowerCase()
+        .replace(/^rubric_/, '')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+    const claimed = new Set<string>();
+    for (const [key, item] of Object.entries(record)) {
+      const itemId = String(item.id ?? key);
+      const candidates = rubricItems.filter((ri) => ri.id && !claimed.has(ri.id));
+      const loose = (ri: ScenarioRubricItem) => ri as ScenarioRubricItem & { rubricId?: string };
+      const keyWords = [norm(key), norm(itemId), norm(item.name)].filter(Boolean);
+      const match =
+        candidates.find((ri) => ri.id === key || ri.id === itemId) ??
+        candidates.find((ri) => loose(ri).rubricId && [key, itemId].includes(String(loose(ri).rubricId))) ??
+        candidates.find((ri) => keyWords.includes(norm(ri.name)) || keyWords.includes(norm(ri.subCategory))) ??
+        candidates.find((ri) => {
+          const target = `${norm(ri.id)} ${norm(ri.subCategory)} ${norm(ri.name)}`;
+          return keyWords.some((w) => w.length >= 3 && target.split(' ').includes(w.split(' ')[0]));
+        });
+      if (!match) continue;
+      claimed.add(match.id);
+      item.id = match.id;
+      item.subCategory = match.subCategory;
+      if (key !== match.id && !record[match.id]) {
+        record[match.id] = item;
+        delete record[key];
+      }
+    }
+  }
+
+  /** Grades each communication criterion with its own small PASS/FAIL prompt; null if any call fails. */
+  private async evaluateCommunicationCriteriaFocused(
+    criteria: CommunicationCriterion[],
+    conversationText: string,
+  ): Promise<RubricItemRecord['criteriaResults'] | null> {
+    if (criteria.length === 0) return null;
+    try {
+      const results: NonNullable<RubricItemRecord['criteriaResults']> = [];
+      for (const criterion of criteria) {
+        const parsed = await this.aiGateway.completeJson<{
+          passed?: unknown;
+          result?: unknown;
+          rationale?: unknown;
+        }>({
+          caller: 'reports.communication-criterion',
+          messages: [
+            {
+              role: AiMessageRole.System,
+              content:
+                'You grade one communication criterion for a nursing student from a simulation transcript. Return only JSON.',
+            },
+            {
+              role: AiMessageRole.User,
+              content: `CRITERION: ${criterion.title}\nHOW TO GRADE: ${criterion.prompt ?? ''}\n\nTRANSCRIPT:\n${conversationText}\n\nReturn {"passed": true or false, "rationale": "one sentence citing the student's own words"}`,
+            },
+          ],
+          temperature: 0,
+        });
+        const verdict = parsed?.passed ?? parsed?.result;
+        const passed =
+          verdict === true ||
+          (typeof verdict === 'string' && /^(true|pass(ed)?|yes)$/i.test(verdict.trim()));
+        results.push({
+          criterionId: criterion.id,
+          title: criterion.title,
+          passed,
+          rationale: typeof parsed?.rationale === 'string' ? parsed.rationale : '',
+        });
+      }
+      return results;
+    } catch (error) {
+      this.logger.error('Focused communication criteria evaluation failed:', error);
+      return null;
+    }
   }
 
   /**

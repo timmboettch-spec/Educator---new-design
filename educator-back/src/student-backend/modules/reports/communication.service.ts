@@ -8,6 +8,7 @@ import {
   AiGateway,
 } from '../../../common/interfaces';
 import { LoggerService } from '../../../common/services';
+import { getAiConceptResults, isSameConceptId } from '../../../common/utils/ai-evaluation.util';
 
 // --- Communication evaluation constants ------------------------------------
 /** Default pass/fail threshold (0-100) when not supplied by the caller. */
@@ -224,10 +225,10 @@ export class CommunicationService {
         ],
         temperature: COMM_EVAL_TEMPERATURE,
       });
-      const results: AiConceptResultItem[] = parsed.results ?? [];
+      const results: AiConceptResultItem[] = getAiConceptResults(parsed);
 
       const finalResults: FinalQuestionResult[] = concepts.map((concept) => {
-        const found = results.find((r: AiConceptResultItem) => r.conceptId === concept.id);
+        const found = results.find((r: AiConceptResultItem) => isSameConceptId(r.conceptId, concept.id));
         const status = found ? found.status : 'not_satisfied';
         return {
           concept: concept.description,

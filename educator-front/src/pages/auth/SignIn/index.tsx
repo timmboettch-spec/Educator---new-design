@@ -3,7 +3,7 @@
 import loginImage from '@/assets/redeem/RW AI UI orange gradient -07.jpg';
 import { AuthLanguageSwitcher } from '@/components/auth/AuthLanguageSwitcher';
 import { useAuthLanguage } from '@/hooks/useAuthLanguage';
-import { type FormEvent, useMemo, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ConfirmModal from '../../../components/modal/ConfirmationModal';
@@ -60,6 +60,33 @@ export default function SignIn() {
   const [successMessage, setSuccessMessage] = useState('');
   const [rememberMe, setRememberMe] = useState(!!rememberedEmail);
   const isSubmittingRef = useRef(false);
+
+  // Demo prefill (SALES3 launcher): /login#email=...&pw=... fills the form. The fragment is never
+  // sent to a server, and it is stripped from the address bar as soon as it has been read.
+  useEffect(() => {
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const prefillEmail = hash.get('email');
+    const prefillPassword = hash.get('pw');
+    if (prefillEmail || prefillPassword) {
+      if (prefillEmail) setEmail(prefillEmail);
+      if (prefillPassword) setPassword(prefillPassword);
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      return;
+    }
+    // Offline demo front door (:7001) serves this; elsewhere it falls through to index.html and is ignored.
+    let cancelled = false;
+    fetch('/demo-login.json', { cache: 'no-store' })
+      .then((r) => (r.ok && (r.headers.get('content-type') ?? '').includes('json') ? r.json() : null))
+      .then((login: { email?: string; password?: string } | null) => {
+        if (cancelled || !login?.email) return;
+        setEmail((cur) => cur || login.email || '');
+        setPassword((cur) => cur || login.password || '');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const clearQueuedToasts = () => {
     dispatch(clearPendingToast());
