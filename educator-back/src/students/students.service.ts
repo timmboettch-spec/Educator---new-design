@@ -1375,6 +1375,7 @@ export class StudentsService {
       description: simulation.description ?? '',
       avatarEnabled: simulation.avatarEnabled ?? false,
       avatarId: simulation.avatarId ?? null,
+      learnerLevel: simulation.learnerLevel || null,
       StartDate: assignment?.start_date ?? null,
       EndDate: assignment?.end_date ?? null,
       DueDate: assignment?.due_date ?? null,

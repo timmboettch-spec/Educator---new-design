@@ -64,6 +64,8 @@ export interface StudentSimulationSummary {
   };
   department?: string | null;
   productName?: string | null;
+  /** e.g. "Post-Secondary Nursing"; the student app labels its edition (Secondary / Post-Secondary) from it. */
+  learnerLevel?: string | null;
 }
 
 export type StudentSimulationResponse = BlobScenario & StudentSimulationSummary;
